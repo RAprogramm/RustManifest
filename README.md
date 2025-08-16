@@ -12,7 +12,7 @@
 > <summary><strong>More information</strong></summary>
 >
 > > 
-> > <pre><code>cargo +nightly fmt</code></pre>
+> > <pre><code>cargo +nightly fmt --</code></pre>
 > >
 > >
 > > <details>
@@ -29,6 +29,102 @@
 > > </details>
 > 
 > </details>
+
+<h3>1.1 .rustfmt.toml Configuration</h3>
+
+> [!TIP]
+>
+> <p>
+>   <strong>Use the following <code>.rustfmt.toml</code> configuration to ensure consistent formatting across the project.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>Configuration</strong></summary>
+>
+> ```toml
+> # Do not add trailing commas if there is only one element
+> trailing_comma = "Never"
+>
+> # Keep braces on the same line where possible
+> brace_style = "SameLineWhere"
+>
+> # Align struct fields if their length is below the threshold
+> struct_field_align_threshold = 20
+>
+> # Format comments inside documentation
+> wrap_comments = true
+> format_code_in_doc_comments = true
+>
+> # Do not collapse struct literals into a single line
+> struct_lit_single_line = false
+>
+> # Maximum line width
+> max_width = 99
+>
+> # Grouping imports
+> imports_granularity = "Crate"          # Group imports by crate
+> group_imports = "StdExternalCrate"     # Separate groups: std, external crates, local
+> reorder_imports = true                 # Sort imports within groups
+>
+> # Enable unstable features (nightly only)
+> unstable_features = true
+> ```
+>
+> </details>
+>
+> <details>
+> <summary><strong>Why is this important?</strong></summary>
+>
+> <p>
+> This configuration enforces clarity and consistency. It reduces unnecessary diffs in pull requests, makes code reviews easier, and ensures that both style and readability remain predictable across the team.
+> </p>
+>
+> <details>
+> <summary><strong>Examples &amp; Further Explanation</strong></summary>
+>
+> ### Example without configuration
+>
+> ```rust
+> use std::fmt; use std::io; use serde::Serialize;
+>
+> struct Person {name:String,age:u32}
+>
+> impl Person{
+>     pub fn new(name:String,age:u32)->Self{
+>         Self{name,age}
+>     }
+> }
+> ```
+>
+> ### Example with configuration
+>
+> ```rust
+> use std::{fmt, io};
+>
+> use serde::Serialize;
+>
+> struct Person {
+>     name: String,
+>     age:  u32,
+> }
+>
+> impl Person {
+>     pub fn new(name: String, age: u32) -> Self {
+>         Self {
+>             name,
+>             age,
+>         }
+>     }
+> }
+> ```
+>
+> <p>
+> Notice how the imports are grouped and sorted, struct fields are aligned for readability, and braces are consistently placed on the same line. This reduces noise in diffs and makes the codebase approachable for both newcomers and experienced contributors.
+> </p>
+> </details>
+>
+> </details>
+
 
 
 <h2>2. Naming Conventions</h2>
