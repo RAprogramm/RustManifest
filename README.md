@@ -299,6 +299,74 @@
 > 
 > </details>
 
-<p>
-  Following these guidelines ensures that our Rust code is high-quality, maintainable, and scalable.
+<h2>7. Testing & CI</h2>
+
+> [!IMPORTANT]
+>
+> <p>
+>   <strong>All commits must pass pre-commit checks. Tests, formatting, linting, and security scans are enforced both locally (via pre-commit hooks) and remotely (via CI).</strong>
+> </p>
+>
+> <details>
+> <summary><strong>More information</strong></summary>
+>
+> > - **Pre-commit Hooks**
+> >   - Installed via:  
+> >     <pre><code>cargo make install-hooks</code></pre>
+> >   - Automatically run before each commit:  
+> >     <pre><code>cargo +nightly fmt -- </code></pre> 
+> >     <pre><code> cargo clippy -D warnings  </code></pre>
+> >      <pre><code> cargo test --all</code></pre>
+> >   - Prevent committing unformatted code, warnings, or failing tests.  
+> >
+> > - **Unit Tests**
+> >   - Cover public functions and error cases.  
+> >   - Tests must not rely on <code>unwrap()</code> or <code>expect()</code>.  
+> >
+> > - **Integration Tests**
+> >   - Cover public API, placed in the <code>tests/</code> directory.  
+> >
+> > - **Doctests**
+> >   - All <code>///</code> examples must compile and pass with <code>cargo test --doc</code>.  
+> >
+> >
+> > <details>
+> > <summary><strong>Examples &amp; Further Explanation</strong></summary>
+> >
+> > ### Example Unit Test
+> >
+> > ```rust
+> > #[cfg(test)]
+> > mod tests {
+> >     use super::*;
+> >
+> >     #[test]
+> >     fn test_basic_math() {
+> >         assert_eq!(2 + 2, 4);
+> >     }
+> > }
+> > ```
+> >
+> > ### Example Integration Test
+> >
+> > ```rust
+> > // tests/config_tests.rs
+> > use my_crate::load_config;
+> >
+> > #[test]
+> > fn load_valid_config() {
+> >     let result = load_config("tests/data/valid.toml");
+> >     assert!(result.is_ok());
+> > }
+> > ```
+> >
+> > <p>
+> >   This workflow enforces correctness at every step: developers cannot commit broken code, and CI ensures nothing slips through at merge time.
+> > </p>
+> > </details>
+>
+> </details>
+
+<p align=center>
+  <em>Following these guidelines ensures that our Rust code is high-quality, maintainable, and scalable.</em>
 </p>
