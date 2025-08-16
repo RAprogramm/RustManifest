@@ -1,0 +1,12 @@
+[tasks.install-hooks]
+workspace = false
+description = "🔗 Установить git pre-commit хук из .hooks/"
+script_runner = "bash"
+script = [
+  'if [ ! -f .hooks/pre-commit ]; then echo "❌ .hooks/pre-commit не найден!"; exit 1; fi',
+  'echo "🔗 Linking .hooks/pre-commit to .git/hooks/pre-commit..."',
+  'mkdir -p .git/hooks',
+  'ln -sf ../../.hooks/pre-commit .git/hooks/pre-commit',
+  'chmod +x .hooks/pre-commit',
+  'echo "✅ pre-commit hook установлен."',
+]
