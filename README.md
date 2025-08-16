@@ -264,35 +264,7 @@
 > </details>
 
 
-<h2>6. GitHub Projects and Weekly Reports</h2>
-
-> [!NOTE]
->
-> <p>
->   <strong>Use GitHub Projects for task tracking and submit weekly reports.</strong>
-> </p>
->
-> <details>
-> <summary><strong>More information</strong></summary>
-> 
-> > - Use GitHub Projects to track tasks and milestones.
-> > - Each task must have a clear description, priority, and assignee.
-> > - Weekly reports must be submitted between Friday and Sunday.<br>
-> >   <a href="https://docs.google.com/forms/d/e/1FAIpQLScZOcUixej1cyRtmf1CC264Ylfk7tRHIGu-7Xq-9-X9TkfkxQ/viewform">Send weekly report</a>
-> > - The report should include completed tasks, ongoing work, and blockers.
-> >
-> >
-> > <details>
-> > <summary><strong>Why This Matters</strong></summary>
-> > <p>
-> >   Structured task tracking via GitHub Projects provides clarity and accountability. Regular weekly reports help identify progress and blockers early, facilitating better planning and resource allocation.
-> > </p>
-> > </details>
-> 
-> </details>
-
-
-<h2>7. Panics in Rust</h2>
+<h2>6. Panics in Rust</h2>
 
 > [!IMPORTANT]
 >
