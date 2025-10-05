@@ -199,34 +199,77 @@
 > 
 > </details>
 
-
 <h2>4. Branch Management</h2>
 
 > [!NOTE]
 >
 > <p>
->   <strong>Use a professional branching strategy to ensure efficient and conflict-free collaboration.</strong>
+>   <strong>Each branch, commit, and PR must correspond directly to a GitHub Issue number. This ensures automatic linking, clean history, and full traceability.</strong>
 > </p>
 >
 > <details>
 > <summary><strong>More information</strong></summary>
-> 
-> > - **Check Existing Branches:** Review current active branches to work on the latest relevant code.
-> > - **Clarify When in Doubt:** If unsure, confirm the correct branch via team chat or project guidelines to avoid conflicts.
-> > - **Create a Descriptive Branch:** Name branches clearly, e.g., <code>feature/123-add-user-authentication</code> or <code>bugfix/456-fix-crash-on-login</code>.
-> > - **Commit and Push Regularly:** Commit with clear messages and push frequently to back up work and keep the team informed.
-> > - **Create a Pull Request (PR):** Open a PR from your branch with clear issue references to provide context for reviewers.
-> > - **Clean Up After Merge:** Delete merged branches to maintain a tidy repository.
-> > - **Minimize Excessive Communication:** Use clear branch names, detailed commits, and well-documented PRs to reduce the need for frequent ad hoc discussions.
+>
+> > - **Create a Branch Named Only by Issue Number:**  
+> >   Each branch name must be exactly the Issue number.  
+> >   Example:  
+> >   ```bash
+> >   git checkout -b 123
+> >   ```
+> >
+> > - **Use Auto-Linking in Commits:**  
+> >   To make GitHub automatically link commits to Issues, always start the commit message with `#` followed by the Issue number and a space.  
+> >   Example:  
+> >   ```bash
+> >   #123 implement login session restore  
+> >   #123 fix null pointer in user handler
+> >   ```
+> >
+> > - **Pull Request Title = Branch Name:**  
+> >   The PR title must be the same as the branch name (just the Issue number).  
+> >   Example:  
+> >   ```
+> >   123
+> >   ```
+> >
+> > - **Add an Auto-Close Reference:**  
+> >   In the PR description, always include:  
+> >   ```
+> >   Closes #123
+> >   ```
+> >   This automatically closes the Issue when the PR is merged.
+> >
+> > - **Clean Up After Merge:**  
+> >   Enable “Delete branch on merge” in repository settings, so merged branches are automatically removed.  
+> >   The chain Issue → Branch → Commits → PR → Merge remains fully linked.
+> >
+> > - **Keep the Repository Clean:**  
+> >   Every branch must correspond to an active Issue.  
+> >   No orphaned or experimental branches should remain after merge.
 > >
 > >
 > > <details>
-> > <summary><strong>Real-World Example &amp; Further Explanation</strong></summary>
+> > <summary><strong>Real-World Example &amp; Explanation</strong></summary>
 > > <p>
-> >   For example, if you start work on a new feature, check existing branches to avoid duplicating work. If uncertain, ask in the team channel or check the project topic. Once confirmed, create a branch like <code>feature/123-add-user-authentication</code>, commit changes with detailed messages, and open a PR referencing the issue number. This method reduces unnecessary phone calls and streamlines collaboration.
+> >   Suppose you are assigned Issue <code>#123</code> to fix a login session bug.  
+> >   You create a branch named <code>123</code> and start committing with messages like:
 > > </p>
+> >
+> >   <pre>
+> >   #123 implement login session restore  
+> >   #123 add retry logic for session token refresh  
+> >   </pre>
+> >
+> >   Then you open a PR titled <code>123</code> with the description:
+> >
+> >   <pre>
+> >   Closes #123
+> >   </pre>
+> >
+> >   When the PR is merged, GitHub automatically closes Issue #123, deletes the branch, and shows all related commits in the Issue timeline.
+> >   This creates a perfectly traceable and automated workflow with minimal manual steps.
 > > </details>
-> 
+>
 > </details>
 
 
