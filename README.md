@@ -410,6 +410,116 @@
 >
 > </details>
 
+<h2>8. Code Documentation (No Inline Comments)</h2>
+
+> [!NOTE]
+>
+> <p>
+>   <strong>No inline code comments. All explanations live in docblocks attached to modules, structs, enums, traits, functions, and methods.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>More information</strong></summary>
+>
+> > - **No line comments in code:**  
+> >   Avoid `// ...` and `/* ... */` for explanations of behavior, intent, or invariants. Keep code clean and self-explanatory.
+> >
+> > - **Use Rust doc comments consistently:**  
+> >   - Crate/module: use <code>//!</code> at the top of <code>lib.rs</code> or module files for module-level docs.  
+> >   - Items (structs, enums, traits, fns, methods): use <code>///</code> on the item.
+> >
+> > - **Structure docblocks for IDEs and LSPs:**  
+> >   Use headings Rustdoc understands so hovers and Treesitter outlines are stable and rich:
+> >   - <code># Overview</code> short purpose
+> >   - <code># Examples</code> minimal, compilable samples
+> >   - <code># Errors</code> precise failure modes for <code>Result</code>
+> >   - <code># Panics</code> only if unavoidable (should be rare)
+> >   - <code># Safety</code> if <code>unsafe</code> is used (shouldn’t be)
+> >   - <code># Performance</code> if complexity or allocations matter
+> >
+> > - **Write for other engineers:**  
+> >   Be explicit about contracts, inputs, outputs, invariants, and edge cases. Keep examples runnable. Prefer clarity over cleverness.
+> >
+> > - **Keep docs close to code:**  
+> >   Update docblocks with code changes in the same PR. Out-of-date docs are worse than none.
+> >
+> >
+> > <details>
+> > <summary><strong>Correct vs Incorrect (Rust)</strong></summary>
+> >
+> > **Incorrect (inline comments that won’t surface in hovers):**
+> >
+> > ```rust
+> > // Calculates checksum and validates header
+> > // Returns Err if invalid
+> > pub fn verify(pkt: &Packet) -> Result<(), VerifyError> {
+> >     // fast path
+> >     if pkt.header.len() < MIN {
+> >         return Err(VerifyError::TooShort);
+> >     }
+> >     // slow path...
+> >     Ok(())
+> > }
+> > ```
+> >
+> > **Correct (docblocks; IDE hover shows the contract):**
+> >
+> > ```rust
+> > /// # Overview
+> > /// Verifies packet header and payload consistency.
+> > ///
+> > /// # Examples
+> > /// ```
+> > /// # use mynet::{Packet, verify};
+> > /// # fn demo(mut p: Packet) {
+> > /// #   // prepare p...
+> > /// #   let _ = verify(&p).unwrap();
+> > /// # }
+> > /// ```
+> > ///
+> > /// # Errors
+> > /// - `VerifyError::TooShort` when header is smaller than the required minimum.
+> > /// - `VerifyError::ChecksumMismatch` when computed checksum differs.
+> > pub fn verify(pkt: &Packet) -> Result<(), VerifyError> {
+> >     if pkt.header.len() < MIN {
+> >         return Err(VerifyError::TooShort);
+> >     }
+> >     // internal micro-notes for maintainers are allowed if they aid refactoring
+> >     // (but not to explain business logic). Keep them brief.
+> >     Ok(())
+> > }
+> > ```
+> >
+> > **Module-level docs instead of a comment banner:**
+> >
+> > ```rust
+> > //! Cryptographic key management and signing primitives.
+> > //!
+> > //! Provides deterministic ECDSA with explicit domain separation.
+> > //!
+> > //! # Examples
+> > //! ```
+> > //! # use keys::{Keypair, Signer};
+> > //! # fn demo() {
+> > //! #   let kp = Keypair::generate();
+> > //! #   let sig = kp.sign(b"payload");
+> > //! #   assert!(kp.verify(b"payload", &sig).is_ok());
+> > //! # }
+> > //! ```
+> > pub mod crypto { /* ... */ }
+> > ```
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Real-World Rationale</strong></summary>
+> > <p>
+> >   This policy ensures stable IDE/LSP hovers, better Treesitter outlines, and reliable navigation. Engineers see contracts immediately, CI can lint docs, and examples stay compilable. Code remains clean while documentation remains discoverable and accurate.
+> > </p>
+> > </details>
+>
+> </details>
+
+
 <p align=center>
   <em>Following these guidelines ensures that our Rust code is high-quality, maintainable, and scalable.</em>
 </p>
