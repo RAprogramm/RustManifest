@@ -105,14 +105,14 @@
 >
 > struct Person {
 >     name: String,
->     age:  u32,
+>     age:  u32
 > }
 >
 > impl Person {
 >     pub fn new(name: String, age: u32) -> Self {
 >         Self {
 >             name,
->             age,
+>             age
 >         }
 >     }
 > }
