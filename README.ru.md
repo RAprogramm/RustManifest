@@ -797,6 +797,289 @@
 >
 > </details>
 
+<h2>11. CI/CD Архитектура: Один Workflow, Много Jobs</h2>
+
+> [!IMPORTANT]
+>
+> <p>
+>   <strong>Используйте один файл CI workflow с множеством jobs вместо множества отдельных workflow файлов. Это обеспечивает лучший контроль, видимость и управление ресурсами.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>Подробнее</strong></summary>
+>
+> > **Проблемы множества Workflows:**
+> > - Нет способа синхронизировать jobs между разными workflows
+> > - Нельзя определить зависимости (Job C запускается после Job A и B)
+> > - Сложнее управлять конкурентностью и отменой
+> > - Дублирование конфигурации триггеров между файлами
+> > - Распределённая логика CI усложняет отладку
+> > - Множество запусков workflow на один коммит тратят больше ресурсов
+> >
+> > **Решение: Один Workflow с множеством Jobs**
+> >
+> > 1. **Один файл workflow** содержит всю CI/CD логику
+> > 2. **Jobs** обрабатывают разные задачи (тест, сборка, деплой)
+> > 3. **`needs`** определяет зависимости между jobs
+> > 4. **Reusable workflows** (`_*.yml`) извлекают общие паттерны
+> > 5. **Concurrency groups** предотвращают дублирование запусков
+> >
+> > <details>
+> > <summary><strong>Архитектурный паттерн</strong></summary>
+> >
+> > ```
+> > .github/workflows/
+> > ├── ci.yml                    # Главный CI workflow (триггерится на push/PR)
+> > ├── _build-service.yml        # Reusable: сборка Docker образа
+> > ├── _deploy-service.yml       # Reusable: деплой в k8s
+> > └── _quality-check.yml        # Reusable: запуск тестов/линтеров
+> > ```
+> >
+> > **Ключевой принцип:** Файлы начинающиеся с `_` - это reusable workflows, вызываемые через `uses:`. Только `ci.yml` определяет триггеры.
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Зависимости Jobs с `needs`</strong></summary>
+> >
+> > ```yaml
+> > jobs:
+> >   detect-changes:
+> >     runs-on: ubuntu-latest
+> >     outputs:
+> >       api: ${{ steps.filter.outputs.api }}
+> >       client: ${{ steps.filter.outputs.client }}
+> >
+> >   quality-check:
+> >     needs: [detect-changes]
+> >     if: needs.detect-changes.outputs.api == 'true'
+> >
+> >   build-api:
+> >     needs: [detect-changes, quality-check]
+> >     if: |
+> >       always() &&
+> >       needs.detect-changes.outputs.api == 'true' &&
+> >       needs.quality-check.result == 'success'
+> >
+> >   deploy-api:
+> >     needs: [build-api]
+> >     if: needs.build-api.result == 'success'
+> > ```
+> >
+> > **Ключевые моменты:**
+> > - `needs` создаёт цепочку зависимостей
+> > - Jobs выполняются параллельно, если `needs` не задаёт порядок
+> > - Используйте `if: always()` для запуска даже если зависимости были пропущены
+> > - Проверяйте `needs.<job>.result` для условного выполнения
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Контроль конкурентности</strong></summary>
+> >
+> > ```yaml
+> > name: CI/CD Pipeline
+> >
+> > on:
+> >   push:
+> >     branches: [main]
+> >   pull_request:
+> >
+> > concurrency:
+> >   group: ci-${{ github.ref }}
+> >   cancel-in-progress: true
+> > ```
+> >
+> > **Что это делает:**
+> > - Группирует запуски по ветке/PR (`github.ref`)
+> > - Новый push отменяет предыдущий запущенный workflow
+> > - Предотвращает трату ресурсов на устаревшие коммиты
+> > - Только один активный запуск на ветку в момент времени
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Reusable Workflows</strong></summary>
+> >
+> > **Основной workflow вызывает reusable:**
+> > ```yaml
+> > # ci.yml
+> > jobs:
+> >   build-api:
+> >     uses: ./.github/workflows/_build-service.yml
+> >     with:
+> >       service_name: api-server
+> >       dockerfile: ./api-server/Dockerfile
+> >     secrets:
+> >       registry_token: ${{ secrets.REGISTRY_TOKEN }}
+> > ```
+> >
+> > **Определение reusable workflow:**
+> > ```yaml
+> > # _build-service.yml
+> > name: Build Service
+> >
+> > on:
+> >   workflow_call:
+> >     inputs:
+> >       service_name:
+> >         required: true
+> >         type: string
+> >       dockerfile:
+> >         required: true
+> >         type: string
+> >     secrets:
+> >       registry_token:
+> >         required: true
+> >     outputs:
+> >       image_tag:
+> >         value: ${{ jobs.build.outputs.tag }}
+> >
+> > jobs:
+> >   build:
+> >     runs-on: ubuntu-latest
+> >     outputs:
+> >       tag: ${{ steps.meta.outputs.tag }}
+> >     steps:
+> >       # ... логика сборки
+> > ```
+> >
+> > **Преимущества:**
+> > - DRY: одна логика сборки для всех сервисов
+> > - Inputs/outputs для конфигурации
+> > - Секреты передаются явно (безопасность)
+> > - Легко обновить в одном месте
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Независимые сборки сервисов</strong></summary>
+> >
+> > ```yaml
+> > jobs:
+> >   build-api:
+> >     needs: [detect-changes, quality-api]
+> >     if: needs.detect-changes.outputs.api == 'true'
+> >     uses: ./.github/workflows/_build-service.yml
+> >
+> >   build-client:
+> >     needs: [detect-changes, quality-client]
+> >     if: needs.detect-changes.outputs.client == 'true'
+> >     uses: ./.github/workflows/_build-service.yml
+> >
+> >   deploy-api:
+> >     needs: [build-api]  # Зависит только от своей сборки
+> >     if: needs.build-api.result == 'success'
+> >
+> >   deploy-client:
+> >     needs: [build-client]  # Независим от api
+> >     if: needs.build-client.result == 'success'
+> > ```
+> >
+> > **Ключевой принцип:** Деплой каждого сервиса зависит только от своей сборки, не от других сервисов. Если сборка api-server падает, client всё равно может задеплоиться.
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Чего НЕ делать</strong></summary>
+> >
+> > **Не создавайте отдельные файлы workflow для каждой задачи:**
+> > ```
+> > # ПЛОХО - синхронизация невозможна
+> > .github/workflows/
+> > ├── test.yml
+> > ├── build-api.yml
+> > ├── build-client.yml
+> > ├── deploy-api.yml
+> > ├── deploy-client.yml
+> > └── cleanup.yml
+> > ```
+> >
+> > **Не делайте все деплои зависимыми от всех сборок:**
+> > ```yaml
+> > # ПЛОХО - client ждёт api даже если не связаны
+> > deploy-client:
+> >   needs: [build-api, build-client, build-worker]
+> > ```
+> >
+> > **Не пропускайте контроль конкурентности:**
+> > ```yaml
+> > # ПЛОХО - множество запусков тратят ресурсы
+> > on:
+> >   push:
+> >     branches: [main]
+> > # Отсутствует: concurrency group
+> > ```
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Полный пример структуры</strong></summary>
+> >
+> > ```yaml
+> > name: CI/CD Pipeline
+> >
+> > on:
+> >   push:
+> >     branches: [main]
+> >   workflow_dispatch:
+> >     inputs:
+> >       deploy_all:
+> >         type: boolean
+> >         default: false
+> >
+> > concurrency:
+> >   group: ci-${{ github.ref }}
+> >   cancel-in-progress: true
+> >
+> > jobs:
+> >   # 1. Определяем что изменилось
+> >   detect-changes:
+> >     runs-on: ubuntu-latest
+> >     outputs:
+> >       api: ${{ steps.filter.outputs.api }}
+> >       client: ${{ steps.filter.outputs.client }}
+> >     steps:
+> >       - uses: dorny/paths-filter@v3
+> >         id: filter
+> >         with:
+> >           filters: |
+> >             api:
+> >               - 'api-server/**'
+> >             client:
+> >               - 'client/**'
+> >
+> >   # 2. Quality gates (параллельно)
+> >   quality-api:
+> >     needs: [detect-changes]
+> >     if: needs.detect-changes.outputs.api == 'true'
+> >     uses: ./.github/workflows/_quality-check.yml
+> >
+> >   quality-client:
+> >     needs: [detect-changes]
+> >     if: needs.detect-changes.outputs.client == 'true'
+> >     uses: ./.github/workflows/_quality-check.yml
+> >
+> >   # 3. Сборка (после quality)
+> >   build-api:
+> >     needs: [detect-changes, quality-api]
+> >     if: needs.quality-api.result == 'success'
+> >     uses: ./.github/workflows/_build-service.yml
+> >
+> >   build-client:
+> >     needs: [detect-changes, quality-client]
+> >     if: needs.quality-client.result == 'success'
+> >     uses: ./.github/workflows/_build-service.yml
+> >
+> >   # 4. Деплой (независимо для каждого сервиса)
+> >   deploy-api:
+> >     needs: [build-api]
+> >     if: needs.build-api.result == 'success'
+> >     uses: ./.github/workflows/_deploy-service.yml
+> >
+> >   deploy-client:
+> >     needs: [build-client]
+> >     if: needs.build-client.result == 'success'
+> >     uses: ./.github/workflows/_deploy-service.yml
+> > ```
+> > </details>
+>
+> </details>
+
 <p align=center>
   <em>Следование этим рекомендациям гарантирует, что наш Rust код будет высококачественным, поддерживаемым и масштабируемым.</em>
 </p>
