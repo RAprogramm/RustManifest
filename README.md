@@ -797,7 +797,256 @@
 >
 > </details>
 
-<h2>11. CI/CD Architecture: Single Workflow, Multiple Jobs</h2>
+<h2>11. Advanced CI Quality Gates</h2>
+
+> [!TIP]
+>
+> <p>
+>   <strong>Beyond basic tests and lints, professional Rust projects should include license compliance, API stability, MSRV verification, and dependency auditing in CI.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>More information</strong></summary>
+>
+> > | Tool | Purpose | When to Use |
+> > |------|---------|-------------|
+> > | `cargo-deny` | License compliance, duplicate deps, security advisories | Any project with dependencies |
+> > | `cargo-semver-checks` | Detect breaking API changes | Libraries published to crates.io |
+> > | MSRV check | Verify minimum supported Rust version | Projects with `rust-version` in Cargo.toml |
+> > | `cargo-machete` | Find unused dependencies | Reduce bloat, faster builds |
+> > | Doctests | Verify documentation examples compile | Projects with `///` doc comments |
+> >
+> > <details>
+> > <summary><strong>cargo-deny: License & Security</strong></summary>
+> >
+> > **Installation:**
+> > ```bash
+> > cargo install cargo-deny
+> > ```
+> >
+> > **Configuration (`deny.toml`):**
+> > ```toml
+> > [advisories]
+> > db-path = "~/.cargo/advisory-db"
+> > vulnerability = "deny"
+> > unmaintained = "warn"
+> > yanked = "deny"
+> >
+> > [licenses]
+> > allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib"]
+> > copyleft = "deny"
+> > unlicensed = "deny"
+> >
+> > [bans]
+> > multiple-versions = "warn"
+> > wildcards = "deny"
+> >
+> > [sources]
+> > unknown-registry = "deny"
+> > unknown-git = "deny"
+> > ```
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - name: Check licenses and advisories
+> >   run: cargo deny check
+> > ```
+> >
+> > **Why it matters:**
+> > - Prevents accidental GPL/AGPL dependencies in MIT projects
+> > - Catches known security vulnerabilities (RustSec)
+> > - Warns about duplicate dependency versions (bloat)
+> > </details>
+> >
+> > <details>
+> > <summary><strong>cargo-semver-checks: API Stability</strong></summary>
+> >
+> > **Installation:**
+> > ```bash
+> > cargo install cargo-semver-checks
+> > ```
+> >
+> > **Usage:**
+> > ```bash
+> > # Compare against last published version
+> > cargo semver-checks check-release
+> >
+> > # Compare against specific version
+> > cargo semver-checks check-release --baseline-version 1.2.0
+> > ```
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - name: Check semver compliance
+> >   if: github.event_name == 'pull_request'
+> >   run: |
+> >     cargo install cargo-semver-checks
+> >     cargo semver-checks check-release
+> > ```
+> >
+> > **What it catches:**
+> > - Removing public functions/types (breaking)
+> > - Changing function signatures (breaking)
+> > - Adding required fields to structs (breaking)
+> > - Changing enum variants (breaking)
+> >
+> > **When to use:** Any library published to crates.io where users depend on your API.
+> > </details>
+> >
+> > <details>
+> > <summary><strong>MSRV Check: Minimum Supported Rust Version</strong></summary>
+> >
+> > **In Cargo.toml:**
+> > ```toml
+> > [package]
+> > rust-version = "1.83"  # MSRV
+> > edition = "2024"
+> > ```
+> >
+> > **CI Integration:**
+> > ```yaml
+> > jobs:
+> >   msrv:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - name: Extract MSRV
+> >         id: msrv
+> >         run: |
+> >           MSRV=$(grep '^rust-version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+> >           echo "version=$MSRV" >> $GITHUB_OUTPUT
+> >       - uses: dtolnay/rust-toolchain@master
+> >         with:
+> >           toolchain: ${{ steps.msrv.outputs.version }}
+> >       - run: cargo check --all-features
+> > ```
+> >
+> > **Why it matters:**
+> > - Edition 2024 requires Rust 1.85+
+> > - Users on older Rust versions get clear errors
+> > - Prevents accidental use of newer features
+> > </details>
+> >
+> > <details>
+> > <summary><strong>cargo-machete: Unused Dependencies</strong></summary>
+> >
+> > **Installation:**
+> > ```bash
+> > cargo install cargo-machete
+> > ```
+> >
+> > **Usage:**
+> > ```bash
+> > cargo machete
+> > ```
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - name: Check for unused dependencies
+> >   run: |
+> >     cargo install cargo-machete
+> >     cargo machete
+> > ```
+> >
+> > **Benefits:**
+> > - Faster compile times
+> > - Smaller binary size
+> > - Reduced attack surface
+> > - Cleaner dependency tree
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Doctests: Documentation Examples</strong></summary>
+> >
+> > **Run doctests explicitly:**
+> > ```bash
+> > cargo test --doc
+> > ```
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - name: Run doctests
+> >   run: cargo test --doc --all-features
+> > ```
+> >
+> > **Example doctest:**
+> > ```rust
+> > /// Calculates the sum of two numbers.
+> > ///
+> > /// # Examples
+> > ///
+> > /// ```
+> > /// use mylib::add;
+> > /// assert_eq!(add(2, 3), 5);
+> > /// ```
+> > pub fn add(a: i32, b: i32) -> i32 {
+> >     a + b
+> > }
+> > ```
+> >
+> > **Why separate doctests:**
+> > - `cargo test` runs unit + integration + doc tests together
+> > - Doctests often need different feature flags
+> > - Faster feedback when docs change but code doesn't
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Complete CI Quality Gate</strong></summary>
+> >
+> > ```yaml
+> > jobs:
+> >   quality:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - uses: dtolnay/rust-toolchain@stable
+> >         with:
+> >           components: clippy, rustfmt
+> >
+> >       - name: Format check
+> >         run: cargo +nightly fmt -- --check
+> >
+> >       - name: Clippy
+> >         run: cargo clippy --all-targets -- -D warnings
+> >
+> >       - name: Tests
+> >         run: cargo test --all-features
+> >
+> >       - name: Doctests
+> >         run: cargo test --doc --all-features
+> >
+> >       - name: Unused dependencies
+> >         run: |
+> >           cargo install cargo-machete
+> >           cargo machete
+> >
+> >       - name: License & security
+> >         run: |
+> >           cargo install cargo-deny
+> >           cargo deny check
+> >
+> >   msrv:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - uses: dtolnay/rust-toolchain@1.83.0
+> >       - run: cargo check --all-features
+> >
+> >   semver:
+> >     if: github.event_name == 'pull_request'
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - uses: dtolnay/rust-toolchain@stable
+> >       - run: |
+> >           cargo install cargo-semver-checks
+> >           cargo semver-checks check-release
+> > ```
+> > </details>
+>
+> </details>
+
+<h2>12. CI/CD Architecture: Single Workflow, Multiple Jobs</h2>
 
 > [!IMPORTANT]
 >

@@ -797,7 +797,256 @@
 >
 > </details>
 
-<h2>11. CI/CD Архитектура: Один Workflow, Много Jobs</h2>
+<h2>11. Продвинутые Quality Gates в CI</h2>
+
+> [!TIP]
+>
+> <p>
+>   <strong>Помимо базовых тестов и линтеров, профессиональные Rust проекты должны включать проверку лицензий, стабильности API, MSRV и аудит зависимостей в CI.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>Подробнее</strong></summary>
+>
+> > | Инструмент | Назначение | Когда использовать |
+> > |------------|------------|-------------------|
+> > | `cargo-deny` | Соответствие лицензий, дублирующиеся зависимости, security advisories | Любой проект с зависимостями |
+> > | `cargo-semver-checks` | Обнаружение ломающих изменений API | Библиотеки публикуемые на crates.io |
+> > | MSRV check | Проверка минимальной поддерживаемой версии Rust | Проекты с `rust-version` в Cargo.toml |
+> > | `cargo-machete` | Поиск неиспользуемых зависимостей | Уменьшение bloat, быстрее сборка |
+> > | Doctests | Проверка компилируемости примеров в документации | Проекты с `///` doc комментариями |
+> >
+> > <details>
+> > <summary><strong>cargo-deny: Лицензии и безопасность</strong></summary>
+> >
+> > **Установка:**
+> > ```bash
+> > cargo install cargo-deny
+> > ```
+> >
+> > **Конфигурация (`deny.toml`):**
+> > ```toml
+> > [advisories]
+> > db-path = "~/.cargo/advisory-db"
+> > vulnerability = "deny"
+> > unmaintained = "warn"
+> > yanked = "deny"
+> >
+> > [licenses]
+> > allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib"]
+> > copyleft = "deny"
+> > unlicensed = "deny"
+> >
+> > [bans]
+> > multiple-versions = "warn"
+> > wildcards = "deny"
+> >
+> > [sources]
+> > unknown-registry = "deny"
+> > unknown-git = "deny"
+> > ```
+> >
+> > **Интеграция в CI:**
+> > ```yaml
+> > - name: Check licenses and advisories
+> >   run: cargo deny check
+> > ```
+> >
+> > **Почему это важно:**
+> > - Предотвращает случайные GPL/AGPL зависимости в MIT проектах
+> > - Ловит известные уязвимости (RustSec)
+> > - Предупреждает о дублирующихся версиях зависимостей (bloat)
+> > </details>
+> >
+> > <details>
+> > <summary><strong>cargo-semver-checks: Стабильность API</strong></summary>
+> >
+> > **Установка:**
+> > ```bash
+> > cargo install cargo-semver-checks
+> > ```
+> >
+> > **Использование:**
+> > ```bash
+> > # Сравнение с последней опубликованной версией
+> > cargo semver-checks check-release
+> >
+> > # Сравнение с конкретной версией
+> > cargo semver-checks check-release --baseline-version 1.2.0
+> > ```
+> >
+> > **Интеграция в CI:**
+> > ```yaml
+> > - name: Check semver compliance
+> >   if: github.event_name == 'pull_request'
+> >   run: |
+> >     cargo install cargo-semver-checks
+> >     cargo semver-checks check-release
+> > ```
+> >
+> > **Что отлавливает:**
+> > - Удаление публичных функций/типов (breaking)
+> > - Изменение сигнатур функций (breaking)
+> > - Добавление обязательных полей в структуры (breaking)
+> > - Изменение вариантов enum (breaking)
+> >
+> > **Когда использовать:** Любая библиотека публикуемая на crates.io, от API которой зависят пользователи.
+> > </details>
+> >
+> > <details>
+> > <summary><strong>MSRV Check: Минимальная поддерживаемая версия Rust</strong></summary>
+> >
+> > **В Cargo.toml:**
+> > ```toml
+> > [package]
+> > rust-version = "1.83"  # MSRV
+> > edition = "2024"
+> > ```
+> >
+> > **Интеграция в CI:**
+> > ```yaml
+> > jobs:
+> >   msrv:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - name: Extract MSRV
+> >         id: msrv
+> >         run: |
+> >           MSRV=$(grep '^rust-version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+> >           echo "version=$MSRV" >> $GITHUB_OUTPUT
+> >       - uses: dtolnay/rust-toolchain@master
+> >         with:
+> >           toolchain: ${{ steps.msrv.outputs.version }}
+> >       - run: cargo check --all-features
+> > ```
+> >
+> > **Почему это важно:**
+> > - Edition 2024 требует Rust 1.85+
+> > - Пользователи на старых версиях Rust получают понятные ошибки
+> > - Предотвращает случайное использование новых фич
+> > </details>
+> >
+> > <details>
+> > <summary><strong>cargo-machete: Неиспользуемые зависимости</strong></summary>
+> >
+> > **Установка:**
+> > ```bash
+> > cargo install cargo-machete
+> > ```
+> >
+> > **Использование:**
+> > ```bash
+> > cargo machete
+> > ```
+> >
+> > **Интеграция в CI:**
+> > ```yaml
+> > - name: Check for unused dependencies
+> >   run: |
+> >     cargo install cargo-machete
+> >     cargo machete
+> > ```
+> >
+> > **Преимущества:**
+> > - Быстрее время компиляции
+> > - Меньше размер бинарника
+> > - Уменьшенная поверхность атаки
+> > - Чище дерево зависимостей
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Doctests: Примеры в документации</strong></summary>
+> >
+> > **Запуск doctests явно:**
+> > ```bash
+> > cargo test --doc
+> > ```
+> >
+> > **Интеграция в CI:**
+> > ```yaml
+> > - name: Run doctests
+> >   run: cargo test --doc --all-features
+> > ```
+> >
+> > **Пример doctest:**
+> > ```rust
+> > /// Вычисляет сумму двух чисел.
+> > ///
+> > /// # Examples
+> > ///
+> > /// ```
+> > /// use mylib::add;
+> > /// assert_eq!(add(2, 3), 5);
+> > /// ```
+> > pub fn add(a: i32, b: i32) -> i32 {
+> >     a + b
+> > }
+> > ```
+> >
+> > **Зачем отдельные doctests:**
+> > - `cargo test` запускает unit + integration + doc тесты вместе
+> > - Doctests часто требуют другие feature flags
+> > - Быстрее фидбек когда меняется документация, но не код
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Полный Quality Gate в CI</strong></summary>
+> >
+> > ```yaml
+> > jobs:
+> >   quality:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - uses: dtolnay/rust-toolchain@stable
+> >         with:
+> >           components: clippy, rustfmt
+> >
+> >       - name: Format check
+> >         run: cargo +nightly fmt -- --check
+> >
+> >       - name: Clippy
+> >         run: cargo clippy --all-targets -- -D warnings
+> >
+> >       - name: Tests
+> >         run: cargo test --all-features
+> >
+> >       - name: Doctests
+> >         run: cargo test --doc --all-features
+> >
+> >       - name: Unused dependencies
+> >         run: |
+> >           cargo install cargo-machete
+> >           cargo machete
+> >
+> >       - name: License & security
+> >         run: |
+> >           cargo install cargo-deny
+> >           cargo deny check
+> >
+> >   msrv:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - uses: dtolnay/rust-toolchain@1.83.0
+> >       - run: cargo check --all-features
+> >
+> >   semver:
+> >     if: github.event_name == 'pull_request'
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >       - uses: dtolnay/rust-toolchain@stable
+> >       - run: |
+> >           cargo install cargo-semver-checks
+> >           cargo semver-checks check-release
+> > ```
+> > </details>
+>
+> </details>
+
+<h2>12. CI/CD Архитектура: Один Workflow, Много Jobs</h2>
 
 > [!IMPORTANT]
 >
