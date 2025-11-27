@@ -1,16 +1,21 @@
 # Finding Security Vulnerabilities
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ## Table of Contents
 1. [Authentication and Authorization](#authentication-and-authorization)
 2. [Cryptography](#cryptography)
 3. [Injections](#injections)
-4. [Data Validation](#data-validation)
-5. [Information Leaks](#information-leaks)
-6. [Availability Attacks](#availability-attacks)
+4. [Database Security](#database-security)
+5. [Data Validation](#data-validation)
+6. [Information Leaks](#information-leaks)
+7. [Availability Attacks](#availability-attacks)
 
 ---
 
 ## Authentication and Authorization
+
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. Replay Attack
 
@@ -154,6 +159,8 @@ async fn login(username: &str, password: &str, ip: IpAddr) -> Result<Token> {
 
 ## Cryptography
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ### 1. Using Weak Algorithms
 
 **What to look for:**
@@ -246,6 +253,8 @@ let mac = HmacSha256::new_from_slice(&secret).ok()?;
 
 ## Injections
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ### 1. SQL Injection
 
 **What to look for:**
@@ -332,7 +341,353 @@ fn is_valid_filename(name: &str) -> bool {
 
 ---
 
+## Database Security
+
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
+> **Automated Analysis:** Use [sql-query-analyzer](https://github.com/RAprogramm/sql-query-analyzer) for static analysis of SQL queries with 18 built-in security and performance rules.
+
+### Static Analysis with sql-query-analyzer
+
+**Installation:**
+```bash
+cargo install sql-query-analyzer
+```
+
+**Local usage:**
+```bash
+sql-query-analyzer analyze -s schema.sql -q queries.sql --format text
+```
+
+**GitHub Actions integration:**
+```yaml
+- name: SQL Query Analysis
+  uses: RAprogramm/sql-query-analyzer@v1
+  with:
+    schema: db/schema.sql
+    queries: db/queries.sql
+    fail-on-error: 'true'
+    post-comment: 'true'
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+---
+
+### Security Rules
+
+#### SEC001: UPDATE without WHERE
+
+**Severity:** Error
+
+**What to look for:**
+```bash
+rg "UPDATE.*SET" --type rust
+rg "UPDATE.*SET" --type sql
+```
+
+**Vulnerability example:**
+```sql
+-- DANGEROUS: affects ALL rows in the table
+UPDATE users SET status = 'inactive';
+```
+
+**Correct:**
+```sql
+-- SAFE: explicit condition
+UPDATE users SET status = 'inactive' WHERE last_login < '2024-01-01';
+```
+
+---
+
+#### SEC002: DELETE without WHERE
+
+**Severity:** Error
+
+**What to look for:**
+```bash
+rg "DELETE FROM" --type rust
+rg "DELETE FROM" --type sql
+```
+
+**Vulnerability example:**
+```sql
+-- DANGEROUS: deletes ALL rows
+DELETE FROM sessions;
+```
+
+**Correct:**
+```sql
+-- SAFE: explicit condition
+DELETE FROM sessions WHERE expired_at < NOW();
+```
+
+---
+
+### Performance Rules (Security Impact)
+
+#### PERF001: SELECT * without LIMIT
+
+**Severity:** Warning
+
+**Security impact:** Can cause DOS through memory exhaustion
+
+**Vulnerability example:**
+```sql
+-- CAN CAUSE OOM on large tables
+SELECT * FROM logs;
+```
+
+**Correct:**
+```sql
+-- SAFE: bounded result set
+SELECT * FROM logs LIMIT 1000;
+-- OR: specific columns
+SELECT id, message, created_at FROM logs LIMIT 1000;
+```
+
+---
+
+#### PERF002: Leading Wildcard in LIKE
+
+**Severity:** Warning
+
+**Security impact:** Prevents index usage, enables DOS through slow queries
+
+**Vulnerability example:**
+```sql
+-- SLOW: full table scan, no index usage
+SELECT * FROM users WHERE email LIKE '%@gmail.com';
+```
+
+**Correct:**
+```sql
+-- BETTER: use suffix column or full-text search
+SELECT * FROM users WHERE email_domain = 'gmail.com';
+```
+
+---
+
+#### PERF004: Large OFFSET Values
+
+**Severity:** Warning
+
+**Security impact:** Performance degradation, DOS vector
+
+**Vulnerability example:**
+```sql
+-- SLOW: database must scan and skip 100000 rows
+SELECT * FROM products ORDER BY id LIMIT 10 OFFSET 100000;
+```
+
+**Correct:**
+```sql
+-- FAST: keyset pagination
+SELECT * FROM products WHERE id > 100000 ORDER BY id LIMIT 10;
+```
+
+---
+
+#### PERF005: Cartesian Product
+
+**Severity:** Error
+
+**Security impact:** Exponential result size, memory exhaustion
+
+**Vulnerability example:**
+```sql
+-- DANGEROUS: returns rows_a * rows_b results
+SELECT * FROM users, orders;
+```
+
+**Correct:**
+```sql
+-- SAFE: explicit join condition
+SELECT * FROM users
+JOIN orders ON users.id = orders.user_id;
+```
+
+---
+
+#### PERF007: Scalar Subquery in SELECT
+
+**Severity:** Warning
+
+**Security impact:** N+1 query pattern, database overload
+
+**Vulnerability example:**
+```sql
+-- SLOW: executes subquery for EACH row
+SELECT
+    id,
+    name,
+    (SELECT COUNT(*) FROM orders WHERE user_id = users.id) as order_count
+FROM users;
+```
+
+**Correct:**
+```sql
+-- FAST: single query with JOIN
+SELECT u.id, u.name, COUNT(o.id) as order_count
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+GROUP BY u.id, u.name;
+```
+
+---
+
+#### PERF008: Function on Indexed Column
+
+**Severity:** Warning
+
+**Security impact:** Index bypass, slow queries
+
+**Vulnerability example:**
+```sql
+-- SLOW: UPPER() prevents index usage
+SELECT * FROM users WHERE UPPER(email) = 'TEST@EXAMPLE.COM';
+```
+
+**Correct:**
+```sql
+-- FAST: store normalized data or use functional index
+SELECT * FROM users WHERE email_lower = 'test@example.com';
+```
+
+---
+
+#### PERF009: NOT IN with Subquery
+
+**Severity:** Warning
+
+**Security impact:** Unexpected NULL behavior, performance issues
+
+**Vulnerability example:**
+```sql
+-- DANGEROUS: returns empty if subquery contains NULL
+SELECT * FROM users WHERE id NOT IN (SELECT user_id FROM banned);
+```
+
+**Correct:**
+```sql
+-- SAFE: handles NULL correctly
+SELECT * FROM users u
+WHERE NOT EXISTS (SELECT 1 FROM banned b WHERE b.user_id = u.id);
+```
+
+---
+
+#### PERF011: SELECT without WHERE
+
+**Severity:** Info
+
+**Security impact:** Full table scan on large tables
+
+**Vulnerability example:**
+```sql
+-- SLOW: scans entire table
+SELECT * FROM audit_logs;
+```
+
+**Correct:**
+```sql
+-- BETTER: add filtering or pagination
+SELECT * FROM audit_logs
+WHERE created_at > NOW() - INTERVAL '7 days'
+LIMIT 1000;
+```
+
+---
+
+### Schema-Aware Rules
+
+#### SCHEMA001: Missing Index on Filter Column
+
+**Severity:** Warning
+
+**What to look for:** WHERE/JOIN columns without indexes
+
+**Example:**
+```sql
+-- If 'status' column has no index, this is slow
+SELECT * FROM orders WHERE status = 'pending';
+```
+
+**Fix:** Add index in schema:
+```sql
+CREATE INDEX idx_orders_status ON orders(status);
+```
+
+---
+
+#### SCHEMA002: Column Not in Schema
+
+**Severity:** Warning
+
+**What to look for:** References to non-existent columns
+
+**Example:**
+```sql
+-- If 'user_name' doesn't exist (should be 'username')
+SELECT user_name FROM users;
+```
+
+---
+
+### Database Security Checklist
+
+#### Query Safety
+- [ ] No `UPDATE` without `WHERE` clause?
+- [ ] No `DELETE` without `WHERE` clause?
+- [ ] All queries use parameterized statements?
+- [ ] No string concatenation in SQL?
+- [ ] `LIMIT` applied to unbounded queries?
+
+#### Performance & DOS Prevention
+- [ ] No leading wildcards in `LIKE` patterns?
+- [ ] Keyset pagination instead of large `OFFSET`?
+- [ ] No Cartesian products (missing JOIN conditions)?
+- [ ] No N+1 queries (scalar subqueries in SELECT)?
+- [ ] Indexes exist for filtered columns?
+
+#### Data Integrity
+- [ ] Foreign keys defined and enforced?
+- [ ] Constraints validate data at database level?
+- [ ] Transactions used for multi-step operations?
+
+### Automated Analysis Tools
+
+```bash
+# Install sql-query-analyzer
+cargo install sql-query-analyzer
+
+# Analyze queries against schema
+sql-query-analyzer analyze -s schema.sql -q queries.sql
+
+# Output as SARIF for CI integration
+sql-query-analyzer analyze -s schema.sql -q queries.sql --format sarif
+
+# Disable specific rules if needed
+sql-query-analyzer analyze -s schema.sql -q queries.sql --disabled-rules PERF003,STYLE001
+```
+
+**GitHub Actions with SARIF upload:**
+```yaml
+- name: SQL Query Analysis
+  uses: RAprogramm/sql-query-analyzer@v1
+  with:
+    schema: db/schema.sql
+    queries: db/queries.sql
+    format: sarif
+    upload-sarif: 'true'
+    fail-on-error: 'true'
+```
+
+---
+
 ## Data Validation
+
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. Missing Input Validation
 
@@ -419,6 +774,8 @@ fn calculate_total_debug(price: u64, quantity: u32) -> u64 {
 
 ## Information Leaks
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ### 1. Logging Secrets
 
 **What to look for:**
@@ -494,6 +851,8 @@ async fn get_user(id: Uuid) -> Result<Json<User>, StatusCode> {
 ---
 
 ## Security Checklist
+
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### Authentication
 - [ ] Token/timestamp freshness checked?

@@ -1,16 +1,21 @@
 # Поиск уязвимостей безопасности
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ## Оглавление
 1. [Аутентификация и авторизация](#аутентификация-и-авторизация)
 2. [Криптография](#криптография)
 3. [Инъекции](#инъекции)
-4. [Валидация данных](#валидация-данных)
-5. [Утечки информации](#утечки-информации)
-6. [Атаки на доступность](#атаки-на-доступность)
+4. [Безопасность баз данных](#безопасность-баз-данных)
+5. [Валидация данных](#валидация-данных)
+6. [Утечки информации](#утечки-информации)
+7. [Атаки на доступность](#атаки-на-доступность)
 
 ---
 
 ## Аутентификация и авторизация
+
+<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. Replay Attack (Атака повторного воспроизведения)
 
@@ -154,6 +159,8 @@ async fn login(username: &str, password: &str, ip: IpAddr) -> Result<Token> {
 
 ## Криптография
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ### 1. Использование слабых алгоритмов
 
 **Что искать:**
@@ -246,6 +253,8 @@ let mac = HmacSha256::new_from_slice(&secret).ok()?;
 
 ## Инъекции
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ### 1. SQL Injection
 
 **Что искать:**
@@ -332,7 +341,353 @@ fn is_valid_filename(name: &str) -> bool {
 
 ---
 
+## Безопасность баз данных
+
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
+> **Автоматический анализ:** Используйте [sql-query-analyzer](https://github.com/RAprogramm/sql-query-analyzer) для статического анализа SQL-запросов с 18 встроенными правилами безопасности и производительности.
+
+### Статический анализ с sql-query-analyzer
+
+**Установка:**
+```bash
+cargo install sql-query-analyzer
+```
+
+**Локальное использование:**
+```bash
+sql-query-analyzer analyze -s schema.sql -q queries.sql --format text
+```
+
+**Интеграция с GitHub Actions:**
+```yaml
+- name: SQL Query Analysis
+  uses: RAprogramm/sql-query-analyzer@v1
+  with:
+    schema: db/schema.sql
+    queries: db/queries.sql
+    fail-on-error: 'true'
+    post-comment: 'true'
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+---
+
+### Правила безопасности
+
+#### SEC001: UPDATE без WHERE
+
+**Критичность:** Error
+
+**Что искать:**
+```bash
+rg "UPDATE.*SET" --type rust
+rg "UPDATE.*SET" --type sql
+```
+
+**Пример уязвимости:**
+```sql
+-- ❌ ОПАСНО: затрагивает ВСЕ строки таблицы
+UPDATE users SET status = 'inactive';
+```
+
+**Правильно:**
+```sql
+-- ✅ БЕЗОПАСНО: явное условие
+UPDATE users SET status = 'inactive' WHERE last_login < '2024-01-01';
+```
+
+---
+
+#### SEC002: DELETE без WHERE
+
+**Критичность:** Error
+
+**Что искать:**
+```bash
+rg "DELETE FROM" --type rust
+rg "DELETE FROM" --type sql
+```
+
+**Пример уязвимости:**
+```sql
+-- ❌ ОПАСНО: удаляет ВСЕ строки
+DELETE FROM sessions;
+```
+
+**Правильно:**
+```sql
+-- ✅ БЕЗОПАСНО: явное условие
+DELETE FROM sessions WHERE expired_at < NOW();
+```
+
+---
+
+### Правила производительности (влияние на безопасность)
+
+#### PERF001: SELECT * без LIMIT
+
+**Критичность:** Warning
+
+**Влияние на безопасность:** Может вызвать DOS через исчерпание памяти
+
+**Пример уязвимости:**
+```sql
+-- ❌ МОЖЕТ ВЫЗВАТЬ OOM на больших таблицах
+SELECT * FROM logs;
+```
+
+**Правильно:**
+```sql
+-- ✅ БЕЗОПАСНО: ограниченный набор результатов
+SELECT * FROM logs LIMIT 1000;
+-- ИЛИ: конкретные колонки
+SELECT id, message, created_at FROM logs LIMIT 1000;
+```
+
+---
+
+#### PERF002: Ведущий wildcard в LIKE
+
+**Критичность:** Warning
+
+**Влияние на безопасность:** Предотвращает использование индекса, позволяет DOS через медленные запросы
+
+**Пример уязвимости:**
+```sql
+-- ❌ МЕДЛЕННО: полное сканирование таблицы, индекс не используется
+SELECT * FROM users WHERE email LIKE '%@gmail.com';
+```
+
+**Правильно:**
+```sql
+-- ✅ ЛУЧШЕ: используйте колонку суффикса или полнотекстовый поиск
+SELECT * FROM users WHERE email_domain = 'gmail.com';
+```
+
+---
+
+#### PERF004: Большие значения OFFSET
+
+**Критичность:** Warning
+
+**Влияние на безопасность:** Деградация производительности, вектор DOS
+
+**Пример уязвимости:**
+```sql
+-- ❌ МЕДЛЕННО: база должна просканировать и пропустить 100000 строк
+SELECT * FROM products ORDER BY id LIMIT 10 OFFSET 100000;
+```
+
+**Правильно:**
+```sql
+-- ✅ БЫСТРО: keyset пагинация
+SELECT * FROM products WHERE id > 100000 ORDER BY id LIMIT 10;
+```
+
+---
+
+#### PERF005: Декартово произведение
+
+**Критичность:** Error
+
+**Влияние на безопасность:** Экспоненциальный размер результата, исчерпание памяти
+
+**Пример уязвимости:**
+```sql
+-- ❌ ОПАСНО: возвращает rows_a * rows_b результатов
+SELECT * FROM users, orders;
+```
+
+**Правильно:**
+```sql
+-- ✅ БЕЗОПАСНО: явное условие соединения
+SELECT * FROM users
+JOIN orders ON users.id = orders.user_id;
+```
+
+---
+
+#### PERF007: Скалярный подзапрос в SELECT
+
+**Критичность:** Warning
+
+**Влияние на безопасность:** Паттерн N+1 запросов, перегрузка базы данных
+
+**Пример уязвимости:**
+```sql
+-- ❌ МЕДЛЕННО: подзапрос выполняется для КАЖДОЙ строки
+SELECT
+    id,
+    name,
+    (SELECT COUNT(*) FROM orders WHERE user_id = users.id) as order_count
+FROM users;
+```
+
+**Правильно:**
+```sql
+-- ✅ БЫСТРО: один запрос с JOIN
+SELECT u.id, u.name, COUNT(o.id) as order_count
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+GROUP BY u.id, u.name;
+```
+
+---
+
+#### PERF008: Функция на индексированной колонке
+
+**Критичность:** Warning
+
+**Влияние на безопасность:** Обход индекса, медленные запросы
+
+**Пример уязвимости:**
+```sql
+-- ❌ МЕДЛЕННО: UPPER() предотвращает использование индекса
+SELECT * FROM users WHERE UPPER(email) = 'TEST@EXAMPLE.COM';
+```
+
+**Правильно:**
+```sql
+-- ✅ БЫСТРО: храните нормализованные данные или используйте функциональный индекс
+SELECT * FROM users WHERE email_lower = 'test@example.com';
+```
+
+---
+
+#### PERF009: NOT IN с подзапросом
+
+**Критичность:** Warning
+
+**Влияние на безопасность:** Неожиданное поведение с NULL, проблемы производительности
+
+**Пример уязвимости:**
+```sql
+-- ❌ ОПАСНО: возвращает пустой результат если подзапрос содержит NULL
+SELECT * FROM users WHERE id NOT IN (SELECT user_id FROM banned);
+```
+
+**Правильно:**
+```sql
+-- ✅ БЕЗОПАСНО: корректно обрабатывает NULL
+SELECT * FROM users u
+WHERE NOT EXISTS (SELECT 1 FROM banned b WHERE b.user_id = u.id);
+```
+
+---
+
+#### PERF011: SELECT без WHERE
+
+**Критичность:** Info
+
+**Влияние на безопасность:** Полное сканирование таблицы
+
+**Пример уязвимости:**
+```sql
+-- ❌ МЕДЛЕННО: сканирует всю таблицу
+SELECT * FROM audit_logs;
+```
+
+**Правильно:**
+```sql
+-- ✅ ЛУЧШЕ: добавьте фильтрацию или пагинацию
+SELECT * FROM audit_logs
+WHERE created_at > NOW() - INTERVAL '7 days'
+LIMIT 1000;
+```
+
+---
+
+### Правила с учётом схемы
+
+#### SCHEMA001: Отсутствие индекса на колонке фильтра
+
+**Критичность:** Warning
+
+**Что искать:** Колонки в WHERE/JOIN без индексов
+
+**Пример:**
+```sql
+-- Если колонка 'status' не имеет индекса, это медленно
+SELECT * FROM orders WHERE status = 'pending';
+```
+
+**Исправление:** Добавьте индекс в схему:
+```sql
+CREATE INDEX idx_orders_status ON orders(status);
+```
+
+---
+
+#### SCHEMA002: Колонка отсутствует в схеме
+
+**Критичность:** Warning
+
+**Что искать:** Ссылки на несуществующие колонки
+
+**Пример:**
+```sql
+-- Если 'user_name' не существует (должно быть 'username')
+SELECT user_name FROM users;
+```
+
+---
+
+### Чеклист безопасности баз данных
+
+#### Безопасность запросов
+- [ ] Нет `UPDATE` без условия `WHERE`?
+- [ ] Нет `DELETE` без условия `WHERE`?
+- [ ] Все запросы используют параметризованные выражения?
+- [ ] Нет конкатенации строк в SQL?
+- [ ] `LIMIT` применяется к неограниченным запросам?
+
+#### Производительность и защита от DOS
+- [ ] Нет ведущих wildcards в паттернах `LIKE`?
+- [ ] Keyset пагинация вместо большого `OFFSET`?
+- [ ] Нет декартовых произведений (отсутствующие условия JOIN)?
+- [ ] Нет N+1 запросов (скалярные подзапросы в SELECT)?
+- [ ] Индексы существуют для фильтруемых колонок?
+
+#### Целостность данных
+- [ ] Внешние ключи определены и применяются?
+- [ ] Ограничения валидируют данные на уровне базы?
+- [ ] Транзакции используются для многошаговых операций?
+
+### Инструменты автоматического анализа
+
+```bash
+# Установка sql-query-analyzer
+cargo install sql-query-analyzer
+
+# Анализ запросов по схеме
+sql-query-analyzer analyze -s schema.sql -q queries.sql
+
+# Вывод в SARIF для интеграции с CI
+sql-query-analyzer analyze -s schema.sql -q queries.sql --format sarif
+
+# Отключение конкретных правил при необходимости
+sql-query-analyzer analyze -s schema.sql -q queries.sql --disabled-rules PERF003,STYLE001
+```
+
+**GitHub Actions с загрузкой SARIF:**
+```yaml
+- name: SQL Query Analysis
+  uses: RAprogramm/sql-query-analyzer@v1
+  with:
+    schema: db/schema.sql
+    queries: db/queries.sql
+    format: sarif
+    upload-sarif: 'true'
+    fail-on-error: 'true'
+```
+
+---
+
 ## Валидация данных
+
+<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. Отсутствие валидации входных данных
 
@@ -419,6 +774,8 @@ fn calculate_total_debug(price: u64, quantity: u32) -> u64 {
 
 ## Утечки информации
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ### 1. Логирование секретов
 
 **Что искать:**
@@ -494,6 +851,8 @@ async fn get_user(id: Uuid) -> Result<Json<User>, StatusCode> {
 ---
 
 ## Чеклист безопасности
+
+<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### Аутентификация
 - [ ] Проверяется свежесть токенов/временных меток?
