@@ -647,6 +647,156 @@
 > </details>
 
 
+<h2>10. Docker и CI кэширование для Rust</h2>
+
+> [!IMPORTANT]
+>
+> <p>
+>   <strong>Используйте cargo-chef для кэширования слоёв Docker и registry cache для CI. Это кардинально сокращает время сборки при неизменных зависимостях.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>Подробнее</strong></summary>
+>
+> > **Проблема:**
+> > - Компиляция Rust медленная, особенно при большом дереве зависимостей
+> > - Docker пересобирает всё при любом изменении файла
+> > - `--mount=type=cache` не сохраняется между CI раннерами
+> > - Каждый запуск CI начинается с нуля без правильного кэширования
+> >
+> > **Решение: cargo-chef + Registry Cache**
+> >
+> > 1. **cargo-chef** отделяет компиляцию зависимостей от компиляции исходников
+> > 2. **Registry cache** сохраняет слои Docker между запусками CI
+> > 3. Зависимости кэшируются в отдельный слой, который пересобирается только при изменении Cargo.toml/Cargo.lock
+> >
+> > <details>
+> > <summary><strong>Паттерн Dockerfile</strong></summary>
+> >
+> > ```dockerfile
+> > # syntax=docker/dockerfile:1
+> > ARG RUST_VERSION=1.83.0
+> >
+> > # Chef stage - установка cargo-chef
+> > FROM rust:${RUST_VERSION} AS chef
+> > RUN cargo install cargo-chef --locked
+> > WORKDIR /app
+> >
+> > # Planner - создание recipe только из зависимостей
+> > FROM chef AS planner
+> > COPY Cargo.toml Cargo.lock ./
+> > COPY my-crate/Cargo.toml my-crate/
+> > COPY crates crates/
+> > RUN cargo chef prepare --recipe-path recipe.json
+> >
+> > # Builder - сборка зависимостей, затем исходников
+> > FROM chef AS builder
+> >
+> > # Сборка зависимостей (кэшируется если recipe.json не изменился)
+> > COPY --from=planner /app/recipe.json recipe.json
+> > RUN cargo chef cook --release --recipe-path recipe.json
+> >
+> > # Сборка приложения (только этот слой пересобирается при изменении кода)
+> > COPY . .
+> > RUN cargo build --release && strip target/release/my-binary
+> >
+> > # Runtime - минимальный образ
+> > FROM debian:bookworm-slim
+> > COPY --from=builder /app/target/release/my-binary /usr/local/bin/
+> > CMD ["my-binary"]
+> > ```
+> >
+> > **Ключевые моменты:**
+> > - Planner stage копирует только Cargo.toml файлы (не исходный код)
+> > - `cargo chef prepare` создаёт recipe.json из зависимостей
+> > - `cargo chef cook` компилирует зависимости - этот слой кэшируется
+> > - Исходный код копируется после сборки зависимостей
+> > - Только финальный `cargo build` перекомпилируется при изменении кода
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Паттерн GitHub Actions CI</strong></summary>
+> >
+> > ```yaml
+> > jobs:
+> >   build:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >
+> >       - uses: docker/setup-buildx-action@v3
+> >
+> >       - uses: docker/login-action@v3
+> >         with:
+> >           registry: ${{ env.REGISTRY }}
+> >           username: ${{ secrets.REGISTRY_USERNAME }}
+> >           password: ${{ secrets.REGISTRY_TOKEN }}
+> >
+> >       - name: Build image
+> >         uses: docker/build-push-action@v6
+> >         with:
+> >           context: .
+> >           file: ./Dockerfile
+> >           push: false
+> >           load: true
+> >           tags: ${{ env.REGISTRY }}/my-image:${{ env.TAG }}
+> >           cache-from: |
+> >             type=registry,ref=${{ env.REGISTRY }}/my-image:cache
+> >           cache-to: |
+> >             type=registry,ref=${{ env.REGISTRY }}/my-image:cache,mode=max
+> > ```
+> >
+> > **Ключевые моменты:**
+> > - `cache-from` скачивает закэшированные слои из registry перед сборкой
+> > - `cache-to` загружает новые слои кэша после сборки
+> > - `mode=max` кэширует все промежуточные слои (не только финальный)
+> > - Тег кэша отдельный от тегов образа (например, `:cache`)
+> > - Работает на разных CI раннерах и ветках
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Чего НЕ делать</strong></summary>
+> >
+> > **Не используйте `--mount=type=cache` для CI:**
+> > ```dockerfile
+> > # ПЛОХО - кэш не сохраняется между CI раннерами
+> > RUN --mount=type=cache,target=/usr/local/cargo/registry \
+> >     cargo build --release
+> > ```
+> >
+> > **Не копируйте все исходники до зависимостей:**
+> > ```dockerfile
+> > # ПЛОХО - любое изменение файла инвалидирует кэш зависимостей
+> > COPY . .
+> > RUN cargo build --release
+> > ```
+> >
+> > **Не используйте GHA cache для больших Rust сборок:**
+> > ```yaml
+> > # ПЛОХО - GHA cache имеет лимит 10GB, target/ Rust легко его превышает
+> > - uses: actions/cache@v4
+> >   with:
+> >     path: target/
+> >     key: rust-${{ hashFiles('Cargo.lock') }}
+> > ```
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Влияние на производительность</strong></summary>
+> >
+> > | Сценарий | Без кэширования | С cargo-chef + Registry Cache |
+> > |----------|----------------|-------------------------------|
+> > | Первая сборка | 15-30 мин | 15-30 мин |
+> > | Только изменение кода | 15-30 мин | 2-5 мин |
+> > | Изменение зависимостей | 15-30 мин | 15-30 мин |
+> > | Без изменений | 15-30 мин | 30 сек - 1 мин |
+> >
+> > Ключевой инсайт: большинство CI запусков меняют только код приложения, не зависимости.
+> > С правильным кэшированием такие сборки пропускают 90%+ времени компиляции.
+> > </details>
+>
+> </details>
+
 <p align=center>
   <em>Следование этим рекомендациям гарантирует, что наш Rust код будет высококачественным, поддерживаемым и масштабируемым.</em>
 </p>

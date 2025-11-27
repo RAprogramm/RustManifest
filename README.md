@@ -647,6 +647,156 @@
 > </details>
 
 
+<h2>10. Docker & CI Caching for Rust</h2>
+
+> [!IMPORTANT]
+>
+> <p>
+>   <strong>Use cargo-chef for Docker layer caching and registry cache for CI. This dramatically reduces build times for unchanged dependencies.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>More information</strong></summary>
+>
+> > **The Problem:**
+> > - Rust compilation is slow, especially for large dependency trees
+> > - Docker rebuilds everything when any file changes
+> > - `--mount=type=cache` doesn't persist between CI runners
+> > - Each CI run starts from scratch without proper caching
+> >
+> > **The Solution: cargo-chef + Registry Cache**
+> >
+> > 1. **cargo-chef** separates dependency compilation from source compilation
+> > 2. **Registry cache** persists Docker layers between CI runs
+> > 3. Dependencies are cached as a separate layer that only rebuilds when Cargo.toml/Cargo.lock change
+> >
+> > <details>
+> > <summary><strong>Dockerfile Pattern</strong></summary>
+> >
+> > ```dockerfile
+> > # syntax=docker/dockerfile:1
+> > ARG RUST_VERSION=1.83.0
+> >
+> > # Chef stage - install cargo-chef
+> > FROM rust:${RUST_VERSION} AS chef
+> > RUN cargo install cargo-chef --locked
+> > WORKDIR /app
+> >
+> > # Planner - create recipe from dependencies only
+> > FROM chef AS planner
+> > COPY Cargo.toml Cargo.lock ./
+> > COPY my-crate/Cargo.toml my-crate/
+> > COPY crates crates/
+> > RUN cargo chef prepare --recipe-path recipe.json
+> >
+> > # Builder - build dependencies, then source
+> > FROM chef AS builder
+> >
+> > # Build dependencies (cached if recipe.json unchanged)
+> > COPY --from=planner /app/recipe.json recipe.json
+> > RUN cargo chef cook --release --recipe-path recipe.json
+> >
+> > # Build application (only this layer rebuilds on code changes)
+> > COPY . .
+> > RUN cargo build --release && strip target/release/my-binary
+> >
+> > # Runtime - minimal image
+> > FROM debian:bookworm-slim
+> > COPY --from=builder /app/target/release/my-binary /usr/local/bin/
+> > CMD ["my-binary"]
+> > ```
+> >
+> > **Key Points:**
+> > - Planner stage copies only Cargo.toml files (not source code)
+> > - `cargo chef prepare` creates recipe.json from dependencies
+> > - `cargo chef cook` compiles dependencies - this layer is cached
+> > - Source code is copied after dependencies are built
+> > - Only the final `cargo build` recompiles when code changes
+> > </details>
+> >
+> > <details>
+> > <summary><strong>GitHub Actions CI Pattern</strong></summary>
+> >
+> > ```yaml
+> > jobs:
+> >   build:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >
+> >       - uses: docker/setup-buildx-action@v3
+> >
+> >       - uses: docker/login-action@v3
+> >         with:
+> >           registry: ${{ env.REGISTRY }}
+> >           username: ${{ secrets.REGISTRY_USERNAME }}
+> >           password: ${{ secrets.REGISTRY_TOKEN }}
+> >
+> >       - name: Build image
+> >         uses: docker/build-push-action@v6
+> >         with:
+> >           context: .
+> >           file: ./Dockerfile
+> >           push: false
+> >           load: true
+> >           tags: ${{ env.REGISTRY }}/my-image:${{ env.TAG }}
+> >           cache-from: |
+> >             type=registry,ref=${{ env.REGISTRY }}/my-image:cache
+> >           cache-to: |
+> >             type=registry,ref=${{ env.REGISTRY }}/my-image:cache,mode=max
+> > ```
+> >
+> > **Key Points:**
+> > - `cache-from` pulls cached layers from registry before build
+> > - `cache-to` pushes new cache layers after build
+> > - `mode=max` caches all intermediate layers (not just final)
+> > - Cache tag is separate from image tags (e.g., `:cache`)
+> > - Works across different CI runners and branches
+> > </details>
+> >
+> > <details>
+> > <summary><strong>What NOT to Do</strong></summary>
+> >
+> > **Don't use `--mount=type=cache` for CI:**
+> > ```dockerfile
+> > # BAD - cache doesn't persist between CI runners
+> > RUN --mount=type=cache,target=/usr/local/cargo/registry \
+> >     cargo build --release
+> > ```
+> >
+> > **Don't copy all source files before dependencies:**
+> > ```dockerfile
+> > # BAD - any file change invalidates dependency cache
+> > COPY . .
+> > RUN cargo build --release
+> > ```
+> >
+> > **Don't use GHA cache for large Rust builds:**
+> > ```yaml
+> > # BAD - GHA cache has 10GB limit, Rust target/ easily exceeds it
+> > - uses: actions/cache@v4
+> >   with:
+> >     path: target/
+> >     key: rust-${{ hashFiles('Cargo.lock') }}
+> > ```
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Performance Impact</strong></summary>
+> >
+> > | Scenario | Without Caching | With cargo-chef + Registry Cache |
+> > |----------|----------------|----------------------------------|
+> > | First build | 15-30 min | 15-30 min |
+> > | Code change only | 15-30 min | 2-5 min |
+> > | Dependency change | 15-30 min | 15-30 min |
+> > | No changes | 15-30 min | 30 sec - 1 min |
+> >
+> > The key insight: most CI runs only change application code, not dependencies.
+> > With proper caching, these builds skip 90%+ of compilation time.
+> > </details>
+>
+> </details>
+
 <p align=center>
   <em>Following these guidelines ensures that our Rust code is high-quality, maintainable, and scalable.</em>
 </p>
