@@ -543,12 +543,12 @@
 > >
 > > | Topic | EN | RU |
 > > |-------|----|----|
-> > | Quick Reference | [Cheat Sheet](./code-review-methodology/en/quick-reference.md) | [Shpargalka](./code-review-methodology/ru/quick-reference.md) |
-> > | Security | [Vulnerabilities](./code-review-methodology/en/security-vulnerabilities.md) | [Uyazvimosti](./code-review-methodology/ru/security-vulnerabilities.md) |
-> > | Performance | [Issues](./code-review-methodology/en/performance-issues.md) | [Problemy](./code-review-methodology/ru/performance-issues.md) |
-> > | Code Quality | [Quality](./code-review-methodology/en/code-quality.md) | [Kachestvo](./code-review-methodology/ru/code-quality.md) |
-> > | Rust Patterns | [Specifics](./code-review-methodology/en/rust-specific.md) | [Spetsifika](./code-review-methodology/ru/rust-specific.md) |
-> > | Examples | [Real Cases](./code-review-methodology/en/examples.md) | [Primery](./code-review-methodology/ru/examples.md) |
+> > | Quick Reference | [Cheat Sheet](./code-review-methodology/en/quick-reference.md) | [Шпаргалка](./code-review-methodology/ru/quick-reference.md) |
+> > | Security | [Vulnerabilities](./code-review-methodology/en/security-vulnerabilities.md) | [Уязвимости](./code-review-methodology/ru/security-vulnerabilities.md) |
+> > | Performance | [Issues](./code-review-methodology/en/performance-issues.md) | [Проблемы](./code-review-methodology/ru/performance-issues.md) |
+> > | Code Quality | [Quality](./code-review-methodology/en/code-quality.md) | [Качество](./code-review-methodology/ru/code-quality.md) |
+> > | Rust Patterns | [Specifics](./code-review-methodology/en/rust-specific.md) | [Специфика](./code-review-methodology/ru/rust-specific.md) |
+> > | Examples | [Real Cases](./code-review-methodology/en/examples.md) | [Примеры](./code-review-methodology/ru/examples.md) |
 > >
 > >
 > > <details>
