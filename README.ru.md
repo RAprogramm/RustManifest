@@ -392,6 +392,35 @@
 > > - **Doctests**
 > >   - Все примеры <code>///</code> должны компилироваться и проходить с <code>cargo test --doc</code>.
 > >
+> > - **Coverage (cargo-llvm-cov + Codecov)**
+> >   - Установка: <pre><code>cargo install cargo-llvm-cov</code></pre>
+> >   - Локальный запуск: <pre><code>cargo llvm-cov --all-features --workspace --html</code></pre>
+> >   - Конфигурация CI:
+> >     ```yaml
+> >     - name: Install cargo-llvm-cov
+> >       uses: taiki-e/install-action@cargo-llvm-cov
+> >     - name: Generate code coverage
+> >       run: cargo llvm-cov --all-features --workspace --codecov --output-path codecov.json
+> >     - name: Upload coverage to Codecov
+> >       uses: codecov/codecov-action@v5
+> >       with:
+> >         token: ${{ secrets.CODECOV_TOKEN }}
+> >         files: codecov.json
+> >         fail_ci_if_error: true
+> >     ```
+> >
+> > <details>
+> > <summary><strong>Почему cargo-llvm-cov + Codecov?</strong></summary>
+> >
+> > > - **Точность**: LLVM-инструментирование обеспечивает точное покрытие строк и веток, надежнее source-based инструментов
+> > > - **Скорость**: Значительно быстрее tarpaulin, особенно на больших кодовых базах с множеством зависимостей
+> > > - **Нативный формат**: Прямой вывод в codecov.json без промежуточных шагов конвертации
+> > > - **Визуализация**: Дашборд Codecov показывает тренды покрытия, diff покрытия в PR и интерактивные sunburst-диаграммы
+> > > - **Интеграция с PR**: Автоматические отчеты о покрытии в комментариях PR, показывающие какие именно строки покрыты/не покрыты
+> > > - **Branch protection**: Настройка минимальных порогов покрытия для падения CI при снижении coverage
+> > > - **Rust toolchain**: Использует встроенное инструментирование rustc, гарантируя совместимость со всеми фичами Rust
+> > </details>
+> >
 > >
 > > <details>
 > > <summary><strong>Примеры и пояснения</strong></summary>

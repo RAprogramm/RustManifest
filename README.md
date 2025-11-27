@@ -390,7 +390,36 @@
 > >   - Cover public API, placed in the <code>tests/</code> directory.  
 > >
 > > - **Doctests**
-> >   - All <code>///</code> examples must compile and pass with <code>cargo test --doc</code>.  
+> >   - All <code>///</code> examples must compile and pass with <code>cargo test --doc</code>.
+> >
+> > - **Coverage (cargo-llvm-cov + Codecov)**
+> >   - Install: <pre><code>cargo install cargo-llvm-cov</code></pre>
+> >   - Run locally: <pre><code>cargo llvm-cov --all-features --workspace --html</code></pre>
+> >   - CI configuration:
+> >     ```yaml
+> >     - name: Install cargo-llvm-cov
+> >       uses: taiki-e/install-action@cargo-llvm-cov
+> >     - name: Generate code coverage
+> >       run: cargo llvm-cov --all-features --workspace --codecov --output-path codecov.json
+> >     - name: Upload coverage to Codecov
+> >       uses: codecov/codecov-action@v5
+> >       with:
+> >         token: ${{ secrets.CODECOV_TOKEN }}
+> >         files: codecov.json
+> >         fail_ci_if_error: true
+> >     ```
+> >
+> > <details>
+> > <summary><strong>Why cargo-llvm-cov + Codecov?</strong></summary>
+> >
+> > > - **Precision**: LLVM-based instrumentation provides accurate line and branch coverage, more reliable than source-based tools
+> > > - **Speed**: Significantly faster than tarpaulin, especially on large codebases with many dependencies
+> > > - **Native format**: Direct codecov.json output without intermediate conversion steps
+> > > - **Visualization**: Codecov dashboard shows coverage trends over time, PR coverage diffs, and interactive sunburst charts
+> > > - **PR integration**: Automatic coverage reports as PR comments, showing exactly which lines are covered/uncovered
+> > > - **Branch protection**: Configure minimum coverage thresholds to fail CI when coverage drops
+> > > - **Rust toolchain**: Uses rustc's built-in instrumentation, ensuring compatibility with all Rust features
+> > </details>
 > >
 > >
 > > <details>
