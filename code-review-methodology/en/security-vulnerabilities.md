@@ -1,7 +1,5 @@
 # Finding Security Vulnerabilities
 
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
-
 ## Table of Contents
 1. [Authentication and Authorization](#authentication-and-authorization)
 2. [Cryptography](#cryptography)
@@ -14,8 +12,6 @@
 ---
 
 ## Authentication and Authorization
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. Replay Attack
 
@@ -155,11 +151,11 @@ async fn login(username: &str, password: &str, ip: IpAddr) -> Result<Token> {
 }
 ```
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ---
 
 ## Cryptography
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. Using Weak Algorithms
 
@@ -249,11 +245,11 @@ let mut mac = HmacSha256::new_from_slice(&secret)
 let mac = HmacSha256::new_from_slice(&secret).ok()?;
 ```
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ---
 
 ## Injections
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. SQL Injection
 
@@ -339,11 +335,11 @@ fn is_valid_filename(name: &str) -> bool {
 }
 ```
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ---
 
 ## Database Security
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 > **Automated Analysis:** Use [sql-query-analyzer](https://github.com/RAprogramm/sql-query-analyzer) for static analysis of SQL queries with 18 built-in security and performance rules.
 
@@ -683,11 +679,11 @@ sql-query-analyzer analyze -s schema.sql -q queries.sql --disabled-rules PERF003
     fail-on-error: 'true'
 ```
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ---
 
 ## Data Validation
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. Missing Input Validation
 
@@ -770,11 +766,11 @@ fn calculate_total_debug(price: u64, quantity: u32) -> u64 {
 }
 ```
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ---
 
 ## Information Leaks
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### 1. Logging Secrets
 
@@ -848,11 +844,11 @@ async fn get_user(id: Uuid) -> Result<Json<User>, StatusCode> {
 }
 ```
 
+<p align="right"><a href="#table-of-contents">Back to top</a></p>
+
 ---
 
 ## Security Checklist
-
-<p align="right"><a href="#table-of-contents">Back to top</a></p>
 
 ### Authentication
 - [ ] Token/timestamp freshness checked?
@@ -896,3 +892,5 @@ cargo audit
 # Secret search
 rg "(?i)(password|secret|api_key|token).*=.*['\"]" --type rust
 ```
+
+<p align="right"><a href="#table-of-contents">Back to top</a></p>

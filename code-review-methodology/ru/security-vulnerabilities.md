@@ -1,7 +1,5 @@
 # Поиск уязвимостей безопасности
 
-<p align="right"><a href="#оглавление">Наверх</a></p>
-
 ## Оглавление
 1. [Аутентификация и авторизация](#аутентификация-и-авторизация)
 2. [Криптография](#криптография)
@@ -14,8 +12,6 @@
 ---
 
 ## Аутентификация и авторизация
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. Replay Attack (Атака повторного воспроизведения)
 
@@ -155,11 +151,11 @@ async fn login(username: &str, password: &str, ip: IpAddr) -> Result<Token> {
 }
 ```
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ---
 
 ## Криптография
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. Использование слабых алгоритмов
 
@@ -249,11 +245,11 @@ let mut mac = HmacSha256::new_from_slice(&secret)
 let mac = HmacSha256::new_from_slice(&secret).ok()?;
 ```
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ---
 
 ## Инъекции
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. SQL Injection
 
@@ -339,11 +335,11 @@ fn is_valid_filename(name: &str) -> bool {
 }
 ```
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ---
 
 ## Безопасность баз данных
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 > **Автоматический анализ:** Используйте [sql-query-analyzer](https://github.com/RAprogramm/sql-query-analyzer) для статического анализа SQL-запросов с 18 встроенными правилами безопасности и производительности.
 
@@ -683,11 +679,11 @@ sql-query-analyzer analyze -s schema.sql -q queries.sql --disabled-rules PERF003
     fail-on-error: 'true'
 ```
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ---
 
 ## Валидация данных
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. Отсутствие валидации входных данных
 
@@ -770,11 +766,11 @@ fn calculate_total_debug(price: u64, quantity: u32) -> u64 {
 }
 ```
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ---
 
 ## Утечки информации
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### 1. Логирование секретов
 
@@ -848,11 +844,11 @@ async fn get_user(id: Uuid) -> Result<Json<User>, StatusCode> {
 }
 ```
 
+<p align="right"><a href="#оглавление">Наверх</a></p>
+
 ---
 
 ## Чеклист безопасности
-
-<p align="right"><a href="#оглавление">Наверх</a></p>
 
 ### Аутентификация
 - [ ] Проверяется свежесть токенов/временных меток?
@@ -896,3 +892,5 @@ cargo audit
 # Поиск секретов
 rg "(?i)(password|secret|api_key|token).*=.*['\"]" --type rust
 ```
+
+<p align="right"><a href="#оглавление">Наверх</a></p>
