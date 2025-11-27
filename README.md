@@ -1329,6 +1329,337 @@
 >
 > </details>
 
+<h2>13. RustManifest Quality Tools</h2>
+
+> [!NOTE]
+>
+> <p>
+>   <strong>Purpose-built tools that implement RustManifest principles with zero configuration. Each tool solves a specific gap in the standard Rust tooling ecosystem.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>More information</strong></summary>
+>
+> > | Tool | Purpose | Gap it Fills |
+> > |------|---------|--------------|
+> > | [cargo-quality](https://github.com/RAprogramm/cargo-quality) | Code quality with hardcoded standards | rustfmt + clippy don't enforce architectural patterns |
+> > | [rust-prod-diff-checker](https://github.com/RAprogramm/rust-prod-diff-checker) | Semantic PR size analysis | Line counts don't distinguish prod from test code |
+> > | [sql-query-analyzer](https://github.com/RAprogramm/sql-query-analyzer) | SQL static analysis + LLM optimization | No Rust-native SQL analyzer with schema awareness |
+> >
+> > <details>
+> > <summary><strong>cargo-quality: Zero-Config Quality Enforcement</strong></summary>
+> >
+> > **The Problem:**
+> > - Teams scatter `.rustfmt.toml`, `.clippy.toml` across every repository
+> > - Different projects have different standards
+> > - New developers don't know which rules apply
+> > - CI configs duplicate quality checks
+> >
+> > **The Solution:**
+> > All standards hardcoded into a single binary. Install once, use everywhere.
+> >
+> > **Installation:**
+> > ```bash
+> > cargo install cargo-quality
+> > cargo qual setup  # Shell completions
+> > ```
+> >
+> > **Commands:**
+> > ```bash
+> > cargo qual check src/           # Analyze without changes
+> > cargo qual check --verbose      # Detailed output
+> > cargo qual fix --dry-run        # Preview fixes
+> > cargo qual fix                  # Apply fixes
+> > cargo qual fmt                  # Format (max_width: 99)
+> > cargo qual diff --interactive   # Review changes
+> > ```
+> >
+> > **Four Analyzers:**
+> >
+> > | Analyzer | Detects | Auto-fix |
+> > |----------|---------|----------|
+> > | `path_import` | Direct module paths that should be imports | Yes |
+> > | `format_args` | Positional args in format macros | Yes |
+> > | `empty_lines` | Empty lines in functions (complexity smell) | Yes |
+> > | `inline_comments` | Comments that should be doc blocks | No |
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - uses: RAprogramm/cargo-quality@v0
+> >   with:
+> >     path: 'src/'
+> >     fail_on_issues: 'true'
+> >     post_comment: 'true'
+> > ```
+> >
+> > **Why cargo-quality over manual configs:**
+> > - Single source of truth for all repositories
+> > - No config drift between projects
+> > - Instant onboarding for new developers
+> > - Catches patterns rustfmt/clippy miss (architectural issues)
+> > - 86% test coverage, benchmarked performance
+> >
+> > **Links:** [GitHub](https://github.com/RAprogramm/cargo-quality) | [crates.io](https://crates.io/crates/cargo-quality) | [docs.rs](https://docs.rs/cargo-quality)
+> > </details>
+> >
+> > <details>
+> > <summary><strong>rust-prod-diff-checker: Semantic PR Analysis</strong></summary>
+> >
+> > **The Problem:**
+> > - Line count limits are meaningless (500 lines of tests ≠ 500 lines of prod)
+> > - Large PRs hide bugs and slow reviews
+> > - No way to enforce "keep PRs small" objectively
+> > - Test code shouldn't count toward PR size
+> >
+> > **The Solution:**
+> > AST-based analysis that understands Rust code semantics.
+> >
+> > **Installation:**
+> > ```bash
+> > cargo install rust-diff-analyzer
+> > ```
+> >
+> > **Usage:**
+> > ```bash
+> > git diff main | rust-diff-analyzer
+> > rust-diff-analyzer --diff-file changes.diff --max-units 50
+> > ```
+> >
+> > **Weighted Scoring System:**
+> >
+> > | Unit Type | Public | Private | Rationale |
+> > |-----------|--------|---------|-----------|
+> > | Function | 3 | 1 | Public API = higher review burden |
+> > | Struct | 3 | 1 | Data structures shape architecture |
+> > | Trait | 4 | 4 | Traits define contracts |
+> > | Impl Block | 2 | 2 | Implementation details |
+> >
+> > **Smart Classification:**
+> > - `tests/`, `benches/`, `examples/` directories → test code
+> > - `#[test]`, `#[bench]`, `#[cfg(test)]` attributes → test code
+> > - `mod tests { }` blocks → test code
+> > - Everything else → production code (counts toward limits)
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - uses: RAprogramm/rust-prod-diff-checker@v1
+> >   with:
+> >     max_prod_units: 30
+> >     max_weighted_score: 100
+> >     fail_on_exceed: 'true'
+> >     post_comment: 'true'
+> > ```
+> >
+> > **Configuration (`.rust-diff-analyzer.toml`):**
+> > ```toml
+> > [limits]
+> > max_prod_units = 30
+> > max_weighted_score = 100
+> > max_prod_lines = 300
+> >
+> > [weights]
+> > public_function = 3
+> > private_function = 1
+> > public_struct = 3
+> > trait_def = 4
+> > ```
+> >
+> > **Why semantic analysis over line counts:**
+> > - 100 lines of tests ≠ 100 lines of business logic
+> > - Public API changes need more review than private helpers
+> > - Encourages splitting large features into reviewable chunks
+> > - Data-driven PR size governance
+> >
+> > **Links:** [GitHub](https://github.com/RAprogramm/rust-prod-diff-checker) | [crates.io](https://crates.io/crates/rust-diff-analyzer)
+> > </details>
+> >
+> > <details>
+> > <summary><strong>sql-query-analyzer: SQL Static Analysis</strong></summary>
+> >
+> > **The Problem:**
+> > - SQL bugs discovered in production (missing indexes, N+1 queries)
+> > - No schema-aware analysis in existing tools
+> > - Security issues (UPDATE without WHERE) slip through review
+> > - Performance problems detected only after deployment
+> >
+> > **The Solution:**
+> > 18 deterministic rules + optional LLM-powered optimization.
+> >
+> > **Installation:**
+> > ```bash
+> > cargo install sql-query-analyzer
+> > ```
+> >
+> > **Usage:**
+> > ```bash
+> > # Static analysis (instant, no API key)
+> > sql-query-analyzer analyze -s schema.sql -q queries.sql
+> >
+> > # SARIF for GitHub Code Scanning
+> > sql-query-analyzer analyze -s schema.sql -q queries.sql -f sarif > results.sarif
+> >
+> > # With LLM optimization
+> > export LLM_API_KEY="sk-..."
+> > sql-query-analyzer analyze -s schema.sql -q queries.sql --provider openai
+> > ```
+> >
+> > **18 Built-in Rules:**
+> >
+> > | Category | Rules | Examples |
+> > |----------|-------|----------|
+> > | Performance (11) | PERF001-011 | Unbounded SELECT, leading wildcards, large OFFSET, N+1 |
+> > | Security (2) | SEC001-002 | UPDATE/DELETE without WHERE |
+> > | Style (2) | STYLE001-002 | SELECT *, missing table aliases |
+> > | Schema (3) | SCHEMA001-003 | Missing indexes, invalid columns |
+> >
+> > **Configuration (`deny.toml`):**
+> > ```toml
+> > [rules]
+> > disabled = ["STYLE001"]
+> >
+> > [rules.severity]
+> > PERF001 = "error"
+> > SEC001 = "error"
+> > SCHEMA001 = "warning"
+> >
+> > [llm]
+> > provider = "ollama"
+> > model = "codellama"
+> > ```
+> >
+> > **CI Integration:**
+> > ```yaml
+> > - uses: RAprogramm/sql-query-analyzer@v1
+> >   with:
+> >     schema: db/schema.sql
+> >     queries: db/queries.sql
+> >     upload-sarif: 'true'
+> >     post-comment: 'true'
+> > ```
+> >
+> > **Output Formats:**
+> > - `text` - Human-readable terminal output
+> > - `json` - Machine-readable for custom tooling
+> > - `yaml` - Configuration-friendly format
+> > - `sarif` - GitHub Code Scanning integration
+> >
+> > **Why sql-query-analyzer:**
+> > - Schema-aware (knows your indexes and columns)
+> > - Catches N+1 patterns before they hit production
+> > - Security rules prevent catastrophic mistakes
+> > - ~1000 queries in <100ms (rayon parallelism)
+> > - Optional LLM for deep optimization suggestions
+> >
+> > **Links:** [GitHub](https://github.com/RAprogramm/sql-query-analyzer)
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Complete CI Pipeline with All Tools</strong></summary>
+> >
+> > ```yaml
+> > name: Quality Gates
+> >
+> > on:
+> >   pull_request:
+> >
+> > jobs:
+> >   code-quality:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >
+> >       # Standard Rust checks
+> >       - uses: dtolnay/rust-toolchain@stable
+> >       - run: cargo clippy --all-targets -- -D warnings
+> >       - run: cargo test --all-features
+> >
+> >       # RustManifest quality enforcement
+> >       - uses: RAprogramm/cargo-quality@v0
+> >         with:
+> >           fail_on_issues: 'true'
+> >           post_comment: 'true'
+> >
+> >   pr-size:
+> >     runs-on: ubuntu-latest
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >         with:
+> >           fetch-depth: 0
+> >
+> >       - uses: RAprogramm/rust-prod-diff-checker@v1
+> >         with:
+> >           max_prod_units: 30
+> >           max_weighted_score: 100
+> >           fail_on_exceed: 'true'
+> >           post_comment: 'true'
+> >
+> >   sql-analysis:
+> >     runs-on: ubuntu-latest
+> >     if: contains(github.event.pull_request.changed_files, '.sql')
+> >     steps:
+> >       - uses: actions/checkout@v5
+> >
+> >       - uses: RAprogramm/sql-query-analyzer@v1
+> >         with:
+> >           schema: db/schema.sql
+> >           queries: db/queries/
+> >           upload-sarif: 'true'
+> > ```
+> >
+> > **Why this combination:**
+> > - `cargo-quality` catches what clippy misses (architectural patterns)
+> > - `rust-prod-diff-checker` enforces reviewable PR sizes
+> > - `sql-query-analyzer` prevents SQL bugs before production
+> > - All three have GitHub Actions with PR comments
+> > - Zero configuration needed in repositories
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Local Development Workflow</strong></summary>
+> >
+> > **Pre-commit setup (`.pre-commit-config.yaml`):**
+> > ```yaml
+> > repos:
+> >   - repo: local
+> >     hooks:
+> >       - id: cargo-quality
+> >         name: cargo-quality
+> >         entry: cargo qual check
+> >         language: system
+> >         types: [rust]
+> >         pass_filenames: false
+> >
+> >       - id: sql-analyzer
+> >         name: sql-query-analyzer
+> >         entry: sql-query-analyzer analyze -s db/schema.sql -q
+> >         language: system
+> >         types: [sql]
+> > ```
+> >
+> > **Editor integration:**
+> > ```bash
+> > # Run on save (VS Code tasks.json)
+> > cargo qual check ${file}
+> >
+> > # Format on save
+> > cargo qual fmt ${file}
+> > ```
+> >
+> > **Before PR:**
+> > ```bash
+> > # Check code quality
+> > cargo qual check
+> >
+> > # Preview PR size impact
+> > git diff main | rust-diff-analyzer
+> >
+> > # Check SQL changes
+> > sql-query-analyzer analyze -s db/schema.sql -q db/queries/
+> > ```
+> > </details>
+>
+> </details>
+
 <p align=center>
   <em>Following these guidelines ensures that our Rust code is high-quality, maintainable, and scalable.</em>
 </p>
