@@ -1,5 +1,9 @@
 <h1>Rust Code Style Guide</h1>
 
+<p align="right">
+  <strong>English</strong> | <a href="./README.ru.md">Русский</a>
+</p>
+
 <h2>1. Formatting</h2>
 
 > [!IMPORTANT]
@@ -515,6 +519,84 @@
 > > <p>
 > >   This policy ensures stable IDE/LSP hovers, better Treesitter outlines, and reliable navigation. Engineers see contracts immediately, CI can lint docs, and examples stay compilable. Code remains clean while documentation remains discoverable and accurate.
 > > </p>
+> > </details>
+>
+> </details>
+
+
+<h2>9. Code Review Methodology</h2>
+
+> [!TIP]
+>
+> <p>
+>   <strong>Use the comprehensive code review methodology to find vulnerabilities, performance issues, and quality problems systematically.</strong>
+> </p>
+>
+> <details>
+> <summary><strong>More information</strong></summary>
+>
+> > **Available in two languages:**
+> > - [English Documentation](./code-review-methodology/en/INDEX.md)
+> > - [Russian Documentation](./code-review-methodology/ru/INDEX.md)
+> >
+> > **Quick Links:**
+> >
+> > | Topic | EN | RU |
+> > |-------|----|----|
+> > | Quick Reference | [Cheat Sheet](./code-review-methodology/en/quick-reference.md) | [Shpargalka](./code-review-methodology/ru/quick-reference.md) |
+> > | Security | [Vulnerabilities](./code-review-methodology/en/security-vulnerabilities.md) | [Uyazvimosti](./code-review-methodology/ru/security-vulnerabilities.md) |
+> > | Performance | [Issues](./code-review-methodology/en/performance-issues.md) | [Problemy](./code-review-methodology/ru/performance-issues.md) |
+> > | Code Quality | [Quality](./code-review-methodology/en/code-quality.md) | [Kachestvo](./code-review-methodology/ru/code-quality.md) |
+> > | Rust Patterns | [Specifics](./code-review-methodology/en/rust-specific.md) | [Spetsifika](./code-review-methodology/ru/rust-specific.md) |
+> > | Examples | [Real Cases](./code-review-methodology/en/examples.md) | [Primery](./code-review-methodology/ru/examples.md) |
+> >
+> >
+> > <details>
+> > <summary><strong>What's Covered</strong></summary>
+> >
+> > > **Security Vulnerabilities:**
+> > > - Replay attacks and authentication bypasses
+> > > - SQL/Command injections
+> > > - Secret leaks and cryptography issues
+> > > - Input validation problems
+> > >
+> > > **Performance Issues:**
+> > > - Inefficient allocations and unnecessary cloning
+> > > - O(n^2) algorithms where O(n) is possible
+> > > - Duplicate operations and double parsing
+> > > - Blocking operations in async code
+> > >
+> > > **Code Quality:**
+> > > - DRY violations and code duplication
+> > > - Naming and readability
+> > > - Documentation standards
+> > > - Testing coverage
+> > >
+> > > **Rust-Specific:**
+> > > - Ownership and borrowing patterns
+> > > - Panic vs Result handling
+> > > - Unsafe code review
+> > > - Trait bounds and generics
+> > </details>
+> >
+> > <details>
+> > <summary><strong>Quick 5-Minute Checklist</strong></summary>
+> >
+> > **Security (2 min):**
+> > - [ ] No secrets in code
+> > - [ ] No `unwrap()`/`expect()` in production
+> > - [ ] Input data validated
+> > - [ ] No SQL/Command injections
+> >
+> > **Performance (1 min):**
+> > - [ ] No obvious O(n^2)
+> > - [ ] No duplicate operations
+> > - [ ] `Vec::with_capacity()` where needed
+> >
+> > **Quality (2 min):**
+> > - [ ] No code duplication (> 3 times)
+> > - [ ] Functions < 50 lines
+> > - [ ] Tests for new logic
 > > </details>
 >
 > </details>
