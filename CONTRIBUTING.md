@@ -1,5 +1,7 @@
 # Contributing to <PROJECT_NAME>
 
+[Русская версия](CONTRIBUTING.ru.md)
+
 Thank you for your interest in contributing to this project!
 
 ## Code Style & Standards
