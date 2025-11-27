@@ -343,7 +343,23 @@
 > >   This approach logs detailed error messages and gracefully propagates errors up the call stack, leading to a more robust and maintainable system.
 > > </p>
 > > </details>
-> 
+> >
+> > <details>
+> > <summary><strong>Real-World Incident: Cloudflare Outage (November 2025)</strong></summary>
+> > <p>
+> >   On November 18, 2025, a single <code>.unwrap()</code> call in Rust code caused a massive outage across Cloudflare's 330+ datacenters. Services like ChatGPT, X, Canva, and many others went offline for approximately 3 hours.
+> > </p>
+> > <p>
+> >   The root cause: a configuration change caused a features file to contain more entries than expected. The Rust code checked a limit but used <code>unwrap()</code> on an error path instead of handling it gracefully. When the limit was exceeded, the code panicked with: <code>"thread fl2_worker_thread panicked: called Result::unwrap() on an Err value"</code>
+> > </p>
+> > <p>
+> >   <strong>Lesson:</strong> The <code>.unwrap()</code> had been in the codebase for a long time but was never triggered until unexpected input reached that code path. This is why production code must handle all error cases explicitly.
+> > </p>
+> > <p>
+> >   <a href="https://blog.cloudflare.com/18-november-2025-outage/">Read the official Cloudflare post-mortem</a>
+> > </p>
+> > </details>
+>
 > </details>
 
 <h2>7. Testing & CI</h2>
