@@ -45,6 +45,7 @@
 - Ownership and Borrowing
 - Lifetimes
 - Panic vs Result
+- let-else vs map_err chains
 - Unsafe code
 - Traits and Generics
 - **14 KB**

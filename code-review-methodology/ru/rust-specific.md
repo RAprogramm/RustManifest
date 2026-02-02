@@ -4,8 +4,9 @@
 1. [Ownership и Borrowing](#ownership-и-borrowing)
 2. [Lifetimes](#lifetimes)
 3. [Panic vs Result](#panic-vs-result)
-4. [Unsafe код](#unsafe-код)
-5. [Traits и generics](#traits-и-generics)
+4. [let-else vs map_err цепочки](#let-else-vs-map_err-цепочки)
+5. [Unsafe код](#unsafe-код)
+6. [Traits и generics](#traits-и-generics)
 
 ---
 
@@ -270,6 +271,155 @@ fn process_better(opt: Option<String>) -> String {
 ```rust
 const DEFAULT_PORT: u16 = "8080".parse().unwrap();  // OK - проверяется на compile-time
 ```
+
+---
+
+## let-else vs map_err цепочки
+
+### Почему let-else часто лучше
+
+`let-else` делает код **читаемым мозгом, а не компилятором**, и не превращает обработку ошибок в функциональный ребус.
+
+### 1. Линейный поток вместо лапши
+
+`map_err`-цепочки заставляют читать код **справа налево и с конца**:
+
+```rust
+// ❌ Логика размазана, ошибка спрятана в середине выражений
+let value = parse(input)
+    .map_err(Error::Parse)?
+    .validate()
+    .map_err(Error::Validate)?
+    .normalize()
+    .map_err(Error::Normalize)?;
+```
+
+С `let-else` поток обычный, человеческий:
+
+```rust
+// ✅ Читается сверху вниз
+let Ok(value) = parse(input) else {
+    return Err(Error::Parse);
+};
+
+let Ok(value) = value.validate() else {
+    return Err(Error::Validate);
+};
+
+let Ok(value) = value.normalize() else {
+    return Err(Error::Normalize);
+};
+```
+
+---
+
+### 2. Явные точки выхода
+
+Важно не то, **что** случилось, а **где** мы выходим.
+
+**let-else:**
+- явно фиксирует место ошибки
+- делает `return Err(...)` видимым
+- упрощает аудит и рефакторинг
+
+**В цепочках:**
+- `?` размазан
+- `map_err` часто теряет контекст
+- легко проморгать, где именно меняется тип ошибки
+
+---
+
+### 3. Меньше магии с типами
+
+С `map_err` типы пляшут:
+
+```rust
+// ❌ Потом ещё From, ещё один map_err, внезапно не тот Error
+.map_err(|e| Error::Foo { source: e })
+```
+
+`let-else` тупой и надёжный:
+
+```rust
+// ✅ Здесь матч, здесь возврат, тип очевиден
+let Ok(value) = foo() else {
+    return Err(Error::Foo);
+};
+```
+
+---
+
+### 4. Лучше для сложной логики
+
+Как только появляется логирование, метрики, разные ветки обработки — цепочки превращаются в цирк:
+
+```rust
+// ✅ Легко добавить побочные эффекты
+let Ok(value) = parse(input) else {
+    metrics::inc("parse_fail");
+    tracing::warn!("Failed to parse input");
+    return Err(Error::Parse);
+};
+```
+
+Попробуй это красиво сделать в `map_err`. Не надо.
+
+---
+
+### 5. Когда map_err всё-таки норм
+
+`map_err` уместен, если:
+- **один шаг**
+- простая трансформация ошибки
+- код короткий и локальный
+
+```rust
+// ✅ Один раз, не цепочка на полэкрана
+let value = parse(input).map_err(Error::Parse)?;
+```
+
+---
+
+### 6. Под капотом — одинаково
+
+Оба варианта **компилируются идентично**:
+
+```rust
+let x = foo().map_err(Error::A)?;
+// и
+let Ok(x) = foo() else {
+    return Err(Error::A);
+};
+```
+
+После HIR → MIR → LLVM:
+- одинаковые ветвления
+- одинаковые `br` / `return`
+- ноль аллокаций
+- ноль оверхеда
+
+Никакой «императивной медлительности» нет.
+
+---
+
+### 7. Что выбирают на практике
+
+| Ситуация | Рекомендация |
+|----------|--------------|
+| Один шаг | `?` / `map_err` |
+| Несколько шагов, разный контекст | `let-else` |
+| Ветвления, логирование, метрики | только `let-else` или `match` |
+
+---
+
+### Итог
+
+- Да, `let-else` — профессионально
+- Да, zero-cost
+- Да, компилятор делает одно и то же
+- Разница только в том, кому легче читать код
+
+Функциональные цепочки выглядят умно. `let-else` выглядит как код, который не подведёт в проде.
 
 ---
 
@@ -559,6 +709,7 @@ impl File<Sealed> {
 - [ ] Нет unwrap/expect в production коде?
 - [ ] Ошибки обрабатываются корректно?
 - [ ] Используется ? operator?
+- [ ] let-else вместо длинных map_err цепочек?
 
 ### Unsafe
 - [ ] Unsafe действительно необходим?

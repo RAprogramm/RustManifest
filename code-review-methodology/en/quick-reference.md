@@ -35,6 +35,18 @@ rg "\.unwrap\(\)|\.expect\(|panic!" --type rust --glob '!tests'
 
 **Rule:** No panic in production code (only Result).
 
+### let-else vs map_err Chains
+```rust
+// Long chains
+let value = parse(input).map_err(E::A)?.validate().map_err(E::B)?;
+
+// Readable code
+let Ok(value) = parse(input) else { return Err(E::A); };
+let Ok(value) = value.validate() else { return Err(E::B); };
+```
+
+**Rule:** let-else for multiple steps, map_err for single step.
+
 ---
 
 ## Performance Issues

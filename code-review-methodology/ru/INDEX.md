@@ -45,6 +45,7 @@
 - Ownership и Borrowing
 - Lifetimes
 - Panic vs Result
+- let-else vs map_err цепочки
 - Unsafe код
 - Traits и Generics
 - **14 KB**

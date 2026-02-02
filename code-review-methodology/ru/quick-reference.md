@@ -35,6 +35,18 @@ rg "\.unwrap\(\)|\.expect\(|panic!" --type rust --glob '!tests'
 
 **Правило:** Нет panic в production коде (только Result).
 
+### let-else vs map_err цепочки
+```rust
+// ❌ Длинные цепочки
+let value = parse(input).map_err(E::A)?.validate().map_err(E::B)?;
+
+// ✅ Читаемый код
+let Ok(value) = parse(input) else { return Err(E::A); };
+let Ok(value) = value.validate() else { return Err(E::B); };
+```
+
+**Правило:** let-else для нескольких шагов, map_err — для одного.
+
 ---
 
 ## ⚡ Проблемы производительности

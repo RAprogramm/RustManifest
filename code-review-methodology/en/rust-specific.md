@@ -4,8 +4,9 @@
 1. [Ownership and Borrowing](#ownership-and-borrowing)
 2. [Lifetimes](#lifetimes)
 3. [Panic vs Result](#panic-vs-result)
-4. [Unsafe Code](#unsafe-code)
-5. [Traits and Generics](#traits-and-generics)
+4. [let-else vs map_err Chains](#let-else-vs-map_err-chains)
+5. [Unsafe Code](#unsafe-code)
+6. [Traits and Generics](#traits-and-generics)
 
 ---
 
@@ -270,6 +271,155 @@ fn process_better(opt: Option<String>) -> String {
 ```rust
 const DEFAULT_PORT: u16 = "8080".parse().unwrap();  // OK - checked at compile-time
 ```
+
+---
+
+## let-else vs map_err Chains
+
+### Why let-else Is Often Better
+
+`let-else` makes code **readable by humans, not just the compiler**, and doesn't turn error handling into a functional puzzle.
+
+### 1. Linear Flow Instead of Spaghetti
+
+`map_err` chains force you to read code **right-to-left and from the end**:
+
+```rust
+// Logic is scattered, error hidden in the middle of expressions
+let value = parse(input)
+    .map_err(Error::Parse)?
+    .validate()
+    .map_err(Error::Validate)?
+    .normalize()
+    .map_err(Error::Normalize)?;
+```
+
+With `let-else` the flow is normal, human:
+
+```rust
+// Reads top to bottom
+let Ok(value) = parse(input) else {
+    return Err(Error::Parse);
+};
+
+let Ok(value) = value.validate() else {
+    return Err(Error::Validate);
+};
+
+let Ok(value) = value.normalize() else {
+    return Err(Error::Normalize);
+};
+```
+
+---
+
+### 2. Explicit Exit Points
+
+What matters is not **what** happened, but **where** we exit.
+
+**let-else:**
+- explicitly marks error location
+- makes `return Err(...)` visible
+- simplifies audit and refactoring
+
+**In chains:**
+- `?` is scattered
+- `map_err` often loses context
+- easy to miss where exactly the error type changes
+
+---
+
+### 3. Less Type Magic
+
+With `map_err` types dance around:
+
+```rust
+// Then From, another map_err, suddenly wrong Error
+.map_err(|e| Error::Foo { source: e })
+```
+
+`let-else` is simple and reliable:
+
+```rust
+// Match here, return here, type is obvious
+let Ok(value) = foo() else {
+    return Err(Error::Foo);
+};
+```
+
+---
+
+### 4. Better for Complex Logic
+
+As soon as logging, metrics, different handling branches appear — chains become a circus:
+
+```rust
+// Easy to add side effects
+let Ok(value) = parse(input) else {
+    metrics::inc("parse_fail");
+    tracing::warn!("Failed to parse input");
+    return Err(Error::Parse);
+};
+```
+
+Try doing this elegantly in `map_err`. Don't.
+
+---
+
+### 5. When map_err Is Still OK
+
+`map_err` is appropriate when:
+- **single step**
+- simple error transformation
+- code is short and local
+
+```rust
+// Once, not a half-screen chain
+let value = parse(input).map_err(Error::Parse)?;
+```
+
+---
+
+### 6. Under the Hood — Identical
+
+Both variants **compile identically**:
+
+```rust
+let x = foo().map_err(Error::A)?;
+// and
+let Ok(x) = foo() else {
+    return Err(Error::A);
+};
+```
+
+After HIR → MIR → LLVM:
+- same branches
+- same `br` / `return`
+- zero allocations
+- zero overhead
+
+No "imperative slowness" exists.
+
+---
+
+### 7. What's Used in Practice
+
+| Situation | Recommendation |
+|-----------|----------------|
+| Single step | `?` / `map_err` |
+| Multiple steps, different context | `let-else` |
+| Branching, logging, metrics | only `let-else` or `match` |
+
+---
+
+### Summary
+
+- Yes, `let-else` is professional
+- Yes, zero-cost
+- Yes, compiler does the same thing
+- The only difference is who finds it easier to read
+
+Functional chains look smart. `let-else` looks like code that won't fail you in production.
 
 ---
 
@@ -559,6 +709,7 @@ impl File<Sealed> {
 - [ ] No unwrap/expect in production code?
 - [ ] Errors handled correctly?
 - [ ] ? operator used?
+- [ ] let-else instead of long map_err chains?
 
 ### Unsafe
 - [ ] Unsafe really necessary?
