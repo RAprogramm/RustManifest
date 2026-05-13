@@ -4,6 +4,8 @@
   <strong>English</strong> | <a href="./README.ru.md">Русский</a>
 </p>
 
+> 📍 **Project status and direction:** see [`docs/ROADMAP.md`](./docs/ROADMAP.md) for the canonical phase plan, what is shipped, what is next.
+
 <h2>1. Formatting</h2>
 
 > [!IMPORTANT]
