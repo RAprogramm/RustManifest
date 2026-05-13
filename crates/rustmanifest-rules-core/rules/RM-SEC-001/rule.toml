@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-SEC-001"
+severity = "error"
+title = "Hardcoded credentials"
+rationale-uri = "rustmanifest://methodology/security-vulnerabilities#hardcoded-credentials"
+
+[definition.pattern]
+regex = "(?i)(password|secret|api_key|token|private_key)\\s*=\\s*[\"']"
+exclude-globs = ["**/tests/**", "**/*_test.rs", "**/test_*.rs"]

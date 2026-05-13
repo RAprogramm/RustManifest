@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-SEC-003"
+severity = "error"
+title = "Command injection via format!"
+rationale-uri = "rustmanifest://methodology/security-vulnerabilities#command-injection"
+
+[definition.pattern]
+regex = "Command::new.*format!"
+exclude-globs = ["**/tests/**", "**/*_test.rs", "**/test_*.rs"]
