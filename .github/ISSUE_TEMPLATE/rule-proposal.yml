@@ -1,0 +1,61 @@
+name: Rule proposal
+description: Propose a new rule for the default rustmanifest rules pack.
+labels: [rule-proposal, triage]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Rule title
+      description: Short human-readable title, e.g. "Forbid mock databases in integration tests".
+    validations:
+      required: true
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Analysis tier
+      options:
+        - Tier 1 — pattern scan
+        - Tier 2 — AST traversal
+        - Tier 3 — semantic / rust-analyzer / cargo
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Default severity
+      options:
+        - error
+        - warning
+        - info
+        - hint
+    validations:
+      required: true
+  - type: input
+    id: methodology
+    attributes:
+      label: Methodology section
+      description: Path to the existing methodology section that this rule enforces, e.g. `code-review-methodology/en/security-vulnerabilities.md#sql-injection`.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: Why this rule is worth enforcing. Cite real-world incident, regression, or methodology requirement.
+    validations:
+      required: true
+  - type: textarea
+    id: fixtures
+    attributes:
+      label: Fixture pass and fail
+      description: Minimal Rust snippets that should and should not trigger the rule.
+      render: rust
+    validations:
+      required: true
+  - type: textarea
+    id: false-positive-risk
+    attributes:
+      label: False-positive risk
+      description: Known patterns that may trip the rule but should not. How will the implementation avoid them.
+    validations:
+      required: true

@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+* @RAprogramm
+
+/.github/        @RAprogramm
+/docs/           @RAprogramm
+/crates/         @RAprogramm
+/LICENSES/       @RAprogramm
+/SECURITY.md     @RAprogramm
+/REUSE.toml      @RAprogramm
+/deny.toml       @RAprogramm
+/release-plz.toml @RAprogramm
