@@ -15,15 +15,31 @@ readme = "README.md"
 categories = ["command-line-utilities", "development-tools"]
 keywords = ["rust", "cli", "lint", "code-review"]
 
-[dependencies]
-clap = { workspace = true }
-rustmanifest-engine = { workspace = true }
-rustmanifest-config = { workspace = true }
-rustmanifest-report = { workspace = true }
+[lib]
+name = "rustmanifest_cli"
+path = "src/lib.rs"
 
 [[bin]]
 name = "rustmanifest"
 path = "src/main.rs"
+
+[dependencies]
+anstream = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+rustmanifest-config = { workspace = true }
+rustmanifest-engine = { workspace = true }
+rustmanifest-report = { workspace = true }
+rustmanifest-rules-core = { workspace = true }
+rustmanifest-schema = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

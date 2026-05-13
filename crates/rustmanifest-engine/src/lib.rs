@@ -10,19 +10,21 @@
 //! - **Semantic** — full semantic analysis via `rust-analyzer` or cargo
 //!   integrations (off by default).
 //!
-//! Phase 0 ships only the public trait surface; concrete implementations and
-//! rule wiring land in Phase 1.
+//! Phase 1B implements the **pattern** tier end-to-end: a [`PatternAnalyzer`]
+//! per rule, an [`Orchestrator`] coordinating parallel execution across files
+//! discovered through [`walker::discover`], plus byte-precise [`Finding`]s
+//! and a [`pragma`] suppression mechanism.
 
-use rustmanifest_schema::{Finding, Rule};
+pub mod analyzer;
+pub mod error;
+pub mod orchestrator;
+pub mod pattern;
+pub mod pragma;
+pub mod source;
+pub mod walker;
 
-/// Trait implemented by every analyzer in the engine, regardless of tier.
-pub trait Analyzer {
-    /// Returns the rule this analyzer evaluates.
-    fn rule(&self) -> &Rule;
-
-    /// Analyzes a single source file and returns all findings produced.
-    ///
-    /// Implementations MUST be deterministic: same input bytes and same rule
-    /// produce the same findings in the same order.
-    fn analyze(&self, source: &str) -> Vec<Finding>;
-}
+pub use analyzer::Analyzer;
+pub use error::EngineError;
+pub use orchestrator::{Cancellation, Orchestrator, OrchestratorBuilder};
+pub use pattern::PatternAnalyzer;
+pub use source::Source;

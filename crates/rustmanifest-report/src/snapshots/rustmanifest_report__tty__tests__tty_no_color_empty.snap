@@ -1,0 +1,5 @@
+---
+source: crates/rustmanifest-report/src/tty.rs
+expression: rendered
+---
+no findings

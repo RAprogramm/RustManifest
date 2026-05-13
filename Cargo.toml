@@ -37,6 +37,20 @@ schemars = "1"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 toml = "1"
+rayon = "1"
+ignore = "0.4"
+globset = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+anyhow = "1"
+anstyle = "1"
+anstream = "1"
+insta = "1"
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+criterion = "0.8"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
