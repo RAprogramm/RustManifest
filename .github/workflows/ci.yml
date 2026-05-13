@@ -1,0 +1,153 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: 1
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable toolchain (pinned by rust-toolchain.toml)
+        run: rustup show active-toolchain
+      - name: Install nightly toolchain for rustfmt
+        run: |
+          rustup toolchain install nightly --profile minimal --component rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: lint
+      - name: cargo +nightly fmt --check
+        run: cargo +nightly fmt --all -- --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    name: test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-${{ matrix.os }}
+      - name: cargo test
+        run: cargo test --workspace --all-features --locked
+      - name: cargo build --release
+        run: cargo build --workspace --release --locked
+
+  msrv:
+    name: msrv 1.95
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify rust-toolchain.toml pins 1.95
+        run: |
+          grep -q 'channel = "1.95.0"' rust-toolchain.toml || (echo "MSRV drifted" && exit 1)
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: msrv
+      - name: cargo check --workspace
+        run: cargo check --workspace --all-targets --all-features --locked
+
+  audit:
+    name: audit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit --deny warnings
+
+  deny:
+    name: deny
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - run: cargo deny --all-features check
+
+  schema-drift:
+    name: schema-drift
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: schema-drift
+      - name: Regenerate schemas
+        run: |
+          cargo run --bin rustmanifest-schema-export --locked -- \
+            --out crates/rustmanifest-schema/schemas
+      - name: Verify no drift
+        run: |
+          if ! git diff --exit-code crates/rustmanifest-schema/schemas; then
+            echo "JSON schemas are out of date. Run:"
+            echo "  cargo run --bin rustmanifest-schema-export -- --out crates/rustmanifest-schema/schemas"
+            exit 1
+          fi
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: coverage
+      - name: Collect coverage
+        run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
+
+  reuse:
+    name: reuse
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: REUSE compliance check
+        uses: fsfe/reuse-action@v6
+
+  mcp-conformance:
+    name: mcp-conformance
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder for mcp-validator suite
+        run: |
+          echo "MCP conformance suite is scaffolded; the server lands in Phase 2."
+          echo "This job exists so the gate is wired today and only the body changes later."
