@@ -1,0 +1,19 @@
+---
+source: crates/rustmanifest-report/src/json.rs
+expression: rendered
+---
+[
+  {
+    "rule-id": "RM-SEC-001",
+    "severity": "error",
+    "location": {
+      "file": "src/lib.rs",
+      "range": {
+        "start": 10,
+        "end": 25
+      }
+    },
+    "message": "Hardcoded credentials: matched at bytes 10..25",
+    "rationale-uri": "rustmanifest://methodology/security#creds"
+  }
+]

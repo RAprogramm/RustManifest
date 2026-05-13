@@ -3,20 +3,28 @@
 
 //! Output renderers for `rustmanifest` findings.
 //!
-//! Phase 0 defines the renderer trait surface. Concrete `Json`, `Sarif`, and
-//! `Tty` renderers land in Phase 1 alongside the engine implementation.
+//! Three concrete renderers all share the [`Renderer`] trait so callers can
+//! select format at runtime: [`json::JsonRenderer`] for canonical
+//! machine-readable output, [`sarif::SarifRenderer`] for SARIF 2.1.0 (used by
+//! GitHub code scanning and other CI integrations), and [`tty::TtyRenderer`]
+//! for human-readable terminal output with optional color.
+
+pub mod error;
+pub mod json;
+pub mod sarif;
+pub mod tty;
 
 use rustmanifest_schema::Finding;
 
+pub use crate::{error::ReportError, json::JsonRenderer, sarif::SarifRenderer, tty::TtyRenderer};
+
 /// Trait implemented by every output renderer.
 pub trait Renderer {
-    /// Error type returned by [`Self::render`].
-    type Error;
-
     /// Renders a slice of findings to the destination owned by the renderer.
     ///
     /// # Errors
     ///
-    /// Returns an implementation-specific error if rendering or writing fails.
-    fn render(&mut self, findings: &[Finding]) -> Result<(), Self::Error>;
+    /// Returns a [`ReportError`] if rendering or writing to the destination
+    /// fails.
+    fn render(&mut self, findings: &[Finding]) -> Result<(), ReportError>;
 }

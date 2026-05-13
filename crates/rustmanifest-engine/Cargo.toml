@@ -16,8 +16,25 @@ categories = ["development-tools"]
 keywords = ["rust", "lint", "static-analysis", "ast"]
 
 [dependencies]
-rustmanifest-schema = { workspace = true }
+globset = { workspace = true }
+ignore = { workspace = true }
+rayon = { workspace = true }
+regex = { workspace = true }
 rustmanifest-rules-core = { workspace = true }
+rustmanifest-schema = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+tempfile = { workspace = true }
+
+[[bench]]
+name = "orchestrator"
+harness = false
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = { workspace = true }
 
 [lints]
 workspace = true

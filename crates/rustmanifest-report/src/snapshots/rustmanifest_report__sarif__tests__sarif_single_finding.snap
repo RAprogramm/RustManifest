@@ -1,0 +1,51 @@
+---
+source: crates/rustmanifest-report/src/sarif.rs
+expression: rendered
+---
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "rustmanifest",
+          "version": "0.0.0",
+          "informationUri": "https://github.com/RAprogramm/RustManifest",
+          "rules": [
+            {
+              "id": "RM-SEC-001",
+              "name": "RM-SEC-001",
+              "shortDescription": {
+                "text": "Hardcoded credentials: matched at bytes 10..25"
+              },
+              "helpUri": "rustmanifest://methodology/security#creds"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "RM-SEC-001",
+          "level": "error",
+          "message": {
+            "text": "Hardcoded credentials: matched at bytes 10..25"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/lib.rs"
+                },
+                "region": {
+                  "byteOffset": 10,
+                  "byteLength": 15
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

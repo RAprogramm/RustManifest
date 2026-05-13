@@ -1,36 +1,20 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! Command-line frontend for the `rustmanifest` engine.
-//!
-//! Phase 0 exposes only `--version` and the subcommand surface so that the
-//! shape of the CLI is locked while the engine is still being built.
+//! Binary entry point — thin shim over [`rustmanifest_cli::run`].
 
-use clap::{Parser, Subcommand};
+use std::process::ExitCode;
 
-/// Top-level CLI arguments.
-#[derive(Debug, Parser)]
-#[command(
-    name = "rustmanifest",
-    version,
-    about = "Production-grade Rust review engine — methodology-as-code"
-)]
-struct Cli {
-    /// Selected subcommand.
-    #[command(subcommand)]
-    command: Command
-}
+use clap::Parser;
+use rustmanifest_cli::{Cli, EXIT_ERROR};
 
-/// Available subcommands for the `rustmanifest` binary.
-#[derive(Debug, Subcommand)]
-enum Command {
-    /// Print the build metadata and exit.
-    Version
-}
-
-fn main() {
+fn main() -> ExitCode {
     let cli = Cli::parse();
-    match cli.command {
-        Command::Version => {}
+    match rustmanifest_cli::run(cli) {
+        Ok(code) => code,
+        Err(err) => {
+            tracing::error!(error = %err, "rustmanifest failed");
+            ExitCode::from(EXIT_ERROR)
+        }
     }
 }
