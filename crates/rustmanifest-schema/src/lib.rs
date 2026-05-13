@@ -15,33 +15,51 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A single review rule definition produced by the rules pack.
+///
+/// The analysis tier is implicit in the [`RuleDefinition`] variant carried by
+/// the `definition` field; there is no separate `tier` enum.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Rule {
     /// Stable rule identifier, e.g. `RM-SEC-001`.
     pub id:            String,
-    /// Analysis tier this rule belongs to.
-    pub tier:          Tier,
     /// Default severity declared by the rules pack.
     pub severity:      Severity,
     /// Short human-readable title.
     pub title:         String,
     /// `rustmanifest://` URI pointing to the rationale section.
-    pub rationale_uri: String
+    pub rationale_uri: String,
+    /// Tier-specific definition (pattern, AST, or semantic).
+    pub definition:    RuleDefinition
 }
 
-/// Analysis tier indicating the cost and precision class of a rule.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case")]
-pub enum Tier {
-    /// Pattern scan (regex / aho-corasick). Fast, high recall, medium
-    /// precision.
-    Pattern,
-    /// `syn`-based AST traversal. Structural and local semantic checks.
-    Ast,
-    /// Full semantic analysis (rust-analyzer / cargo integrations). Slow and
-    /// precise.
-    Semantic
+/// Tier-specific configuration carried inside a [`Rule`].
+///
+/// The enum uses **external tagging**: the variant name appears as the only
+/// key of the outer object on the wire, and the variant's payload is the
+/// nested value. This maps naturally to TOML's `[definition.pattern]` table
+/// syntax while remaining unambiguous in JSON.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case", rename_all_fields = "kebab-case")]
+pub enum RuleDefinition {
+    /// Tier 1 — text-level pattern scan via regular expression.
+    Pattern {
+        /// Regular expression matched against file contents.
+        regex:         String,
+        /// Glob patterns of files the rule MUST NOT inspect.
+        #[serde(default)]
+        exclude_globs: Vec<String>
+    },
+    /// Tier 2 — `syn` AST traversal identified by a built-in check name.
+    Ast {
+        /// Identifier of the built-in AST check implementation.
+        check: String
+    },
+    /// Tier 3 — semantic analysis identified by a built-in check name.
+    Semantic {
+        /// Identifier of the built-in semantic check implementation.
+        check: String
+    }
 }
 
 /// Severity of a rule or a finding.

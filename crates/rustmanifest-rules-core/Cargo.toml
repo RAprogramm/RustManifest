@@ -14,9 +14,24 @@ authors.workspace = true
 readme = "README.md"
 categories = ["development-tools"]
 keywords = ["rust", "lint", "code-review", "rules"]
+build = "build.rs"
+include = [
+    "src/**/*",
+    "rules/**/*",
+    "build.rs",
+    "Cargo.toml",
+    "README.md",
+]
 
 [dependencies]
+regex = { workspace = true }
 rustmanifest-schema = { workspace = true }
+serde_json = { workspace = true }
+
+[build-dependencies]
+rustmanifest-schema = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
 
 [lints]
 workspace = true

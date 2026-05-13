@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-PERF-001"
+severity = "warning"
+title = "Vec::new() without with_capacity"
+rationale-uri = "rustmanifest://methodology/performance-issues#vec-without-capacity"
+
+[definition.pattern]
+regex = "Vec::new\\(\\)"
+exclude-globs = ["**/tests/**", "**/*_test.rs", "**/test_*.rs"]
