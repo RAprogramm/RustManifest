@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Config",
+  "description": "User-supplied configuration from `rustmanifest.toml`.",
+  "type": "object",
+  "properties": {
+    "exclude": {
+      "description": "Glob patterns of files to exclude.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "include": {
+      "description": "Glob patterns of files to analyze.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "overrides": {
+      "description": "Per-rule severity overrides.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RuleOverride"
+      }
+    },
+    "profile": {
+      "description": "Profile to apply (`strict`, `default`, `minimal`, `ci`).",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "RuleOverride": {
+      "description": "Per-rule severity override entry.",
+      "type": "object",
+      "properties": {
+        "rule-id": {
+          "description": "Rule identifier to override.",
+          "type": "string"
+        },
+        "severity": {
+          "description": "New severity for the rule.",
+          "$ref": "#/$defs/Severity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rule-id",
+        "severity"
+      ]
+    },
+    "Severity": {
+      "description": "Severity of a rule or a finding.",
+      "oneOf": [
+        {
+          "description": "Blocking — fails CI.",
+          "type": "string",
+          "const": "error"
+        },
+        {
+          "description": "Non-blocking concern that should be addressed.",
+          "type": "string",
+          "const": "warning"
+        },
+        {
+          "description": "Informational.",
+          "type": "string",
+          "const": "info"
+        },
+        {
+          "description": "Style hint.",
+          "type": "string",
+          "const": "hint"
+        }
+      ]
+    }
+  }
+}

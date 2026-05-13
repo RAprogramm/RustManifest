@@ -1,0 +1,150 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+            archive: tar.zst
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            archive: tar.zst
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            archive: tar.zst
+          - target: aarch64-apple-darwin
+            runner: macos-15
+            archive: tar.zst
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2022
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: rustup show active-toolchain
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
+      - name: Build release binary
+        run: cargo build --profile dist --locked --target ${{ matrix.target }} -p rustmanifest-cli
+      - name: Stage artifact
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="rustmanifest-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/${name}"
+          if [[ "${{ matrix.target }}" == *windows* ]]; then
+            cp "target/${{ matrix.target }}/dist/rustmanifest.exe" "dist/${name}/"
+          else
+            cp "target/${{ matrix.target }}/dist/rustmanifest" "dist/${name}/"
+          fi
+          cp README.md "dist/${name}/"
+          mkdir -p "dist/${name}/LICENSES"
+          cp LICENSES/MIT.txt "dist/${name}/LICENSES/"
+          cd dist
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            7z a "${name}.zip" "${name}" >/dev/null
+            echo "asset=dist/${name}.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar --zstd -cf "${name}.tar.zst" "${name}"
+            echo "asset=dist/${name}.tar.zst" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: ${{ steps.stage.outputs.asset }}
+          if-no-files-found: error
+
+  sbom:
+    name: sbom
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-cyclonedx
+      - name: Generate CycloneDX SBOM
+        run: cargo cyclonedx --format json --all
+      - name: Collect SBOMs
+        run: |
+          mkdir -p sbom-out
+          find . -name "*.cdx.json" -not -path "./target/*" -exec cp {} sbom-out/ \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom-out/
+
+  sign-and-release:
+    name: sign-and-release
+    needs: [build, sbom]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.tar.zst" -o -name "*.zip" -o -name "*.cdx.json" \) \
+            -exec cp {} release/ \;
+          ls -la release/
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign artifacts with cosign (keyless via OIDC)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          for f in release/*; do
+            cosign sign-blob --yes --output-signature "${f}.sig" --output-certificate "${f}.pem" "${f}"
+          done
+      - name: Generate SLSA build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/*.tar.zst
+            release/*.zip
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release/*.tar.zst
+            release/*.zip
+            release/*.sig
+            release/*.pem
+            release/*.cdx.json

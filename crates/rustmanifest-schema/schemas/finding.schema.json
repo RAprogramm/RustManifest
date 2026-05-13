@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Finding",
+  "description": "A finding emitted by the engine for one rule against one source location.",
+  "type": "object",
+  "properties": {
+    "location": {
+      "description": "Source location where the rule fired.",
+      "$ref": "#/$defs/Location"
+    },
+    "message": {
+      "description": "Human-readable message about this occurrence.",
+      "type": "string"
+    },
+    "rationale-uri": {
+      "description": "`rustmanifest://` URI of the rationale section.",
+      "type": "string"
+    },
+    "rule-id": {
+      "description": "Identifier of the rule that produced this finding.",
+      "type": "string"
+    },
+    "severity": {
+      "description": "Effective severity for this finding (may be overridden by user config).",
+      "$ref": "#/$defs/Severity"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "rule-id",
+    "severity",
+    "location",
+    "message",
+    "rationale-uri"
+  ],
+  "$defs": {
+    "Location": {
+      "description": "Source location of a finding.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Workspace-relative file path.",
+          "type": "string"
+        },
+        "range": {
+          "description": "Byte range within the file.",
+          "$ref": "#/$defs/Range"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "range"
+      ]
+    },
+    "Range": {
+      "description": "Half-open byte range within a file.",
+      "type": "object",
+      "properties": {
+        "end": {
+          "description": "Exclusive end byte offset.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "start": {
+          "description": "Inclusive start byte offset.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ]
+    },
+    "Severity": {
+      "description": "Severity of a rule or a finding.",
+      "oneOf": [
+        {
+          "description": "Blocking — fails CI.",
+          "type": "string",
+          "const": "error"
+        },
+        {
+          "description": "Non-blocking concern that should be addressed.",
+          "type": "string",
+          "const": "warning"
+        },
+        {
+          "description": "Informational.",
+          "type": "string",
+          "const": "info"
+        },
+        {
+          "description": "Style hint.",
+          "type": "string",
+          "const": "hint"
+        }
+      ]
+    }
+  }
+}

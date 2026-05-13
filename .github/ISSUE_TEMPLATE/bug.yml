@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a defect in rustmanifest.
+labels: [bug, triage]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: rustmanifest version
+      description: Output of `rustmanifest --version`.
+    validations:
+      required: true
+  - type: input
+    id: rust
+    attributes:
+      label: Rust toolchain
+      description: Output of `rustc --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      multiple: true
+      options:
+        - CLI
+        - MCP server (stdio)
+        - MCP server (HTTP)
+        - LSP server
+        - GitHub Action
+        - Engine (library)
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Smallest code or invocation that triggers the bug. Include exact commands.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full output and any panic backtrace if applicable.
+    validations:
+      required: true

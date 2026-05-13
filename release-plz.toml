@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+[workspace]
+allow_dirty = false
+changelog_update = true
+git_release_enable = false
+publish = true
+publish_allow_dirty = false
+release = false
+semver_check = true
+
+[[package]]
+name = "rustmanifest-schema"
+release = true
+
+[[package]]
+name = "rustmanifest-rules-core"
+release = true
+
+[[package]]
+name = "rustmanifest-engine"
+release = true
+
+[[package]]
+name = "rustmanifest-config"
+release = true
+
+[[package]]
+name = "rustmanifest-report"
+release = true
+
+[[package]]
+name = "rustmanifest-mcp"
+release = true
+
+[[package]]
+name = "rustmanifest-lsp"
+release = true
+
+[[package]]
+name = "rustmanifest-cli"
+release = true

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/RAprogramm/RustManifest/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisories. Do not open a public issue.
+  - name: Discussion or question
+    url: https://github.com/RAprogramm/RustManifest/discussions
+    about: For open-ended questions and design ideas, use Discussions.

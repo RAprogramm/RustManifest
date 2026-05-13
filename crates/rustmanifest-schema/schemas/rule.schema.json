@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rule",
+  "description": "A single review rule definition produced by the rules pack.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Stable rule identifier, e.g. `RM-SEC-001`.",
+      "type": "string"
+    },
+    "rationale-uri": {
+      "description": "`rustmanifest://` URI pointing to the rationale section.",
+      "type": "string"
+    },
+    "severity": {
+      "description": "Default severity declared by the rules pack.",
+      "$ref": "#/$defs/Severity"
+    },
+    "tier": {
+      "description": "Analysis tier this rule belongs to.",
+      "$ref": "#/$defs/Tier"
+    },
+    "title": {
+      "description": "Short human-readable title.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "tier",
+    "severity",
+    "title",
+    "rationale-uri"
+  ],
+  "$defs": {
+    "Severity": {
+      "description": "Severity of a rule or a finding.",
+      "oneOf": [
+        {
+          "description": "Blocking — fails CI.",
+          "type": "string",
+          "const": "error"
+        },
+        {
+          "description": "Non-blocking concern that should be addressed.",
+          "type": "string",
+          "const": "warning"
+        },
+        {
+          "description": "Informational.",
+          "type": "string",
+          "const": "info"
+        },
+        {
+          "description": "Style hint.",
+          "type": "string",
+          "const": "hint"
+        }
+      ]
+    },
+    "Tier": {
+      "description": "Analysis tier indicating the cost and precision class of a rule.",
+      "oneOf": [
+        {
+          "description": "Pattern scan (regex / aho-corasick). Fast, high recall, medium\nprecision.",
+          "type": "string",
+          "const": "pattern"
+        },
+        {
+          "description": "`syn`-based AST traversal. Structural and local semantic checks.",
+          "type": "string",
+          "const": "ast"
+        },
+        {
+          "description": "Full semantic analysis (rust-analyzer / cargo integrations). Slow and\nprecise.",
+          "type": "string",
+          "const": "semantic"
+        }
+      ]
+    }
+  }
+}
