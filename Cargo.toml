@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/rustmanifest-schema",
+    "crates/rustmanifest-rules-core",
+    "crates/rustmanifest-engine",
+    "crates/rustmanifest-config",
+    "crates/rustmanifest-report",
+    "crates/rustmanifest-mcp",
+    "crates/rustmanifest-lsp",
+    "crates/rustmanifest-cli",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+repository = "https://github.com/RAprogramm/RustManifest"
+homepage = "https://github.com/RAprogramm/RustManifest"
+authors = ["RAprogramm <andrey.rozanov.vl@gmail.com>"]
+readme = "README.md"
+
+[workspace.dependencies]
+rustmanifest-schema = { path = "crates/rustmanifest-schema", version = "0.0.0" }
+rustmanifest-rules-core = { path = "crates/rustmanifest-rules-core", version = "0.0.0" }
+rustmanifest-engine = { path = "crates/rustmanifest-engine", version = "0.0.0" }
+rustmanifest-config = { path = "crates/rustmanifest-config", version = "0.0.0" }
+rustmanifest-report = { path = "crates/rustmanifest-report", version = "0.0.0" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+clap = { version = "4", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+unreachable_pub = "deny"
+unused_must_use = "deny"
+let_underscore_drop = "deny"
+non_ascii_idents = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = "symbols"
+panic = "abort"
+opt-level = 3
+
+[profile.dist]
+inherits = "release"
+debug = "line-tables-only"

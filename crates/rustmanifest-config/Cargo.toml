@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "rustmanifest-config"
+description = "Loader and resolver for rustmanifest.toml: profiles, overrides, pragmas."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+categories = ["config", "development-tools"]
+keywords = ["rust", "config", "toml"]
+
+[dependencies]
+rustmanifest-schema = { workspace = true }
+
+[lints]
+workspace = true

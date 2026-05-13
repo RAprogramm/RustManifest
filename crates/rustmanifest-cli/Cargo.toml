@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "rustmanifest-cli"
+description = "Command-line frontend for the rustmanifest engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["rust", "cli", "lint", "code-review"]
+
+[dependencies]
+clap = { workspace = true }
+rustmanifest-engine = { workspace = true }
+rustmanifest-config = { workspace = true }
+rustmanifest-report = { workspace = true }
+
+[[bin]]
+name = "rustmanifest"
+path = "src/main.rs"
+
+[lints]
+workspace = true

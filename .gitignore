@@ -1,0 +1,17 @@
+/target
+**/*.rs.bk
+*.swp
+*.swo
+.idea/
+.vscode/launch.json
+.vscode/settings.json
+.DS_Store
+
+/coverage
+*.profraw
+lcov.info
+
+/dist
+/release-artifacts
+*.sbom.json
+*.provenance.json

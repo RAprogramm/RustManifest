@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MethodologyResource",
+  "description": "Reference to a methodology document or section embedded in the rules pack.",
+  "type": "object",
+  "properties": {
+    "content": {
+      "description": "Document content in Markdown (English).",
+      "type": "string"
+    },
+    "source-path": {
+      "description": "Original source path inside the repository.",
+      "type": "string"
+    },
+    "title": {
+      "description": "Resource title.",
+      "type": "string"
+    },
+    "uri": {
+      "description": "Canonical `rustmanifest://` URI.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "uri",
+    "title",
+    "source-path",
+    "content"
+  ]
+}
