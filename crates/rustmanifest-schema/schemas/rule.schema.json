@@ -1,9 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Rule",
-  "description": "A single review rule definition produced by the rules pack.",
+  "description": "A single review rule definition produced by the rules pack.\n\nThe analysis tier is implicit in the [`RuleDefinition`] variant carried by\nthe `definition` field; there is no separate `tier` enum.",
   "type": "object",
   "properties": {
+    "definition": {
+      "description": "Tier-specific definition (pattern, AST, or semantic).",
+      "$ref": "#/$defs/RuleDefinition"
+    },
     "id": {
       "description": "Stable rule identifier, e.g. `RM-SEC-001`.",
       "type": "string"
@@ -16,10 +20,6 @@
       "description": "Default severity declared by the rules pack.",
       "$ref": "#/$defs/Severity"
     },
-    "tier": {
-      "description": "Analysis tier this rule belongs to.",
-      "$ref": "#/$defs/Tier"
-    },
     "title": {
       "description": "Short human-readable title.",
       "type": "string"
@@ -28,12 +28,91 @@
   "additionalProperties": false,
   "required": [
     "id",
-    "tier",
     "severity",
     "title",
-    "rationale-uri"
+    "rationale-uri",
+    "definition"
   ],
   "$defs": {
+    "RuleDefinition": {
+      "description": "Tier-specific configuration carried inside a [`Rule`].\n\nThe enum uses **external tagging**: the variant name appears as the only\nkey of the outer object on the wire, and the variant's payload is the\nnested value. This maps naturally to TOML's `[definition.pattern]` table\nsyntax while remaining unambiguous in JSON.",
+      "oneOf": [
+        {
+          "description": "Tier 1 — text-level pattern scan via regular expression.",
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "object",
+              "properties": {
+                "exclude-globs": {
+                  "description": "Glob patterns of files the rule MUST NOT inspect.",
+                  "type": "array",
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "regex": {
+                  "description": "Regular expression matched against file contents.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "regex"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pattern"
+          ]
+        },
+        {
+          "description": "Tier 2 — `syn` AST traversal identified by a built-in check name.",
+          "type": "object",
+          "properties": {
+            "ast": {
+              "type": "object",
+              "properties": {
+                "check": {
+                  "description": "Identifier of the built-in AST check implementation.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "check"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "ast"
+          ]
+        },
+        {
+          "description": "Tier 3 — semantic analysis identified by a built-in check name.",
+          "type": "object",
+          "properties": {
+            "semantic": {
+              "type": "object",
+              "properties": {
+                "check": {
+                  "description": "Identifier of the built-in semantic check implementation.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "check"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "semantic"
+          ]
+        }
+      ]
+    },
     "Severity": {
       "description": "Severity of a rule or a finding.",
       "oneOf": [
@@ -56,26 +135,6 @@
           "description": "Style hint.",
           "type": "string",
           "const": "hint"
-        }
-      ]
-    },
-    "Tier": {
-      "description": "Analysis tier indicating the cost and precision class of a rule.",
-      "oneOf": [
-        {
-          "description": "Pattern scan (regex / aho-corasick). Fast, high recall, medium\nprecision.",
-          "type": "string",
-          "const": "pattern"
-        },
-        {
-          "description": "`syn`-based AST traversal. Structural and local semantic checks.",
-          "type": "string",
-          "const": "ast"
-        },
-        {
-          "description": "Full semantic analysis (rust-analyzer / cargo integrations). Slow and\nprecise.",
-          "type": "string",
-          "const": "semantic"
         }
       ]
     }
