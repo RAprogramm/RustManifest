@@ -128,6 +128,28 @@ fn types_mermaid_labels_edges_with_field_names() {
 }
 
 #[test]
+fn types_mermaid_shows_interaction_edges_dashed() {
+    let tree = make_tree(&[
+        (
+            "src/board.rs",
+            "pub struct Board;\nimpl Board { pub fn reset() {} }\n"
+        ),
+        (
+            "src/game.rs",
+            "pub struct Game;\nimpl Game { pub fn restart(&self) { Board::reset(); } }\n"
+        )
+    ]);
+    rustmanifest()
+        .arg("graph")
+        .arg(tree.path())
+        .arg("--kind")
+        .arg("types")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Game -.->|calls| Board"));
+}
+
+#[test]
 fn unknown_kind_is_rejected() {
     rustmanifest()
         .arg("graph")

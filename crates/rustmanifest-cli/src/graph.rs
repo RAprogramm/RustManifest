@@ -125,10 +125,12 @@ fn module_lines(overview: &ModuleOverview, format: DiagramFormat) -> Vec<String>
     }
 }
 
-/// Renders the type aggregation diagram, one output line per element.
+/// Renders the type diagram, one output line per element: solid arrows for
+/// aggregation (labeled with the field), dashed arrows for interaction (a
+/// method body of the source type calling into the target type).
 ///
-/// Nodes are sorted by structure name and deduplicated; edges are sorted by
-/// `(owner, field, target)` and labeled with the aggregating field name.
+/// Nodes are sorted by type name and deduplicated; edges are sorted by
+/// `(owner, label, target)`.
 fn type_lines(graph: &TypeGraph, format: DiagramFormat) -> Vec<String> {
     let nodes: BTreeSet<&str> = graph
         .types()
@@ -146,6 +148,16 @@ fn type_lines(graph: &TypeGraph, format: DiagramFormat) -> Vec<String> {
             )
         })
         .collect();
+    let interactions: BTreeSet<(&str, &str)> = graph
+        .interaction_edges()
+        .into_iter()
+        .map(|(impl_block, target)| (impl_block.type_name.as_str(), target.name.as_str()))
+        .filter(|(from, to)| {
+            !edges
+                .iter()
+                .any(|(owner, _, target)| owner == from && target == to)
+        })
+        .collect();
     match format {
         DiagramFormat::Mermaid => {
             let mut lines = vec!["graph LR".to_owned()];
@@ -154,6 +166,9 @@ fn type_lines(graph: &TypeGraph, format: DiagramFormat) -> Vec<String> {
             }
             for (owner, field, target) in &edges {
                 lines.push(format!("    {owner} -->|{field}| {target}"));
+            }
+            for (from, to) in &interactions {
+                lines.push(format!("    {from} -.->|calls| {to}"));
             }
             lines
         }
@@ -165,6 +180,11 @@ fn type_lines(graph: &TypeGraph, format: DiagramFormat) -> Vec<String> {
             for (owner, field, target) in &edges {
                 lines.push(format!(
                     "    \"{owner}\" -> \"{target}\" [label=\"{field}\"];"
+                ));
+            }
+            for (from, to) in &interactions {
+                lines.push(format!(
+                    "    \"{from}\" -> \"{to}\" [style=\"dashed\" label=\"calls\"];"
                 ));
             }
             lines.push("}".to_owned());
