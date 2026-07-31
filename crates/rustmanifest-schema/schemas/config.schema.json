@@ -20,6 +20,13 @@
         "type": "string"
       }
     },
+    "invariants": {
+      "description": "User-declared behavioral invariants enforced over extracted facts.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Invariant"
+      }
+    },
     "overrides": {
       "description": "Per-rule severity overrides.",
       "type": "array",
@@ -39,6 +46,59 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "Invariant": {
+      "description": "One user-declared behavioral invariant.\n\nExactly one subject is expected per entry: `field` (with\n`write-only-from`) constrains who may write a field; `effect` (with\n`deny-in`) bans a side-effect category from parts of the module tree.\nModule lists hold module-path prefixes (`crate::ledger` covers\n`crate::ledger::posting`).",
+      "type": "object",
+      "properties": {
+        "deny-in": {
+          "description": "Module-path prefixes where `effect` is denied.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effect": {
+          "description": "Side-effect category to ban (`unsafe`, `fs`, `net`, `process`,\n`env`, `console`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "field": {
+          "description": "Field whose writers are constrained, as `Owner.field`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Identifier used as the finding's rule id; positional `RM-INV-NNN`\nwhen absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "severity": {
+          "description": "Severity of violations; `error` when absent.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Severity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "write-only-from": {
+          "description": "Module-path prefixes allowed to write `field`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "RuleOverride": {
       "description": "Per-rule severity override entry.",
       "type": "object",

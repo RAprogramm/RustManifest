@@ -204,6 +204,12 @@ impl Effective {
         &self.config.exclude
     }
 
+    /// User-declared behavioral invariants to enforce.
+    #[must_use]
+    pub fn invariants(&self) -> &[rustmanifest_schema::Invariant] {
+        &self.config.invariants
+    }
+
     /// Minimum severity a finding must reach to influence the exit code.
     #[must_use]
     pub const fn exit_threshold(&self) -> Severity {

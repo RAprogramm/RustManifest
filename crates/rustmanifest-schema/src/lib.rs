@@ -136,13 +136,48 @@ pub struct Range {
 #[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct Config {
     /// Profile to apply (`strict`, `default`, `minimal`, `ci`).
-    pub profile:   Option<String>,
+    pub profile:    Option<String>,
     /// Glob patterns of files to analyze.
-    pub include:   Vec<String>,
+    pub include:    Vec<String>,
     /// Glob patterns of files to exclude.
-    pub exclude:   Vec<String>,
+    pub exclude:    Vec<String>,
     /// Per-rule severity overrides.
-    pub overrides: Vec<RuleOverride>
+    pub overrides:  Vec<RuleOverride>,
+    /// User-declared behavioral invariants enforced over extracted facts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invariants: Vec<Invariant>
+}
+
+/// One user-declared behavioral invariant.
+///
+/// Exactly one subject is expected per entry: `field` (with
+/// `write-only-from`) constrains who may write a field; `effect` (with
+/// `deny-in`) bans a side-effect category from parts of the module tree.
+/// Module lists hold module-path prefixes (`crate::ledger` covers
+/// `crate::ledger::posting`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct Invariant {
+    /// Identifier used as the finding's rule id; positional `RM-INV-NNN`
+    /// when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id:              Option<String>,
+    /// Field whose writers are constrained, as `Owner.field`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field:           Option<String>,
+    /// Module-path prefixes allowed to write `field`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub write_only_from: Vec<String>,
+    /// Side-effect category to ban (`unsafe`, `fs`, `net`, `process`,
+    /// `env`, `console`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect:          Option<String>,
+    /// Module-path prefixes where `effect` is denied.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deny_in:         Vec<String>,
+    /// Severity of violations; `error` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub severity:        Option<Severity>
 }
 
 /// Per-rule severity override entry.

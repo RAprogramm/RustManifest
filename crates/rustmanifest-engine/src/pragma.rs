@@ -42,7 +42,7 @@ static PRAGMA_RE: LazyLock<Regex> = LazyLock::new(|| {
         r#"(?x)
         //\s*rustmanifest\s*:\s*allow
         \s*\(\s*
-        (?P<rule>[A-Z]+-[A-Z]+-\d{3})
+        (?P<rule>[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)
         \s*\)\s*
         reason\s*=\s*"(?P<reason>[^"]+)"
         "#

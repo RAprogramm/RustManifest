@@ -307,6 +307,12 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
         .run(&files)
         .context("orchestrator run failed")?;
     findings.extend(semantic_findings(&semantic, &files, args.max_file_size));
+    if !effective.invariants().is_empty() {
+        findings.extend(rustmanifest_engine::check_invariants(
+            &read_sources(&files, args.max_file_size),
+            effective.invariants()
+        ));
+    }
     if args.delegate_clippy {
         findings.extend(delegated_clippy_findings(&args.paths));
     }

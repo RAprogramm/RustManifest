@@ -17,6 +17,7 @@ mod coverage;
 mod expansion;
 mod field_group;
 mod graph;
+mod invariant;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
@@ -31,6 +32,7 @@ pub use self::{
     graph::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
+    invariant::check_invariants,
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}
 };
 use crate::{error::EngineError, pragma, source::Source};
