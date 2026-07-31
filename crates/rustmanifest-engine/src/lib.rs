@@ -37,6 +37,6 @@ pub use orchestrator::{
 pub use pattern::PatternAnalyzer;
 pub use semantic::{
     Coverage, ExpansionReport, ModuleEdge, ModuleInfo, ModuleOverview, SemanticAnalyzer,
-    TypeGraph, coverage, coverage_with, expansion, module_overview
+    TypeGraph, coverage, coverage_with, expansion, module_overview, unresolved_targets
 };
 pub use source::Source;

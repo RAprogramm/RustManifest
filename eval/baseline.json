@@ -14,7 +14,8 @@
         "RM-STRUCT-004": 6,
         "RM-STRUCT-006": 3,
         "RM-STRUCT-008": 1,
-        "RM-STRUCT-010": 40
+        "RM-STRUCT-010": 40,
+        "RM-STRUCT-011": 2
       }
     },
     {
@@ -49,7 +50,7 @@
         "RM-STRUCT-007": 14,
         "RM-STRUCT-008": 39,
         "RM-STRUCT-010": 28,
-        "RM-STRUCT-011": 8
+        "RM-STRUCT-011": 23
       }
     },
     {
@@ -67,7 +68,7 @@
         "RM-STRUCT-007": 5,
         "RM-STRUCT-008": 1,
         "RM-STRUCT-010": 14,
-        "RM-STRUCT-011": 4
+        "RM-STRUCT-011": 10
       }
     }
   ]

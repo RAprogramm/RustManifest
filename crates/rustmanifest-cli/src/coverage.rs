@@ -30,7 +30,12 @@ pub struct CoverageArgs {
     /// Also expand every crate via `cargo +nightly rustc -- \
     /// -Zunpretty=expanded` and report what derives generate.
     #[arg(long)]
-    pub expand: bool
+    pub expand: bool,
+
+    /// List every unresolved `use` target with its occurrence count — the
+    /// inspectable form of the report's "unresolved" bucket.
+    #[arg(long)]
+    pub unresolved: bool
 }
 
 /// Runs the `coverage` subcommand: discovers files, reads sources within
@@ -41,8 +46,14 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let report = coverage_with(&sources, &declared_dependencies(&args.paths));
+    let declared = declared_dependencies(&args.paths);
+    let report = coverage_with(&sources, &declared);
     let mut lines = report_lines(&report);
+    if args.unresolved {
+        lines.extend(unresolved_lines(&rustmanifest_engine::unresolved_targets(
+            &sources, &declared
+        )));
+    }
     if args.expand {
         lines.extend(expand_lines(&crate::expand::expand_paths(&args.paths)));
     }
@@ -66,6 +77,17 @@ fn declared_dependencies(paths: &[PathBuf]) -> BTreeSet<String> {
         }
     }
     names
+}
+
+/// Renders the `--unresolved` listing: one line per unresolved target,
+/// most frequent first, ties broken alphabetically.
+fn unresolved_lines(targets: &std::collections::BTreeMap<String, u64>) -> Vec<String> {
+    let mut ordered: Vec<(&String, &u64)> = targets.iter().collect();
+    ordered.sort_by(|left, right| right.1.cmp(left.1).then_with(|| left.0.cmp(right.0)));
+    ordered
+        .into_iter()
+        .map(|(target, count)| format!("unresolved          x{count:<8} {target}"))
+        .collect()
 }
 
 /// Renders the `--expand` report block appended after the coverage lines.

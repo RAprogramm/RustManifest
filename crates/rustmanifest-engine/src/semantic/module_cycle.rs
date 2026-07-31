@@ -101,7 +101,8 @@ pub(super) fn dependency_edges(graph: &ModuleGraph) -> Vec<Vec<UseEdge>> {
 /// unresolvable targets yield `None`.
 pub(super) fn resolved_module(modules: &[ModuleNode], from: usize, target: &str) -> Option<usize> {
     let source = modules.get(from)?;
-    let absolute = absolute_target(&source.path, target)?;
+    let absolute = absolute_target(&source.path, target)
+        .or_else(|| uniform_path_target(modules, from, target))?;
     let mut best: Option<(usize, usize)> = None;
     for (index, module) in modules.iter().enumerate() {
         if module.krate != source.krate || !path_covers(&module.path, &absolute) {
@@ -148,6 +149,23 @@ fn absolute_target(source: &str, target: &str) -> Option<String> {
         }
         _ => None
     }
+}
+
+/// Resolves a Rust 2018 uniform path — a `use` target whose head names a
+/// child module of the current module rather than a crate — into an
+/// absolute path, or [`None`] when no such child module exists.
+///
+/// The child-module check keeps external crates out: `use serde::…` only
+/// becomes an in-crate path if the current module really declares a
+/// `serde` submodule.
+fn uniform_path_target(modules: &[ModuleNode], from: usize, target: &str) -> Option<String> {
+    let source = modules.get(from)?;
+    let head = target.split("::").next()?;
+    let child = format!("{}::{head}", source.path);
+    modules
+        .iter()
+        .any(|module| module.krate == source.krate && module.path == child)
+        .then(|| joined(&source.path, target.split("::")))
 }
 
 /// Appends `segments` to the module path `base` with `::` separators.
