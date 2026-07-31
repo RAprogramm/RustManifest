@@ -91,7 +91,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 
 - Reserved for cache layer landing if not absorbed by Phase 1D.
 
-### Phase 2 — MCP server (stdio) ✅ done (local; conformance suite pending)
+### Phase 2 — MCP server (stdio) ✅ done (local; scripted stdio conformance tests shipped, external validator pending)
 
 - `rustmanifest-mcp` built on the `rmcp` SDK.
 - **Tools**: `review_file`, `review_diff`, `review_pr`, `check_rule(id, path)`, `lint_structure`, `explain_finding(finding_id)`.
