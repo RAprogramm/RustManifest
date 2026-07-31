@@ -39,7 +39,7 @@ regex = "1"
 toml = "1"
 rayon = "1"
 ignore = "0.4"
-syn = { version = "2", features = ["full"] }
+syn = { version = "2", features = ["full", "visit"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 globset = "0.4"
 tracing = "0.1"

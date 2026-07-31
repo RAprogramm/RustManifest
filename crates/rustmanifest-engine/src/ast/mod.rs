@@ -9,7 +9,12 @@
 //! exactly like the pattern tier.
 
 mod api_size;
+mod constant_encapsulation;
+mod constructor_design;
+mod delegating_constructors;
 mod entity_naming;
+mod fakes_over_mocks;
+mod immutability_first;
 mod method_naming;
 mod structure_size;
 
@@ -50,7 +55,18 @@ enum Check {
     /// `structure-size` — structs with more than four fields (§3).
     StructureSize,
     /// `api-size` — inherent impls exposing too many public methods (§4).
-    ApiSize
+    ApiSize,
+    /// `constructor-design` — constructors doing more than assignment (§5).
+    ConstructorDesign,
+    /// `delegating-constructors` — constructors duplicating `Self { .. }`
+    /// instead of delegating to one primary constructor (§6).
+    DelegatingConstructors,
+    /// `immutability-first` — `set_*` mutators taking `&mut self` (§7).
+    ImmutabilityFirst,
+    /// `constant-encapsulation` — module-level `pub const` items (§8).
+    ConstantEncapsulation,
+    /// `fakes-over-mocks` — mock-library imports and `#[automock]` (§9).
+    FakesOverMocks
 }
 
 impl Check {
@@ -61,6 +77,11 @@ impl Check {
             "method-naming" => Some(Self::MethodNaming),
             "structure-size" => Some(Self::StructureSize),
             "api-size" => Some(Self::ApiSize),
+            "constructor-design" => Some(Self::ConstructorDesign),
+            "delegating-constructors" => Some(Self::DelegatingConstructors),
+            "immutability-first" => Some(Self::ImmutabilityFirst),
+            "constant-encapsulation" => Some(Self::ConstantEncapsulation),
+            "fakes-over-mocks" => Some(Self::FakesOverMocks),
             _ => None
         }
     }
@@ -71,7 +92,12 @@ impl Check {
             Self::EntityNaming => entity_naming::occurrences(file),
             Self::MethodNaming => method_naming::occurrences(file),
             Self::StructureSize => structure_size::occurrences(file),
-            Self::ApiSize => api_size::occurrences(file)
+            Self::ApiSize => api_size::occurrences(file),
+            Self::ConstructorDesign => constructor_design::occurrences(file),
+            Self::DelegatingConstructors => delegating_constructors::occurrences(file),
+            Self::ImmutabilityFirst => immutability_first::occurrences(file),
+            Self::ConstantEncapsulation => constant_encapsulation::occurrences(file),
+            Self::FakesOverMocks => fakes_over_mocks::occurrences(file)
         }
     }
 }

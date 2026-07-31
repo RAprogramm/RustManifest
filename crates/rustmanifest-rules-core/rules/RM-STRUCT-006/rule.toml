@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-STRUCT-006"
+severity = "hint"
+title = "Delegating constructors"
+rationale-uri = "rustmanifest://methodology/structure#delegating-constructors"
+
+[definition.ast]
+check = "delegating-constructors"

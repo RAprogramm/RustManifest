@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-STRUCT-005"
+severity = "warning"
+title = "Constructor design"
+rationale-uri = "rustmanifest://methodology/structure#constructor-design"
+
+[definition.ast]
+check = "constructor-design"
