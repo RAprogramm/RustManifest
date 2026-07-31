@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-STRUCT-010"
+severity = "warning"
+title = "Repeated field group"
+rationale-uri = "rustmanifest://methodology/structure#structure-size"
+
+[definition.semantic]
+check = "repeated-field-group"

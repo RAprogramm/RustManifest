@@ -21,6 +21,7 @@ pub mod error;
 pub mod orchestrator;
 pub mod pattern;
 pub mod pragma;
+pub mod semantic;
 pub mod source;
 pub mod walker;
 
@@ -29,4 +30,5 @@ pub use ast::AstAnalyzer;
 pub use error::EngineError;
 pub use orchestrator::{Cancellation, Orchestrator, OrchestratorBuilder};
 pub use pattern::PatternAnalyzer;
+pub use semantic::{SemanticAnalyzer, TypeGraph};
 pub use source::Source;

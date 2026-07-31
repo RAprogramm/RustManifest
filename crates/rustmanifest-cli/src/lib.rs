@@ -15,7 +15,9 @@ use std::{
 
 use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
-use rustmanifest_engine::{AstAnalyzer, OrchestratorBuilder, PatternAnalyzer, walker};
+use rustmanifest_engine::{
+    AstAnalyzer, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
+};
 use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::{Finding, RuleDefinition, Severity};
@@ -173,6 +175,13 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
         .collect::<Result<Vec<_>, _>>()
         .context("building analyzers from bundled rules")?;
 
+    let semantic: Vec<SemanticAnalyzer> = RULES
+        .iter()
+        .filter(|rule| matches!(rule.definition, RuleDefinition::Semantic { .. }))
+        .map(|rule| SemanticAnalyzer::new(rule.clone()))
+        .collect::<Result<Vec<_>, _>>()
+        .context("building semantic analyzers from bundled rules")?;
+
     info!(
         analyzer_count = analyzers.len(),
         path_count = args.paths.len(),
@@ -188,6 +197,7 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
     let mut findings = orchestrator
         .run(&files)
         .context("orchestrator run failed")?;
+    findings.extend(semantic_findings(&semantic, &files, args.max_file_size));
     findings.retain(|finding| args.severity_filter.admits(finding.severity));
 
     render(&findings, args.format, args.no_color)?;
@@ -197,6 +207,35 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
     } else {
         Ok(ExitCode::from(EXIT_FINDINGS))
     }
+}
+
+/// Runs the workspace-level semantic tier over every readable Rust source
+/// within the memory budget and returns its findings.
+fn semantic_findings(
+    analyzers: &[SemanticAnalyzer],
+    files: &[PathBuf],
+    max_file_bytes: u64
+) -> Vec<Finding> {
+    if analyzers.is_empty() {
+        return Vec::new();
+    }
+    let sources: Vec<rustmanifest_engine::Source> = files
+        .iter()
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
+        .filter(|path| {
+            std::fs::metadata(path).is_ok_and(|metadata| metadata.len() <= max_file_bytes)
+        })
+        .filter_map(|path| {
+            std::fs::read_to_string(path)
+                .ok()
+                .map(|text| rustmanifest_engine::Source::new(path.clone(), text))
+        })
+        .collect();
+    let mut findings = Vec::new();
+    for analyzer in analyzers {
+        findings.extend(analyzer.analyze(&sources));
+    }
+    findings
 }
 
 fn render(findings: &[Finding], format: OutputFormat, no_color: bool) -> anyhow::Result<()> {
