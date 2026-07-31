@@ -10,6 +10,10 @@
 //! - `bless` records the comparable section as the committed baseline.
 //! - `check` re-runs the corpus and fails on any count drift from the baseline
 //!   or any p95 per-file budget breach.
+#![allow(
+    clippy::multiple_crate_versions,
+    reason = "duplicate transitive versions are pulled in by upstream dependencies"
+)]
 
 pub mod corpus;
 pub mod error;

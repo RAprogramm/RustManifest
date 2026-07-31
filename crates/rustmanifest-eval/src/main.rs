@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 //! Binary entry point — thin shim over [`rustmanifest_eval::run`].
+#![allow(
+    clippy::multiple_crate_versions,
+    reason = "duplicate transitive versions are pulled in by upstream dependencies"
+)]
 
 use std::process::ExitCode;
 

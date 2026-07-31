@@ -127,17 +127,36 @@ fn evaluate_repo(
         });
     }
     let actual_rev = head_revision(&repo_path);
-    if actual_rev != entry.rev {
+    let mut materialized: Option<tempfile::TempDir> = None;
+    let analyzed_rev;
+    let analyzed_path = if actual_rev == entry.rev {
+        analyzed_rev = entry.rev.clone();
+        repo_path
+    } else if let Some(pinned_tree) = materialize_rev(&repo_path, &entry.rev) {
         warn!(
             repo = %entry.name,
             pinned = %entry.rev,
             actual = %actual_rev,
-            "checkout revision differs from the corpus pin; counts may not be comparable"
+            "live checkout drifted; analyzing the pinned revision from git archive"
         );
-    }
+        analyzed_rev = entry.rev.clone();
+        let path = pinned_tree.path().to_path_buf();
+        materialized = Some(pinned_tree);
+        path
+    } else {
+        warn!(
+            repo = %entry.name,
+            pinned = %entry.rev,
+            actual = %actual_rev,
+            "pinned revision not materializable; analyzing the live tree, counts may not be \
+             comparable"
+        );
+        analyzed_rev = actual_rev;
+        repo_path
+    };
 
     let repo_start = Instant::now();
-    let files = walker::discover(std::slice::from_ref(&repo_path))?;
+    let files = walker::discover(std::slice::from_ref(&analyzed_path))?;
     let mut findings: BTreeMap<String, u64> = BTreeMap::new();
     let mut budget_samples: Vec<f64> = Vec::new();
     let mut max_file_ms = 0.0_f64;
@@ -185,12 +204,44 @@ fn evaluate_repo(
     let report = RepoReport {
         name: entry.name.clone(),
         pinned_rev: entry.rev.clone(),
-        actual_rev,
+        actual_rev: analyzed_rev,
         files: u64::try_from(files.len()).unwrap_or(u64::MAX),
         rust_lines,
         findings
     };
+    drop(materialized);
     Ok((report, timings))
+}
+
+/// Extracts `rev` from the repository at `path` into a temporary directory
+/// via `git archive`, returning `None` when the revision is unavailable.
+fn materialize_rev(path: &Path, rev: &str) -> Option<tempfile::TempDir> {
+    let dir = tempfile::TempDir::new().ok()?;
+    let archive = Command::new("git")
+        .arg("-C")
+        .arg(path)
+        .args(["archive", "--format=tar", rev])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())?;
+    let mut child = Command::new("tar")
+        .arg("-x")
+        .arg("-C")
+        .arg(dir.path())
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .ok()?;
+    {
+        use std::io::Write;
+
+        let stdin = child.stdin.as_mut()?;
+        stdin.write_all(&archive.stdout).ok()?;
+    }
+    child
+        .wait()
+        .ok()
+        .filter(std::process::ExitStatus::success)?;
+    Some(dir)
 }
 
 #[cfg(test)]
@@ -257,6 +308,49 @@ mod tests {
         let report = evaluate(&corpus, dir.path()).unwrap();
         let meta = report.repos[0].findings.get("RM-META-001").copied();
         assert_eq!(meta, Some(1));
+    }
+
+    #[test]
+    fn drifted_checkout_analyzes_the_pinned_revision() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = dir.path().join("repo");
+        std::fs::create_dir_all(repo.join("src")).expect("dirs");
+        let run = |args: &[&str]| {
+            let output = std::process::Command::new("git")
+                .arg("-C")
+                .arg(&repo)
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "eval")
+                .env("GIT_AUTHOR_EMAIL", "eval@localhost")
+                .env("GIT_COMMITTER_NAME", "eval")
+                .env("GIT_COMMITTER_EMAIL", "eval@localhost")
+                .output()
+                .expect("git runs");
+            assert!(output.status.success(), "git {args:?} failed");
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        };
+        run(&["init", "-q"]);
+        std::fs::write(repo.join("src/lib.rs"), "pub struct Config;\n").expect("write");
+        run(&["add", "."]);
+        run(&["commit", "-q", "-m", "pinned state"]);
+        let pinned = run(&["rev-parse", "HEAD"]);
+        std::fs::write(
+            repo.join("src/lib.rs"),
+            "pub struct Config;\npub struct Extra;\n"
+        )
+        .expect("write drift");
+        run(&["add", "."]);
+        run(&["commit", "-q", "-m", "drifted state"]);
+
+        let manifest = format!(
+            "[[repo]]\nname = \"probe\"\npath = \"repo\"\nrev = \"{pinned}\"\nnotes = \"t\"\n"
+        );
+        let corpus_file = dir.path().join("corpus.toml");
+        std::fs::write(&corpus_file, manifest).expect("corpus");
+        let corpus = crate::corpus::load(&corpus_file).expect("parse");
+        let report = evaluate(&corpus, dir.path()).expect("report");
+        assert_eq!(report.repos[0].actual_rev, pinned);
+        assert_eq!(report.repos[0].rust_lines, 1);
     }
 
     #[test]

@@ -38,7 +38,7 @@
       "name": "hydebar",
       "pinned-rev": "1774c8decf370b9c3475ebae714b981f34ceebc5",
       "files": 318,
-      "rust-lines": 70474,
+      "rust-lines": 70288,
       "findings": {
         "RM-STRUCT-001": 6,
         "RM-STRUCT-002": 54,
