@@ -35,7 +35,7 @@ where
     for rule in rules {
         match rule.definition {
             RuleDefinition::Pattern { .. } => {
-                per_file.push(Box::new(PatternAnalyzer::new(rule.clone())?))
+                per_file.push(Box::new(PatternAnalyzer::new(rule.clone())?));
             }
             RuleDefinition::Ast { .. } => per_file.push(Box::new(AstAnalyzer::new(rule.clone())?)),
             RuleDefinition::Semantic { .. } => semantic.push(SemanticAnalyzer::new(rule.clone())?),
