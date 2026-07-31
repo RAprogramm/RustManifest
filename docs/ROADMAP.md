@@ -2,9 +2,9 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-07-31):** Phase 1C shipped. The tier-2 AST analyzer covers every section of `STRUCTURE.md` with rules `RM-STRUCT-001`..`009`, and the tier-3 foundation landed early: a workspace type graph (structures, fields, aggregation edges) powering the first relationship-level rule `RM-STRUCT-010` (repeated field group → extract component), per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md).
+**Current status (2026-07-31):** Phases 1C, 1D, and 2 shipped. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section; the tier-3 type graph powers `RM-STRUCT-010` (repeated field group), per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md). Phase 1D: `rustmanifest.toml` with profiles and severity overrides, `explain <RULE-ID>`, engine-synthesized `RM-META-001` for unused pragmas, content-addressed findings cache behind `--cache`. Phase 2: the stdio MCP server ships five tools (`review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`) and nine bundled methodology resources; methodology documents moved to `rustmanifest-rules-core` as the single source.
 
-**Next:** Phase 1D — config, explain, cache.
+**Next:** Phase 1E — eval corpus and precision metrics.
 
 ---
 
@@ -72,7 +72,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 - Per-check tracing spans and memory budget integration.
 - Acceptance: every section of `STRUCTURE.md` corresponds to at least one shipped rule.
 
-### Phase 1D — Config, explain, cache ⏳ planned
+### Phase 1D — Config, explain, cache ✅ done (local)
 
 - `rustmanifest-config`: parse `rustmanifest.toml` (profile selection, per-rule severity overrides, include/exclude globs).
 - Built-in profiles: `strict`, `default`, `minimal`, `ci`.
@@ -91,7 +91,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 
 - Reserved for cache layer landing if not absorbed by Phase 1D.
 
-### Phase 2 — MCP server (stdio) ⏳ planned
+### Phase 2 — MCP server (stdio) ✅ done (local; conformance suite pending)
 
 - `rustmanifest-mcp` built on the `rmcp` SDK.
 - **Tools**: `review_file`, `review_diff`, `review_pr`, `check_rule(id, path)`, `lint_structure`, `explain_finding(finding_id)`.
