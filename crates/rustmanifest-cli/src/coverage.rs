@@ -122,9 +122,12 @@ fn expand_lines(summary: &ExpandSummary) -> Vec<String> {
 /// many workspace types gained known trait implementations.
 fn integration_line(sources: &[rustmanifest_engine::Source], summary: &ExpandSummary) -> String {
     let mut graph = rustmanifest_engine::TypeGraph::from_sources(sources);
-    let mut integrated = 0;
+    let mut impls = 0;
+    let mut types = 0;
     for stream in &summary.streams {
-        integrated += graph.absorb_expansion(stream);
+        let absorbed = graph.absorb_expansion(stream);
+        impls += absorbed.impls;
+        types += absorbed.types;
     }
     let covered = graph
         .types()
@@ -138,8 +141,11 @@ fn integration_line(sources: &[rustmanifest_engine::Source], summary: &ExpandSum
         .count();
     line(
         "graph integration",
-        &format!("+{integrated}"),
-        &format!("derived impls absorbed   types with known derives {covered}")
+        &format!("+{impls}"),
+        &format!(
+            "derived impls absorbed   generated types discovered {types}   types with known \
+             derives {covered}"
+        )
     )
 }
 
@@ -326,7 +332,8 @@ mod tests {
             vec!["#[automatically_derived]\nimpl ::core::fmt::Debug for User { }".to_owned()];
         assert_eq!(
             super::integration_line(&sources, &summary),
-            "graph integration   +1        derived impls absorbed   types with known derives 1"
+            "graph integration   +1        derived impls absorbed   generated types discovered \
+             0   types with known derives 1"
         );
     }
 

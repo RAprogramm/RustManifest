@@ -40,16 +40,30 @@ pub struct FieldNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeNode {
     /// Type name.
-    pub name:   String,
-    /// Index of the source the type was parsed from.
-    pub source: usize,
-    /// Byte range of the type's identifier.
-    pub range:  Range,
+    pub name:      String,
+    /// Index of the source the type was parsed from; [`usize::MAX`] for
+    /// macro-generated types absorbed from expansion, which have no
+    /// surface file.
+    pub source:    usize,
+    /// Byte range of the type's identifier; zeroed for generated types.
+    pub range:     Range,
     /// Whether the node is a structure or an enum.
-    pub kind:   TypeKind,
+    pub kind:      TypeKind,
+    /// Whether the type exists only in macro expansion, absent from
+    /// surface syntax.
+    pub generated: bool,
     /// Named fields (or enum variant payloads) in declaration order; empty
     /// for tuple and unit structs.
-    pub fields: Vec<FieldNode>
+    pub fields:    Vec<FieldNode>
+}
+
+/// What one call to [`TypeGraph::absorb_expansion`] integrated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Absorption {
+    /// Derive-generated impls added to the graph.
+    pub impls: u64,
+    /// Macro-generated type definitions added to the graph.
+    pub types: u64
 }
 
 /// One method of an impl block, with the workspace-type references its
@@ -179,22 +193,40 @@ impl TypeGraph {
         traits
     }
 
-    /// Absorbs derive-generated impls from a crate's macro-expanded stream
-    /// (`cargo +nightly rustc -- -Zunpretty=expanded`), returning how many
-    /// impls were integrated.
+    /// Absorbs macro-generated definitions from a crate's expanded stream
+    /// (`cargo +nightly rustc -- -Zunpretty=expanded`) into the graph.
     ///
-    /// Only impls marked `#[automatically_derived]` whose self type the
-    /// graph already knows are added — each anchored to the source that
-    /// defines the type and flagged `derived`. Impls for unknown types and
-    /// duplicates of already-absorbed `(type, trait)` pairs are skipped, so
-    /// absorbing the same stream twice is a no-op.
-    pub fn absorb_expansion(&mut self, expanded: &str) -> u64 {
+    /// Two kinds of definitions integrate: type definitions absent from
+    /// surface syntax (added with `generated: true` and no source anchor),
+    /// and impls marked `#[automatically_derived]` for types the graph
+    /// knows — surface or just absorbed — each anchored to the type's
+    /// source and flagged `derived`. Name and `(type, trait)` duplicates
+    /// are skipped, so absorbing the same stream twice is a no-op.
+    pub fn absorb_expansion(&mut self, expanded: &str) -> Absorption {
         let Ok(file) = syn::parse_file(expanded) else {
-            return 0;
+            return Absorption::default();
         };
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
-        let mut integrated = 0;
+        let mut absorbed = Absorption::default();
+        for item in &items {
+            let generated = match item {
+                syn::Item::Struct(definition) => node(usize::MAX, definition),
+                syn::Item::Enum(definition) => enum_node(usize::MAX, definition),
+                _ => continue
+            };
+            if self.type_named(&generated.name).is_some() {
+                continue;
+            }
+            self.types.push(TypeNode {
+                range: Range {
+                    start: 0, end: 0
+                },
+                generated: true,
+                ..generated
+            });
+            absorbed.types += 1;
+        }
         for item in items {
             let syn::Item::Impl(definition) = item else {
                 continue;
@@ -221,9 +253,9 @@ impl TypeGraph {
             node.source = subject.source;
             node.derived = true;
             self.impls.push(node);
-            integrated += 1;
+            absorbed.impls += 1;
         }
-        integrated
+        absorbed
     }
 
     /// Returns every structure that aggregates `name` through a field whose
@@ -308,6 +340,7 @@ fn node(source: usize, definition: &syn::ItemStruct) -> TypeNode {
         source,
         range: byte_range(&bytes),
         kind: TypeKind::Struct,
+        generated: false,
         fields
     }
 }
@@ -342,6 +375,7 @@ fn enum_node(source: usize, definition: &syn::ItemEnum) -> TypeNode {
         source,
         range: byte_range(&bytes),
         kind: TypeKind::Enum,
+        generated: false,
         fields
     }
 }
@@ -582,7 +616,7 @@ mod tests {
     #[test]
     fn absorbed_expansion_adds_derived_impls_for_known_types() {
         let mut graph = graph(&["struct User { id: u64 }"]);
-        assert_eq!(graph.absorb_expansion(EXPANDED), 2);
+        assert_eq!(graph.absorb_expansion(EXPANDED).impls, 2);
         assert_eq!(graph.traits_implemented("User"), vec!["Clone", "Debug"]);
         let derived = graph.impls().iter().find(|node| node.derived).unwrap();
         assert_eq!(derived.source, graph.type_named("User").unwrap().source);
@@ -592,15 +626,37 @@ mod tests {
     fn absorbing_the_same_stream_twice_is_a_no_op() {
         let mut graph = graph(&["struct User { id: u64 }"]);
         graph.absorb_expansion(EXPANDED);
-        assert_eq!(graph.absorb_expansion(EXPANDED), 0);
+        assert_eq!(
+            graph.absorb_expansion(EXPANDED),
+            super::Absorption::default()
+        );
         assert_eq!(graph.impls().len(), 2);
     }
 
     #[test]
-    fn unknown_types_and_broken_streams_absorb_nothing() {
+    fn impls_for_unknown_types_and_broken_streams_absorb_nothing() {
         let mut graph = graph(&["struct Other;"]);
-        assert_eq!(graph.absorb_expansion(EXPANDED), 0);
-        assert_eq!(graph.absorb_expansion("fn broken("), 0);
+        assert_eq!(graph.absorb_expansion(EXPANDED).impls, 0);
+        assert_eq!(
+            graph.absorb_expansion("fn broken("),
+            super::Absorption::default()
+        );
+    }
+
+    #[test]
+    fn generated_types_absorb_with_their_derived_impls() {
+        let mut graph = graph(&["struct Surface { id: u64 }"]);
+        let absorbed = graph.absorb_expansion(
+            "struct Surface { id: u64 }\nstruct CreateUser { email: String \
+             }\n#[automatically_derived]\nimpl ::core::fmt::Debug for CreateUser { }"
+        );
+        assert_eq!(absorbed.types, 1);
+        assert_eq!(absorbed.impls, 1);
+        let generated = graph.type_named("CreateUser").unwrap();
+        assert!(generated.generated);
+        assert_eq!(generated.fields[0].name, "email");
+        assert_eq!(graph.traits_implemented("CreateUser"), vec!["Debug"]);
+        assert!(!graph.type_named("Surface").unwrap().generated);
     }
 
     #[test]

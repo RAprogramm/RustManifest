@@ -26,7 +26,9 @@ use tracing::trace;
 pub use self::{
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     expansion::{ExpansionReport, expansion},
-    graph::{FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode},
+    graph::{
+        Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
+    },
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}
 };
 use crate::{error::EngineError, pragma, source::Source};
