@@ -101,7 +101,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 - Conformance test suite against the Anthropic mcp-validator wired into CI.
 - All server-facing strings are English regardless of request language.
 
-### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ planned
+### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
 - HTTP transport with OAuth 2.1 + PKCE + RFC 8707 resource indicators.
 - Audience-scoped tokens, TLS 1.3 only, per-client rate limiting.
