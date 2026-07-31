@@ -12,13 +12,13 @@
 //! crate is additionally expanded via nightly `rustc` and the report gains
 //! a block measuring what the derives actually generate.
 
-use std::{io::Write, path::PathBuf, process::ExitCode};
+use std::{collections::BTreeSet, io::Write, path::PathBuf, process::ExitCode};
 
 use anyhow::Context;
 use clap::Parser;
-use rustmanifest_engine::{Coverage, coverage, walker};
+use rustmanifest_engine::{Coverage, coverage_with, walker};
 
-use crate::{EXIT_CLEAN, expand::ExpandSummary};
+use crate::{EXIT_CLEAN, expand::ExpandSummary, manifests};
 
 /// Arguments for the `coverage` subcommand.
 #[derive(Debug, Parser)]
@@ -41,7 +41,7 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let report = coverage(&sources);
+    let report = coverage_with(&sources, &declared_dependencies(&args.paths));
     let mut lines = report_lines(&report);
     if args.expand {
         lines.extend(expand_lines(&crate::expand::expand_paths(&args.paths)));
@@ -53,6 +53,19 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
     }
     handle.flush().context("flushing stdout")?;
     Ok(ExitCode::from(EXIT_CLEAN))
+}
+
+/// Collects dependency names declared in every manifest under `paths`,
+/// in their in-code spelling, so the coverage report can attribute
+/// non-workspace `use` targets to known external crates.
+fn declared_dependencies(paths: &[PathBuf]) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for manifest in manifests::manifest_files(paths) {
+        if let Ok(text) = std::fs::read_to_string(&manifest) {
+            names.extend(manifests::dependency_names(&text));
+        }
+    }
+    names
 }
 
 /// Renders the `--expand` report block appended after the coverage lines.
@@ -106,6 +119,8 @@ fn report_lines(report: &Coverage) -> Vec<String> {
     let edges = report.aggregation_edges_resolved;
     let resolved = report.use_targets_resolved;
     let external = report.use_targets_external;
+    let unresolved = report.use_targets_unresolved;
+    let accounted = report.accounted_rate();
     let macros = report.item_macros_seen;
     vec![
         line("files parsed", &parsed, &format!("{parse_rate:.1}%")),
@@ -123,8 +138,8 @@ fn report_lines(report: &Coverage) -> Vec<String> {
             "use targets",
             &report.use_targets_total.to_string(),
             &format!(
-                "resolved in-workspace {resolved}  {resolution_rate:.1}%   \
-                 external/unresolved {external}"
+                "resolved in-workspace {resolved}  {resolution_rate:.1}%   external \
+                 {external}   unresolved {unresolved}   accounted {accounted:.1}%"
             )
         ),
         line(
@@ -167,7 +182,8 @@ mod tests {
             aggregation_edges_resolved: 87,
             use_targets_total:          4044,
             use_targets_resolved:       1620,
-            use_targets_external:       2424,
+            use_targets_external:       2400,
+            use_targets_unresolved:     24,
             derives_seen:               233,
             item_macros_seen:           12
         };
@@ -184,8 +200,8 @@ mod tests {
         );
         assert_eq!(
             lines[3],
-            "use targets         4044      resolved in-workspace 1620  40.1%   \
-             external/unresolved 2424"
+            "use targets         4044      resolved in-workspace 1620  40.1%   external 2400   \
+             unresolved 24   accounted 99.4%"
         );
         assert_eq!(
             lines[4],

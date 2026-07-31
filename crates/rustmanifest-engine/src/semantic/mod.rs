@@ -24,7 +24,7 @@ use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 pub use self::{
-    coverage::{Coverage, coverage, percent},
+    coverage::{Coverage, coverage, coverage_with, percent},
     expansion::{ExpansionReport, expansion},
     graph::{FieldNode, TypeGraph, TypeNode},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}

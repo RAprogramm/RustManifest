@@ -17,6 +17,8 @@ use std::{
 
 use rustmanifest_engine::{ExpansionReport, expansion};
 
+use crate::manifests;
+
 /// Aggregated expansion outcome across every discovered crate.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExpandSummary {
@@ -46,41 +48,13 @@ pub fn expand_paths(paths: &[PathBuf]) -> ExpandSummary {
 /// section, walking `paths` recursively and skipping hidden and `target`
 /// directories.
 fn manifest_dirs(paths: &[PathBuf]) -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    for path in paths {
-        walk_manifests(path, &mut dirs);
-    }
-    dirs.sort();
-    dirs.dedup();
-    dirs
-}
-
-/// Recursive step of [`manifest_dirs`].
-fn walk_manifests(dir: &Path, dirs: &mut Vec<PathBuf>) {
-    let manifest = dir.join("Cargo.toml");
-    if manifest.is_file()
-        && let Ok(text) = fs::read_to_string(&manifest)
-        && text.lines().any(|line| line.trim() == "[package]")
-    {
-        dirs.push(dir.to_path_buf());
-    }
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() || skipped_dir_name(&path) {
-            continue;
-        }
-        walk_manifests(&path, dirs);
-    }
-}
-
-/// Returns whether a directory is hidden or a build-output directory.
-fn skipped_dir_name(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .is_none_or(|name| name.starts_with('.') || name == "target")
+    manifests::manifest_files(paths)
+        .into_iter()
+        .filter(|manifest| {
+            fs::read_to_string(manifest).is_ok_and(|text| manifests::has_package_section(&text))
+        })
+        .filter_map(|manifest| manifest.parent().map(Path::to_path_buf))
+        .collect()
 }
 
 /// Expands one crate and measures the expanded stream.
@@ -111,27 +85,8 @@ fn expand_target(dir: &Path) -> Option<Vec<String>> {
         return Some(vec!["--lib".to_owned()]);
     }
     if dir.join("src/main.rs").is_file() {
-        let name = package_name(&fs::read_to_string(dir.join("Cargo.toml")).ok()?)?;
+        let name = manifests::package_name(&fs::read_to_string(dir.join("Cargo.toml")).ok()?)?;
         return Some(vec!["--bin".to_owned(), name]);
-    }
-    None
-}
-
-/// Extracts the package name from a manifest's `[package]` section.
-fn package_name(manifest: &str) -> Option<String> {
-    let mut in_package = false;
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_package = trimmed == "[package]";
-            continue;
-        }
-        if in_package
-            && let Some(value) = trimmed.strip_prefix("name")
-            && let Some(value) = value.trim_start().strip_prefix('=')
-        {
-            return Some(value.trim().trim_matches('"').to_owned());
-        }
     }
     None
 }
@@ -144,19 +99,7 @@ fn package_name(manifest: &str) -> Option<String> {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{expand_paths, expand_target, manifest_dirs, package_name};
-
-    #[test]
-    fn package_name_is_read_from_the_package_section() {
-        let manifest = "[workspace]\nmembers = [\"a\"]\n[package]\nname = \
-                        \"probe\"\nversion = \"0.1.0\"\n[dependencies]\nname = \"decoy\"\n";
-        assert_eq!(package_name(manifest).unwrap(), "probe");
-    }
-
-    #[test]
-    fn manifest_without_package_section_has_no_name() {
-        assert!(package_name("[workspace]\nmembers = []\n").is_none());
-    }
+    use super::{expand_paths, expand_target, manifest_dirs};
 
     #[test]
     fn virtual_manifests_and_hidden_dirs_are_skipped() {

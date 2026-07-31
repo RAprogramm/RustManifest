@@ -10,6 +10,7 @@
 pub mod coverage;
 pub mod expand;
 pub mod graph;
+pub mod manifests;
 
 use std::{
     collections::HashMap,

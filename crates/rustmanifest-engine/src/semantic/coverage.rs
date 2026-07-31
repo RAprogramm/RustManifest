@@ -55,9 +55,12 @@ pub struct Coverage {
     pub use_targets_total:          u64,
     /// `use` targets that resolve to a module of the same crate.
     pub use_targets_resolved:       u64,
-    /// `use` targets naming external crates or paths outside the module
-    /// graph.
+    /// `use` targets whose leading segment names a known external crate:
+    /// the standard-library family or a declared dependency.
     pub use_targets_external:       u64,
+    /// `use` targets that neither resolve in-workspace nor name a known
+    /// external crate — the honest "did not understand" bucket.
+    pub use_targets_unresolved:     u64,
     /// `#[derive(...)]` attributes seen on items; their expansions are not
     /// analyzed.
     pub derives_seen:               u64,
@@ -86,6 +89,17 @@ impl Coverage {
     pub const fn reachability_rate(&self) -> f64 {
         percent(self.files_reachable, self.files_total)
     }
+
+    /// Share of `use` targets accounted for — resolved in-workspace or
+    /// attributed to a known external crate — in percent of
+    /// `use_targets_total`.
+    #[must_use]
+    pub const fn accounted_rate(&self) -> f64 {
+        percent(
+            self.use_targets_resolved + self.use_targets_external,
+            self.use_targets_total
+        )
+    }
 }
 
 /// Returns `part` as a percentage of `whole`, or `0.0` when `whole` is zero.
@@ -101,16 +115,26 @@ pub const fn percent(part: u64, whole: u64) -> f64 {
     part as f64 / whole as f64 * 100.0
 }
 
+/// Measures `sources` like [`coverage_with`] with no declared
+/// dependencies: only the standard-library family counts as external.
+#[must_use]
+pub fn coverage(sources: &[Source]) -> Coverage {
+    coverage_with(sources, &BTreeSet::new())
+}
+
 /// Measures how much of `sources` the engine's parsing, module graph, and
 /// type graph actually capture.
 ///
 /// The measurement reuses the production machinery unchanged: the module
 /// graph decides reachability, the `module-cycles` resolution logic decides
 /// which `use` targets count as in-workspace, and the type graph provides
-/// the structure counters. Macro and derive expansions are never analyzed;
-/// they are only counted as sightings.
+/// the structure counters. `use` targets that do not resolve in-workspace
+/// are attributed to a known external crate — the standard-library family
+/// or a name in `external_crates` — or counted as honestly unresolved.
+/// Macro and derive expansions are never analyzed; they are only counted
+/// as sightings.
 #[must_use]
-pub fn coverage(sources: &[Source]) -> Coverage {
+pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> Coverage {
     let mut files_parsed = 0u64;
     let mut derives_seen = 0u64;
     let mut item_macros_seen = 0u64;
@@ -129,11 +153,17 @@ pub fn coverage(sources: &[Source]) -> Coverage {
     let reachable: BTreeSet<usize> = modules.iter().map(|module| module.source).collect();
     let mut use_targets_total = 0u64;
     let mut use_targets_resolved = 0u64;
+    let mut use_targets_external = 0u64;
+    let mut use_targets_unresolved = 0u64;
     for (from, module) in modules.iter().enumerate() {
         for use_target in &module.uses {
             use_targets_total += 1;
             if module_cycle::resolved_module(modules, from, &use_target.target).is_some() {
                 use_targets_resolved += 1;
+            } else if external_target(&use_target.target, external_crates) {
+                use_targets_external += 1;
+            } else {
+                use_targets_unresolved += 1;
             }
         }
     }
@@ -153,10 +183,19 @@ pub fn coverage(sources: &[Source]) -> Coverage {
         aggregation_edges_resolved: count(types.aggregation_edges().len()),
         use_targets_total,
         use_targets_resolved,
-        use_targets_external: use_targets_total.saturating_sub(use_targets_resolved),
+        use_targets_external,
+        use_targets_unresolved,
         derives_seen,
         item_macros_seen
     }
+}
+
+/// Returns whether a `use` target's leading segment names a known external
+/// crate: the standard-library family or a declared dependency.
+fn external_target(target: &str, external_crates: &BTreeSet<String>) -> bool {
+    const BUILTIN: [&str; 5] = ["alloc", "core", "proc_macro", "std", "test"];
+    let first = target.split("::").next().unwrap_or(target);
+    BUILTIN.contains(&first) || external_crates.contains(first)
 }
 
 /// Converts a collection length into a saturating `u64` counter.
@@ -196,9 +235,9 @@ impl<'ast> Visit<'ast> for MacroCounter {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use std::path::PathBuf;
+    use std::{collections::BTreeSet, path::PathBuf};
 
-    use super::{coverage, percent};
+    use super::{coverage, coverage_with, percent};
     use crate::source::Source;
 
     fn source(path: &str, text: &str) -> Source {
@@ -262,7 +301,25 @@ mod tests {
         assert_eq!(report.use_targets_total, 2);
         assert_eq!(report.use_targets_resolved, 1);
         assert_eq!(report.use_targets_external, 1);
+        assert_eq!(report.use_targets_unresolved, 0);
         assert!(close(report.resolution_rate(), 50.0));
+        assert!(close(report.accounted_rate(), 100.0));
+    }
+
+    #[test]
+    fn declared_dependencies_move_targets_from_unresolved_to_external() {
+        let sources = [source(
+            "src/lib.rs",
+            "use serde::Serialize; use unknown_crate::Thing;"
+        )];
+        let bare = coverage(&sources);
+        assert_eq!(bare.use_targets_external, 0);
+        assert_eq!(bare.use_targets_unresolved, 2);
+        let declared = BTreeSet::from(["serde".to_owned()]);
+        let informed = coverage_with(&sources, &declared);
+        assert_eq!(informed.use_targets_external, 1);
+        assert_eq!(informed.use_targets_unresolved, 1);
+        assert!(close(informed.accounted_rate(), 50.0));
     }
 
     #[test]
