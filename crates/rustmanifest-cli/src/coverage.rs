@@ -66,14 +66,17 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::from(EXIT_CLEAN))
 }
 
-/// Collects dependency names declared in every manifest under `paths`,
-/// in their in-code spelling, so the coverage report can attribute
-/// non-workspace `use` targets to known external crates.
+/// Collects the crate names known under `paths` — declared dependencies
+/// plus the workspace's own package and library-target names — in their
+/// in-code spelling, so the coverage report can attribute non-workspace
+/// `use` targets to a known origin. Tests, benches, and examples import
+/// their own workspace crates by name, which is why provided names count.
 fn declared_dependencies(paths: &[PathBuf]) -> BTreeSet<String> {
     let mut names = BTreeSet::new();
     for manifest in manifests::manifest_files(paths) {
         if let Ok(text) = std::fs::read_to_string(&manifest) {
             names.extend(manifests::dependency_names(&text));
+            names.extend(manifests::provided_crate_names(&text));
         }
     }
     names

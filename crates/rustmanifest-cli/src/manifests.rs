@@ -80,6 +80,35 @@ pub fn package_name(manifest: &str) -> Option<String> {
     None
 }
 
+/// Lists the crate names this manifest itself provides.
+///
+/// Covers the package name and, when a `[lib]` section renames the
+/// library target, that name too. Tests, benches, and examples import the
+/// workspace's own crates by these names, so coverage attribution must
+/// know them.
+#[must_use]
+pub fn provided_crate_names(manifest: &str) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    if let Some(package) = package_name(manifest) {
+        names.insert(normalized(&package));
+    }
+    let mut in_lib = false;
+    for line in manifest.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_lib = trimmed == "[lib]";
+            continue;
+        }
+        if in_lib
+            && let Some(value) = trimmed.strip_prefix("name")
+            && let Some(value) = value.trim_start().strip_prefix('=')
+        {
+            names.insert(normalized(value.trim().trim_matches('"')));
+        }
+    }
+    names
+}
+
 /// Lists dependency names declared anywhere in the manifest — regular,
 /// dev, build, workspace, and target-specific dependency sections — in
 /// their in-code spelling (hyphens replaced with underscores).
@@ -137,7 +166,9 @@ fn normalized(name: &str) -> String {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{dependency_names, has_package_section, manifest_files, package_name};
+    use super::{
+        dependency_names, has_package_section, manifest_files, package_name, provided_crate_names
+    };
 
     #[test]
     fn package_name_is_read_from_the_package_section() {
@@ -172,6 +203,17 @@ mod tests {
         assert_eq!(
             names.iter().map(String::as_str).collect::<Vec<_>>(),
             expected
+        );
+    }
+
+    #[test]
+    fn provided_crate_names_cover_package_and_lib_rename() {
+        let manifest = "[package]\nname = \"aura-api\"\n[lib]\nname = \"server\"\npath = \
+                        \"src/lib.rs\"\n[dependencies]\nserde = \"1\"\n";
+        let names = provided_crate_names(manifest);
+        assert_eq!(
+            names.iter().map(String::as_str).collect::<Vec<_>>(),
+            vec!["aura_api", "server"]
         );
     }
 
