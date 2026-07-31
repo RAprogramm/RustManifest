@@ -14,6 +14,8 @@ use std::sync::LazyLock;
 
 use rustmanifest_schema::Rule;
 
+pub mod methodology;
+
 /// Identifier of this rules pack, namespaced into rule IDs (e.g. `RM-SEC-001`).
 pub const PACK_ID: &str = "rm";
 
