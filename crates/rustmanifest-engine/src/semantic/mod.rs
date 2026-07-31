@@ -16,11 +16,15 @@ mod field_group;
 mod graph;
 mod module_cycle;
 mod module_graph;
+mod module_overview;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
-pub use self::graph::{FieldNode, TypeGraph, TypeNode};
+pub use self::{
+    graph::{FieldNode, TypeGraph, TypeNode},
+    module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}
+};
 use crate::{error::EngineError, pragma, source::Source};
 
 /// One workspace-level violation reported by a semantic check.

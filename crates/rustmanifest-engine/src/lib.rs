@@ -35,5 +35,7 @@ pub use orchestrator::{
     UNUSED_PRAGMA_RULE_ID
 };
 pub use pattern::PatternAnalyzer;
-pub use semantic::{SemanticAnalyzer, TypeGraph};
+pub use semantic::{
+    ModuleEdge, ModuleInfo, ModuleOverview, SemanticAnalyzer, TypeGraph, module_overview
+};
 pub use source::Source;

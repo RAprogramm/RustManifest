@@ -95,6 +95,26 @@ impl TypeGraph {
             .filter(|node| node.field_of_type(name).is_some())
             .collect()
     }
+
+    /// Returns every resolved aggregation edge of the workspace: the owning
+    /// structure, the aggregating field, and the workspace structure the
+    /// field's type name resolves to.
+    ///
+    /// Fields whose type name does not match a workspace structure produce
+    /// no edge. Edges follow the deterministic discovery order of
+    /// [`Self::types`] and field declaration order within each structure.
+    #[must_use]
+    pub fn aggregation_edges(&self) -> Vec<(&TypeNode, &FieldNode, &TypeNode)> {
+        let mut edges = Vec::new();
+        for owner in &self.types {
+            for field in &owner.fields {
+                if let Some(target) = self.type_named(&field.type_name) {
+                    edges.push((owner, field, target));
+                }
+            }
+        }
+        edges
+    }
 }
 
 /// Builds a [`TypeNode`] from a parsed struct definition.
@@ -201,6 +221,26 @@ mod tests {
     fn unparsable_files_are_skipped() {
         let graph = graph(&["struct Ok { a: u8 }", "fn broken("]);
         assert_eq!(graph.types().len(), 1);
+    }
+
+    #[test]
+    fn aggregation_edges_resolve_across_files() {
+        let graph = graph(&[
+            "struct Identity { id: u64 }",
+            "struct User { identity: Identity, age: u8 }"
+        ]);
+        let edges = graph.aggregation_edges();
+        assert_eq!(edges.len(), 1);
+        let (owner, field, target) = edges[0];
+        assert_eq!(owner.name, "User");
+        assert_eq!(field.name, "identity");
+        assert_eq!(target.name, "Identity");
+    }
+
+    #[test]
+    fn aggregation_edges_are_empty_without_workspace_targets() {
+        let graph = graph(&["struct User { id: u64, name: String }"]);
+        assert!(graph.aggregation_edges().is_empty());
     }
 
     #[test]

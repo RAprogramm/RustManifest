@@ -27,14 +27,21 @@ use crate::source::Source;
 pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
     let graph = ModuleGraph::from_sources(sources);
     let edges = dependency_edges(&graph);
+    cycles(&graph, &edges)
+        .iter()
+        .filter_map(|cycle| cycle_insight(sources, &graph, &edges, cycle))
+        .collect()
+}
+
+/// Enumerates every canonical module dependency cycle of the graph in
+/// depth-first discovery order, skipping ancestor-descendant two-module
+/// cycles and duplicates.
+pub(super) fn cycles(graph: &ModuleGraph, edges: &[Vec<UseEdge>]) -> Vec<Vec<usize>> {
     let mut found = Vec::new();
-    let mut seen: Vec<Vec<usize>> = Vec::new();
     let mut color = vec![Color::White; graph.modules().len()];
     for start in 0..graph.modules().len() {
         if color[start] == Color::White {
-            depth_first(
-                sources, &graph, &edges, start, &mut color, &mut seen, &mut found
-            );
+            depth_first(graph, edges, start, &mut color, &mut found);
         }
     }
     found
@@ -53,18 +60,18 @@ enum Color {
 
 /// A resolved module-to-module edge with the use target it came from.
 #[derive(Debug, Clone, Copy)]
-struct UseEdge {
+pub(super) struct UseEdge {
     /// Index of the target module.
-    to:        usize,
+    pub(super) to:        usize,
     /// Index into the source module's `uses` list, kept as evidence.
-    use_index: usize
+    pub(super) use_index: usize
 }
 
 /// Builds per-module dependency edges from the expanded `use` targets.
 ///
 /// Edges are deduplicated per module pair, keeping the first use target as
 /// evidence, and self-edges are dropped.
-fn dependency_edges(graph: &ModuleGraph) -> Vec<Vec<UseEdge>> {
+pub(super) fn dependency_edges(graph: &ModuleGraph) -> Vec<Vec<UseEdge>> {
     let modules = graph.modules();
     let mut edges: Vec<Vec<UseEdge>> = vec![Vec::new(); modules.len()];
     for (from, node) in modules.iter().enumerate() {
@@ -153,17 +160,15 @@ fn joined<'a>(base: &str, segments: impl Iterator<Item = &'a str>) -> String {
     path
 }
 
-/// Runs an iterative depth-first search from `start`, recording one insight
-/// per cycle not yet present in `seen`. Ancestor-descendant two-module
-/// cycles are skipped.
+/// Runs an iterative depth-first search from `start`, recording each
+/// canonical cycle not yet present in `found`. Ancestor-descendant
+/// two-module cycles are skipped.
 fn depth_first(
-    sources: &[Source],
     graph: &ModuleGraph,
     edges: &[Vec<UseEdge>],
     start: usize,
     color: &mut [Color],
-    seen: &mut Vec<Vec<usize>>,
-    found: &mut Vec<Insight>
+    found: &mut Vec<Vec<usize>>
 ) {
     let mut stack: Vec<(usize, usize)> = vec![(start, 0)];
     let mut path: Vec<usize> = vec![start];
@@ -189,9 +194,8 @@ fn depth_first(
                     continue;
                 };
                 let cycle = canonical_cycle(graph, &path[position..]);
-                if !ancestry_pair(graph, &cycle) && !seen.contains(&cycle) {
-                    seen.push(cycle.clone());
-                    found.extend(cycle_insight(sources, graph, edges, &cycle));
+                if !ancestry_pair(graph, &cycle) && !found.contains(&cycle) {
+                    found.push(cycle);
                 }
             }
             Color::Black => {}

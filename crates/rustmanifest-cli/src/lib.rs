@@ -7,6 +7,8 @@
 //! which makes the command surface testable from integration tests without
 //! spawning a child process.
 
+pub mod graph;
+
 use std::{
     collections::HashMap,
     io::{IsTerminal, Write},
@@ -25,6 +27,8 @@ use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
 use rustmanifest_rules_core::{RULES, methodology};
 use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition, Severity};
 use tracing::{info, warn};
+
+pub use crate::graph::{DiagramFormat, GraphArgs, GraphKind};
 
 /// Default exit code: no findings at or above the requested severity.
 pub const EXIT_CLEAN: u8 = 0;
@@ -56,7 +60,9 @@ pub enum Command {
     /// Run the analysis engine across one or more paths.
     Check(CheckArgs),
     /// Print the rationale and methodology excerpt for a rule.
-    Explain(ExplainArgs)
+    Explain(ExplainArgs),
+    /// Print an architecture diagram of the analyzed sources.
+    Graph(GraphArgs)
 }
 
 /// Arguments for the `check` subcommand.
@@ -200,7 +206,8 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     init_tracing(cli.verbose);
     match cli.command {
         Command::Check(args) => run_check(&args),
-        Command::Explain(args) => run_explain(&args)
+        Command::Explain(args) => run_explain(&args),
+        Command::Graph(args) => graph::run_graph(&args)
     }
 }
 
@@ -383,7 +390,18 @@ fn semantic_findings(
     if analyzers.is_empty() {
         return Vec::new();
     }
-    let sources: Vec<rustmanifest_engine::Source> = files
+    let sources = read_sources(files, max_file_bytes);
+    let mut findings = Vec::new();
+    for analyzer in analyzers {
+        findings.extend(analyzer.analyze(&sources));
+    }
+    findings
+}
+
+/// Reads every readable Rust source within the per-file memory budget into
+/// memory; unreadable and oversized files are skipped silently.
+fn read_sources(files: &[PathBuf], max_file_bytes: u64) -> Vec<rustmanifest_engine::Source> {
+    files
         .iter()
         .filter(|path| path.extension().is_some_and(|extension| extension == "rs"))
         .filter(|path| {
@@ -394,12 +412,7 @@ fn semantic_findings(
                 .ok()
                 .map(|text| rustmanifest_engine::Source::new(path.clone(), text))
         })
-        .collect();
-    let mut findings = Vec::new();
-    for analyzer in analyzers {
-        findings.extend(analyzer.analyze(&sources));
-    }
-    findings
+        .collect()
 }
 
 /// Prefix of the clippy lint index page used to build rationale URIs for
