@@ -2,9 +2,9 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-05-13):** Phase 1B shipped. The CLI `rustmanifest check` runs end-to-end on Rust source trees with tier-1 pattern rules (security: hardcoded credentials, SQL injection, command injection). Engine, three renderers (JSON / SARIF 2.1.0 / TTY), and parallel orchestrator with cancellation and memory budget are in `main`.
+**Current status (2026-07-31):** Phase 1C shipped. The tier-2 AST analyzer covers every section of `STRUCTURE.md` with rules `RM-STRUCT-001`..`009`, and the tier-3 foundation landed early: a workspace type graph (structures, fields, aggregation edges) powering the first relationship-level rule `RM-STRUCT-010` (repeated field group → extract component), per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md).
 
-**Next:** Phase 1C — AST tier-2 analyzer driven by `STRUCTURE.md`.
+**Next:** Phase 1D — config, explain, cache.
 
 ---
 
@@ -55,7 +55,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 - Coverage: 11 engine unit tests, 3 engine integration tests, 4 renderer snapshot tests, 6 CLI integration tests via `assert_cmd`, criterion benchmark scaffold.
 - Decision recorded in memory: rules pack does NOT duplicate clippy. `RM-RUST-001` (panic in production) and `RM-PERF-001` (`Vec::new()` without `with_capacity`) were removed; the default pack now is `RM-SEC-001/002/003`.
 
-### Phase 1C — Tier-2 AST analyzer ⏳ planned
+### Phase 1C — Tier-2 AST analyzer ✅ done (local)
 
 - `AstAnalyzer` implementing `Analyzer` for `RuleDefinition::Ast { check }`.
 - Built-in AST checks for the rules from `STRUCTURE.md`:
