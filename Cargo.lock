@@ -1075,6 +1075,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustmanifest-eval"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "rustmanifest-engine",
+ "rustmanifest-rules-core",
+ "rustmanifest-schema",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rustmanifest-lsp"
 version = "0.0.0"
 dependencies = [

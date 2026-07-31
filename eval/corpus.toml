@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+# Pinned evaluation corpus for the rustmanifest engine.
+#
+# Each entry names a repository checkout located under the corpus root
+# passed to `rustmanifest-eval` via `--corpus-root`. The `rev` field pins
+# the exact commit the committed baseline was blessed against; local
+# checkouts that have drifted are tolerated with a warning, and the
+# actual revision is recorded in the report.
+
+[[repo]]
+name = "fork-hyper"
+path = "open-source/fork-hyper"
+rev = "173bc339264f3f85b4468cacb4ec50cacdd9da96"
+notes = "large third-party HTTP library"
+
+[[repo]]
+name = "masterror"
+path = "open-source/masterror"
+rev = "51294e354d95710612699345c18bd590b7b3d909"
+notes = "own error-handling workspace"
+
+[[repo]]
+name = "hydebar"
+path = "open-source/hydebar"
+rev = "1774c8decf370b9c3475ebae714b981f34ceebc5"
+notes = "GUI application workspace"
+
+[[repo]]
+name = "entity-derive"
+path = "open-source/entity-derive"
+rev = "1142243afa97f27435d67d5e3b5ab65f2b389576"
+notes = "proc-macro crate"

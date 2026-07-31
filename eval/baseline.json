@@ -1,0 +1,71 @@
+{
+  "engine-version": "0.0.0",
+  "repos": [
+    {
+      "name": "entity-derive",
+      "pinned-rev": "1142243afa97f27435d67d5e3b5ab65f2b389576",
+      "files": 230,
+      "rust-lines": 45406,
+      "findings": {
+        "RM-SEC-002": 20,
+        "RM-STRUCT-001": 7,
+        "RM-STRUCT-002": 7,
+        "RM-STRUCT-003": 42,
+        "RM-STRUCT-004": 6,
+        "RM-STRUCT-006": 3,
+        "RM-STRUCT-008": 1,
+        "RM-STRUCT-010": 88
+      }
+    },
+    {
+      "name": "fork-hyper",
+      "pinned-rev": "173bc339264f3f85b4468cacb4ec50cacdd9da96",
+      "files": 98,
+      "rust-lines": 34326,
+      "findings": {
+        "RM-STRUCT-002": 9,
+        "RM-STRUCT-003": 21,
+        "RM-STRUCT-004": 6,
+        "RM-STRUCT-005": 1,
+        "RM-STRUCT-006": 3,
+        "RM-STRUCT-007": 23,
+        "RM-STRUCT-008": 11,
+        "RM-STRUCT-010": 16
+      }
+    },
+    {
+      "name": "hydebar",
+      "pinned-rev": "1774c8decf370b9c3475ebae714b981f34ceebc5",
+      "files": 318,
+      "rust-lines": 70288,
+      "findings": {
+        "RM-STRUCT-001": 6,
+        "RM-STRUCT-002": 54,
+        "RM-STRUCT-003": 57,
+        "RM-STRUCT-004": 23,
+        "RM-STRUCT-005": 14,
+        "RM-STRUCT-006": 7,
+        "RM-STRUCT-007": 14,
+        "RM-STRUCT-008": 39,
+        "RM-STRUCT-010": 39
+      }
+    },
+    {
+      "name": "masterror",
+      "pinned-rev": "51294e354d95710612699345c18bd590b7b3d909",
+      "files": 169,
+      "rust-lines": 40749,
+      "findings": {
+        "RM-SEC-001": 2,
+        "RM-STRUCT-002": 9,
+        "RM-STRUCT-003": 12,
+        "RM-STRUCT-004": 9,
+        "RM-STRUCT-005": 1,
+        "RM-STRUCT-006": 2,
+        "RM-STRUCT-007": 5,
+        "RM-STRUCT-008": 1,
+        "RM-STRUCT-010": 17
+      }
+    }
+  ]
+}

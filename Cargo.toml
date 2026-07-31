@@ -12,6 +12,7 @@ members = [
     "crates/rustmanifest-mcp",
     "crates/rustmanifest-lsp",
     "crates/rustmanifest-cli",
+    "crates/rustmanifest-eval",
 ]
 
 [workspace.package]
