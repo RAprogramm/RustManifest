@@ -7,6 +7,7 @@
 //! which makes the command surface testable from integration tests without
 //! spawning a child process.
 
+pub mod coverage;
 pub mod graph;
 
 use std::{
@@ -28,7 +29,10 @@ use rustmanifest_rules_core::{RULES, methodology};
 use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition, Severity};
 use tracing::{info, warn};
 
-pub use crate::graph::{DiagramFormat, GraphArgs, GraphKind};
+pub use crate::{
+    coverage::CoverageArgs,
+    graph::{DiagramFormat, GraphArgs, GraphKind}
+};
 
 /// Default exit code: no findings at or above the requested severity.
 pub const EXIT_CLEAN: u8 = 0;
@@ -59,6 +63,8 @@ pub struct Cli {
 pub enum Command {
     /// Run the analysis engine across one or more paths.
     Check(CheckArgs),
+    /// Report how much of the analyzed sources the engine understands.
+    Coverage(CoverageArgs),
     /// Print the rationale and methodology excerpt for a rule.
     Explain(ExplainArgs),
     /// Print an architecture diagram of the analyzed sources.
@@ -206,6 +212,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     init_tracing(cli.verbose);
     match cli.command {
         Command::Check(args) => run_check(&args),
+        Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Explain(args) => run_explain(&args),
         Command::Graph(args) => graph::run_graph(&args)
     }

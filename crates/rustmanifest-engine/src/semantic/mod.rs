@@ -12,6 +12,7 @@
 //! targets.
 
 mod composition;
+mod coverage;
 mod field_group;
 mod graph;
 mod module_cycle;
@@ -22,6 +23,7 @@ use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 pub use self::{
+    coverage::{Coverage, coverage, percent},
     graph::{FieldNode, TypeGraph, TypeNode},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}
 };

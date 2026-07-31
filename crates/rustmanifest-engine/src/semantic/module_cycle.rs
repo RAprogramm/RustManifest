@@ -99,7 +99,7 @@ pub(super) fn dependency_edges(graph: &ModuleGraph) -> Vec<Vec<UseEdge>> {
 /// The deepest module whose path covers the absolute target wins, so a
 /// target naming an item resolves to the module defining it. External and
 /// unresolvable targets yield `None`.
-fn resolved_module(modules: &[ModuleNode], from: usize, target: &str) -> Option<usize> {
+pub(super) fn resolved_module(modules: &[ModuleNode], from: usize, target: &str) -> Option<usize> {
     let source = modules.get(from)?;
     let absolute = absolute_target(&source.path, target)?;
     let mut best: Option<(usize, usize)> = None;
