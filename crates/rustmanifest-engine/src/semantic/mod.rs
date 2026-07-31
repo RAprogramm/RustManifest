@@ -11,6 +11,7 @@
 //! same source slice — crate roots, `mod` resolution, and per-module `use`
 //! targets.
 
+mod behavior;
 mod composition;
 mod coverage;
 mod expansion;
@@ -24,6 +25,7 @@ use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 pub use self::{
+    behavior::{Effect, FunctionFacts, behavior},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     expansion::{ExpansionReport, expansion},
     graph::{

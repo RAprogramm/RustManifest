@@ -9,6 +9,7 @@
 
 pub mod coverage;
 pub mod expand;
+pub mod facts;
 pub mod graph;
 pub mod manifests;
 
@@ -69,6 +70,8 @@ pub enum Command {
     Coverage(CoverageArgs),
     /// Print the rationale and methodology excerpt for a rule.
     Explain(ExplainArgs),
+    /// Print behavioral facts of every function as JSON.
+    Facts(facts::FactsArgs),
     /// Print an architecture diagram of the analyzed sources.
     Graph(GraphArgs)
 }
@@ -216,6 +219,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Check(args) => run_check(&args),
         Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Explain(args) => run_explain(&args),
+        Command::Facts(args) => facts::run_facts(&args),
         Command::Graph(args) => graph::run_graph(&args)
     }
 }
