@@ -87,7 +87,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 - Baseline numbers committed; regression gate in CI for any drop > 2 percentage points.
 - Performance budget enforcement: `p95 review_file < 100ms` for files < 1k LOC.
 
-### Phase 1F — Reserved ⏳ planned
+### Phase 1F — Reserved ✅ absorbed (cache landed in Phase 1D)
 
 - Reserved for cache layer landing if not absorbed by Phase 1D.
 
