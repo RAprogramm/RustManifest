@@ -4,7 +4,7 @@ Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
 **Current status (2026-07-31):** Phases 1C, 1D, and 2 shipped. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section; the tier-3 type graph powers `RM-STRUCT-010` (repeated field group), per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md). Phase 1D: `rustmanifest.toml` with profiles and severity overrides, `explain <RULE-ID>`, engine-synthesized `RM-META-001` for unused pragmas, content-addressed findings cache behind `--cache`. Phase 2: the stdio MCP server ships five tools (`review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`) and nine bundled methodology resources; methodology documents moved to `rustmanifest-rules-core` as the single source.
 
-**Next:** Phase 1E — eval corpus and precision metrics.
+**Next:** Phase 1F/3 — cache follow-ups, clippy delegation; conformance suite for MCP.
 
 ---
 
@@ -80,7 +80,7 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 - Inline unused-pragma finding (`RM-META-001`): pragma that references a rule that did not fire becomes a finding itself.
 - Optional persistent cache (content-addressed by `(file_hash, rule_id_set)`). Behind `--cache <dir>` flag, default off.
 
-### Phase 1E — Eval corpus and precision metrics ⏳ planned
+### Phase 1E — Eval corpus and precision metrics ✅ done (local)
 
 - `eval/` directory with 3–5 public Rust repositories as fixtures.
 - Per-rule precision / recall measurement against curated labels.
