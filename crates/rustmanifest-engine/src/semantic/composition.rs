@@ -26,7 +26,7 @@ pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
     let mut found = Vec::new();
     for node in graph.types() {
         let count = node.fields.len();
-        if count <= FIELD_LIMIT {
+        if node.kind != crate::semantic::graph::TypeKind::Struct || count <= FIELD_LIMIT {
             continue;
         }
         let (plan, trace) = split_plan(graph, node);

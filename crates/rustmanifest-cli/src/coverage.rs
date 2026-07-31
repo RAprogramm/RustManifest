@@ -161,7 +161,20 @@ fn report_lines(report: &Coverage) -> Vec<String> {
         line(
             "structs captured",
             &report.structs_captured.to_string(),
-            &format!("fields {fields}   aggregation edges {edges}")
+            &format!(
+                "enums {enums}   traits {traits}   fields {fields}",
+                enums = report.enums_captured,
+                traits = report.traits_captured
+            )
+        ),
+        line(
+            "impls captured",
+            &report.impls_captured.to_string(),
+            &format!(
+                "methods {methods}   aggregation edges {edges}   interaction edges {interactions}",
+                methods = report.methods_captured,
+                interactions = report.interaction_edges_resolved
+            )
         ),
         line(
             "use targets",
@@ -208,8 +221,13 @@ mod tests {
             files_reachable:            296,
             files_standalone:           22,
             structs_captured:           509,
+            enums_captured:             41,
+            traits_captured:            12,
+            impls_captured:             480,
+            methods_captured:           1920,
             fields_captured:            2140,
             aggregation_edges_resolved: 87,
+            interaction_edges_resolved: 133,
             use_targets_total:          4044,
             use_targets_resolved:       1620,
             use_targets_external:       2400,
@@ -218,7 +236,7 @@ mod tests {
             item_macros_seen:           12
         };
         let lines = report_lines(&report);
-        assert_eq!(lines.len(), 5);
+        assert_eq!(lines.len(), 6);
         assert_eq!(lines[0], "files parsed        318/318   100.0%");
         assert_eq!(
             lines[1],
@@ -227,15 +245,20 @@ mod tests {
         );
         assert_eq!(
             lines[2],
-            "structs captured    509       fields 2140   aggregation edges 87"
+            "structs captured    509       enums 41   traits 12   fields 2140"
         );
         assert_eq!(
             lines[3],
+            "impls captured      480       methods 1920   aggregation edges 87   interaction \
+             edges 133"
+        );
+        assert_eq!(
+            lines[4],
             "use targets         4044      resolved in-workspace 1620  40.1%   external 2400   \
              unresolved 24   accounted 99.4%"
         );
         assert_eq!(
-            lines[4],
+            lines[5],
             "derives seen        233       item macros seen 12   (expansions not analyzed)"
         );
     }

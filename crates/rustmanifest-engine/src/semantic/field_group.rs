@@ -9,7 +9,10 @@ use std::collections::BTreeMap;
 
 use rustmanifest_schema::TraceStep;
 
-use super::{Insight, TypeGraph, graph::TypeNode};
+use super::{
+    Insight, TypeGraph,
+    graph::{TypeKind, TypeNode}
+};
 use crate::source::Source;
 
 /// Minimum number of shared fields that makes a group worth extracting.
@@ -20,7 +23,11 @@ const GROUP_SIZE: usize = 2;
 /// the most structures, so `{created_at, id}` across eight entities and
 /// `{created_at, id, user_id}` across four of them yield a single finding.
 pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
-    let types = graph.types();
+    let types: Vec<&TypeNode> = graph
+        .types()
+        .iter()
+        .filter(|node| node.kind == TypeKind::Struct)
+        .collect();
     let mut candidates: Vec<(Vec<String>, Vec<&TypeNode>)> = Vec::new();
     for (position, first) in types.iter().enumerate() {
         for second in &types[position + 1..] {
@@ -30,6 +37,7 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
             }
             let owners: Vec<&TypeNode> = types
                 .iter()
+                .copied()
                 .filter(|node| owns_group(node, &shared))
                 .collect();
             candidates.push((shared, owners));

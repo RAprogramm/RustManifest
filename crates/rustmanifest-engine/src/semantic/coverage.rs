@@ -52,10 +52,20 @@ pub struct Coverage {
     pub files_standalone:           u64,
     /// Structure definitions captured by the type graph.
     pub structs_captured:           u64,
-    /// Named fields captured across all structures.
+    /// Enum definitions captured by the type graph.
+    pub enums_captured:             u64,
+    /// Trait definitions captured by the type graph.
+    pub traits_captured:            u64,
+    /// Impl blocks captured by the type graph.
+    pub impls_captured:             u64,
+    /// Methods and associated functions captured across all impl blocks.
+    pub methods_captured:           u64,
+    /// Named fields captured across all structures and enum payloads.
     pub fields_captured:            u64,
-    /// Fields whose type name resolved to a workspace structure.
+    /// Fields whose type name resolved to a workspace type.
     pub aggregation_edges_resolved: u64,
+    /// Type-to-type interaction edges resolved from method bodies.
+    pub interaction_edges_resolved: u64,
     /// Expanded `use` targets across all modules.
     pub use_targets_total:          u64,
     /// `use` targets that resolve to a module of the same crate.
@@ -187,15 +197,31 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         .iter()
         .map(|node| count(node.fields.len()))
         .sum();
+    let structs_captured = types
+        .types()
+        .iter()
+        .filter(|node| node.kind == super::graph::TypeKind::Struct)
+        .count();
+    let enums_captured = types.types().len() - structs_captured;
+    let methods_captured = types
+        .impls()
+        .iter()
+        .map(|node| count(node.methods.len()))
+        .sum();
     Coverage {
         files_total: count(sources.len()),
         files_parsed,
         modules_total: count(modules.len()),
         files_reachable: count(reachable.len()),
         files_standalone: count(standalone.len()),
-        structs_captured: count(types.types().len()),
+        structs_captured: count(structs_captured),
+        enums_captured: count(enums_captured),
+        traits_captured: count(types.traits().len()),
+        impls_captured: count(types.impls().len()),
+        methods_captured,
         fields_captured,
         aggregation_edges_resolved: count(types.aggregation_edges().len()),
+        interaction_edges_resolved: count(types.interaction_edges().len()),
         use_targets_total,
         use_targets_resolved,
         use_targets_external,
