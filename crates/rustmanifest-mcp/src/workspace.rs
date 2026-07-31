@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// Canonicalized workspace root against which client paths are resolved.
 #[derive(Debug, Clone)]
 pub struct WorkspaceRoot {
-    root: PathBuf,
+    root: PathBuf
 }
 
 impl WorkspaceRoot {
@@ -25,7 +25,7 @@ impl WorkspaceRoot {
     /// canonicalized.
     pub fn new(root: &Path) -> std::io::Result<Self> {
         Ok(Self {
-            root: root.canonicalize()?,
+            root: root.canonicalize()?
         })
     }
 
@@ -60,12 +60,12 @@ impl WorkspaceRoot {
         let canonical = joined.canonicalize().map_err(|source| {
             if escapes_lexically(&self.root, &joined) {
                 ResolveError::Escape {
-                    requested: requested.to_owned(),
+                    requested: requested.to_owned()
                 }
             } else {
                 ResolveError::Unreadable {
                     requested: requested.to_owned(),
-                    source,
+                    source
                 }
             }
         })?;
@@ -73,7 +73,7 @@ impl WorkspaceRoot {
             Ok(canonical)
         } else {
             Err(ResolveError::Escape {
-                requested: requested.to_owned(),
+                requested: requested.to_owned()
             })
         }
     }
@@ -92,7 +92,7 @@ fn escapes_lexically(root: &Path, joined: &Path) -> bool {
             std::path::Component::ParentDir => {
                 normalized.pop();
             }
-            other => normalized.push(other),
+            other => normalized.push(other)
         }
     }
     !normalized.starts_with(root)
@@ -104,24 +104,29 @@ pub enum ResolveError {
     /// The canonical path lies outside the workspace root.
     Escape {
         /// Path as supplied by the client.
-        requested: String,
+        requested: String
     },
     /// The path does not exist or cannot be canonicalized.
     Unreadable {
         /// Path as supplied by the client.
         requested: String,
         /// Underlying IO error.
-        source: std::io::Error,
-    },
+        source:    std::io::Error
+    }
 }
 
 impl std::fmt::Display for ResolveError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Escape { requested } => {
+            Self::Escape {
+                requested
+            } => {
                 write!(formatter, "path `{requested}` escapes workspace root")
             }
-            Self::Unreadable { requested, source } => {
+            Self::Unreadable {
+                requested,
+                source
+            } => {
                 write!(
                     formatter,
                     "path `{requested}` does not exist or is unreadable: {source}"
@@ -134,8 +139,12 @@ impl std::fmt::Display for ResolveError {
 impl std::error::Error for ResolveError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Escape { .. } => None,
-            Self::Unreadable { source, .. } => Some(source),
+            Self::Escape {
+                ..
+            } => None,
+            Self::Unreadable {
+                source, ..
+            } => Some(source)
         }
     }
 }

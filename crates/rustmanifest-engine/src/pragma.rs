@@ -30,11 +30,11 @@ use regex::Regex;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pragma {
     /// Rule id named by the pragma.
-    pub rule_id: String,
+    pub rule_id:    String,
     /// Justifying reason supplied via `reason="..."`.
-    pub reason: String,
+    pub reason:     String,
     /// 0-based line index where the pragma was found.
-    pub line_index: usize,
+    pub line_index: usize
 }
 
 static PRAGMA_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -45,7 +45,7 @@ static PRAGMA_RE: LazyLock<Regex> = LazyLock::new(|| {
         (?P<rule>[A-Z]+-[A-Z]+-\d{3})
         \s*\)\s*
         reason\s*=\s*"(?P<reason>[^"]+)"
-        "#,
+        "#
     )
     .unwrap_or_else(|err| {
         unreachable!("pragma regex must compile: {err}");
@@ -72,7 +72,7 @@ pub fn collect(text: &str) -> Vec<Pragma> {
                 pragmas.push(Pragma {
                     rule_id,
                     reason,
-                    line_index: idx,
+                    line_index: idx
                 });
             }
         }
@@ -98,7 +98,7 @@ pub(crate) fn suppressing<'p>(
     text: &str,
     byte_offset: usize,
     rule_id: &str,
-    pragmas: &'p [Pragma],
+    pragmas: &'p [Pragma]
 ) -> Option<&'p Pragma> {
     if pragmas.is_empty() {
         return None;

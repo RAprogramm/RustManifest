@@ -29,9 +29,9 @@ pub(crate) struct Insight {
     /// Index of the source the finding anchors to.
     source: usize,
     /// Byte range of the anchoring definition.
-    range: rustmanifest_schema::Range,
+    range:  rustmanifest_schema::Range,
     /// Check-specific description including the reasoning chain.
-    detail: String,
+    detail: String
 }
 
 impl Insight {
@@ -39,12 +39,12 @@ impl Insight {
     pub(crate) const fn new(
         source: usize,
         range: rustmanifest_schema::Range,
-        detail: String,
+        detail: String
     ) -> Self {
         Self {
             source,
             range,
-            detail,
+            detail
         }
     }
 }
@@ -58,7 +58,7 @@ enum Check {
     ModuleCycles,
     /// `structure-size` — oversized structures with a graph-derived split
     /// suggestion.
-    StructureSize,
+    StructureSize
 }
 
 impl Check {
@@ -68,7 +68,7 @@ impl Check {
             "repeated-field-group" => Some(Self::RepeatedFieldGroup),
             "module-cycles" => Some(Self::ModuleCycles),
             "structure-size" => Some(Self::StructureSize),
-            _ => None,
+            _ => None
         }
     }
 
@@ -77,7 +77,7 @@ impl Check {
         match self {
             Self::RepeatedFieldGroup => field_group::insights(graph),
             Self::ModuleCycles => module_cycle::insights(sources),
-            Self::StructureSize => composition::insights(graph),
+            Self::StructureSize => composition::insights(graph)
         }
     }
 }
@@ -85,8 +85,8 @@ impl Check {
 /// Tier-3 analyzer evaluating one semantic check over the whole workspace.
 #[derive(Debug)]
 pub struct SemanticAnalyzer {
-    rule: Rule,
-    check: Check,
+    rule:  Rule,
+    check: Check
 }
 
 impl SemanticAnalyzer {
@@ -98,19 +98,25 @@ impl SemanticAnalyzer {
     /// `semantic`-tier rule or names a check this engine build does not
     /// provide.
     pub fn new(rule: Rule) -> Result<Self, EngineError> {
-        let RuleDefinition::Semantic { ref check } = rule.definition else {
+        let RuleDefinition::Semantic {
+            ref check
+        } = rule.definition
+        else {
             return Err(EngineError::UnknownAstCheck {
                 rule_id: rule.id,
-                check: "<not a semantic-tier rule>".to_owned(),
+                check:   "<not a semantic-tier rule>".to_owned()
             });
         };
         let Some(check) = Check::resolved(check) else {
             return Err(EngineError::UnknownAstCheck {
                 rule_id: rule.id,
-                check: check.clone(),
+                check:   check.clone()
             });
         };
-        Ok(Self { rule, check })
+        Ok(Self {
+            rule,
+            check
+        })
     }
 
     /// Evaluates the check over `sources`, honoring pragma suppression in
@@ -131,14 +137,14 @@ impl SemanticAnalyzer {
                 continue;
             }
             findings.push(Finding {
-                rule_id: self.rule.id.clone(),
-                severity: self.rule.severity,
-                location: Location {
-                    file: source.path().to_path_buf(),
-                    range: insight.range,
+                rule_id:       self.rule.id.clone(),
+                severity:      self.rule.severity,
+                location:      Location {
+                    file:  source.path().to_path_buf(),
+                    range: insight.range
                 },
-                message: format!("{}: {}", self.rule.title, insight.detail),
-                rationale_uri: self.rule.rationale_uri.clone(),
+                message:       format!("{}: {}", self.rule.title, insight.detail),
+                rationale_uri: self.rule.rationale_uri.clone()
             });
         }
         findings
@@ -161,13 +167,13 @@ mod tests {
 
     fn semantic_rule(check: &str) -> Rule {
         Rule {
-            id: "RM-STRUCT-010".to_owned(),
-            severity: Severity::Warning,
-            title: "Repeated field group".to_owned(),
+            id:            "RM-STRUCT-010".to_owned(),
+            severity:      Severity::Warning,
+            title:         "Repeated field group".to_owned(),
             rationale_uri: "rustmanifest://methodology/structure#structure-size".to_owned(),
-            definition: RuleDefinition::Semantic {
-                check: check.to_owned(),
-            },
+            definition:    RuleDefinition::Semantic {
+                check: check.to_owned()
+            }
         }
     }
 
@@ -187,12 +193,12 @@ mod tests {
         let sources = [
             source(
                 "src/user.rs",
-                "struct User { id: u64, created_at: u64, updated_at: u64 }",
+                "struct User { id: u64, created_at: u64, updated_at: u64 }"
             ),
             source(
                 "src/post.rs",
-                "struct Post { text: String, created_at: u64, updated_at: u64 }",
-            ),
+                "struct Post { text: String, created_at: u64, updated_at: u64 }"
+            )
         ];
         let findings = analyzer.analyze(&sources);
         assert_eq!(findings.len(), 1);
@@ -208,12 +214,12 @@ mod tests {
             source(
                 "src/user.rs",
                 "// rustmanifest: allow(RM-STRUCT-010) reason=\"fixture\"\nstruct User { id: \
-                 u64, created_at: u64, updated_at: u64 }",
+                 u64, created_at: u64, updated_at: u64 }"
             ),
             source(
                 "src/post.rs",
-                "struct Post { text: String, created_at: u64, updated_at: u64 }",
-            ),
+                "struct Post { text: String, created_at: u64, updated_at: u64 }"
+            )
         ];
         assert!(analyzer.analyze(&sources).is_empty());
     }

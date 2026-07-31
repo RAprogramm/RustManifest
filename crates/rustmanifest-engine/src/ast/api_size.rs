@@ -34,7 +34,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
             .iter()
             .filter_map(|member| match member {
                 syn::ImplItem::Fn(method) => Some(method),
-                _ => None,
+                _ => None
             })
             .filter(|method| matches!(method.vis, syn::Visibility::Public(_)))
             .filter(|method| {
@@ -49,7 +49,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                     "inherent impl of `{}` exposes {count} public methods (limit {METHOD_LIMIT}, \
                      `new`/`default` excluded); extract secondary concerns into separate types",
                     type_name(&block.self_ty)
-                ),
+                )
             ));
         }
     }

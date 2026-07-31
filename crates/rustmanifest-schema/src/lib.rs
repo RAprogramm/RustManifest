@@ -22,15 +22,15 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Rule {
     /// Stable rule identifier, e.g. `RM-SEC-001`.
-    pub id: String,
+    pub id:            String,
     /// Default severity declared by the rules pack.
-    pub severity: Severity,
+    pub severity:      Severity,
     /// Short human-readable title.
-    pub title: String,
+    pub title:         String,
     /// `rustmanifest://` URI pointing to the rationale section.
     pub rationale_uri: String,
     /// Tier-specific definition (pattern, AST, or semantic).
-    pub definition: RuleDefinition,
+    pub definition:    RuleDefinition
 }
 
 /// Tier-specific configuration carried inside a [`Rule`].
@@ -45,21 +45,21 @@ pub enum RuleDefinition {
     /// Tier 1 — text-level pattern scan via regular expression.
     Pattern {
         /// Regular expression matched against file contents.
-        regex: String,
+        regex:         String,
         /// Glob patterns of files the rule MUST NOT inspect.
         #[serde(default)]
-        exclude_globs: Vec<String>,
+        exclude_globs: Vec<String>
     },
     /// Tier 2 — `syn` AST traversal identified by a built-in check name.
     Ast {
         /// Identifier of the built-in AST check implementation.
-        check: String,
+        check: String
     },
     /// Tier 3 — semantic analysis identified by a built-in check name.
     Semantic {
         /// Identifier of the built-in semantic check implementation.
-        check: String,
-    },
+        check: String
+    }
 }
 
 /// Severity of a rule or a finding.
@@ -73,7 +73,7 @@ pub enum Severity {
     /// Informational.
     Info,
     /// Style hint.
-    Hint,
+    Hint
 }
 
 /// A finding emitted by the engine for one rule against one source location.
@@ -81,15 +81,15 @@ pub enum Severity {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Finding {
     /// Identifier of the rule that produced this finding.
-    pub rule_id: String,
+    pub rule_id:       String,
     /// Effective severity for this finding (may be overridden by user config).
-    pub severity: Severity,
+    pub severity:      Severity,
     /// Source location where the rule fired.
-    pub location: Location,
+    pub location:      Location,
     /// Human-readable message about this occurrence.
-    pub message: String,
+    pub message:       String,
     /// `rustmanifest://` URI of the rationale section.
-    pub rationale_uri: String,
+    pub rationale_uri: String
 }
 
 /// Source location of a finding.
@@ -97,9 +97,9 @@ pub struct Finding {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Location {
     /// Workspace-relative file path.
-    pub file: PathBuf,
+    pub file:  PathBuf,
     /// Byte range within the file.
-    pub range: Range,
+    pub range: Range
 }
 
 /// Half-open byte range within a file.
@@ -109,7 +109,7 @@ pub struct Range {
     /// Inclusive start byte offset.
     pub start: u32,
     /// Exclusive end byte offset.
-    pub end: u32,
+    pub end:   u32
 }
 
 /// User-supplied configuration from `rustmanifest.toml`.
@@ -117,13 +117,13 @@ pub struct Range {
 #[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct Config {
     /// Profile to apply (`strict`, `default`, `minimal`, `ci`).
-    pub profile: Option<String>,
+    pub profile:   Option<String>,
     /// Glob patterns of files to analyze.
-    pub include: Vec<String>,
+    pub include:   Vec<String>,
     /// Glob patterns of files to exclude.
-    pub exclude: Vec<String>,
+    pub exclude:   Vec<String>,
     /// Per-rule severity overrides.
-    pub overrides: Vec<RuleOverride>,
+    pub overrides: Vec<RuleOverride>
 }
 
 /// Per-rule severity override entry.
@@ -131,9 +131,9 @@ pub struct Config {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RuleOverride {
     /// Rule identifier to override.
-    pub rule_id: String,
+    pub rule_id:  String,
     /// New severity for the rule.
-    pub severity: Severity,
+    pub severity: Severity
 }
 
 /// Reference to a methodology document or section embedded in the rules pack.
@@ -141,11 +141,11 @@ pub struct RuleOverride {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct MethodologyResource {
     /// Canonical `rustmanifest://` URI.
-    pub uri: String,
+    pub uri:         String,
     /// Resource title.
-    pub title: String,
+    pub title:       String,
     /// Original source path inside the repository.
     pub source_path: String,
     /// Document content in Markdown (English).
-    pub content: String,
+    pub content:     String
 }

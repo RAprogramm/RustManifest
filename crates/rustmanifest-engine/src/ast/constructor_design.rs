@@ -44,7 +44,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                     format!(
                         "constructor `new` {reason}; constructors only assign fields — move the \
                          logic into a method"
-                    ),
+                    )
                 ));
             }
         }
@@ -57,7 +57,9 @@ fn violation(method: &syn::ImplItemFn) -> Option<&'static str> {
     if returns_result(&method.sig.output) {
         return Some("is fallible (returns `Result`)");
     }
-    let mut scan = LogicScan { verdict: None };
+    let mut scan = LogicScan {
+        verdict: None
+    };
     scan.visit_block(&method.block);
     scan.verdict
 }
@@ -79,7 +81,7 @@ fn returns_result(output: &syn::ReturnType) -> bool {
 /// Expression visitor recording the first logic marker found in a body.
 struct LogicScan {
     /// Human-readable description of the first marker encountered.
-    verdict: Option<&'static str>,
+    verdict: Option<&'static str>
 }
 
 impl<'ast> Visit<'ast> for LogicScan {

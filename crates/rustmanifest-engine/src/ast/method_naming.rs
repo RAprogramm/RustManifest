@@ -45,7 +45,7 @@ fn report(ident: &syn::Ident, found: &mut Vec<Occurrence>) {
     {
         found.push(Occurrence::new(
             &ident.span(),
-            format!("method `{name}` uses a redundant `get_` prefix; call it `{stripped}`"),
+            format!("method `{name}` uses a redundant `get_` prefix; call it `{stripped}`")
         ));
     }
 }

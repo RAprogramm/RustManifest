@@ -25,9 +25,9 @@ use crate::{analyzer::Analyzer, error::EngineError, pragma, source::Source};
 /// One structural violation reported by a built-in check.
 pub(crate) struct Occurrence {
     /// Byte range of the offending item.
-    range: Range,
+    range:  Range,
     /// Check-specific description of the violation.
-    detail: String,
+    detail: String
 }
 
 impl Occurrence {
@@ -37,9 +37,9 @@ impl Occurrence {
         Self {
             range: Range {
                 start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-                end: u32::try_from(bytes.end).unwrap_or(u32::MAX),
+                end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
             },
-            detail,
+            detail
         }
     }
 }
@@ -63,7 +63,7 @@ enum Check {
     /// `constant-encapsulation` — module-level `pub const` items (§8).
     ConstantEncapsulation,
     /// `fakes-over-mocks` — mock-library imports and `#[automock]` (§9).
-    FakesOverMocks,
+    FakesOverMocks
 }
 
 impl Check {
@@ -78,7 +78,7 @@ impl Check {
             "immutability-first" => Some(Self::ImmutabilityFirst),
             "constant-encapsulation" => Some(Self::ConstantEncapsulation),
             "fakes-over-mocks" => Some(Self::FakesOverMocks),
-            _ => None,
+            _ => None
         }
     }
 
@@ -92,7 +92,7 @@ impl Check {
             Self::DelegatingConstructors => delegating_constructors::occurrences(file),
             Self::ImmutabilityFirst => immutability_first::occurrences(file),
             Self::ConstantEncapsulation => constant_encapsulation::occurrences(file),
-            Self::FakesOverMocks => fakes_over_mocks::occurrences(file),
+            Self::FakesOverMocks => fakes_over_mocks::occurrences(file)
         }
     }
 }
@@ -100,8 +100,8 @@ impl Check {
 /// Tier-2 analyzer that applies one built-in structural check per rule.
 #[derive(Debug)]
 pub struct AstAnalyzer {
-    rule: Rule,
-    check: Check,
+    rule:  Rule,
+    check: Check
 }
 
 impl AstAnalyzer {
@@ -112,19 +112,25 @@ impl AstAnalyzer {
     /// Returns [`EngineError::UnknownAstCheck`] if the rule is not an
     /// `ast`-tier rule or names a check this engine build does not provide.
     pub fn new(rule: Rule) -> Result<Self, EngineError> {
-        let RuleDefinition::Ast { ref check } = rule.definition else {
+        let RuleDefinition::Ast {
+            ref check
+        } = rule.definition
+        else {
             return Err(EngineError::UnknownAstCheck {
                 rule_id: rule.id,
-                check: "<not an ast-tier rule>".to_owned(),
+                check:   "<not an ast-tier rule>".to_owned()
             });
         };
         let Some(check) = Check::resolved(check) else {
             return Err(EngineError::UnknownAstCheck {
                 rule_id: rule.id,
-                check: check.clone(),
+                check:   check.clone()
             });
         };
-        Ok(Self { rule, check })
+        Ok(Self {
+            rule,
+            check
+        })
     }
 }
 
@@ -154,14 +160,14 @@ impl Analyzer for AstAnalyzer {
                 continue;
             }
             findings.push(Finding {
-                rule_id: self.rule.id.clone(),
-                severity: self.rule.severity,
-                location: Location {
-                    file: source.path().to_path_buf(),
-                    range: occurrence.range,
+                rule_id:       self.rule.id.clone(),
+                severity:      self.rule.severity,
+                location:      Location {
+                    file:  source.path().to_path_buf(),
+                    range: occurrence.range
                 },
-                message: format!("{}: {}", self.rule.title, occurrence.detail),
-                rationale_uri: self.rule.rationale_uri.clone(),
+                message:       format!("{}: {}", self.rule.title, occurrence.detail),
+                rationale_uri: self.rule.rationale_uri.clone()
             });
         }
         findings
@@ -196,13 +202,13 @@ mod tests {
 
     fn ast_rule(check: &str) -> Rule {
         Rule {
-            id: "RM-STRUCT-001".to_owned(),
-            severity: Severity::Warning,
-            title: "Entity naming".to_owned(),
+            id:            "RM-STRUCT-001".to_owned(),
+            severity:      Severity::Warning,
+            title:         "Entity naming".to_owned(),
             rationale_uri: "rustmanifest://methodology/structure#entity-naming".to_owned(),
-            definition: RuleDefinition::Ast {
-                check: check.to_owned(),
-            },
+            definition:    RuleDefinition::Ast {
+                check: check.to_owned()
+            }
         }
     }
 
@@ -216,8 +222,8 @@ mod tests {
     fn non_ast_rule_is_rejected() {
         let mut rule = ast_rule("entity-naming");
         rule.definition = RuleDefinition::Pattern {
-            regex: "x".to_owned(),
-            exclude_globs: Vec::new(),
+            regex:         "x".to_owned(),
+            exclude_globs: Vec::new()
         };
         assert!(AstAnalyzer::new(rule).is_err());
     }
@@ -234,7 +240,7 @@ mod tests {
         let analyzer = AstAnalyzer::new(ast_rule("entity-naming")).unwrap();
         let source = Source::new(
             PathBuf::from("src/lib.rs"),
-            "pub struct ConfigLoader;\n".to_owned(),
+            "pub struct ConfigLoader;\n".to_owned()
         );
         let findings = analyzer.analyze(&source);
         assert_eq!(findings.len(), 1);

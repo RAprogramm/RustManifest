@@ -60,7 +60,7 @@ fn report(sig: &syn::Signature, found: &mut Vec<Occurrence>) {
         format!(
             "method `{name}` mutates through `&mut self`; prefer a consuming `fn \
              {stripped}(mut self, ..) -> Self` or returning a new value"
-        ),
+        )
     ));
 }
 

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use rustmanifest_engine::{
     Analyzer, AstAnalyzer, EngineError, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer,
-    Source, orchestrator::DEFAULT_MAX_FILE_BYTES, walker,
+    Source, orchestrator::DEFAULT_MAX_FILE_BYTES, walker
 };
 use rustmanifest_schema::{Finding, Rule, RuleDefinition};
 
@@ -28,17 +28,23 @@ use rustmanifest_schema::{Finding, Rule, RuleDefinition};
 /// when file discovery fails, or when the orchestrator run fails.
 pub fn run_rules<'rules, I>(rules: I, target: &Path) -> Result<Vec<Finding>, EngineError>
 where
-    I: IntoIterator<Item = &'rules Rule>,
+    I: IntoIterator<Item = &'rules Rule>
 {
     let mut per_file: Vec<Box<dyn Analyzer>> = Vec::new();
     let mut semantic: Vec<SemanticAnalyzer> = Vec::new();
     for rule in rules {
         match rule.definition {
-            RuleDefinition::Pattern { .. } => {
+            RuleDefinition::Pattern {
+                ..
+            } => {
                 per_file.push(Box::new(PatternAnalyzer::new(rule.clone())?));
             }
-            RuleDefinition::Ast { .. } => per_file.push(Box::new(AstAnalyzer::new(rule.clone())?)),
-            RuleDefinition::Semantic { .. } => semantic.push(SemanticAnalyzer::new(rule.clone())?),
+            RuleDefinition::Ast {
+                ..
+            } => per_file.push(Box::new(AstAnalyzer::new(rule.clone())?)),
+            RuleDefinition::Semantic {
+                ..
+            } => semantic.push(SemanticAnalyzer::new(rule.clone())?)
         }
     }
 

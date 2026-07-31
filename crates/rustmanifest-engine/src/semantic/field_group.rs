@@ -12,41 +12,74 @@ use super::{Insight, TypeGraph, graph::TypeNode};
 /// Minimum number of shared fields that makes a group worth extracting.
 const GROUP_SIZE: usize = 2;
 
-/// Reports maximal field groups (name and type identical) shared by two or
-/// more structures, anchored at the first structure declaring the group.
+/// Reports shared field groups (name and type identical), one insight per
+/// group family: overlapping groups collapse into the variant declared by
+/// the most structures, so `{created_at, id}` across eight entities and
+/// `{created_at, id, user_id}` across four of them yield a single finding.
 pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
-    let mut found = Vec::new();
-    let mut reported: Vec<Vec<String>> = Vec::new();
     let types = graph.types();
+    let mut candidates: Vec<(Vec<String>, Vec<&TypeNode>)> = Vec::new();
     for (position, first) in types.iter().enumerate() {
         for second in &types[position + 1..] {
             let shared = shared_fields(first, second);
-            if shared.len() < GROUP_SIZE || reported.contains(&shared) {
+            if shared.len() < GROUP_SIZE || candidates.iter().any(|(group, _)| *group == shared) {
                 continue;
             }
-            let owners: Vec<&str> = types
+            let owners: Vec<&TypeNode> = types
                 .iter()
                 .filter(|node| owns_group(node, &shared))
-                .map(|node| node.name.as_str())
                 .collect();
-            reported.push(shared.clone());
-            found.push(Insight::new(
-                first.source,
-                first.range,
+            candidates.push((shared, owners));
+        }
+    }
+
+    candidates.sort_by(|a, b| {
+        b.1.len()
+            .cmp(&a.1.len())
+            .then_with(|| b.0.len().cmp(&a.0.len()))
+            .then_with(|| a.0.cmp(&b.0))
+    });
+
+    let mut kept: Vec<(Vec<String>, Vec<&TypeNode>)> = Vec::new();
+    for (group, owners) in candidates {
+        let overlaps = kept
+            .iter()
+            .any(|(existing, _)| subset(existing, &group) || subset(&group, existing));
+        if !overlaps {
+            kept.push((group, owners));
+        }
+    }
+
+    kept.sort_by(|a, b| {
+        let anchor_a = (a.1[0].source, a.1[0].range.start);
+        let anchor_b = (b.1[0].source, b.1[0].range.start);
+        anchor_a.cmp(&anchor_b).then_with(|| a.0.cmp(&b.0))
+    });
+
+    kept.into_iter()
+        .map(|(group, owners)| {
+            let anchor = owners[0];
+            Insight::new(
+                anchor.source,
+                anchor.range,
                 format!(
                     "structures {} all declare the field group {{{}}}; the group is a shared \
                      concept — extract it into its own component and aggregate it",
                     owners
                         .iter()
-                        .map(|name| format!("`{name}`"))
+                        .map(|node| format!("`{}`", node.name))
                         .collect::<Vec<_>>()
                         .join(", "),
-                    shared.join(", ")
-                ),
-            ));
-        }
-    }
-    found
+                    group.join(", ")
+                )
+            )
+        })
+        .collect()
+}
+
+/// Returns true when every element of `inner` occurs in `outer`.
+fn subset(inner: &[String], outer: &[String]) -> bool {
+    inner.iter().all(|name| outer.contains(name))
 }
 
 /// Returns the sorted list of field names two structures share with equal
@@ -96,7 +129,7 @@ mod tests {
         let graph = graph(
             "struct User { id: u64, created_at: u64, updated_at: u64 }\nstruct Post { body: \
              String, created_at: u64, updated_at: u64 }\nstruct Tag { label: String, created_at: \
-             u64, updated_at: u64 }",
+             u64, updated_at: u64 }"
         );
         let insights = insights(&graph);
         assert_eq!(insights.len(), 1);
@@ -112,9 +145,29 @@ mod tests {
     fn same_name_different_type_does_not_match() {
         let graph = graph(
             "struct A { created_at: u64, updated_at: u64 }\nstruct B { created_at: String, \
-             updated_at: u64 }",
+             updated_at: u64 }"
         );
         assert!(insights(&graph).is_empty());
+    }
+
+    #[test]
+    fn overlapping_groups_collapse_into_the_widest_family() {
+        let graph = graph(
+            "struct A { id: u64, created_at: u64 }\nstruct B { id: u64, created_at: u64 }\nstruct \
+             C { id: u64, created_at: u64, user_id: u64 }\nstruct D { id: u64, created_at: u64, \
+             user_id: u64 }"
+        );
+        let found = insights(&graph);
+        assert_eq!(found.len(), 1);
+    }
+
+    #[test]
+    fn disjoint_groups_stay_separate() {
+        let graph = graph(
+            "struct A { id: u64, created_at: u64 }\nstruct B { id: u64, created_at: u64 }\nstruct \
+             C { x: u8, y: u8 }\nstruct D { x: u8, y: u8 }"
+        );
+        assert_eq!(insights(&graph).len(), 2);
     }
 
     #[test]

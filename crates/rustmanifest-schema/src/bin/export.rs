@@ -10,7 +10,7 @@
 
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}
 };
 
 use clap::Parser;
@@ -23,7 +23,7 @@ use schemars::{Schema, schema_for};
 struct Args {
     /// Output directory for the generated `*.schema.json` files.
     #[arg(long)]
-    out: PathBuf,
+    out: PathBuf
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,7 +39,7 @@ fn run(out: &Path) -> Result<(), Box<dyn std::error::Error>> {
     write_schema(
         out,
         "methodology-resource",
-        &schema_for!(MethodologyResource),
+        &schema_for!(MethodologyResource)
     )?;
     Ok(())
 }
@@ -47,7 +47,7 @@ fn run(out: &Path) -> Result<(), Box<dyn std::error::Error>> {
 fn write_schema(
     out: &Path,
     name: &str,
-    schema: &Schema,
+    schema: &Schema
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path = out.join(format!("{name}.schema.json"));
     let json = serde_json::to_string_pretty(schema)?;

@@ -32,7 +32,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
             .iter()
             .filter_map(|member| match member {
                 syn::ImplItem::Fn(method) => Some(method),
-                _ => None,
+                _ => None
             })
             .filter(|method| constructor(method))
             .filter(|method| builds_self_literally(&method.block))
@@ -45,7 +45,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                      `Self {{ .. }}` literally; keep one primary constructor and delegate the \
                      rest to it",
                     type_name(&block.self_ty)
-                ),
+                )
             ));
         }
     }
@@ -64,14 +64,18 @@ fn mentions_self(output: &syn::ReturnType) -> bool {
     let syn::ReturnType::Type(_, ty) = output else {
         return false;
     };
-    let mut scan = SelfMention { found: false };
+    let mut scan = SelfMention {
+        found: false
+    };
     scan.visit_type(ty);
     scan.found
 }
 
 /// True when the block contains a `Self { .. }` struct literal.
 fn builds_self_literally(block: &syn::Block) -> bool {
-    let mut scan = SelfLiteral { found: false };
+    let mut scan = SelfLiteral {
+        found: false
+    };
     scan.visit_block(block);
     scan.found
 }
@@ -79,7 +83,7 @@ fn builds_self_literally(block: &syn::Block) -> bool {
 /// Type visitor looking for the `Self` identifier.
 struct SelfMention {
     /// Whether `Self` was seen.
-    found: bool,
+    found: bool
 }
 
 impl<'ast> Visit<'ast> for SelfMention {
@@ -93,7 +97,7 @@ impl<'ast> Visit<'ast> for SelfMention {
 /// Expression visitor looking for a `Self { .. }` struct literal.
 struct SelfLiteral {
     /// Whether a `Self { .. }` literal was seen.
-    found: bool,
+    found: bool
 }
 
 impl<'ast> Visit<'ast> for SelfLiteral {

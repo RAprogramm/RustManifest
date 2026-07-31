@@ -15,7 +15,7 @@ const AGENT_SUFFIXES: [&str; 8] = [
     "Manager",
     "Dispatcher",
     "Reader",
-    "Generator",
+    "Generator"
 ];
 
 /// Reports type definitions whose names carry an agent suffix.
@@ -29,7 +29,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
             syn::Item::Struct(definition) => ("struct", &definition.ident),
             syn::Item::Enum(definition) => ("enum", &definition.ident),
             syn::Item::Trait(definition) => ("trait", &definition.ident),
-            _ => continue,
+            _ => continue
         };
         let name = ident.to_string();
         if let Some(suffix) = agent_suffix(&name) {
@@ -38,7 +38,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                 format!(
                     "{kind} `{name}` is named for what it does (`-{suffix}`); name the entity \
                      for what it is"
-                ),
+                )
             ));
         }
     }

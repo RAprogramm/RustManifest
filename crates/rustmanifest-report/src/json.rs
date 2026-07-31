@@ -11,13 +11,15 @@ use crate::{Renderer, error::ReportError};
 
 /// Writes findings as a pretty-printed JSON array.
 pub struct JsonRenderer<W: Write> {
-    writer: W,
+    writer: W
 }
 
 impl<W: Write> JsonRenderer<W> {
     /// Creates a new renderer writing to `writer`.
     pub const fn new(writer: W) -> Self {
-        Self { writer }
+        Self {
+            writer
+        }
     }
 
     /// Returns ownership of the inner writer.
@@ -50,14 +52,17 @@ mod tests {
 
     fn fixture() -> Vec<Finding> {
         vec![Finding {
-            rule_id: "RM-SEC-001".to_owned(),
-            severity: Severity::Error,
-            location: Location {
-                file: PathBuf::from("src/lib.rs"),
-                range: Range { start: 10, end: 25 },
+            rule_id:       "RM-SEC-001".to_owned(),
+            severity:      Severity::Error,
+            location:      Location {
+                file:  PathBuf::from("src/lib.rs"),
+                range: Range {
+                    start: 10,
+                    end:   25
+                }
             },
-            message: "Hardcoded credentials: matched at bytes 10..25".to_owned(),
-            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
+            message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned()
         }]
     }
 

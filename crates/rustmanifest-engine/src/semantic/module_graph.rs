@@ -21,7 +21,7 @@
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}
 };
 
 use rustmanifest_schema::Range;
@@ -35,26 +35,26 @@ pub(super) struct UseTarget {
     /// Flat `::`-joined path as written, without a leading `::`.
     pub(super) target: String,
     /// Byte range of the `use` item that declared the target.
-    pub(super) range: Range,
+    pub(super) range:  Range
 }
 
 /// One module reachable from a crate root of the source slice.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ModuleNode {
     /// Index of the crate root the module belongs to.
-    pub(super) krate: usize,
+    pub(super) krate:  usize,
     /// Module path, `crate` for a crate root.
-    pub(super) path: String,
+    pub(super) path:   String,
     /// Index of the source the module's items are written in.
     pub(super) source: usize,
     /// Expanded `use` targets in declaration order.
-    pub(super) uses: Vec<UseTarget>,
+    pub(super) uses:   Vec<UseTarget>
 }
 
 /// All modules reachable from the crate roots of the source slice.
 #[derive(Debug, Default)]
 pub(super) struct ModuleGraph {
-    modules: Vec<ModuleNode>,
+    modules: Vec<ModuleNode>
 }
 
 impl ModuleGraph {
@@ -74,7 +74,7 @@ impl ModuleGraph {
                 .enumerate()
                 .map(|(index, source)| (source.path(), index))
                 .collect(),
-            modules: Vec::new(),
+            modules: Vec::new()
         };
         for (krate, &root) in roots.iter().enumerate() {
             let dir = sources[root]
@@ -84,7 +84,7 @@ impl ModuleGraph {
             builder.extract_file(krate, "crate".to_owned(), root, dir);
         }
         Self {
-            modules: builder.modules,
+            modules: builder.modules
         }
     }
 
@@ -107,21 +107,21 @@ struct GraphBuilder<'a> {
     /// Source index by file path, for `mod name;` resolution.
     by_path: HashMap<&'a Path, usize>,
     /// Modules collected so far, in discovery order.
-    modules: Vec<ModuleNode>,
+    modules: Vec<ModuleNode>
 }
 
 /// Position of the module currently being extracted.
 struct ModuleScope {
     /// Crate root index the module belongs to.
-    krate: usize,
+    krate:  usize,
     /// Index of the module's [`ModuleNode`] in the builder.
     module: usize,
     /// Module path string, `crate` for the root module.
-    path: String,
+    path:   String,
     /// Index of the source the module's items are written in.
     source: usize,
     /// Directory child file modules resolve against.
-    dir: PathBuf,
+    dir:    PathBuf
 }
 
 impl GraphBuilder<'_> {
@@ -139,7 +139,7 @@ impl GraphBuilder<'_> {
             module,
             path,
             source,
-            dir,
+            dir
         };
         self.extract_items(&scope, &file.items);
     }
@@ -151,7 +151,7 @@ impl GraphBuilder<'_> {
             krate,
             path,
             source,
-            uses: Vec::new(),
+            uses: Vec::new()
         });
         index
     }
@@ -179,7 +179,7 @@ impl GraphBuilder<'_> {
                 module,
                 path,
                 source: scope.source,
-                dir,
+                dir
             };
             self.extract_items(&child, items);
         } else if let Some(source) = self.child_source(&scope.dir, &name) {
@@ -204,13 +204,16 @@ impl GraphBuilder<'_> {
         let bytes = item.span().byte_range();
         let range = Range {
             start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-            end: u32::try_from(bytes.end).unwrap_or(u32::MAX),
+            end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
         };
         let mut targets = Vec::new();
         expand_use(String::new(), &item.tree, &mut targets);
         if let Some(node) = self.modules.get_mut(scope.module) {
             for target in targets {
-                node.uses.push(UseTarget { target, range });
+                node.uses.push(UseTarget {
+                    target,
+                    range
+                });
             }
         }
     }
@@ -223,7 +226,7 @@ fn expand_use(prefix: String, tree: &UseTree, out: &mut Vec<String>) {
             expand_use(
                 joined(&prefix, &segment.ident.to_string()),
                 &segment.tree,
-                out,
+                out
             );
         }
         UseTree::Name(name) => {
@@ -291,7 +294,7 @@ mod tests {
     fn mod_declaration_resolves_flat_file() {
         let sources = [
             source("src/lib.rs", "mod util;"),
-            source("src/util.rs", "use crate::Item;"),
+            source("src/util.rs", "use crate::Item;")
         ];
         let graph = ModuleGraph::from_sources(&sources);
         assert_eq!(paths(&graph), vec!["crate", "crate::util"]);
@@ -305,7 +308,7 @@ mod tests {
         let sources = [
             source("src/lib.rs", "mod nested;"),
             source("src/nested/mod.rs", "mod deep;"),
-            source("src/nested/deep.rs", ""),
+            source("src/nested/deep.rs", "")
         ];
         let graph = ModuleGraph::from_sources(&sources);
         assert_eq!(
@@ -318,7 +321,7 @@ mod tests {
     fn inline_modules_recurse() {
         let sources = [source(
             "src/lib.rs",
-            "mod outer { mod inner { use std::fmt; } }",
+            "mod outer { mod inner { use std::fmt; } }"
         )];
         let graph = ModuleGraph::from_sources(&sources);
         assert_eq!(
@@ -333,7 +336,7 @@ mod tests {
         let sources = [
             source("src/lib.rs", "mod util;"),
             source("src/util.rs", ""),
-            source("src/orphan.rs", "use crate::util::Item;"),
+            source("src/orphan.rs", "use crate::util::Item;")
         ];
         let graph = ModuleGraph::from_sources(&sources);
         assert_eq!(paths(&graph), vec!["crate", "crate::util"]);
@@ -343,7 +346,7 @@ mod tests {
     fn every_file_is_a_root_when_no_crate_root_exists() {
         let sources = [
             source("rules/fixture.rs", "mod a { use std::fmt; }"),
-            source("rules/other.rs", ""),
+            source("rules/other.rs", "")
         ];
         let graph = ModuleGraph::from_sources(&sources);
         assert_eq!(paths(&graph), vec!["crate", "crate::a", "crate"]);
@@ -362,7 +365,7 @@ mod tests {
     fn unparsable_file_contributes_no_modules() {
         let sources = [
             source("src/lib.rs", "mod broken;"),
-            source("src/broken.rs", "fn broken("),
+            source("src/broken.rs", "fn broken(")
         ];
         let graph = ModuleGraph::from_sources(&sources);
         assert_eq!(paths(&graph), vec!["crate"]);
@@ -412,7 +415,7 @@ mod tests {
     fn graph_construction_is_deterministic() {
         let sources = [
             source("src/lib.rs", "mod a; mod b { use crate::a::Item; }"),
-            source("src/a.rs", "use std::fmt;"),
+            source("src/a.rs", "use std::fmt;")
         ];
         let first = ModuleGraph::from_sources(&sources);
         let second = ModuleGraph::from_sources(&sources);

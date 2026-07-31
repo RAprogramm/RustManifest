@@ -34,7 +34,7 @@ pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
                 "struct `{}` declares {count} fields (limit {FIELD_LIMIT}); {}",
                 node.name,
                 split_plan(graph, node)
-            ),
+            )
         ));
     }
     found
@@ -155,7 +155,7 @@ mod tests {
     fn shared_group_becomes_extraction_advice() {
         let graph = graph(
             "struct Big { id: u64, created_at: u64, a: u8, b: u8, c: u8 }\nstruct Other { id: \
-             u64, created_at: u64 }",
+             u64, created_at: u64 }"
         );
         let found = insights(&graph);
         assert_eq!(found.len(), 1);

@@ -59,7 +59,10 @@ fn ids_follow_naming_convention() {
 #[test]
 fn pattern_rules_compile() {
     for rule in RULES.iter() {
-        if let RuleDefinition::Pattern { regex, .. } = &rule.definition {
+        if let RuleDefinition::Pattern {
+            regex, ..
+        } = &rule.definition
+        {
             let compiled = Regex::new(regex);
             assert!(
                 compiled.is_ok(),
@@ -75,7 +78,10 @@ fn pattern_rules_compile() {
 fn pattern_fixtures_match_their_rule() {
     let rules_dir = rules_dir();
     for rule in RULES.iter() {
-        let RuleDefinition::Pattern { regex, .. } = &rule.definition else {
+        let RuleDefinition::Pattern {
+            regex, ..
+        } = &rule.definition
+        else {
             continue;
         };
         let re = Regex::new(regex).unwrap();

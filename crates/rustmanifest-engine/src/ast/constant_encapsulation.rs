@@ -29,7 +29,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                 "module-level `pub const {}` pollutes the namespace; attach it to the type that \
                  uses it as an associated const",
                 constant.ident
-            ),
+            )
         ));
     }
     found

@@ -15,7 +15,7 @@
 
 use std::{
     path::PathBuf,
-    sync::{Mutex, OnceLock},
+    sync::{Mutex, OnceLock}
 };
 
 /// A single source file under analysis.
@@ -27,9 +27,9 @@ use std::{
 /// [`Location`]: rustmanifest_schema::Location
 #[derive(Debug)]
 pub struct Source {
-    path: PathBuf,
-    text: String,
-    used_pragma_lines: OnceLock<Mutex<Vec<usize>>>,
+    path:              PathBuf,
+    text:              String,
+    used_pragma_lines: OnceLock<Mutex<Vec<usize>>>
 }
 
 impl Clone for Source {
@@ -49,7 +49,7 @@ impl Source {
         Self {
             path,
             text,
-            used_pragma_lines: OnceLock::new(),
+            used_pragma_lines: OnceLock::new()
         }
     }
 
