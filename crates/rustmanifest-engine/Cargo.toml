@@ -24,6 +24,7 @@ regex = { workspace = true }
 rustmanifest-rules-core = { workspace = true }
 syn = { workspace = true }
 rustmanifest-schema = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

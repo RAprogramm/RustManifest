@@ -30,6 +30,7 @@ use tracing::{debug, info, instrument, trace, warn};
 
 use crate::{
     analyzer::Analyzer,
+    cache::{self, FindingsCache},
     error::{EngineError, EngineResult},
     pragma,
     source::Source
@@ -73,12 +74,21 @@ impl Cancellation {
     }
 }
 
+/// Persistent findings cache paired with the pre-computed rule-set
+/// fingerprint of the orchestrator it belongs to.
+#[derive(Debug, Clone)]
+struct CacheHandle {
+    store:       FindingsCache,
+    fingerprint: Arc<[u8]>
+}
+
 /// Builder for [`Orchestrator`] instances.
 #[derive(Default)]
 pub struct OrchestratorBuilder {
     analyzers:      Vec<Box<dyn Analyzer>>,
     max_file_bytes: Option<u64>,
-    cancellation:   Option<Cancellation>
+    cancellation:   Option<Cancellation>,
+    cache:          Option<FindingsCache>
 }
 
 impl std::fmt::Debug for OrchestratorBuilder {
@@ -88,6 +98,7 @@ impl std::fmt::Debug for OrchestratorBuilder {
             .field("analyzers", &self.analyzers.len())
             .field("max_file_bytes", &self.max_file_bytes)
             .field("cancellation", &self.cancellation)
+            .field("cache", &self.cache)
             .finish()
     }
 }
@@ -130,13 +141,39 @@ impl OrchestratorBuilder {
         self
     }
 
+    /// Attaches an optional persistent findings cache. `None` (the default)
+    /// disables caching.
+    ///
+    /// On a cache hit the orchestrator reuses the stored per-file findings —
+    /// including the `RM-META-001` unused-pragma post-pass results — and
+    /// skips analysis for that file entirely. See [`crate::cache`] for the
+    /// key composition and failure model; note that the workspace-level
+    /// semantic tier runs outside the orchestrator and is never cached.
+    #[must_use]
+    pub fn cache(mut self, cache: Option<FindingsCache>) -> Self {
+        self.cache = cache;
+        self
+    }
+
     /// Finalises the builder into an [`Orchestrator`].
     #[must_use]
     pub fn build(self) -> Orchestrator {
+        let cache = self.cache.map(|store| {
+            let rules: Vec<&rustmanifest_schema::Rule> = self
+                .analyzers
+                .iter()
+                .map(|analyzer| analyzer.rule())
+                .collect();
+            CacheHandle {
+                store,
+                fingerprint: Arc::from(cache::rules_fingerprint(&rules))
+            }
+        });
         Orchestrator {
-            analyzers:      Arc::from(self.analyzers.into_boxed_slice()),
+            analyzers: Arc::from(self.analyzers.into_boxed_slice()),
             max_file_bytes: self.max_file_bytes.unwrap_or(DEFAULT_MAX_FILE_BYTES),
-            cancellation:   self.cancellation.unwrap_or_default()
+            cancellation: self.cancellation.unwrap_or_default(),
+            cache
         }
     }
 }
@@ -147,7 +184,8 @@ impl OrchestratorBuilder {
 pub struct Orchestrator {
     analyzers:      Arc<[Box<dyn Analyzer>]>,
     max_file_bytes: u64,
-    cancellation:   Cancellation
+    cancellation:   Cancellation,
+    cache:          Option<CacheHandle>
 }
 
 impl std::fmt::Debug for Orchestrator {
@@ -157,6 +195,7 @@ impl std::fmt::Debug for Orchestrator {
             .field("analyzers", &self.analyzers.len())
             .field("max_file_bytes", &self.max_file_bytes)
             .field("cancellation", &self.cancellation)
+            .field("cache", &self.cache)
             .finish()
     }
 }
@@ -241,6 +280,17 @@ impl Orchestrator {
             }
         };
 
+        let cache_key = self
+            .cache
+            .as_ref()
+            .map(|handle| FindingsCache::key(text.as_bytes(), &handle.fingerprint));
+        if let (Some(handle), Some(key)) = (&self.cache, &cache_key)
+            && let Some(findings) = handle.store.lookup(key, path)
+        {
+            debug!(path = %path.display(), findings = findings.len(), "served from cache");
+            return findings;
+        }
+
         let source = Source::new(path.to_path_buf(), text);
         let mut findings = Vec::new();
         for analyzer in self.analyzers.as_ref() {
@@ -255,6 +305,9 @@ impl Orchestrator {
             findings.extend(analyzer.analyze(&source));
         }
         findings.extend(self.unused_pragma_findings(&source));
+        if let (Some(handle), Some(key)) = (&self.cache, &cache_key) {
+            handle.store.store(key, &findings);
+        }
         debug!(path = %path.display(), findings = findings.len(), "file analyzed");
         findings
     }
@@ -484,6 +537,186 @@ mod tests {
             .run(&[PathBuf::from("does/not/matter.rs")])
             .unwrap_err();
         assert!(matches!(err, EngineError::Cancelled));
+    }
+
+    fn cached_orchestrator(dir: &Path) -> Orchestrator {
+        let analyzer = PatternAnalyzer::new(cred_rule()).unwrap();
+        OrchestratorBuilder::new()
+            .analyzer(Box::new(analyzer))
+            .cache(Some(FindingsCache::open(dir).unwrap()))
+            .build()
+    }
+
+    fn cache_entries(dir: &Path) -> Vec<PathBuf> {
+        let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "json")
+            })
+            .collect();
+        entries.sort();
+        entries
+    }
+
+    #[test]
+    fn cache_hit_matches_fresh_run_byte_for_byte() {
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let dirty = write_file(dir.path(), "dirty.rs", r#"let password = "hunter2";"#);
+        let stale = write_file(
+            dir.path(),
+            "stale.rs",
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() {}\n"
+        );
+        let files = [dirty, stale];
+
+        let fresh = cred_orchestrator().run(&files).unwrap();
+        let miss_run = cached_orchestrator(cache_dir.path()).run(&files).unwrap();
+        let hit_run = cached_orchestrator(cache_dir.path()).run(&files).unwrap();
+
+        let fresh_bytes = serde_json::to_vec(&fresh).unwrap();
+        assert_eq!(fresh_bytes, serde_json::to_vec(&miss_run).unwrap());
+        assert_eq!(fresh_bytes, serde_json::to_vec(&hit_run).unwrap());
+        assert_eq!(cache_entries(cache_dir.path()).len(), 2);
+    }
+
+    #[test]
+    fn cache_hit_is_served_from_the_store() {
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let file = write_file(dir.path(), "dirty.rs", r#"let password = "hunter2";"#);
+
+        cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&file))
+            .unwrap();
+        let entries = cache_entries(cache_dir.path());
+        assert_eq!(entries.len(), 1);
+        let tampered = fs::read_to_string(&entries[0])
+            .unwrap()
+            .replace("Hardcoded credentials", "tampered marker");
+        fs::write(&entries[0], tampered).unwrap();
+
+        let findings = cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&file))
+            .unwrap();
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].message.contains("tampered marker"));
+    }
+
+    #[test]
+    fn changed_file_content_is_a_miss() {
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let file = write_file(dir.path(), "dirty.rs", r#"let password = "hunter2";"#);
+
+        let orchestrator = cached_orchestrator(cache_dir.path());
+        let before = orchestrator.run(std::slice::from_ref(&file)).unwrap();
+        assert_eq!(before.len(), 1);
+
+        write_file(dir.path(), "dirty.rs", "fn main() {}\n");
+        let after = orchestrator.run(std::slice::from_ref(&file)).unwrap();
+        assert!(after.is_empty());
+        assert_eq!(cache_entries(cache_dir.path()).len(), 2);
+    }
+
+    #[test]
+    fn changed_rule_set_is_a_miss() {
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let file = write_file(dir.path(), "dirty.rs", r#"let password = "hunter2";"#);
+
+        cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&file))
+            .unwrap();
+        for entry in cache_entries(cache_dir.path()) {
+            fs::write(entry, b"[]").unwrap();
+        }
+
+        let mut other_rule = cred_rule();
+        other_rule.id = "RM-SEC-999".to_owned();
+        let orchestrator = OrchestratorBuilder::new()
+            .analyzer(Box::new(PatternAnalyzer::new(cred_rule()).unwrap()))
+            .analyzer(Box::new(PatternAnalyzer::new(other_rule).unwrap()))
+            .cache(Some(FindingsCache::open(cache_dir.path()).unwrap()))
+            .build();
+        let findings = orchestrator.run(std::slice::from_ref(&file)).unwrap();
+        assert_eq!(findings.len(), 2);
+        assert_eq!(cache_entries(cache_dir.path()).len(), 2);
+    }
+
+    #[test]
+    fn corrupt_cache_entry_falls_back_to_fresh_run_and_repairs() {
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let file = write_file(dir.path(), "dirty.rs", r#"let password = "hunter2";"#);
+
+        cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&file))
+            .unwrap();
+        let entries = cache_entries(cache_dir.path());
+        assert_eq!(entries.len(), 1);
+        fs::write(&entries[0], b"{ definitely not a findings vec").unwrap();
+
+        let findings = cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&file))
+            .unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule_id, "RM-SEC-001");
+
+        let repaired: Vec<Finding> =
+            serde_json::from_slice(&fs::read(&entries[0]).unwrap()).unwrap();
+        assert_eq!(repaired, findings);
+    }
+
+    #[test]
+    fn identical_files_share_an_entry_with_correct_paths() {
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let text = r#"let password = "hunter2";"#;
+        let first = write_file(dir.path(), "first.rs", text);
+        let second = write_file(dir.path(), "second.rs", text);
+
+        cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&first))
+            .unwrap();
+        assert_eq!(cache_entries(cache_dir.path()).len(), 1);
+
+        let findings = cached_orchestrator(cache_dir.path())
+            .run(&[first.clone(), second.clone()])
+            .unwrap();
+        assert_eq!(findings.len(), 2);
+        assert_eq!(findings[0].location.file, first);
+        assert_eq!(findings[1].location.file, second);
+        assert_eq!(cache_entries(cache_dir.path()).len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unwritable_cache_dir_never_fails_the_run() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempdir().unwrap();
+        let cache_dir = tempdir().unwrap();
+        let file = write_file(dir.path(), "dirty.rs", r#"let password = "hunter2";"#);
+
+        let orchestrator = cached_orchestrator(cache_dir.path());
+        fs::set_permissions(cache_dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let probe = fs::write(cache_dir.path().join("probe.json"), b"[]");
+        if probe.is_ok() {
+            // Permissions do not restrict this process (e.g. running as
+            // root), so the unwritable-directory scenario cannot be
+            // reproduced here; skip rather than assert a false premise.
+            fs::set_permissions(cache_dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+            return;
+        }
+
+        let findings = orchestrator.run(std::slice::from_ref(&file)).unwrap();
+        fs::set_permissions(cache_dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule_id, "RM-SEC-001");
+        assert!(cache_entries(cache_dir.path()).is_empty());
     }
 
     #[test]

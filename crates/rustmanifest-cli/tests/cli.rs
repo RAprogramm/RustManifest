@@ -233,3 +233,61 @@ fn pragma_suppresses_finding() {
         .assert()
         .success();
 }
+
+#[test]
+fn cache_second_run_produces_identical_json_output() {
+    let tree = make_tree(&[
+        ("src/dirty.rs", "let password = \"hunter2\";\n"),
+        (
+            "src/stale.rs",
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() {}\n"
+        )
+    ]);
+    let cache_dir = TempDir::new().unwrap();
+
+    let run = || {
+        let assert = rustmanifest()
+            .arg("check")
+            .arg(tree.path())
+            .arg("--cache")
+            .arg(cache_dir.path())
+            .arg("--format")
+            .arg("json")
+            .assert()
+            .failure()
+            .code(1);
+        assert.get_output().stdout.clone()
+    };
+
+    let first = run();
+    let entry_count = fs::read_dir(cache_dir.path()).unwrap().count();
+    assert!(entry_count > 0, "expected cache entries after first run");
+    let second = run();
+    assert_eq!(first, second, "cached run must match the fresh run exactly");
+
+    let findings: serde_json::Value = serde_json::from_slice(&second).unwrap();
+    let rendered = serde_json::to_string(&findings).unwrap();
+    assert!(rendered.contains("RM-SEC-001"));
+    assert!(rendered.contains("RM-META-001"));
+}
+
+#[test]
+fn cache_creates_missing_directory() {
+    let tree = make_tree(&[("src/clean.rs", "fn main() { println!(\"hi\"); }\n")]);
+    let parent = TempDir::new().unwrap();
+    let cache_dir = parent.path().join("nested").join("cache");
+
+    rustmanifest()
+        .arg("check")
+        .arg(tree.path())
+        .arg("--cache")
+        .arg(&cache_dir)
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .success();
+    assert!(
+        cache_dir.is_dir(),
+        "cache directory should have been created"
+    );
+}

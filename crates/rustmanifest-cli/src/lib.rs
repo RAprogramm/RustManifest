@@ -19,7 +19,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use rustmanifest_config::Effective;
 use rustmanifest_engine::{
-    AstAnalyzer, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
+    AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
 };
 use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
 use rustmanifest_rules_core::{RULES, methodology};
@@ -85,7 +85,14 @@ pub struct CheckArgs {
     /// Path to a `rustmanifest.toml` configuration file. Defaults to
     /// `rustmanifest.toml` in the current directory when present.
     #[arg(long)]
-    pub config: Option<PathBuf>
+    pub config: Option<PathBuf>,
+
+    /// Directory for the persistent findings cache. Off by default; the
+    /// directory is created when missing. Entries are content-addressed by
+    /// file bytes, enabled rule set, and engine version, so stale entries
+    /// are never served. The workspace-level semantic tier is not cached.
+    #[arg(long, value_name = "DIR")]
+    pub cache: Option<PathBuf>
 }
 
 /// Arguments for the `explain` subcommand.
@@ -246,9 +253,19 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
         "running check"
     );
 
+    let cache = args
+        .cache
+        .as_deref()
+        .map(|dir| {
+            FindingsCache::open(dir)
+                .with_context(|| format!("opening findings cache at {}", dir.display()))
+        })
+        .transpose()?;
+
     let orchestrator = OrchestratorBuilder::new()
         .analyzers(analyzers)
         .max_file_bytes(args.max_file_size)
+        .cache(cache)
         .build();
 
     let discovered = walker::discover(&args.paths).context("file discovery failed")?;

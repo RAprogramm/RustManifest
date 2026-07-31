@@ -1067,6 +1067,7 @@ dependencies = [
  "regex",
  "rustmanifest-rules-core",
  "rustmanifest-schema",
+ "serde_json",
  "syn 2.0.117",
  "tempfile",
  "thiserror",

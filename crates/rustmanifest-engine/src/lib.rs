@@ -17,6 +17,7 @@
 
 pub mod analyzer;
 pub mod ast;
+pub mod cache;
 pub mod error;
 pub mod orchestrator;
 pub mod pattern;
@@ -27,6 +28,7 @@ pub mod walker;
 
 pub use analyzer::Analyzer;
 pub use ast::AstAnalyzer;
+pub use cache::FindingsCache;
 pub use error::EngineError;
 pub use orchestrator::{
     Cancellation, Orchestrator, OrchestratorBuilder, UNUSED_PRAGMA_RATIONALE_URI,
