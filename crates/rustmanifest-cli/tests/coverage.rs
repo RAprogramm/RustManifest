@@ -56,6 +56,20 @@ fn coverage_reports_parsed_files_and_exits_clean() {
 }
 
 #[test]
+fn expand_without_crates_reports_zero_and_stays_clean() {
+    let tree = make_tree(&[("src/lib.rs", "pub struct Ok;\n")]);
+    rustmanifest()
+        .arg("coverage")
+        .arg("--expand")
+        .arg(tree.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "crates expanded     0/0       via rustc -Zunpretty=expanded   skipped 0"
+        ));
+}
+
+#[test]
 fn coverage_counts_unparsable_files_honestly() {
     let tree = make_tree(&[
         ("src/lib.rs", "pub struct Ok;\n"),

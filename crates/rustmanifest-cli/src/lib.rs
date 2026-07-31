@@ -8,6 +8,7 @@
 //! spawning a child process.
 
 pub mod coverage;
+pub mod expand;
 pub mod graph;
 
 use std::{

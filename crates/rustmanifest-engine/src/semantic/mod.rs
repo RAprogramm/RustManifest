@@ -13,6 +13,7 @@
 
 mod composition;
 mod coverage;
+mod expansion;
 mod field_group;
 mod graph;
 mod module_cycle;
@@ -24,6 +25,7 @@ use tracing::trace;
 
 pub use self::{
     coverage::{Coverage, coverage, percent},
+    expansion::{ExpansionReport, expansion},
     graph::{FieldNode, TypeGraph, TypeNode},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}
 };
