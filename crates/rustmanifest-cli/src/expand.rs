@@ -27,7 +27,10 @@ pub struct ExpandSummary {
     /// Crates whose expansion succeeded and parsed.
     pub crates_expanded: u64,
     /// Counters summed over every expanded crate.
-    pub report:          ExpansionReport
+    pub report:          ExpansionReport,
+    /// Expanded stream of each successfully expanded crate, for absorbing
+    /// derived impls into the type graph.
+    pub streams:         Vec<String>
 }
 
 /// Expands every crate found under `paths` and aggregates the reports.
@@ -36,9 +39,10 @@ pub fn expand_paths(paths: &[PathBuf]) -> ExpandSummary {
     let mut summary = ExpandSummary::default();
     for dir in manifest_dirs(paths) {
         summary.crates_total += 1;
-        if let Some(report) = expand_crate(&dir) {
+        if let Some((report, stream)) = expand_crate(&dir) {
             summary.crates_expanded += 1;
             summary.report.absorb(&report);
+            summary.streams.push(stream);
         }
     }
     summary
@@ -57,11 +61,12 @@ fn manifest_dirs(paths: &[PathBuf]) -> Vec<PathBuf> {
         .collect()
 }
 
-/// Expands one crate and measures the expanded stream.
+/// Expands one crate, returning the measured report and the expanded
+/// stream itself.
 ///
 /// Library crates expand via `--lib`; binary-only crates via their first
 /// `src/bin` entry or `src/main.rs` binary named after the package.
-fn expand_crate(dir: &Path) -> Option<ExpansionReport> {
+fn expand_crate(dir: &Path) -> Option<(ExpansionReport, String)> {
     let target = expand_target(dir)?;
     let output = Command::new("cargo")
         .arg("+nightly")
@@ -76,7 +81,8 @@ fn expand_crate(dir: &Path) -> Option<ExpansionReport> {
     if !output.status.success() {
         return None;
     }
-    expansion(&String::from_utf8(output.stdout).ok()?)
+    let stream = String::from_utf8(output.stdout).ok()?;
+    expansion(&stream).map(|report| (report, stream))
 }
 
 /// Picks the `cargo rustc` target selector for the crate in `dir`.

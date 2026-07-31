@@ -70,8 +70,12 @@ pub struct ImplNode {
     pub type_name:  String,
     /// Last path segment of the implemented trait, if any.
     pub trait_name: Option<String>,
-    /// Index of the source the impl was parsed from.
+    /// Index of the source the impl was parsed from; for derived impls
+    /// absorbed from macro expansion, the source defining the type.
     pub source:     usize,
+    /// Whether the impl came from a derive expansion rather than surface
+    /// syntax.
+    pub derived:    bool,
     /// Methods and associated functions in declaration order.
     pub methods:    Vec<MethodNode>
 }
@@ -158,6 +162,68 @@ impl TypeGraph {
     #[must_use]
     pub fn type_named(&self, name: &str) -> Option<&TypeNode> {
         self.types.iter().find(|node| node.name == name)
+    }
+
+    /// Returns the trait names `name` implements, surface and derived,
+    /// deduplicated and sorted.
+    #[must_use]
+    pub fn traits_implemented(&self, name: &str) -> Vec<&str> {
+        let mut traits: Vec<&str> = self
+            .impls
+            .iter()
+            .filter(|impl_block| impl_block.type_name == name)
+            .filter_map(|impl_block| impl_block.trait_name.as_deref())
+            .collect();
+        traits.sort_unstable();
+        traits.dedup();
+        traits
+    }
+
+    /// Absorbs derive-generated impls from a crate's macro-expanded stream
+    /// (`cargo +nightly rustc -- -Zunpretty=expanded`), returning how many
+    /// impls were integrated.
+    ///
+    /// Only impls marked `#[automatically_derived]` whose self type the
+    /// graph already knows are added — each anchored to the source that
+    /// defines the type and flagged `derived`. Impls for unknown types and
+    /// duplicates of already-absorbed `(type, trait)` pairs are skipped, so
+    /// absorbing the same stream twice is a no-op.
+    pub fn absorb_expansion(&mut self, expanded: &str) -> u64 {
+        let Ok(file) = syn::parse_file(expanded) else {
+            return 0;
+        };
+        let mut items = Vec::new();
+        crate::ast::flattened(&file.items, &mut items);
+        let mut integrated = 0;
+        for item in items {
+            let syn::Item::Impl(definition) = item else {
+                continue;
+            };
+            let automatically_derived = definition
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().is_ident("automatically_derived"));
+            if !automatically_derived {
+                continue;
+            }
+            let Some(mut node) = impl_node(0, definition) else {
+                continue;
+            };
+            let Some(subject) = self.type_named(&node.type_name) else {
+                continue;
+            };
+            let duplicate = self.impls.iter().any(|existing| {
+                existing.type_name == node.type_name && existing.trait_name == node.trait_name
+            });
+            if duplicate {
+                continue;
+            }
+            node.source = subject.source;
+            node.derived = true;
+            self.impls.push(node);
+            integrated += 1;
+        }
+        integrated
     }
 
     /// Returns every structure that aggregates `name` through a field whose
@@ -309,6 +375,7 @@ fn impl_node(source: usize, definition: &syn::ItemImpl) -> Option<ImplNode> {
         type_name,
         trait_name,
         source,
+        derived: false,
         methods
     })
 }
@@ -506,6 +573,44 @@ mod tests {
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].0.type_name, "Game");
         assert_eq!(edges[0].1.name, "Board");
+    }
+
+    const EXPANDED: &str = "#[automatically_derived]\nimpl ::core::fmt::Debug for User { \
+                            }\n#[automatically_derived]\nimpl ::core::clone::Clone for User { \
+                            }\n#[automatically_derived]\nimpl ::core::fmt::Debug for Ghost { }";
+
+    #[test]
+    fn absorbed_expansion_adds_derived_impls_for_known_types() {
+        let mut graph = graph(&["struct User { id: u64 }"]);
+        assert_eq!(graph.absorb_expansion(EXPANDED), 2);
+        assert_eq!(graph.traits_implemented("User"), vec!["Clone", "Debug"]);
+        let derived = graph.impls().iter().find(|node| node.derived).unwrap();
+        assert_eq!(derived.source, graph.type_named("User").unwrap().source);
+    }
+
+    #[test]
+    fn absorbing_the_same_stream_twice_is_a_no_op() {
+        let mut graph = graph(&["struct User { id: u64 }"]);
+        graph.absorb_expansion(EXPANDED);
+        assert_eq!(graph.absorb_expansion(EXPANDED), 0);
+        assert_eq!(graph.impls().len(), 2);
+    }
+
+    #[test]
+    fn unknown_types_and_broken_streams_absorb_nothing() {
+        let mut graph = graph(&["struct Other;"]);
+        assert_eq!(graph.absorb_expansion(EXPANDED), 0);
+        assert_eq!(graph.absorb_expansion("fn broken("), 0);
+    }
+
+    #[test]
+    fn surface_and_derived_traits_merge_in_traits_implemented() {
+        let mut graph = graph(&["struct User { id: u64 }\nimpl core::fmt::Display for User { }"]);
+        graph.absorb_expansion(EXPANDED);
+        assert_eq!(
+            graph.traits_implemented("User"),
+            vec!["Clone", "Debug", "Display"]
+        );
     }
 
     #[test]

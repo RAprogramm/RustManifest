@@ -55,7 +55,9 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
         )));
     }
     if args.expand {
-        lines.extend(expand_lines(&crate::expand::expand_paths(&args.paths)));
+        let summary = crate::expand::expand_paths(&args.paths);
+        lines.extend(expand_lines(&summary));
+        lines.push(integration_line(&sources, &summary));
     }
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
@@ -113,6 +115,32 @@ fn expand_lines(summary: &ExpandSummary) -> Vec<String> {
         lines.push(line("derived traits", "", &trait_tail(summary)));
     }
     lines
+}
+
+/// Absorbs every expanded stream into a fresh type graph and renders the
+/// integration line: how many derived impls the graph now holds and how
+/// many workspace types gained known trait implementations.
+fn integration_line(sources: &[rustmanifest_engine::Source], summary: &ExpandSummary) -> String {
+    let mut graph = rustmanifest_engine::TypeGraph::from_sources(sources);
+    let mut integrated = 0;
+    for stream in &summary.streams {
+        integrated += graph.absorb_expansion(stream);
+    }
+    let covered = graph
+        .types()
+        .iter()
+        .filter(|node| {
+            graph
+                .impls()
+                .iter()
+                .any(|impl_block| impl_block.derived && impl_block.type_name == node.name)
+        })
+        .count();
+    line(
+        "graph integration",
+        &format!("+{integrated}"),
+        &format!("derived impls absorbed   types with known derives {covered}")
+    )
 }
 
 /// Formats the top derived traits by count, collapsing the long tail.
@@ -282,8 +310,24 @@ mod tests {
         ExpandSummary {
             crates_total: 3,
             crates_expanded: 2,
-            report
+            report,
+            streams: Vec::new()
         }
+    }
+
+    #[test]
+    fn integration_line_reports_absorbed_impls_and_covered_types() {
+        let sources = [rustmanifest_engine::Source::new(
+            std::path::PathBuf::from("src/lib.rs"),
+            "pub struct User { pub id: u64 }".to_owned()
+        )];
+        let mut summary = summary(&[]);
+        summary.streams =
+            vec!["#[automatically_derived]\nimpl ::core::fmt::Debug for User { }".to_owned()];
+        assert_eq!(
+            super::integration_line(&sources, &summary),
+            "graph integration   +1        derived impls absorbed   types with known derives 1"
+        );
     }
 
     #[test]
