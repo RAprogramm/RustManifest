@@ -81,7 +81,10 @@ impl Analyzer for PatternAnalyzer {
 
         let mut findings = Vec::new();
         for occurrence in self.regex.find_iter(text) {
-            if pragma::is_suppressed(text, occurrence.start(), &self.rule.id, &pragmas) {
+            if let Some(active) =
+                pragma::suppressing(text, occurrence.start(), &self.rule.id, &pragmas)
+            {
+                source.record_pragma_use(active.line_index);
                 trace!(
                     rule = %self.rule.id,
                     offset = occurrence.start(),

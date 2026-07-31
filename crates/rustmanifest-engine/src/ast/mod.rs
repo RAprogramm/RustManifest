@@ -159,7 +159,8 @@ impl Analyzer for AstAnalyzer {
         let mut findings = Vec::new();
         for occurrence in self.check.occurrences(&file) {
             let start = occurrence.range.start as usize;
-            if pragma::is_suppressed(text, start, &self.rule.id, &pragmas) {
+            if let Some(active) = pragma::suppressing(text, start, &self.rule.id, &pragmas) {
+                source.record_pragma_use(active.line_index);
                 trace!(rule = %self.rule.id, offset = start, "suppressed by pragma");
                 continue;
             }

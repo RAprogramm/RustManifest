@@ -9,6 +9,11 @@
 //! across the global rayon pool. Output is deterministic regardless of
 //! scheduling: findings are sorted by `(file, byte_start, byte_end, rule_id)`
 //! before being returned.
+//!
+//! After all analyzers ran on a file, the orchestrator performs an
+//! unused-pragma post-pass: every inline pragma whose line index was not
+//! recorded into the per-file [`Source`] usage recorder by any analyzer is
+//! turned into an engine-synthesized [`UNUSED_PRAGMA_RULE_ID`] finding.
 
 use std::{
     fs,
@@ -20,17 +25,27 @@ use std::{
 };
 
 use rayon::prelude::*;
-use rustmanifest_schema::Finding;
+use rustmanifest_schema::{Finding, Location, Range, Severity};
 use tracing::{debug, info, instrument, trace, warn};
 
 use crate::{
     analyzer::Analyzer,
     error::{EngineError, EngineResult},
+    pragma,
     source::Source
 };
 
 /// Default per-file memory budget: 10 MiB.
 pub const DEFAULT_MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
+
+/// Rule id of the engine-synthesized unused-pragma finding.
+///
+/// This rule does not live in any rules pack; the orchestrator emits it for
+/// every inline pragma that suppressed nothing during a run.
+pub const UNUSED_PRAGMA_RULE_ID: &str = "RM-META-001";
+
+/// Rationale URI attached to unused-pragma findings.
+pub const UNUSED_PRAGMA_RATIONALE_URI: &str = "rustmanifest://methodology/quick-reference";
 
 /// Cooperative cancellation handle threaded through the orchestrator.
 #[derive(Debug, Clone, Default)]
@@ -239,7 +254,61 @@ impl Orchestrator {
             }
             findings.extend(analyzer.analyze(&source));
         }
+        findings.extend(self.unused_pragma_findings(&source));
         debug!(path = %path.display(), findings = findings.len(), "file analyzed");
+        findings
+    }
+
+    /// Emits one [`UNUSED_PRAGMA_RULE_ID`] finding per pragma in `source`
+    /// that suppressed nothing during this run.
+    ///
+    /// Analyzers record the line index of every pragma that suppressed one
+    /// of their occurrences into the source's usage recorder; a pragma left
+    /// unrecorded either references a rule that produced no occurrence on
+    /// the covered lines or names a rule unknown to this orchestrator's
+    /// rule set. The message distinguishes the two cases.
+    fn unused_pragma_findings(&self, source: &Source) -> Vec<Finding> {
+        let text = source.text();
+        let pragmas = pragma::collect(text);
+        if pragmas.is_empty() {
+            return Vec::new();
+        }
+        let used = source.used_pragma_lines();
+        let mut findings = Vec::new();
+        for unused in pragmas
+            .iter()
+            .filter(|item| !used.contains(&item.line_index))
+        {
+            let known = self
+                .analyzers
+                .iter()
+                .any(|analyzer| analyzer.rule().id == unused.rule_id);
+            let message = if known {
+                format!(
+                    "unused pragma: rule {} did not fire on the suppressed lines; reason was \"{}\"",
+                    unused.rule_id, unused.reason
+                )
+            } else {
+                format!(
+                    "unused pragma: references unknown rule {}; reason was \"{}\"",
+                    unused.rule_id, unused.reason
+                )
+            };
+            let (start, end) = pragma::byte_span(text, unused);
+            findings.push(Finding {
+                rule_id: UNUSED_PRAGMA_RULE_ID.to_owned(),
+                severity: Severity::Warning,
+                location: Location {
+                    file:  source.path().to_path_buf(),
+                    range: Range {
+                        start: u32::try_from(start).unwrap_or(u32::MAX),
+                        end:   u32::try_from(end).unwrap_or(u32::MAX)
+                    }
+                },
+                message,
+                rationale_uri: UNUSED_PRAGMA_RATIONALE_URI.to_owned()
+            });
+        }
         findings
     }
 }
@@ -294,6 +363,111 @@ mod tests {
         let findings = orchestrator.run(&[bad.clone(), good]).unwrap();
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].location.file, bad);
+    }
+
+    fn cred_orchestrator() -> Orchestrator {
+        let analyzer = PatternAnalyzer::new(cred_rule()).unwrap();
+        OrchestratorBuilder::new()
+            .analyzer(Box::new(analyzer))
+            .build()
+    }
+
+    #[test]
+    fn used_pragma_emits_no_meta_finding() {
+        let dir = tempdir().unwrap();
+        let file = write_file(
+            dir.path(),
+            "suppressed.rs",
+            "// rustmanifest: allow(RM-SEC-001) reason=\"fixture\"\nlet password = \"hunter2\";\n"
+        );
+
+        let findings = cred_orchestrator().run(&[file]).unwrap();
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn unused_pragma_on_clean_line_emits_meta_finding() {
+        let dir = tempdir().unwrap();
+        let file = write_file(
+            dir.path(),
+            "clean.rs",
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale suppression\"\nfn main() {}\n"
+        );
+
+        let findings = cred_orchestrator()
+            .run(std::slice::from_ref(&file))
+            .unwrap();
+        assert_eq!(findings.len(), 1);
+        let finding = &findings[0];
+        assert_eq!(finding.rule_id, UNUSED_PRAGMA_RULE_ID);
+        assert_eq!(finding.severity, Severity::Warning);
+        assert_eq!(finding.location.file, file);
+        assert_eq!(finding.location.range.start, 0);
+        assert!(finding.location.range.end > finding.location.range.start);
+        assert!(finding.message.contains("rule RM-SEC-001 did not fire"));
+        assert!(finding.message.contains("\"stale suppression\""));
+        assert_eq!(finding.rationale_uri, UNUSED_PRAGMA_RATIONALE_URI);
+    }
+
+    #[test]
+    fn pragma_naming_unknown_rule_emits_unknown_variant() {
+        let dir = tempdir().unwrap();
+        let file = write_file(
+            dir.path(),
+            "typo.rs",
+            "// rustmanifest: allow(RM-ZZZ-999) reason=\"typo in rule id\"\nfn main() {}\n"
+        );
+
+        let findings = cred_orchestrator().run(&[file]).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule_id, UNUSED_PRAGMA_RULE_ID);
+        assert!(
+            findings[0]
+                .message
+                .contains("references unknown rule RM-ZZZ-999")
+        );
+        assert!(findings[0].message.contains("\"typo in rule id\""));
+    }
+
+    #[test]
+    fn mixed_pragmas_yield_one_finding_for_the_unused_one() {
+        let dir = tempdir().unwrap();
+        let text = "// rustmanifest: allow(RM-SEC-001) reason=\"needed\"\nlet password = \
+                    \"hunter2\";\n\n// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() \
+                    {}\n";
+        let file = write_file(dir.path(), "mixed.rs", text);
+
+        let findings = cred_orchestrator().run(&[file]).unwrap();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].rule_id, UNUSED_PRAGMA_RULE_ID);
+        assert!(findings[0].message.contains("\"stale\""));
+        let expected_start = text.rfind("// rustmanifest").unwrap();
+        assert_eq!(
+            findings[0].location.range.start,
+            u32::try_from(expected_start).unwrap()
+        );
+    }
+
+    #[test]
+    fn unused_pragma_findings_are_deterministic() {
+        let dir = tempdir().unwrap();
+        let first = write_file(
+            dir.path(),
+            "a.rs",
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale one\"\nfn a() {}\n"
+        );
+        let second = write_file(
+            dir.path(),
+            "b.rs",
+            "// rustmanifest: allow(RM-ZZZ-999) reason=\"stale two\"\nfn b() {}\n"
+        );
+
+        let orchestrator = cred_orchestrator();
+        let run_one = orchestrator.run(&[second.clone(), first.clone()]).unwrap();
+        let run_two = orchestrator.run(&[first.clone(), second]).unwrap();
+        assert_eq!(run_one, run_two);
+        assert_eq!(run_one.len(), 2);
+        assert_eq!(run_one[0].location.file, first);
     }
 
     #[test]

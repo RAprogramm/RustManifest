@@ -28,7 +28,10 @@ pub mod walker;
 pub use analyzer::Analyzer;
 pub use ast::AstAnalyzer;
 pub use error::EngineError;
-pub use orchestrator::{Cancellation, Orchestrator, OrchestratorBuilder};
+pub use orchestrator::{
+    Cancellation, Orchestrator, OrchestratorBuilder, UNUSED_PRAGMA_RATIONALE_URI,
+    UNUSED_PRAGMA_RULE_ID
+};
 pub use pattern::PatternAnalyzer;
 pub use semantic::{SemanticAnalyzer, TypeGraph};
 pub use source::Source;

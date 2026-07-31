@@ -11,8 +11,16 @@
 //!
 //! The pragma applies to the line it lives on **and** to the immediately
 //! following non-blank line. The `reason="..."` clause is mandatory; a
-//! pragma without a reason is ignored (and a future `RM-META-001` rule will
-//! flag it explicitly).
+//! pragma without a reason is ignored by the parser.
+//!
+//! A pragma that parses but suppresses nothing during a run is flagged by
+//! the orchestrator as an engine-synthesized `RM-META-001` finding: each
+//! analyzer records the line index of every pragma that suppressed one of
+//! its occurrences into the per-file [`Source`] usage recorder, and the
+//! orchestrator turns every unrecorded pragma into a finding after all
+//! analyzers ran on the file.
+//!
+//! [`Source`]: crate::source::Source
 
 use std::sync::LazyLock;
 
@@ -78,25 +86,49 @@ pub fn collect(text: &str) -> Vec<Pragma> {
 /// line.
 #[must_use]
 pub fn is_suppressed(text: &str, byte_offset: usize, rule_id: &str, pragmas: &[Pragma]) -> bool {
+    suppressing(text, byte_offset, rule_id, pragmas).is_some()
+}
+
+/// Returns the pragma that suppresses `rule_id` at `byte_offset`, if any.
+///
+/// Analyzers use the returned pragma to record its line index into the
+/// per-file usage recorder, so the orchestrator can later report pragmas
+/// that suppressed nothing.
+pub(crate) fn suppressing<'p>(
+    text: &str,
+    byte_offset: usize,
+    rule_id: &str,
+    pragmas: &'p [Pragma]
+) -> Option<&'p Pragma> {
     if pragmas.is_empty() {
-        return false;
+        return None;
     }
     let target_line = line_of_byte(text, byte_offset);
-    for pragma in pragmas {
-        if pragma.rule_id != rule_id {
-            continue;
+    pragmas.iter().find(|pragma| {
+        pragma.rule_id == rule_id
+            && (pragma.line_index == target_line || pragma.line_index + 1 == target_line)
+    })
+}
+
+/// Returns the byte range of the pragma text on the pragma's own line.
+///
+/// Falls back to the whole line (without its terminator) if the pragma text
+/// cannot be re-matched, which cannot happen for pragmas produced by
+/// [`collect`] from the same `text`.
+pub(crate) fn byte_span(text: &str, pragma: &Pragma) -> (usize, usize) {
+    let mut line_start = 0usize;
+    for (idx, line) in text.split_inclusive('\n').enumerate() {
+        if idx == pragma.line_index {
+            let content = line.trim_end_matches(['\n', '\r']);
+            return PRAGMA_RE
+                .find(content)
+                .map_or((line_start, line_start + content.len()), |found| {
+                    (line_start + found.start(), line_start + found.end())
+                });
         }
-        if pragma.line_index == target_line {
-            return true;
-        }
-        if pragma.line_index + 1 == target_line && !line_is_blank(text, pragma.line_index + 1) {
-            // Same line, already handled above.
-        }
-        if pragma.line_index + 1 == target_line {
-            return true;
-        }
+        line_start += line.len();
     }
-    false
+    (line_start, line_start)
 }
 
 fn line_of_byte(text: &str, byte_offset: usize) -> usize {
@@ -109,12 +141,6 @@ fn line_of_byte(text: &str, byte_offset: usize) -> usize {
         current = next;
     }
     text.lines().count().saturating_sub(1)
-}
-
-fn line_is_blank(text: &str, line_index: usize) -> bool {
-    text.lines()
-        .nth(line_index)
-        .is_none_or(|line| line.trim().is_empty())
 }
 
 #[cfg(test)]
@@ -150,6 +176,27 @@ let password = "hunter2";
         let pragmas = collect(text);
         let offset = text.find("let password").unwrap();
         assert!(is_suppressed(text, offset, "RM-SEC-001", &pragmas));
+    }
+
+    #[test]
+    fn suppressing_returns_the_matching_pragma() {
+        let text = "// rustmanifest: allow(RM-SEC-001) reason=\"ok\"\nlet password = \"x\";\n";
+        let pragmas = collect(text);
+        let offset = text.find("let password").unwrap();
+        let found = suppressing(text, offset, "RM-SEC-001", &pragmas).unwrap();
+        assert_eq!(found.line_index, 0);
+        assert_eq!(found.rule_id, "RM-SEC-001");
+    }
+
+    #[test]
+    fn byte_span_covers_exact_pragma_text() {
+        let text = "fn main() {}\n// rustmanifest: allow(RM-SEC-001) reason=\"ok\"\nlet x = 1;\n";
+        let pragmas = collect(text);
+        let (start, end) = byte_span(text, &pragmas[0]);
+        assert_eq!(
+            &text[start..end],
+            "// rustmanifest: allow(RM-SEC-001) reason=\"ok\""
+        );
     }
 
     #[test]
