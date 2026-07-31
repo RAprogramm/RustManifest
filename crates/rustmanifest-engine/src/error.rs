@@ -44,6 +44,15 @@ pub enum EngineError {
         source:  globset::Error
     },
 
+    /// An `ast`-tier rule names a check this engine build does not provide.
+    #[error("rule {rule_id}: unknown ast check {check:?}")]
+    UnknownAstCheck {
+        /// Rule id naming the unknown check.
+        rule_id: String,
+        /// Check identifier that failed to resolve.
+        check:   String
+    },
+
     /// The file walker reported an error visiting an entry.
     #[error("walker error: {0}")]
     Walker(#[from] ignore::Error),

@@ -16,6 +16,7 @@
 //! and a [`pragma`] suppression mechanism.
 
 pub mod analyzer;
+pub mod ast;
 pub mod error;
 pub mod orchestrator;
 pub mod pattern;
@@ -24,6 +25,7 @@ pub mod source;
 pub mod walker;
 
 pub use analyzer::Analyzer;
+pub use ast::AstAnalyzer;
 pub use error::EngineError;
 pub use orchestrator::{Cancellation, Orchestrator, OrchestratorBuilder};
 pub use pattern::PatternAnalyzer;

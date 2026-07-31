@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-STRUCT-004"
+severity = "warning"
+title = "Public API size"
+rationale-uri = "rustmanifest://methodology/structure#public-api-size"
+
+[definition.ast]
+check = "api-size"

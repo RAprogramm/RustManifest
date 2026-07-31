@@ -15,7 +15,7 @@ use std::{
 
 use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
-use rustmanifest_engine::{OrchestratorBuilder, PatternAnalyzer, walker};
+use rustmanifest_engine::{AstAnalyzer, OrchestratorBuilder, PatternAnalyzer, walker};
 use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::{Finding, RuleDefinition, Severity};
@@ -153,13 +153,25 @@ fn init_tracing(verbose: u8) {
 fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
     let analyzers: Vec<Box<dyn rustmanifest_engine::Analyzer>> = RULES
         .iter()
-        .filter(|rule| matches!(rule.definition, RuleDefinition::Pattern { .. }))
-        .map(|rule| {
-            PatternAnalyzer::new(rule.clone())
-                .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
+        .filter_map(|rule| match rule.definition {
+            RuleDefinition::Pattern {
+                ..
+            } => Some(
+                PatternAnalyzer::new(rule.clone())
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
+            ),
+            RuleDefinition::Ast {
+                ..
+            } => Some(
+                AstAnalyzer::new(rule.clone())
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
+            ),
+            RuleDefinition::Semantic {
+                ..
+            } => None
         })
         .collect::<Result<Vec<_>, _>>()
-        .context("building pattern analyzers from bundled rules")?;
+        .context("building analyzers from bundled rules")?;
 
     info!(
         analyzer_count = analyzers.len(),

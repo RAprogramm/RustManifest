@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-STRUCT-002"
+severity = "warning"
+title = "Method naming"
+rationale-uri = "rustmanifest://methodology/structure#method-naming"
+
+[definition.ast]
+check = "method-naming"

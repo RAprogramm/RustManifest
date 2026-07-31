@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-STRUCT-003"
+severity = "warning"
+title = "Structure size"
+rationale-uri = "rustmanifest://methodology/structure#structure-size"
+
+[definition.ast]
+check = "structure-size"
