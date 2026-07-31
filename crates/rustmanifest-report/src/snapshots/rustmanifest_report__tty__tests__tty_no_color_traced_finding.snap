@@ -1,0 +1,9 @@
+---
+source: crates/rustmanifest-report/src/tty.rs
+expression: output
+---
+error   RM-SEC-001  Hardcoded credentials: matched at bytes 10..25
+  → src/lib.rs:10..25
+  = regex of RM-SEC-001 matched: bytes 10..25 in src/lib.rs
+  ↳ rustmanifest://methodology/security#creds
+1 finding(s) reported

@@ -76,6 +76,21 @@ pub enum Severity {
     Hint
 }
 
+/// One step of the machine-readable derivation trace of a [`Finding`].
+///
+/// A step pairs an observed fact (what the engine saw in the analyzed
+/// sources) with the reason that fact contributes to the finding. The
+/// ordered step list reconstructs how the finding was derived without
+/// parsing the human-readable message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct TraceStep {
+    /// Observed evidence, e.g. an offending item with its file.
+    pub fact:   String,
+    /// Why the fact contributes to the finding.
+    pub reason: String
+}
+
 /// A finding emitted by the engine for one rule against one source location.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -89,7 +104,11 @@ pub struct Finding {
     /// Human-readable message about this occurrence.
     pub message:       String,
     /// `rustmanifest://` URI of the rationale section.
-    pub rationale_uri: String
+    pub rationale_uri: String,
+    /// Machine-readable derivation trace; absent on the wire when empty, so
+    /// payloads produced before this field existed remain valid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trace:         Vec<TraceStep>
 }
 
 /// Source location of a finding.
@@ -148,4 +167,66 @@ pub struct MethodologyResource {
     pub source_path: String,
     /// Document content in Markdown (English).
     pub content:     String
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use super::*;
+
+    fn sample_finding(trace: Vec<TraceStep>) -> Finding {
+        Finding {
+            rule_id: "RM-SEC-001".to_owned(),
+            severity: Severity::Error,
+            location: Location {
+                file:  PathBuf::from("src/lib.rs"),
+                range: Range {
+                    start: 10,
+                    end:   25
+                }
+            },
+            message: "sample".to_owned(),
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
+            trace
+        }
+    }
+
+    #[test]
+    fn finding_without_trace_round_trips_and_omits_the_field() {
+        let finding = sample_finding(Vec::new());
+        let json = serde_json::to_string(&finding).unwrap();
+        assert!(!json.contains("\"trace\""));
+        let back: Finding = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, finding);
+    }
+
+    #[test]
+    fn finding_with_trace_round_trips() {
+        let finding = sample_finding(vec![TraceStep {
+            fact:   "bytes 10..25 in src/lib.rs".to_owned(),
+            reason: "regex of RM-SEC-001 matched".to_owned()
+        }]);
+        let json = serde_json::to_string(&finding).unwrap();
+        assert!(json.contains("\"trace\""));
+        let back: Finding = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, finding);
+    }
+
+    #[test]
+    fn pre_trace_payload_still_deserializes() {
+        let json = r#"{
+            "rule-id": "RM-SEC-001",
+            "severity": "error",
+            "location": { "file": "src/lib.rs", "range": { "start": 10, "end": 25 } },
+            "message": "sample",
+            "rationale-uri": "rustmanifest://methodology/security#creds"
+        }"#;
+        let finding: Finding = serde_json::from_str(json).unwrap();
+        assert!(finding.trace.is_empty());
+    }
 }

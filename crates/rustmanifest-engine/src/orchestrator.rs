@@ -25,7 +25,7 @@ use std::{
 };
 
 use rayon::prelude::*;
-use rustmanifest_schema::{Finding, Location, Range, Severity};
+use rustmanifest_schema::{Finding, Location, Range, Severity, TraceStep};
 use tracing::{debug, info, instrument, trace, warn};
 
 use crate::{
@@ -348,6 +348,15 @@ impl Orchestrator {
                 )
             };
             let (start, end) = pragma::byte_span(text, unused);
+            let pragma_text = text.get(start..end).unwrap_or_default().trim();
+            let step_reason = if known {
+                format!(
+                    "rule {} did not fire on the suppressed lines",
+                    unused.rule_id
+                )
+            } else {
+                format!("references unknown rule {}", unused.rule_id)
+            };
             findings.push(Finding {
                 rule_id: UNUSED_PRAGMA_RULE_ID.to_owned(),
                 severity: Severity::Warning,
@@ -359,7 +368,11 @@ impl Orchestrator {
                     }
                 },
                 message,
-                rationale_uri: UNUSED_PRAGMA_RATIONALE_URI.to_owned()
+                rationale_uri: UNUSED_PRAGMA_RATIONALE_URI.to_owned(),
+                trace: vec![TraceStep {
+                    fact:   format!("pragma `{pragma_text}` at line {}", unused.line_index + 1),
+                    reason: step_reason
+                }]
             });
         }
         findings

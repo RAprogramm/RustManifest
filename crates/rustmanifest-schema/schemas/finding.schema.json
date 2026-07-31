@@ -23,6 +23,13 @@
     "severity": {
       "description": "Effective severity for this finding (may be overridden by user config).",
       "$ref": "#/$defs/Severity"
+    },
+    "trace": {
+      "description": "Machine-readable derivation trace; absent on the wire when empty, so\npayloads produced before this field existed remain valid.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TraceStep"
+      }
     }
   },
   "additionalProperties": false,
@@ -99,6 +106,25 @@
           "type": "string",
           "const": "hint"
         }
+      ]
+    },
+    "TraceStep": {
+      "description": "One step of the machine-readable derivation trace of a [`Finding`].\n\nA step pairs an observed fact (what the engine saw in the analyzed\nsources) with the reason that fact contributes to the finding. The\nordered step list reconstructs how the finding was derived without\nparsing the human-readable message.",
+      "type": "object",
+      "properties": {
+        "fact": {
+          "description": "Observed evidence, e.g. an offending item with its file.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why the fact contributes to the finding.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fact",
+        "reason"
       ]
     }
   }

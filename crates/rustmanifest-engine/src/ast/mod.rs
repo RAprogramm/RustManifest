@@ -17,7 +17,7 @@ mod fakes_over_mocks;
 mod immutability_first;
 mod method_naming;
 
-use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition};
+use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 use crate::{analyzer::Analyzer, error::EngineError, pragma, source::Source};
@@ -159,18 +159,35 @@ impl Analyzer for AstAnalyzer {
                 trace!(rule = %self.rule.id, offset = start, "suppressed by pragma");
                 continue;
             }
+            let trace = vec![occurrence_step(&occurrence, source, &self.rule)];
             findings.push(Finding {
-                rule_id:       self.rule.id.clone(),
-                severity:      self.rule.severity,
-                location:      Location {
+                rule_id: self.rule.id.clone(),
+                severity: self.rule.severity,
+                location: Location {
                     file:  source.path().to_path_buf(),
                     range: occurrence.range
                 },
-                message:       format!("{}: {}", self.rule.title, occurrence.detail),
-                rationale_uri: self.rule.rationale_uri.clone()
+                message: format!("{}: {}", self.rule.title, occurrence.detail),
+                rationale_uri: self.rule.rationale_uri.clone(),
+                trace
             });
         }
         findings
+    }
+}
+
+/// Builds the single trace step of one AST occurrence: the fact cites the
+/// offending item and its file, the reason reuses the check's rationale
+/// sentence (the part of the detail after the first `; `, or the rule title
+/// when the detail carries no rationale of its own).
+fn occurrence_step(occurrence: &Occurrence, source: &Source, rule: &Rule) -> TraceStep {
+    let (fact, reason) = occurrence.detail.split_once("; ").map_or_else(
+        || (occurrence.detail.as_str(), rule.title.as_str()),
+        |(fact, reason)| (fact, reason)
+    );
+    TraceStep {
+        fact:   format!("{fact} in {}", source.path().display()),
+        reason: reason.to_owned()
     }
 }
 
@@ -246,6 +263,24 @@ mod tests {
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-STRUCT-001");
         assert!(findings[0].location.range.end > findings[0].location.range.start);
+    }
+
+    #[test]
+    fn finding_carries_a_single_step_trace() {
+        let analyzer = AstAnalyzer::new(ast_rule("entity-naming")).unwrap();
+        let source = Source::new(
+            PathBuf::from("src/lib.rs"),
+            "pub struct ConfigLoader;\n".to_owned()
+        );
+        let findings = analyzer.analyze(&source);
+        assert_eq!(findings.len(), 1);
+        let trace = &findings[0].trace;
+        assert_eq!(trace.len(), 1);
+        assert_eq!(
+            trace[0].fact,
+            "struct `ConfigLoader` is named for what it does (`-Loader`) in src/lib.rs"
+        );
+        assert_eq!(trace[0].reason, "name the entity for what it is");
     }
 
     #[test]

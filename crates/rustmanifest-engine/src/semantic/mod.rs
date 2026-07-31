@@ -17,7 +17,7 @@ mod graph;
 mod module_cycle;
 mod module_graph;
 
-use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
+use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 pub use self::graph::{FieldNode, TypeGraph, TypeNode};
@@ -31,7 +31,9 @@ pub(crate) struct Insight {
     /// Byte range of the anchoring definition.
     range:  rustmanifest_schema::Range,
     /// Check-specific description including the reasoning chain.
-    detail: String
+    detail: String,
+    /// Machine-readable derivation steps backing the detail.
+    trace:  Vec<TraceStep>
 }
 
 impl Insight {
@@ -39,12 +41,14 @@ impl Insight {
     pub(crate) const fn new(
         source: usize,
         range: rustmanifest_schema::Range,
-        detail: String
+        detail: String,
+        trace: Vec<TraceStep>
     ) -> Self {
         Self {
             source,
             range,
-            detail
+            detail,
+            trace
         }
     }
 }
@@ -75,7 +79,7 @@ impl Check {
     /// Runs the check over the workspace sources and their type graph.
     fn insights(self, sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
         match self {
-            Self::RepeatedFieldGroup => field_group::insights(graph),
+            Self::RepeatedFieldGroup => field_group::insights(sources, graph),
             Self::ModuleCycles => module_cycle::insights(sources),
             Self::StructureSize => composition::insights(graph)
         }
@@ -144,7 +148,8 @@ impl SemanticAnalyzer {
                     range: insight.range
                 },
                 message:       format!("{}: {}", self.rule.title, insight.detail),
-                rationale_uri: self.rule.rationale_uri.clone()
+                rationale_uri: self.rule.rationale_uri.clone(),
+                trace:         insight.trace
             });
         }
         findings
@@ -205,6 +210,10 @@ mod tests {
         assert!(findings[0].message.contains("created_at"));
         assert!(findings[0].message.contains("User"));
         assert!(findings[0].message.contains("Post"));
+        assert_eq!(findings[0].trace.len(), 2);
+        assert!(findings[0].trace[0].fact.contains("struct `User`"));
+        assert!(findings[0].trace[0].fact.contains("src/user.rs"));
+        assert_eq!(findings[0].trace[0].reason, "shares the group");
     }
 
     #[test]

@@ -7,7 +7,7 @@ use std::path::Path;
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use regex::Regex;
-use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition};
+use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 use crate::{analyzer::Analyzer, error::EngineError, pragma, source::Source};
@@ -110,7 +110,16 @@ impl Analyzer for PatternAnalyzer {
                     occurrence.start(),
                     occurrence.end()
                 ),
-                rationale_uri: self.rule.rationale_uri.clone()
+                rationale_uri: self.rule.rationale_uri.clone(),
+                trace:         vec![TraceStep {
+                    fact:   format!(
+                        "bytes {}..{} in {}",
+                        occurrence.start(),
+                        occurrence.end(),
+                        source.path().display()
+                    ),
+                    reason: format!("regex of {} matched", self.rule.id)
+                }]
             });
         }
         findings
@@ -158,6 +167,13 @@ mod tests {
         let findings = analyzer.analyze(&source);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-SEC-001");
+        assert_eq!(findings[0].trace.len(), 1);
+        let range = &findings[0].location.range;
+        assert_eq!(
+            findings[0].trace[0].fact,
+            format!("bytes {}..{} in src/main.rs", range.start, range.end)
+        );
+        assert_eq!(findings[0].trace[0].reason, "regex of RM-SEC-001 matched");
     }
 
     #[test]

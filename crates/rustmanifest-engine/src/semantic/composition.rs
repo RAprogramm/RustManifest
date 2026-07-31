@@ -11,6 +11,8 @@
 //! itself a workspace structure are acknowledged as components already, and
 //! the remainder is listed for grouping by responsibility.
 
+use rustmanifest_schema::TraceStep;
+
 use super::{Insight, TypeGraph, field_group, graph::TypeNode};
 
 /// Maximum number of named fields a structure may declare.
@@ -27,27 +29,30 @@ pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
         if count <= FIELD_LIMIT {
             continue;
         }
+        let (plan, trace) = split_plan(graph, node);
         found.push(Insight::new(
             node.source,
             node.range,
             format!(
-                "struct `{}` declares {count} fields (limit {FIELD_LIMIT}); {}",
-                node.name,
-                split_plan(graph, node)
-            )
+                "struct `{}` declares {count} fields (limit {FIELD_LIMIT}); {plan}",
+                node.name
+            ),
+            trace
         ));
     }
     found
 }
 
-/// Builds the human-readable split suggestion for one oversized structure.
-fn split_plan(graph: &TypeGraph, node: &TypeNode) -> String {
+/// Builds the human-readable split suggestion for one oversized structure,
+/// paired with one trace step per suggestion sentence.
+fn split_plan(graph: &TypeGraph, node: &TypeNode) -> (String, Vec<TraceStep>) {
     let mut remaining: Vec<&str> = node
         .fields
         .iter()
         .map(|field| field.name.as_str())
         .collect();
     let mut sentences = Vec::new();
+    let mut trace = Vec::new();
 
     for (group, owners) in shared_groups(graph, node) {
         remaining.retain(|name| !group.contains(&(*name).to_owned()));
@@ -56,6 +61,13 @@ fn split_plan(graph: &TypeGraph, node: &TypeNode) -> String {
             group.join(", "),
             owners.join(", ")
         ));
+        trace.push(TraceStep {
+            fact:   format!("{{{}}}", group.join(", ")),
+            reason: format!(
+                "extract into a shared component; also declared by {}",
+                owners.join(", ")
+            )
+        });
     }
 
     let components: Vec<String> = node
@@ -76,6 +88,10 @@ fn split_plan(graph: &TypeGraph, node: &TypeNode) -> String {
             "{} already aggregate workspace types and can stay",
             components.join(", ")
         ));
+        trace.push(TraceStep {
+            fact:   components.join(", "),
+            reason: "keep; already aggregates workspace types".to_owned()
+        });
     }
 
     if !remaining.is_empty() {
@@ -83,12 +99,22 @@ fn split_plan(graph: &TypeGraph, node: &TypeNode) -> String {
             "group the rest {{{}}} by responsibility",
             remaining.join(", ")
         ));
+        trace.push(TraceStep {
+            fact:   format!("{{{}}}", remaining.join(", ")),
+            reason: "group by responsibility".to_owned()
+        });
     }
 
     if sentences.is_empty() {
-        "split responsibilities through composition".to_owned()
+        (
+            "split responsibilities through composition".to_owned(),
+            vec![TraceStep {
+                fact:   format!("struct `{}`", node.name),
+                reason: "split responsibilities through composition".to_owned()
+            }]
+        )
     } else {
-        format!("split suggestion: {}", sentences.join("; "))
+        (format!("split suggestion: {}", sentences.join("; ")), trace)
     }
 }
 
@@ -159,6 +185,22 @@ mod tests {
         );
         let found = insights(&graph);
         assert_eq!(found.len(), 1);
+    }
+
+    #[test]
+    fn trace_records_one_step_per_suggestion_sentence() {
+        let graph = graph(
+            "struct Big { id: u64, created_at: u64, a: u8, b: u8, c: u8 }\nstruct Other { id: \
+             u64, created_at: u64 }"
+        );
+        let found = insights(&graph);
+        assert_eq!(found.len(), 1);
+        let trace = &found[0].trace;
+        assert_eq!(trace.len(), 2);
+        assert_eq!(trace[0].fact, "{created_at, id}");
+        assert!(trace[0].reason.contains("extract into a shared component"));
+        assert_eq!(trace[1].fact, "{a, b, c}");
+        assert_eq!(trace[1].reason, "group by responsibility");
     }
 
     #[test]

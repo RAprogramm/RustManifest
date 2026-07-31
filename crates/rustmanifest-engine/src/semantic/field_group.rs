@@ -7,7 +7,10 @@
 
 use std::collections::BTreeMap;
 
+use rustmanifest_schema::TraceStep;
+
 use super::{Insight, TypeGraph, graph::TypeNode};
+use crate::source::Source;
 
 /// Minimum number of shared fields that makes a group worth extracting.
 const GROUP_SIZE: usize = 2;
@@ -16,7 +19,7 @@ const GROUP_SIZE: usize = 2;
 /// group family: overlapping groups collapse into the variant declared by
 /// the most structures, so `{created_at, id}` across eight entities and
 /// `{created_at, id, user_id}` across four of them yield a single finding.
-pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
+pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
     let types = graph.types();
     let mut candidates: Vec<(Vec<String>, Vec<&TypeNode>)> = Vec::new();
     for (position, first) in types.iter().enumerate() {
@@ -59,22 +62,40 @@ pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
     kept.into_iter()
         .map(|(group, owners)| {
             let anchor = owners[0];
-            Insight::new(
-                anchor.source,
-                anchor.range,
-                format!(
-                    "structures {} all declare the field group {{{}}}; the group is a shared \
-                     concept — extract it into its own component and aggregate it",
-                    owners
-                        .iter()
-                        .map(|node| format!("`{}`", node.name))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    group.join(", ")
-                )
-            )
+            let detail = format!(
+                "structures {} all declare the field group {{{}}}; the group is a shared concept \
+                 — extract it into its own component and aggregate it",
+                owners
+                    .iter()
+                    .map(|node| format!("`{}`", node.name))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                group.join(", ")
+            );
+            let trace = owners
+                .iter()
+                .map(|owner| owner_step(sources, owner, &group))
+                .collect();
+            Insight::new(anchor.source, anchor.range, detail, trace)
         })
         .collect()
+}
+
+/// Builds the trace step recording that one owner structure declares the
+/// shared field group.
+fn owner_step(sources: &[Source], owner: &TypeNode, group: &[String]) -> TraceStep {
+    let file = sources.get(owner.source).map_or_else(
+        || "<unknown file>".to_owned(),
+        |source| source.path().display().to_string()
+    );
+    TraceStep {
+        fact:   format!(
+            "struct `{}` declares {{{}}} in {file}",
+            owner.name,
+            group.join(", ")
+        ),
+        reason: "shares the group".to_owned()
+    }
 }
 
 /// Returns true when every element of `inner` occurs in `outer`.
@@ -117,62 +138,82 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::{semantic::TypeGraph, source::Source};
+    use crate::{
+        semantic::{Insight, TypeGraph},
+        source::Source
+    };
 
-    fn graph(text: &str) -> TypeGraph {
-        let source = Source::new(PathBuf::from("src/lib.rs"), text.to_owned());
-        TypeGraph::from_sources(std::slice::from_ref(&source))
+    fn found(text: &str) -> Vec<Insight> {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let graph = TypeGraph::from_sources(&sources);
+        insights(&sources, &graph)
     }
 
     #[test]
     fn repeated_pair_is_reported_once() {
-        let graph = graph(
+        let insights = found(
             "struct User { id: u64, created_at: u64, updated_at: u64 }\nstruct Post { body: \
              String, created_at: u64, updated_at: u64 }\nstruct Tag { label: String, created_at: \
              u64, updated_at: u64 }"
         );
-        let insights = insights(&graph);
         assert_eq!(insights.len(), 1);
     }
 
     #[test]
+    fn trace_records_one_step_per_owner() {
+        let insights = found(
+            "struct User { id: u64, created_at: u64, updated_at: u64 }\nstruct Post { body: \
+             String, created_at: u64, updated_at: u64 }"
+        );
+        assert_eq!(insights.len(), 1);
+        let trace = &insights[0].trace;
+        assert_eq!(trace.len(), 2);
+        assert!(
+            trace[0]
+                .fact
+                .contains("struct `User` declares {created_at, updated_at} in src/lib.rs")
+        );
+        assert_eq!(trace[0].reason, "shares the group");
+        assert!(trace[1].fact.contains("struct `Post`"));
+    }
+
+    #[test]
     fn single_shared_field_is_not_a_group() {
-        let graph = graph("struct A { id: u64, x: u8 }\nstruct B { id: u64, y: u8 }");
-        assert!(insights(&graph).is_empty());
+        assert!(found("struct A { id: u64, x: u8 }\nstruct B { id: u64, y: u8 }").is_empty());
     }
 
     #[test]
     fn same_name_different_type_does_not_match() {
-        let graph = graph(
-            "struct A { created_at: u64, updated_at: u64 }\nstruct B { created_at: String, \
-             updated_at: u64 }"
+        assert!(
+            found(
+                "struct A { created_at: u64, updated_at: u64 }\nstruct B { created_at: String, \
+                 updated_at: u64 }"
+            )
+            .is_empty()
         );
-        assert!(insights(&graph).is_empty());
     }
 
     #[test]
     fn overlapping_groups_collapse_into_the_widest_family() {
-        let graph = graph(
+        let insights = found(
             "struct A { id: u64, created_at: u64 }\nstruct B { id: u64, created_at: u64 }\nstruct \
              C { id: u64, created_at: u64, user_id: u64 }\nstruct D { id: u64, created_at: u64, \
              user_id: u64 }"
         );
-        let found = insights(&graph);
-        assert_eq!(found.len(), 1);
+        assert_eq!(insights.len(), 1);
     }
 
     #[test]
     fn disjoint_groups_stay_separate() {
-        let graph = graph(
+        let insights = found(
             "struct A { id: u64, created_at: u64 }\nstruct B { id: u64, created_at: u64 }\nstruct \
              C { x: u8, y: u8 }\nstruct D { x: u8, y: u8 }"
         );
-        assert_eq!(insights(&graph).len(), 2);
+        assert_eq!(insights.len(), 2);
     }
 
     #[test]
     fn disjoint_structures_pass() {
-        let graph = graph("struct A { a: u8, b: u8 }\nstruct B { c: u8, d: u8 }");
-        assert!(insights(&graph).is_empty());
+        assert!(found("struct A { a: u8, b: u8 }\nstruct B { c: u8, d: u8 }").is_empty());
     }
 }

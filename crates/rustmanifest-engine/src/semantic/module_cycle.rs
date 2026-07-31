@@ -14,6 +14,8 @@
 //! Rust — a parent re-exports child items while the child names types from
 //! the parent — so they are skipped.
 
+use rustmanifest_schema::TraceStep;
+
 use super::{
     Insight,
     module_graph::{ModuleGraph, ModuleNode}
@@ -226,8 +228,9 @@ fn canonical_cycle(graph: &ModuleGraph, cycle: &[usize]) -> Vec<usize> {
     rotated
 }
 
-/// Builds the insight for one canonical cycle, citing every `use` edge and
-/// anchoring at the edge leaving the first module.
+/// Builds the insight for one canonical cycle, anchoring at the edge
+/// leaving the first module. The detail names only the cycle chain; every
+/// `use` edge becomes one trace step.
 fn cycle_insight(
     sources: &[Source],
     graph: &ModuleGraph,
@@ -236,36 +239,34 @@ fn cycle_insight(
 ) -> Option<Insight> {
     let modules = graph.modules();
     let first = *cycle.first()?;
-    let mut evidence = Vec::with_capacity(cycle.len());
+    let mut trace = Vec::with_capacity(cycle.len());
     for (offset, &from) in cycle.iter().enumerate() {
         let to = cycle[(offset + 1) % cycle.len()];
         let edge = edges.get(from)?.iter().find(|edge| edge.to == to)?;
         let use_target = modules[from].uses.get(edge.use_index)?;
         let file = sources.get(modules[from].source)?.path();
-        evidence.push(format!(
-            "{} ({}) uses {} resolving to {}",
-            modules[from].path,
-            file.display(),
-            use_target.target,
-            modules[to].path
-        ));
+        trace.push(TraceStep {
+            fact:   format!(
+                "{} ({}) uses {}",
+                modules[from].path,
+                file.display(),
+                use_target.target
+            ),
+            reason: format!("resolves to {}, an edge of the cycle", modules[to].path)
+        });
     }
     let mut chain: Vec<&str> = cycle
         .iter()
         .map(|&module| modules[module].path.as_str())
         .collect();
     chain.push(modules[first].path.as_str());
-    let mut detail = format!("module dependency cycle: {}", chain.join(" -> "));
-    for sentence in &evidence {
-        detail.push_str("; ");
-        detail.push_str(sentence);
-    }
+    let detail = format!("module dependency cycle: {}", chain.join(" -> "));
     let anchor_edge = edges
         .get(first)?
         .iter()
         .find(|edge| edge.to == cycle[usize::from(cycle.len() > 1)])?;
     let range = modules[first].uses.get(anchor_edge.use_index)?.range;
-    Some(Insight::new(modules[first].source, range, detail))
+    Some(Insight::new(modules[first].source, range, detail, trace))
 }
 
 #[cfg(test)]
@@ -349,20 +350,23 @@ mod tests {
         )];
         let found = insights(&sources);
         assert_eq!(found.len(), 1);
-        assert!(
-            found[0]
-                .detail
-                .starts_with("module dependency cycle: crate::a -> crate::b -> crate::a")
+        assert_eq!(
+            found[0].detail,
+            "module dependency cycle: crate::a -> crate::b -> crate::a"
         );
-        assert!(
-            found[0]
-                .detail
-                .contains("crate::a (src/lib.rs) uses crate::b::Item")
+        assert!(!found[0].detail.contains("; "));
+        assert_eq!(found[0].trace.len(), 2);
+        assert_eq!(
+            found[0].trace[0].fact,
+            "crate::a (src/lib.rs) uses crate::b::Item"
         );
-        assert!(
-            found[0]
-                .detail
-                .contains("crate::b (src/lib.rs) uses crate::a::Other")
+        assert_eq!(
+            found[0].trace[0].reason,
+            "resolves to crate::b, an edge of the cycle"
+        );
+        assert_eq!(
+            found[0].trace[1].fact,
+            "crate::b (src/lib.rs) uses crate::a::Other"
         );
     }
 
@@ -388,11 +392,11 @@ mod tests {
         )];
         let found = insights(&sources);
         assert_eq!(found.len(), 1);
-        assert!(
-            found[0].detail.starts_with(
-                "module dependency cycle: crate::a -> crate::b -> crate::c -> crate::a"
-            )
+        assert_eq!(
+            found[0].detail,
+            "module dependency cycle: crate::a -> crate::b -> crate::c -> crate::a"
         );
+        assert_eq!(found[0].trace.len(), 3);
     }
 
     #[test]

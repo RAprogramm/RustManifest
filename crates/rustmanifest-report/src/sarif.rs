@@ -71,12 +71,13 @@ fn build_log(findings: &[Finding], tool_version: &str) -> SarifLog {
     let results: Vec<SarifResult> = findings
         .iter()
         .map(|finding| SarifResult {
-            rule_id:   finding.rule_id.clone(),
-            level:     level_of(finding.severity),
-            message:   MultiformatMessage {
+            rule_id:    finding.rule_id.clone(),
+            level:      level_of(finding.severity),
+            message:    MultiformatMessage {
                 text: finding.message.clone()
             },
-            locations: vec![SarifLocation {
+            properties: properties_of(finding),
+            locations:  vec![SarifLocation {
                 physical_location: PhysicalLocation {
                     artifact_location: ArtifactLocation {
                         uri: finding.location.file.display().to_string()
@@ -109,6 +110,25 @@ fn build_log(findings: &[Finding], tool_version: &str) -> SarifLog {
             results
         }]
     }
+}
+
+/// Builds the SARIF property bag of one result: findings carrying a
+/// derivation trace expose it as `properties.trace`, findings without one
+/// omit the bag entirely.
+fn properties_of(finding: &Finding) -> Option<ResultProperties> {
+    if finding.trace.is_empty() {
+        return None;
+    }
+    Some(ResultProperties {
+        trace: finding
+            .trace
+            .iter()
+            .map(|step| TraceStepProperty {
+                fact:   step.fact.clone(),
+                reason: step.reason.clone()
+            })
+            .collect()
+    })
 }
 
 const fn level_of(severity: Severity) -> &'static str {
@@ -161,10 +181,23 @@ struct RuleDescriptor {
 #[derive(Serialize)]
 struct SarifResult {
     #[serde(rename = "ruleId")]
-    rule_id:   String,
-    level:     &'static str,
-    message:   MultiformatMessage,
-    locations: Vec<SarifLocation>
+    rule_id:    String,
+    level:      &'static str,
+    message:    MultiformatMessage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<ResultProperties>,
+    locations:  Vec<SarifLocation>
+}
+
+#[derive(Serialize)]
+struct ResultProperties {
+    trace: Vec<TraceStepProperty>
+}
+
+#[derive(Serialize)]
+struct TraceStepProperty {
+    fact:   String,
+    reason: String
 }
 
 #[derive(Serialize)]
@@ -208,7 +241,7 @@ struct MultiformatMessage {
 mod tests {
     use std::path::PathBuf;
 
-    use rustmanifest_schema::{Location, Range};
+    use rustmanifest_schema::{Location, Range, TraceStep};
 
     use super::*;
 
@@ -224,7 +257,11 @@ mod tests {
                 }
             },
             message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
-            rationale_uri: "rustmanifest://methodology/security#creds".to_owned()
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
+            trace:         vec![TraceStep {
+                fact:   "bytes 10..25 in src/lib.rs".to_owned(),
+                reason: "regex of RM-SEC-001 matched".to_owned()
+            }]
         }]
     }
 
@@ -235,5 +272,27 @@ mod tests {
         renderer.render(&fixture()).unwrap();
         let output = String::from_utf8(buffer).unwrap();
         insta::assert_snapshot!("sarif_single_finding", output);
+    }
+
+    #[test]
+    fn trace_lands_in_the_result_property_bag() {
+        let mut buffer = Vec::new();
+        let mut renderer = SarifRenderer::new(&mut buffer, "0.0.0");
+        renderer.render(&fixture()).unwrap();
+        let log: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+        let trace = &log["runs"][0]["results"][0]["properties"]["trace"];
+        assert_eq!(trace[0]["fact"], "bytes 10..25 in src/lib.rs");
+        assert_eq!(trace[0]["reason"], "regex of RM-SEC-001 matched");
+    }
+
+    #[test]
+    fn traceless_finding_omits_the_property_bag() {
+        let mut findings = fixture();
+        findings[0].trace = Vec::new();
+        let mut buffer = Vec::new();
+        let mut renderer = SarifRenderer::new(&mut buffer, "0.0.0");
+        renderer.render(&findings).unwrap();
+        let log: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+        assert!(log["runs"][0]["results"][0].get("properties").is_none());
     }
 }

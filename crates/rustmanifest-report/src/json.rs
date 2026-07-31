@@ -46,7 +46,7 @@ impl<W: Write> Renderer for JsonRenderer<W> {
 mod tests {
     use std::path::PathBuf;
 
-    use rustmanifest_schema::{Location, Range, Severity};
+    use rustmanifest_schema::{Location, Range, Severity, TraceStep};
 
     use super::*;
 
@@ -62,7 +62,11 @@ mod tests {
                 }
             },
             message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
-            rationale_uri: "rustmanifest://methodology/security#creds".to_owned()
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
+            trace:         vec![TraceStep {
+                fact:   "bytes 10..25 in src/lib.rs".to_owned(),
+                reason: "regex of RM-SEC-001 matched".to_owned()
+            }]
         }]
     }
 
@@ -72,6 +76,8 @@ mod tests {
         let mut renderer = JsonRenderer::new(&mut buffer);
         renderer.render(&fixture()).unwrap();
         let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains("\"trace\""));
+        assert!(output.contains("regex of RM-SEC-001 matched"));
         insta::assert_snapshot!("json_single_finding", output);
     }
 }

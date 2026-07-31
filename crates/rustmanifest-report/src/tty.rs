@@ -5,7 +5,9 @@
 //!
 //! Renders each finding on three lines: a colored severity badge plus the
 //! rule id and short message, the file location with the byte range, and the
-//! rationale URI for follow-up. Color is emitted via `anstyle`; the caller
+//! rationale URI for follow-up. Findings carrying a derivation trace print
+//! one `= <reason>: <fact>` line per step between the location and the
+//! rationale. Color is emitted via `anstyle`; the caller
 //! controls whether color is active via the [`TtyRenderer::with_color`]
 //! flag — typical wiring routes the writer through `anstream::AutoStream`
 //! and honors `NO_COLOR` outside this renderer.
@@ -78,6 +80,11 @@ impl<W: Write> Renderer for TtyRenderer<W> {
                 finding.location.range.end
             );
             writeln!(self.writer, "{location_line}")?;
+            for step in &finding.trace {
+                let step_line =
+                    format!("  {} {}: {}", self.paint(dim, "="), step.reason, step.fact);
+                writeln!(self.writer, "{step_line}")?;
+            }
             let rationale_line = format!("  {} {}", self.paint(dim, "↳"), finding.rationale_uri);
             writeln!(self.writer, "{rationale_line}")?;
         }
@@ -116,7 +123,7 @@ const fn label_for(severity: Severity) -> &'static str {
 mod tests {
     use std::path::PathBuf;
 
-    use rustmanifest_schema::{Location, Range};
+    use rustmanifest_schema::{Location, Range, TraceStep};
 
     use super::*;
 
@@ -132,8 +139,18 @@ mod tests {
                 }
             },
             message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
-            rationale_uri: "rustmanifest://methodology/security#creds".to_owned()
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
+            trace:         Vec::new()
         }]
+    }
+
+    fn traced_fixture() -> Vec<Finding> {
+        let mut findings = fixture();
+        findings[0].trace = vec![TraceStep {
+            fact:   "bytes 10..25 in src/lib.rs".to_owned(),
+            reason: "regex of RM-SEC-001 matched".to_owned()
+        }];
+        findings
     }
 
     #[test]
@@ -143,6 +160,16 @@ mod tests {
         renderer.render(&fixture()).unwrap();
         let output = String::from_utf8(buffer).unwrap();
         insta::assert_snapshot!("tty_no_color_single_finding", output);
+    }
+
+    #[test]
+    fn renders_trace_steps_after_the_location_line() {
+        let mut buffer = Vec::new();
+        let mut renderer = TtyRenderer::new(&mut buffer).with_color(false);
+        renderer.render(&traced_fixture()).unwrap();
+        let output = String::from_utf8(buffer).unwrap();
+        assert!(output.contains("  = regex of RM-SEC-001 matched: bytes 10..25 in src/lib.rs"));
+        insta::assert_snapshot!("tty_no_color_traced_finding", output);
     }
 
     #[test]

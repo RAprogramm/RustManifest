@@ -1,6 +1,6 @@
 ---
 source: crates/rustmanifest-report/src/json.rs
-expression: rendered
+expression: output
 ---
 [
   {
@@ -14,6 +14,12 @@ expression: rendered
       }
     },
     "message": "Hardcoded credentials: matched at bytes 10..25",
-    "rationale-uri": "rustmanifest://methodology/security#creds"
+    "rationale-uri": "rustmanifest://methodology/security#creds",
+    "trace": [
+      {
+        "fact": "bytes 10..25 in src/lib.rs",
+        "reason": "regex of RM-SEC-001 matched"
+      }
+    ]
   }
 ]

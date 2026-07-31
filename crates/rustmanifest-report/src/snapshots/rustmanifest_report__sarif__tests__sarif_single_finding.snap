@@ -1,6 +1,6 @@
 ---
 source: crates/rustmanifest-report/src/sarif.rs
-expression: rendered
+expression: output
 ---
 {
   "version": "2.1.0",
@@ -30,6 +30,14 @@ expression: rendered
           "level": "error",
           "message": {
             "text": "Hardcoded credentials: matched at bytes 10..25"
+          },
+          "properties": {
+            "trace": [
+              {
+                "fact": "bytes 10..25 in src/lib.rs",
+                "reason": "regex of RM-SEC-001 matched"
+              }
+            ]
           },
           "locations": [
             {

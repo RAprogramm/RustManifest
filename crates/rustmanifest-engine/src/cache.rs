@@ -241,7 +241,8 @@ mod tests {
                 }
             },
             message:       "sample finding".to_owned(),
-            rationale_uri: "rustmanifest://methodology/sample".to_owned()
+            rationale_uri: "rustmanifest://methodology/sample".to_owned(),
+            trace:         Vec::new()
         }
     }
 
