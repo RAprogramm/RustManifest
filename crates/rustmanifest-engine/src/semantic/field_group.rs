@@ -42,7 +42,7 @@ pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
                         .collect::<Vec<_>>()
                         .join(", "),
                     shared.join(", ")
-                )
+                ),
             ));
         }
     }
@@ -51,7 +51,7 @@ pub(super) fn insights(graph: &TypeGraph) -> Vec<Insight> {
 
 /// Returns the sorted list of field names two structures share with equal
 /// name and type.
-fn shared_fields(first: &TypeNode, second: &TypeNode) -> Vec<String> {
+pub(super) fn shared_fields(first: &TypeNode, second: &TypeNode) -> Vec<String> {
     let mut by_name: BTreeMap<&str, &str> = BTreeMap::new();
     for field in &first.fields {
         by_name.insert(&field.name, &field.type_name);
@@ -67,7 +67,7 @@ fn shared_fields(first: &TypeNode, second: &TypeNode) -> Vec<String> {
 }
 
 /// Returns true when `node` declares every field of `group` by name.
-fn owns_group(node: &TypeNode, group: &[String]) -> bool {
+pub(super) fn owns_group(node: &TypeNode, group: &[String]) -> bool {
     group
         .iter()
         .all(|name| node.fields.iter().any(|field| &field.name == name))
@@ -96,7 +96,7 @@ mod tests {
         let graph = graph(
             "struct User { id: u64, created_at: u64, updated_at: u64 }\nstruct Post { body: \
              String, created_at: u64, updated_at: u64 }\nstruct Tag { label: String, created_at: \
-             u64, updated_at: u64 }"
+             u64, updated_at: u64 }",
         );
         let insights = insights(&graph);
         assert_eq!(insights.len(), 1);
@@ -112,7 +112,7 @@ mod tests {
     fn same_name_different_type_does_not_match() {
         let graph = graph(
             "struct A { created_at: u64, updated_at: u64 }\nstruct B { created_at: String, \
-             updated_at: u64 }"
+             updated_at: u64 }",
         );
         assert!(insights(&graph).is_empty());
     }

@@ -20,8 +20,8 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering}
-    }
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use rayon::prelude::*;
@@ -33,7 +33,7 @@ use crate::{
     cache::{self, FindingsCache},
     error::{EngineError, EngineResult},
     pragma,
-    source::Source
+    source::Source,
 };
 
 /// Default per-file memory budget: 10 MiB.
@@ -51,7 +51,7 @@ pub const UNUSED_PRAGMA_RATIONALE_URI: &str = "rustmanifest://methodology/quick-
 /// Cooperative cancellation handle threaded through the orchestrator.
 #[derive(Debug, Clone, Default)]
 pub struct Cancellation {
-    flag: Arc<AtomicBool>
+    flag: Arc<AtomicBool>,
 }
 
 impl Cancellation {
@@ -78,17 +78,17 @@ impl Cancellation {
 /// fingerprint of the orchestrator it belongs to.
 #[derive(Debug, Clone)]
 struct CacheHandle {
-    store:       FindingsCache,
-    fingerprint: Arc<[u8]>
+    store: FindingsCache,
+    fingerprint: Arc<[u8]>,
 }
 
 /// Builder for [`Orchestrator`] instances.
 #[derive(Default)]
 pub struct OrchestratorBuilder {
-    analyzers:      Vec<Box<dyn Analyzer>>,
+    analyzers: Vec<Box<dyn Analyzer>>,
     max_file_bytes: Option<u64>,
-    cancellation:   Option<Cancellation>,
-    cache:          Option<FindingsCache>
+    cancellation: Option<Cancellation>,
+    cache: Option<FindingsCache>,
 }
 
 impl std::fmt::Debug for OrchestratorBuilder {
@@ -121,7 +121,7 @@ impl OrchestratorBuilder {
     #[must_use]
     pub fn analyzers<I>(mut self, analyzers: I) -> Self
     where
-        I: IntoIterator<Item = Box<dyn Analyzer>>
+        I: IntoIterator<Item = Box<dyn Analyzer>>,
     {
         self.analyzers.extend(analyzers);
         self
@@ -166,14 +166,14 @@ impl OrchestratorBuilder {
                 .collect();
             CacheHandle {
                 store,
-                fingerprint: Arc::from(cache::rules_fingerprint(&rules))
+                fingerprint: Arc::from(cache::rules_fingerprint(&rules)),
             }
         });
         Orchestrator {
             analyzers: Arc::from(self.analyzers.into_boxed_slice()),
             max_file_bytes: self.max_file_bytes.unwrap_or(DEFAULT_MAX_FILE_BYTES),
             cancellation: self.cancellation.unwrap_or_default(),
-            cache
+            cache,
         }
     }
 }
@@ -182,10 +182,10 @@ impl OrchestratorBuilder {
 /// reference-counted internally.
 #[derive(Clone)]
 pub struct Orchestrator {
-    analyzers:      Arc<[Box<dyn Analyzer>]>,
+    analyzers: Arc<[Box<dyn Analyzer>]>,
     max_file_bytes: u64,
-    cancellation:   Cancellation,
-    cache:          Option<CacheHandle>
+    cancellation: Cancellation,
+    cache: Option<CacheHandle>,
 }
 
 impl std::fmt::Debug for Orchestrator {
@@ -352,14 +352,14 @@ impl Orchestrator {
                 rule_id: UNUSED_PRAGMA_RULE_ID.to_owned(),
                 severity: Severity::Warning,
                 location: Location {
-                    file:  source.path().to_path_buf(),
+                    file: source.path().to_path_buf(),
                     range: Range {
                         start: u32::try_from(start).unwrap_or(u32::MAX),
-                        end:   u32::try_from(end).unwrap_or(u32::MAX)
-                    }
+                        end: u32::try_from(end).unwrap_or(u32::MAX),
+                    },
                 },
                 message,
-                rationale_uri: UNUSED_PRAGMA_RATIONALE_URI.to_owned()
+                rationale_uri: UNUSED_PRAGMA_RATIONALE_URI.to_owned(),
             });
         }
         findings
@@ -391,14 +391,14 @@ mod tests {
 
     fn cred_rule() -> rustmanifest_schema::Rule {
         rustmanifest_schema::Rule {
-            id:            "RM-SEC-001".to_owned(),
-            severity:      Severity::Error,
-            title:         "Hardcoded credentials".to_owned(),
+            id: "RM-SEC-001".to_owned(),
+            severity: Severity::Error,
+            title: "Hardcoded credentials".to_owned(),
             rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
-            definition:    RuleDefinition::Pattern {
-                regex:         r#"(?i)password\s*=\s*"[^"]+""#.to_owned(),
-                exclude_globs: vec![]
-            }
+            definition: RuleDefinition::Pattern {
+                regex: r#"(?i)password\s*=\s*"[^"]+""#.to_owned(),
+                exclude_globs: vec![],
+            },
         }
     }
 
@@ -431,7 +431,7 @@ mod tests {
         let file = write_file(
             dir.path(),
             "suppressed.rs",
-            "// rustmanifest: allow(RM-SEC-001) reason=\"fixture\"\nlet password = \"hunter2\";\n"
+            "// rustmanifest: allow(RM-SEC-001) reason=\"fixture\"\nlet password = \"hunter2\";\n",
         );
 
         let findings = cred_orchestrator().run(&[file]).unwrap();
@@ -444,7 +444,7 @@ mod tests {
         let file = write_file(
             dir.path(),
             "clean.rs",
-            "// rustmanifest: allow(RM-SEC-001) reason=\"stale suppression\"\nfn main() {}\n"
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale suppression\"\nfn main() {}\n",
         );
 
         let findings = cred_orchestrator()
@@ -468,7 +468,7 @@ mod tests {
         let file = write_file(
             dir.path(),
             "typo.rs",
-            "// rustmanifest: allow(RM-ZZZ-999) reason=\"typo in rule id\"\nfn main() {}\n"
+            "// rustmanifest: allow(RM-ZZZ-999) reason=\"typo in rule id\"\nfn main() {}\n",
         );
 
         let findings = cred_orchestrator().run(&[file]).unwrap();
@@ -507,12 +507,12 @@ mod tests {
         let first = write_file(
             dir.path(),
             "a.rs",
-            "// rustmanifest: allow(RM-SEC-001) reason=\"stale one\"\nfn a() {}\n"
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale one\"\nfn a() {}\n",
         );
         let second = write_file(
             dir.path(),
             "b.rs",
-            "// rustmanifest: allow(RM-ZZZ-999) reason=\"stale two\"\nfn b() {}\n"
+            "// rustmanifest: allow(RM-ZZZ-999) reason=\"stale two\"\nfn b() {}\n",
         );
 
         let orchestrator = cred_orchestrator();
@@ -568,7 +568,7 @@ mod tests {
         let stale = write_file(
             dir.path(),
             "stale.rs",
-            "// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() {}\n"
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() {}\n",
         );
         let files = [dirty, stale];
 
@@ -725,7 +725,7 @@ mod tests {
         let huge = write_file(
             dir.path(),
             "huge.rs",
-            &"let password = \"x\";\n".repeat(10_000)
+            &"let password = \"x\";\n".repeat(10_000),
         );
 
         let analyzer = PatternAnalyzer::new(cred_rule()).unwrap();

@@ -46,7 +46,7 @@ pub struct Cli {
 
     /// Selected subcommand.
     #[command(subcommand)]
-    pub command: Command
+    pub command: Command,
 }
 
 /// Available subcommands for the `rustmanifest-eval` binary.
@@ -57,7 +57,7 @@ pub enum Command {
     /// Run the corpus and compare against the committed baseline.
     Check(CheckArgs),
     /// Run the corpus and overwrite the committed baseline.
-    Bless(BlessArgs)
+    Bless(BlessArgs),
 }
 
 /// Arguments for the `run` subcommand.
@@ -73,7 +73,7 @@ pub struct RunArgs {
 
     /// Report output location.
     #[arg(long, default_value = "eval/report.json")]
-    pub out: PathBuf
+    pub out: PathBuf,
 }
 
 /// Arguments for the `check` subcommand.
@@ -89,7 +89,7 @@ pub struct CheckArgs {
 
     /// Committed baseline location.
     #[arg(long, default_value = "eval/baseline.json")]
-    pub baseline: PathBuf
+    pub baseline: PathBuf,
 }
 
 /// Arguments for the `bless` subcommand.
@@ -105,7 +105,7 @@ pub struct BlessArgs {
 
     /// Baseline location to write.
     #[arg(long, default_value = "eval/baseline.json")]
-    pub baseline: PathBuf
+    pub baseline: PathBuf,
 }
 
 /// Entry point used by both the binary and tests.
@@ -119,7 +119,7 @@ pub fn run(cli: Cli) -> Result<ExitCode, EvalError> {
     match cli.command {
         Command::Run(args) => run_report(&args),
         Command::Check(args) => run_check(&args),
-        Command::Bless(args) => run_bless(&args)
+        Command::Bless(args) => run_bless(&args),
     }
 }
 
@@ -128,7 +128,7 @@ fn init_tracing(verbose: u8) {
         0 => tracing::Level::WARN,
         1 => tracing::Level::INFO,
         2 => tracing::Level::DEBUG,
-        _ => tracing::Level::TRACE
+        _ => tracing::Level::TRACE,
     };
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(level)
@@ -148,7 +148,7 @@ fn to_pretty_json<T: serde::Serialize>(value: &T) -> Result<String, EvalError> {
 /// Runs the corpus and evaluates it into a full report.
 fn evaluate(
     corpus_path: &std::path::Path,
-    corpus_root: &std::path::Path
+    corpus_root: &std::path::Path,
 ) -> Result<Report, EvalError> {
     let corpus = corpus::load(corpus_path)?;
     runner::evaluate(&corpus, corpus_root)
@@ -159,7 +159,7 @@ fn run_report(args: &RunArgs) -> Result<ExitCode, EvalError> {
     let text = to_pretty_json(&report)?;
     std::fs::write(&args.out, text).map_err(|source| EvalError::WriteFile {
         path: args.out.clone(),
-        source
+        source,
     })?;
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
@@ -174,7 +174,7 @@ fn run_bless(args: &BlessArgs) -> Result<ExitCode, EvalError> {
     let text = to_pretty_json(&report.comparable())?;
     std::fs::write(&args.baseline, text).map_err(|source| EvalError::WriteFile {
         path: args.baseline.clone(),
-        source
+        source,
     })?;
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
@@ -187,7 +187,7 @@ fn run_bless(args: &BlessArgs) -> Result<ExitCode, EvalError> {
 fn run_check(args: &CheckArgs) -> Result<ExitCode, EvalError> {
     if !args.baseline.is_file() {
         return Err(EvalError::MissingBaseline {
-            path: args.baseline.clone()
+            path: args.baseline.clone(),
         });
     }
     let baseline = load_baseline(&args.baseline)?;
@@ -227,11 +227,11 @@ fn run_check(args: &CheckArgs) -> Result<ExitCode, EvalError> {
 fn load_baseline(path: &std::path::Path) -> Result<Comparable, EvalError> {
     let text = std::fs::read_to_string(path).map_err(|source| EvalError::BaselineRead {
         path: path.to_path_buf(),
-        source
+        source,
     })?;
     serde_json::from_str(&text).map_err(|source| EvalError::BaselineParse {
         path: path.to_path_buf(),
-        source
+        source,
     })
 }
 
@@ -284,24 +284,24 @@ mod tests {
     fn report_with_p95(p95: f64) -> Report {
         Report {
             engine_version: "0.0.0".to_owned(),
-            repos:          vec![RepoReport {
-                name:       "alpha".to_owned(),
+            repos: vec![RepoReport {
+                name: "alpha".to_owned(),
                 pinned_rev: "abc".to_owned(),
                 actual_rev: "abc".to_owned(),
-                files:      1,
+                files: 1,
                 rust_lines: 10,
-                findings:   BTreeMap::new()
+                findings: BTreeMap::new(),
             }],
-            timings:        BTreeMap::from([(
+            timings: BTreeMap::from([(
                 "alpha".to_owned(),
                 RepoTimings {
                     p95_under_1k_ms: p95,
-                    files_under_1k:  1,
-                    max_file_ms:     p95,
-                    semantic_ms:     0.0,
-                    total_ms:        p95
-                }
-            )])
+                    files_under_1k: 1,
+                    max_file_ms: p95,
+                    semantic_ms: 0.0,
+                    total_ms: p95,
+                },
+            )]),
         }
     }
 

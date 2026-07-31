@@ -11,7 +11,7 @@ use std::{
     collections::HashMap,
     io::{IsTerminal, Write},
     path::{Path, PathBuf},
-    process::ExitCode
+    process::ExitCode,
 };
 
 use anyhow::Context;
@@ -19,7 +19,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use rustmanifest_config::Effective;
 use rustmanifest_engine::{
-    AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
+    AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker,
 };
 use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
 use rustmanifest_rules_core::{RULES, methodology};
@@ -47,7 +47,7 @@ pub struct Cli {
 
     /// Selected subcommand.
     #[command(subcommand)]
-    pub command: Command
+    pub command: Command,
 }
 
 /// Available subcommands for the `rustmanifest` binary.
@@ -56,7 +56,7 @@ pub enum Command {
     /// Run the analysis engine across one or more paths.
     Check(CheckArgs),
     /// Print the rationale and methodology excerpt for a rule.
-    Explain(ExplainArgs)
+    Explain(ExplainArgs),
 }
 
 /// Arguments for the `check` subcommand.
@@ -105,14 +105,14 @@ pub struct CheckArgs {
     /// parseable output, or malformed JSON lines are each reported as a
     /// warning, while findings from parseable lines are still used.
     #[arg(long)]
-    pub delegate_clippy: bool
+    pub delegate_clippy: bool,
 }
 
 /// Arguments for the `explain` subcommand.
 #[derive(Debug, Parser)]
 pub struct ExplainArgs {
     /// Rule identifier to explain, e.g. `RM-SEC-001`.
-    pub rule_id: String
+    pub rule_id: String,
 }
 
 /// Output format options.
@@ -125,7 +125,7 @@ pub enum OutputFormat {
     /// SARIF 2.1.0 document.
     Sarif,
     /// Human-readable terminal output.
-    Tty
+    Tty,
 }
 
 /// Minimum severity reported in the output.
@@ -138,7 +138,7 @@ pub enum SeverityFilter {
     /// Report `error`, `warning`, and `info`.
     Info,
     /// Report every severity.
-    Hint
+    Hint,
 }
 
 impl SeverityFilter {
@@ -147,7 +147,7 @@ impl SeverityFilter {
             Self::Error => 3,
             Self::Warning => 2,
             Self::Info => 1,
-            Self::Hint => 0
+            Self::Hint => 0,
         }
     }
 
@@ -162,7 +162,7 @@ const fn severity_rank(severity: Severity) -> u8 {
         Severity::Error => 3,
         Severity::Warning => 2,
         Severity::Info => 1,
-        Severity::Hint => 0
+        Severity::Hint => 0,
     }
 }
 
@@ -172,22 +172,16 @@ const fn severity_name(severity: Severity) -> &'static str {
         Severity::Error => "error",
         Severity::Warning => "warning",
         Severity::Info => "info",
-        Severity::Hint => "hint"
+        Severity::Hint => "hint",
     }
 }
 
 /// Human-readable name of the analysis tier a rule definition belongs to.
 const fn tier_name(definition: &RuleDefinition) -> &'static str {
     match definition {
-        RuleDefinition::Pattern {
-            ..
-        } => "pattern",
-        RuleDefinition::Ast {
-            ..
-        } => "ast",
-        RuleDefinition::Semantic {
-            ..
-        } => "semantic"
+        RuleDefinition::Pattern { .. } => "pattern",
+        RuleDefinition::Ast { .. } => "ast",
+        RuleDefinition::Semantic { .. } => "semantic",
     }
 }
 
@@ -200,7 +194,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     init_tracing(cli.verbose);
     match cli.command {
         Command::Check(args) => run_check(&args),
-        Command::Explain(args) => run_explain(&args)
+        Command::Explain(args) => run_explain(&args),
     }
 }
 
@@ -209,7 +203,7 @@ fn init_tracing(verbose: u8) {
         0 => tracing::Level::WARN,
         1 => tracing::Level::INFO,
         2 => tracing::Level::DEBUG,
-        _ => tracing::Level::TRACE
+        _ => tracing::Level::TRACE,
     };
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(level)
@@ -233,21 +227,15 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
         .iter()
         .copied()
         .filter_map(|rule| match rule.definition {
-            RuleDefinition::Pattern {
-                ..
-            } => Some(
+            RuleDefinition::Pattern { .. } => Some(
                 PatternAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>),
             ),
-            RuleDefinition::Ast {
-                ..
-            } => Some(
+            RuleDefinition::Ast { .. } => Some(
                 AstAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>),
             ),
-            RuleDefinition::Semantic {
-                ..
-            } => None
+            RuleDefinition::Semantic { .. } => None,
         })
         .collect::<Result<Vec<_>, _>>()
         .context("building analyzers from bundled rules")?;
@@ -378,7 +366,7 @@ fn run_explain(args: &ExplainArgs) -> anyhow::Result<ExitCode> {
 fn semantic_findings(
     analyzers: &[SemanticAnalyzer],
     files: &[PathBuf],
-    max_file_bytes: u64
+    max_file_bytes: u64,
 ) -> Vec<Finding> {
     if analyzers.is_empty() {
         return Vec::new();
@@ -456,12 +444,12 @@ fn delegated_clippy_findings(paths: &[PathBuf]) -> Vec<Finding> {
         (
             &left.location.file,
             left.location.range.start,
-            &left.rule_id
+            &left.rule_id,
         )
             .cmp(&(
                 &right.location.file,
                 right.location.range.start,
-                &right.rule_id
+                &right.rule_id,
             ))
     });
     findings
@@ -491,7 +479,7 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
     let severity = match message.get("level").and_then(serde_json::Value::as_str) {
         Some("error") => Severity::Error,
         Some("warning") => Severity::Warning,
-        _ => Severity::Info
+        _ => Severity::Info,
     };
     let spans = message.get("spans")?.as_array()?;
     let primary = spans
@@ -518,11 +506,11 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
             file,
             range: Range {
                 start: u32::try_from(start).ok()?,
-                end:   u32::try_from(end).ok()?
-            }
+                end: u32::try_from(end).ok()?,
+            },
         },
         message: text.to_owned(),
-        rationale_uri: format!("{CLIPPY_INDEX_URL}{lint_anchor}")
+        rationale_uri: format!("{CLIPPY_INDEX_URL}{lint_anchor}"),
     })
 }
 

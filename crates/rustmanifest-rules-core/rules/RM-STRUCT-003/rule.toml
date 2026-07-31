@@ -6,5 +6,5 @@ severity = "warning"
 title = "Structure size"
 rationale-uri = "rustmanifest://methodology/structure#structure-size"
 
-[definition.ast]
+[definition.semantic]
 check = "structure-size"

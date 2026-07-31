@@ -9,7 +9,7 @@
 use std::{
     env, fs,
     io::{self, Write},
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
 };
 
 use rustmanifest_schema::Rule;

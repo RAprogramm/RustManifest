@@ -16,7 +16,7 @@
 
 use super::{
     Insight,
-    module_graph::{ModuleGraph, ModuleNode}
+    module_graph::{ModuleGraph, ModuleNode},
 };
 use crate::source::Source;
 
@@ -31,7 +31,7 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
     for start in 0..graph.modules().len() {
         if color[start] == Color::White {
             depth_first(
-                sources, &graph, &edges, start, &mut color, &mut seen, &mut found
+                sources, &graph, &edges, start, &mut color, &mut seen, &mut found,
             );
         }
     }
@@ -46,16 +46,16 @@ enum Color {
     /// On the active depth-first path.
     Gray,
     /// Fully explored.
-    Black
+    Black,
 }
 
 /// A resolved module-to-module edge with the use target it came from.
 #[derive(Debug, Clone, Copy)]
 struct UseEdge {
     /// Index of the target module.
-    to:        usize,
+    to: usize,
     /// Index into the source module's `uses` list, kept as evidence.
-    use_index: usize
+    use_index: usize,
 }
 
 /// Builds per-module dependency edges from the expanded `use` targets.
@@ -74,10 +74,7 @@ fn dependency_edges(graph: &ModuleGraph) -> Vec<Vec<UseEdge>> {
                 continue;
             }
             if edges[from].iter().all(|edge| edge.to != to) {
-                edges[from].push(UseEdge {
-                    to,
-                    use_index
-                });
+                edges[from].push(UseEdge { to, use_index });
             }
         }
     }
@@ -137,7 +134,7 @@ fn absolute_target(source: &str, target: &str) -> Option<String> {
             ancestors.extend(tail);
             Some(ancestors.join("::"))
         }
-        _ => None
+        _ => None,
     }
 }
 
@@ -161,7 +158,7 @@ fn depth_first(
     start: usize,
     color: &mut [Color],
     seen: &mut Vec<Vec<usize>>,
-    found: &mut Vec<Insight>
+    found: &mut Vec<Insight>,
 ) {
     let mut stack: Vec<(usize, usize)> = vec![(start, 0)];
     let mut path: Vec<usize> = vec![start];
@@ -232,7 +229,7 @@ fn cycle_insight(
     sources: &[Source],
     graph: &ModuleGraph,
     edges: &[Vec<UseEdge>],
-    cycle: &[usize]
+    cycle: &[usize],
 ) -> Option<Insight> {
     let modules = graph.modules();
     let first = *cycle.first()?;
@@ -336,7 +333,7 @@ mod tests {
     fn acyclic_uses_yield_no_insights() {
         let sources = [source(
             "src/lib.rs",
-            "mod a { use crate::b::Item; } mod b { use std::fmt; pub struct Item; }"
+            "mod a { use crate::b::Item; } mod b { use std::fmt; pub struct Item; }",
         )];
         assert!(insights(&sources).is_empty());
     }
@@ -345,7 +342,7 @@ mod tests {
     fn inline_sibling_cycle_is_reported() {
         let sources = [source(
             "src/lib.rs",
-            "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
+            "mod a { use crate::b::Item; } mod b { use crate::a::Other; }",
         )];
         let found = insights(&sources);
         assert_eq!(found.len(), 1);
@@ -371,7 +368,7 @@ mod tests {
         let sources = [
             source("src/lib.rs", "mod a; mod b;"),
             source("src/a.rs", "use crate::b::Item;"),
-            source("src/b.rs", "use crate::a::Other;")
+            source("src/b.rs", "use crate::a::Other;"),
         ];
         let found = insights(&sources);
         assert_eq!(found.len(), 1);
@@ -384,7 +381,7 @@ mod tests {
     fn three_module_cycle_is_reported_once_with_canonical_rotation() {
         let sources = [source(
             "src/lib.rs",
-            "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }"
+            "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }",
         )];
         let found = insights(&sources);
         assert_eq!(found.len(), 1);
@@ -399,7 +396,7 @@ mod tests {
     fn parent_child_cycle_is_skipped() {
         let sources = [source(
             "src/lib.rs",
-            "use crate::child::Item; mod child { use crate::Error; }"
+            "use crate::child::Item; mod child { use crate::Error; }",
         )];
         assert!(insights(&sources).is_empty());
     }
@@ -408,7 +405,7 @@ mod tests {
     fn longer_cycle_through_ancestor_stays_reported() {
         let sources = [source(
             "src/lib.rs",
-            "use crate::a::X; mod a { use crate::b::Y; } mod b { use crate::Z; }"
+            "use crate::a::X; mod a { use crate::b::Y; } mod b { use crate::Z; }",
         )];
         assert_eq!(insights(&sources).len(), 1);
     }
@@ -417,7 +414,7 @@ mod tests {
     fn self_import_is_not_a_cycle() {
         let sources = [source(
             "src/lib.rs",
-            "mod a { use crate::a::Thing; use self::Widget; }"
+            "mod a { use crate::a::Thing; use self::Widget; }",
         )];
         assert!(insights(&sources).is_empty());
     }
@@ -426,7 +423,7 @@ mod tests {
     fn external_and_unresolvable_targets_are_ignored() {
         let sources = [source(
             "src/lib.rs",
-            "mod a { use std::fmt; use serde::Serialize; use crate::nope::Thing; }"
+            "mod a { use std::fmt; use serde::Serialize; use crate::nope::Thing; }",
         )];
         assert!(insights(&sources).is_empty());
     }
@@ -436,7 +433,7 @@ mod tests {
         let sources = [
             source("src/lib.rs", "mod a;"),
             source("src/a.rs", "use std::fmt;"),
-            source("src/orphan.rs", "use crate::a::Item;")
+            source("src/orphan.rs", "use crate::a::Item;"),
         ];
         assert!(insights(&sources).is_empty());
     }
@@ -445,7 +442,7 @@ mod tests {
     fn lone_fixture_file_falls_back_to_its_own_crate_root() {
         let sources = [source(
             "rules/fail.rs",
-            "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
+            "mod a { use crate::b::Item; } mod b { use crate::a::Other; }",
         )];
         assert_eq!(insights(&sources).len(), 1);
     }
@@ -454,7 +451,7 @@ mod tests {
     fn detection_is_deterministic() {
         let sources = [source(
             "src/lib.rs",
-            "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }"
+            "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }",
         )];
         let first: Vec<String> = insights(&sources)
             .into_iter()

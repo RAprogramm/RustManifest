@@ -14,10 +14,10 @@ pub enum EngineError {
     #[error("failed to read {path}: {source}")]
     Read {
         /// File path that could not be read.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying IO error.
         #[source]
-        source: std::io::Error
+        source: std::io::Error,
     },
 
     /// A rule's regex failed to compile.
@@ -26,10 +26,10 @@ pub enum EngineError {
         /// Rule id whose regex did not compile.
         rule_id: String,
         /// Raw regex string.
-        regex:   String,
+        regex: String,
         /// Underlying regex error.
         #[source]
-        source:  regex::Error
+        source: regex::Error,
     },
 
     /// A glob pattern in the rule's `exclude_globs` failed to compile.
@@ -38,10 +38,10 @@ pub enum EngineError {
         /// Rule id whose glob did not compile.
         rule_id: String,
         /// Raw glob pattern.
-        glob:    String,
+        glob: String,
         /// Underlying glob error.
         #[source]
-        source:  globset::Error
+        source: globset::Error,
     },
 
     /// An `ast`-tier rule names a check this engine build does not provide.
@@ -50,7 +50,7 @@ pub enum EngineError {
         /// Rule id naming the unknown check.
         rule_id: String,
         /// Check identifier that failed to resolve.
-        check:   String
+        check: String,
     },
 
     /// The file walker reported an error visiting an entry.
@@ -59,7 +59,7 @@ pub enum EngineError {
 
     /// Analysis was cancelled by the caller.
     #[error("analysis cancelled")]
-    Cancelled
+    Cancelled,
 }
 
 /// Convenience result alias for engine fallible operations.

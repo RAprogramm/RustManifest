@@ -15,18 +15,18 @@ pub enum EvalError {
     #[error("reading corpus manifest {path}: {source}")]
     CorpusRead {
         /// Manifest path that could not be read.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying IO error.
-        source: std::io::Error
+        source: std::io::Error,
     },
 
     /// Parsing the corpus manifest failed.
     #[error("parsing corpus manifest {path}: {source}")]
     CorpusParse {
         /// Manifest path that could not be parsed.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying TOML deserialization error.
-        source: Box<toml::de::Error>
+        source: Box<toml::de::Error>,
     },
 
     /// A corpus entry points at a directory that does not exist.
@@ -35,7 +35,7 @@ pub enum EvalError {
         /// Corpus entry name.
         name: String,
         /// Expected checkout directory.
-        path: PathBuf
+        path: PathBuf,
     },
 
     /// The engine reported a hard failure.
@@ -46,25 +46,25 @@ pub enum EvalError {
     #[error("baseline missing at {path}; run `rustmanifest-eval bless` first")]
     MissingBaseline {
         /// Expected baseline path.
-        path: PathBuf
+        path: PathBuf,
     },
 
     /// Reading the committed baseline failed.
     #[error("reading baseline {path}: {source}")]
     BaselineRead {
         /// Baseline path that could not be read.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying IO error.
-        source: std::io::Error
+        source: std::io::Error,
     },
 
     /// Parsing the committed baseline failed.
     #[error("parsing baseline {path}: {source}")]
     BaselineParse {
         /// Baseline path that could not be parsed.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying JSON deserialization error.
-        source: serde_json::Error
+        source: serde_json::Error,
     },
 
     /// Serializing a report to JSON failed.
@@ -75,12 +75,12 @@ pub enum EvalError {
     #[error("writing {path}: {source}")]
     WriteFile {
         /// Output path that could not be written.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying IO error.
-        source: std::io::Error
+        source: std::io::Error,
     },
 
     /// Writing the human summary to stdout failed.
     #[error("writing summary: {0}")]
-    Stdout(#[from] std::io::Error)
+    Stdout(#[from] std::io::Error),
 }

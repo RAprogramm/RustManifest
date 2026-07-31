@@ -11,7 +11,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    str::FromStr
+    str::FromStr,
 };
 
 pub use rustmanifest_schema::{Config, RuleOverride};
@@ -28,25 +28,25 @@ pub enum ConfigError {
     #[error("cannot read config file {path}: {source}")]
     Read {
         /// Path of the file that failed to read.
-        path:   PathBuf,
+        path: PathBuf,
         /// Underlying IO error.
         #[source]
-        source: io::Error
+        source: io::Error,
     },
     /// The configuration file was read but is not valid `rustmanifest.toml`.
     #[error("cannot parse config file {path}: {message}")]
     Parse {
         /// Path of the file that failed to parse.
-        path:    PathBuf,
+        path: PathBuf,
         /// Message reported by the TOML parser.
-        message: String
+        message: String,
     },
     /// The `profile` key names a profile that does not exist.
     #[error("unknown profile {name:?}; valid profiles: strict, default, minimal, ci")]
     UnknownProfile {
         /// The unrecognized profile name.
-        name: String
-    }
+        name: String,
+    },
 }
 
 /// Loads configuration from `path`, or from `rustmanifest.toml` in the
@@ -69,18 +69,18 @@ pub fn load(path: Option<&Path>) -> Result<Config, ConfigError> {
                 Ok(Config::default())
             }
         },
-        parse_file
+        parse_file,
     )
 }
 
 fn parse_file(path: &Path) -> Result<Config, ConfigError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigError::Read {
         path: path.to_path_buf(),
-        source
+        source,
     })?;
     toml::from_str(&text).map_err(|error| ConfigError::Parse {
-        path:    path.to_path_buf(),
-        message: error.to_string()
+        path: path.to_path_buf(),
+        message: error.to_string(),
     })
 }
 
@@ -96,7 +96,7 @@ pub enum Profile {
     /// Only `error`-severity rules run.
     Minimal,
     /// Every rule runs; only `warning` and above affect the exit code.
-    Ci
+    Ci,
 }
 
 impl Profile {
@@ -109,7 +109,7 @@ impl Profile {
     pub const fn admits(self, severity: Severity) -> bool {
         match self {
             Self::Strict | Self::Default | Self::Ci => true,
-            Self::Minimal => matches!(severity, Severity::Error)
+            Self::Minimal => matches!(severity, Severity::Error),
         }
     }
 
@@ -118,7 +118,7 @@ impl Profile {
     pub const fn exit_threshold(self) -> Severity {
         match self {
             Self::Strict | Self::Default | Self::Minimal => Severity::Hint,
-            Self::Ci => Severity::Warning
+            Self::Ci => Severity::Warning,
         }
     }
 }
@@ -133,8 +133,8 @@ impl FromStr for Profile {
             "minimal" => Ok(Self::Minimal),
             "ci" => Ok(Self::Ci),
             other => Err(ConfigError::UnknownProfile {
-                name: other.to_owned()
-            })
+                name: other.to_owned(),
+            }),
         }
     }
 }
@@ -145,8 +145,8 @@ impl FromStr for Profile {
 /// per-rule effective severity, and file globs.
 #[derive(Debug, Clone)]
 pub struct Effective {
-    config:  Config,
-    profile: Profile
+    config: Config,
+    profile: Profile,
 }
 
 impl Effective {
@@ -162,10 +162,7 @@ impl Effective {
             .profile
             .as_deref()
             .map_or_else(|| Ok(Profile::default()), Profile::from_str)?;
-        Ok(Self {
-            config,
-            profile
-        })
+        Ok(Self { config, profile })
     }
 
     /// The resolved profile.
@@ -232,9 +229,9 @@ mod tests {
             title: format!("{id} title"),
             rationale_uri: "rustmanifest://methodology/structure".to_owned(),
             definition: RuleDefinition::Pattern {
-                regex:         "x".to_owned(),
-                exclude_globs: Vec::new()
-            }
+                regex: "x".to_owned(),
+                exclude_globs: Vec::new(),
+            },
         }
     }
 
@@ -269,7 +266,7 @@ mod tests {
                 "rule-id = \"RM-SEC-001\"\n",
                 "severity = \"warning\"\n"
             )
-            .as_bytes()
+            .as_bytes(),
         )
         .unwrap();
         let config = load(Some(&path)).unwrap();
@@ -325,8 +322,8 @@ mod tests {
     fn override_changes_effective_severity() {
         let config = Config {
             overrides: vec![RuleOverride {
-                rule_id:  "RM-SEC-001".to_owned(),
-                severity: Severity::Hint
+                rule_id: "RM-SEC-001".to_owned(),
+                severity: Severity::Hint,
             }],
             ..Config::default()
         };
@@ -359,8 +356,8 @@ mod tests {
         let config = Config {
             profile: Some("minimal".to_owned()),
             overrides: vec![RuleOverride {
-                rule_id:  "RM-STRUCT-001".to_owned(),
-                severity: Severity::Error
+                rule_id: "RM-STRUCT-001".to_owned(),
+                severity: Severity::Error,
             }],
             ..Config::default()
         };

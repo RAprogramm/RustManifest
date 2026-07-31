@@ -21,10 +21,10 @@ pub struct Report {
     /// Version of the engine workspace that produced the report.
     pub engine_version: String,
     /// Per-repository results, sorted by repository name.
-    pub repos:          Vec<RepoReport>,
+    pub repos: Vec<RepoReport>,
     /// Per-repository wall-clock measurements, keyed by repository name.
     /// Never diffed against the baseline.
-    pub timings:        BTreeMap<String, RepoTimings>
+    pub timings: BTreeMap<String, RepoTimings>,
 }
 
 /// Per-repository findings section of a [`Report`].
@@ -32,17 +32,17 @@ pub struct Report {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RepoReport {
     /// Corpus entry name.
-    pub name:       String,
+    pub name: String,
     /// Commit the corpus pins for this repository.
     pub pinned_rev: String,
     /// Commit actually checked out when the run happened.
     pub actual_rev: String,
     /// Number of Rust source files analyzed.
-    pub files:      u64,
+    pub files: u64,
     /// Total lines across all analyzed Rust sources.
     pub rust_lines: u64,
     /// Finding counts keyed by rule id, sorted by id.
-    pub findings:   BTreeMap<String, u64>
+    pub findings: BTreeMap<String, u64>,
 }
 
 /// Wall-clock measurements for one repository.
@@ -53,13 +53,13 @@ pub struct RepoTimings {
     /// lines. Zero when no such file exists.
     pub p95_under_1k_ms: f64,
     /// Number of analyzed files under 1000 lines.
-    pub files_under_1k:  u64,
+    pub files_under_1k: u64,
     /// Slowest single-file analysis time in milliseconds across all files.
-    pub max_file_ms:     f64,
+    pub max_file_ms: f64,
     /// Wall time of the workspace-level semantic tier in milliseconds.
-    pub semantic_ms:     f64,
+    pub semantic_ms: f64,
     /// Total wall time for the repository in milliseconds.
-    pub total_ms:        f64
+    pub total_ms: f64,
 }
 
 /// The baseline-comparable projection of a [`Report`]: everything except
@@ -70,7 +70,7 @@ pub struct Comparable {
     /// Version of the engine workspace that produced the report.
     pub engine_version: String,
     /// Per-repository comparable results, sorted by repository name.
-    pub repos:          Vec<ComparableRepo>
+    pub repos: Vec<ComparableRepo>,
 }
 
 /// Per-repository comparable section: [`RepoReport`] minus `actual-rev`.
@@ -78,15 +78,15 @@ pub struct Comparable {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ComparableRepo {
     /// Corpus entry name.
-    pub name:       String,
+    pub name: String,
     /// Commit the corpus pins for this repository.
     pub pinned_rev: String,
     /// Number of Rust source files analyzed.
-    pub files:      u64,
+    pub files: u64,
     /// Total lines across all analyzed Rust sources.
     pub rust_lines: u64,
     /// Finding counts keyed by rule id, sorted by id.
-    pub findings:   BTreeMap<String, u64>
+    pub findings: BTreeMap<String, u64>,
 }
 
 impl Report {
@@ -95,17 +95,17 @@ impl Report {
     pub fn comparable(&self) -> Comparable {
         Comparable {
             engine_version: self.engine_version.clone(),
-            repos:          self
+            repos: self
                 .repos
                 .iter()
                 .map(|repo| ComparableRepo {
-                    name:       repo.name.clone(),
+                    name: repo.name.clone(),
                     pinned_rev: repo.pinned_rev.clone(),
-                    files:      repo.files,
+                    files: repo.files,
                     rust_lines: repo.rust_lines,
-                    findings:   repo.findings.clone()
+                    findings: repo.findings.clone(),
                 })
-                .collect()
+                .collect(),
         }
     }
 }
@@ -153,7 +153,7 @@ pub fn diff(baseline: &Comparable, current: &Comparable) -> Vec<String> {
     for (name, repo) in &baseline_repos {
         match current_repos.get(name) {
             None => differences.push(format!("repo {name}: present in baseline, absent now")),
-            Some(other) => diff_repo(repo, other, &mut differences)
+            Some(other) => diff_repo(repo, other, &mut differences),
         }
     }
     for name in current_repos.keys() {
@@ -216,21 +216,21 @@ mod tests {
 
     fn repo(name: &str, findings: &[(&str, u64)]) -> ComparableRepo {
         ComparableRepo {
-            name:       name.to_owned(),
+            name: name.to_owned(),
             pinned_rev: "abc".to_owned(),
-            files:      2,
+            files: 2,
             rust_lines: 40,
-            findings:   findings
+            findings: findings
                 .iter()
                 .map(|(id, count)| ((*id).to_owned(), *count))
-                .collect()
+                .collect(),
         }
     }
 
     fn comparable(repos: Vec<ComparableRepo>) -> Comparable {
         Comparable {
             engine_version: "0.0.0".to_owned(),
-            repos
+            repos,
         }
     }
 
@@ -299,24 +299,24 @@ mod tests {
     fn comparable_projection_drops_actual_rev_and_timings() {
         let report = Report {
             engine_version: "0.0.0".to_owned(),
-            repos:          vec![RepoReport {
-                name:       "alpha".to_owned(),
+            repos: vec![RepoReport {
+                name: "alpha".to_owned(),
                 pinned_rev: "abc".to_owned(),
                 actual_rev: "drifted".to_owned(),
-                files:      1,
+                files: 1,
                 rust_lines: 10,
-                findings:   BTreeMap::from([("RM-SEC-001".to_owned(), 2)])
+                findings: BTreeMap::from([("RM-SEC-001".to_owned(), 2)]),
             }],
-            timings:        BTreeMap::from([(
+            timings: BTreeMap::from([(
                 "alpha".to_owned(),
                 RepoTimings {
                     p95_under_1k_ms: 1.0,
-                    files_under_1k:  1,
-                    max_file_ms:     2.0,
-                    semantic_ms:     3.0,
-                    total_ms:        4.0
-                }
-            )])
+                    files_under_1k: 1,
+                    max_file_ms: 2.0,
+                    semantic_ms: 3.0,
+                    total_ms: 4.0,
+                },
+            )]),
         };
         let json = serde_json::to_string(&report.comparable()).unwrap();
         assert!(!json.contains("actual-rev"));

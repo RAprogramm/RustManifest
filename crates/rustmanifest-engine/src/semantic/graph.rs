@@ -16,22 +16,22 @@ use crate::source::Source;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldNode {
     /// Field name as written.
-    pub name:      String,
+    pub name: String,
     /// Last path segment of the field's type (`Vec<Credentials>` → `Vec`).
-    pub type_name: String
+    pub type_name: String,
 }
 
 /// One structure definition found in the workspace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeNode {
     /// Structure name.
-    pub name:   String,
+    pub name: String,
     /// Index of the source the structure was parsed from.
     pub source: usize,
     /// Byte range of the structure's identifier.
-    pub range:  Range,
+    pub range: Range,
     /// Named fields in declaration order; empty for tuple and unit structs.
-    pub fields: Vec<FieldNode>
+    pub fields: Vec<FieldNode>,
 }
 
 impl TypeNode {
@@ -47,7 +47,7 @@ impl TypeNode {
 /// All structure definitions of the analyzed workspace slice.
 #[derive(Debug, Default)]
 pub struct TypeGraph {
-    types: Vec<TypeNode>
+    types: Vec<TypeNode>,
 }
 
 impl TypeGraph {
@@ -69,9 +69,7 @@ impl TypeGraph {
                 types.push(node(index, definition));
             }
         }
-        Self {
-            types
-        }
+        Self { types }
     }
 
     /// Structures in deterministic discovery order.
@@ -106,21 +104,21 @@ fn node(source: usize, definition: &syn::ItemStruct) -> TypeNode {
             .iter()
             .filter_map(|field| {
                 field.ident.as_ref().map(|ident| FieldNode {
-                    name:      ident.to_string(),
-                    type_name: last_segment(&field.ty)
+                    name: ident.to_string(),
+                    type_name: last_segment(&field.ty),
                 })
             })
             .collect(),
-        _ => Vec::new()
+        _ => Vec::new(),
     };
     TypeNode {
         name: definition.ident.to_string(),
         source,
         range: Range {
             start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-            end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+            end: u32::try_from(bytes.end).unwrap_or(u32::MAX),
         },
-        fields
+        fields,
     }
 }
 
@@ -134,7 +132,7 @@ fn last_segment(ty: &syn::Type) -> String {
             .last()
             .map_or_else(|| "<type>".to_owned(), |segment| segment.ident.to_string()),
         syn::Type::Reference(reference) => last_segment(&reference.elem),
-        _ => "<type>".to_owned()
+        _ => "<type>".to_owned(),
     }
 }
 
@@ -158,7 +156,7 @@ mod tests {
             .map(|(index, text)| {
                 Source::new(
                     PathBuf::from(format!("src/file{index}.rs")),
-                    (*text).to_owned()
+                    (*text).to_owned(),
                 )
             })
             .collect();
@@ -177,7 +175,7 @@ mod tests {
     fn aggregation_is_resolvable_across_files() {
         let graph = graph(&[
             "struct Identity { id: u64 }",
-            "struct User { identity: Identity }"
+            "struct User { identity: Identity }",
         ]);
         let aggregators = graph.aggregators_of("Identity");
         assert_eq!(aggregators.len(), 1);
@@ -192,7 +190,7 @@ mod tests {
     fn references_resolve_to_their_target_type() {
         let graph = graph(&[
             "struct Identity { id: u64 }",
-            "struct View<'a> { identity: &'a Identity }"
+            "struct View<'a> { identity: &'a Identity }",
         ]);
         assert_eq!(graph.aggregators_of("Identity").len(), 1);
     }

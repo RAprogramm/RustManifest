@@ -16,10 +16,10 @@ use rmcp::{
     model::{
         Implementation, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
         ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
-        ServerInfo
+        ServerInfo,
     },
     service::RequestContext,
-    tool, tool_handler, tool_router
+    tool, tool_handler, tool_router,
 };
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::{Finding, Rule, RuleDefinition, Severity};
@@ -35,14 +35,14 @@ const STRUCT_RULE_PREFIX: &str = "RM-STRUCT-";
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct PathParams {
     /// File or directory path resolved against the workspace root.
-    pub path: String
+    pub path: String,
 }
 
 /// Parameters for `explain_rule`.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RuleIdParams {
     /// Rule identifier, e.g. `RM-STRUCT-001`.
-    pub rule_id: String
+    pub rule_id: String,
 }
 
 /// Parameters for `check_rule`.
@@ -51,30 +51,30 @@ pub struct RulePathParams {
     /// Rule identifier, e.g. `RM-SEC-001`.
     pub rule_id: String,
     /// File or directory path resolved against the workspace root.
-    pub path:    String
+    pub path: String,
 }
 
 /// Structured answer returned by `explain_rule`.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct RuleExplanation {
     /// Stable rule identifier.
-    pub id:                  String,
+    pub id: String,
     /// Short human-readable title.
-    pub title:               String,
+    pub title: String,
     /// Default severity declared by the rules pack.
-    pub severity:            Severity,
+    pub severity: Severity,
     /// Analysis tier: `pattern`, `ast`, or `semantic`.
-    pub tier:                String,
+    pub tier: String,
     /// `rustmanifest://` URI of the methodology rationale.
-    pub rationale_uri:       String,
+    pub rationale_uri: String,
     /// Methodology excerpt the rationale URI resolves to, when bundled.
-    pub methodology_excerpt: Option<String>
+    pub methodology_excerpt: Option<String>,
 }
 
 /// MCP server exposing the `rustmanifest` engine over stdio.
 #[derive(Debug, Clone)]
 pub struct ReviewServer {
-    root: WorkspaceRoot
+    root: WorkspaceRoot,
 }
 
 #[tool_router]
@@ -82,9 +82,7 @@ impl ReviewServer {
     /// Creates a server confined to the given workspace root.
     #[must_use]
     pub const fn new(root: WorkspaceRoot) -> Self {
-        Self {
-            root
-        }
+        Self { root }
     }
 
     /// Creates a server rooted at the process current directory.
@@ -102,13 +100,13 @@ impl ReviewServer {
     #[tool(annotations(read_only_hint = true))]
     async fn review_file(
         &self,
-        Parameters(params): Parameters<PathParams>
+        Parameters(params): Parameters<PathParams>,
     ) -> Result<Json<Vec<Finding>>, ErrorData> {
         let path = self.resolved(&params.path)?;
         if !path.is_file() {
             return Err(ErrorData::invalid_params(
                 format!("path `{}` is not a file", params.path),
-                None
+                None,
             ));
         }
         findings_for(RULES.clone(), path).await.map(Json)
@@ -119,7 +117,7 @@ impl ReviewServer {
     #[tool(annotations(read_only_hint = true))]
     async fn review_path(
         &self,
-        Parameters(params): Parameters<PathParams>
+        Parameters(params): Parameters<PathParams>,
     ) -> Result<Json<Vec<Finding>>, ErrorData> {
         let path = self.resolved(&params.path)?;
         findings_for(RULES.clone(), path).await.map(Json)
@@ -130,7 +128,7 @@ impl ReviewServer {
     #[tool(annotations(read_only_hint = true))]
     async fn check_rule(
         &self,
-        Parameters(params): Parameters<RulePathParams>
+        Parameters(params): Parameters<RulePathParams>,
     ) -> Result<Json<Vec<Finding>>, ErrorData> {
         let rule = find_rule(&params.rule_id)?;
         let path = self.resolved(&params.path)?;
@@ -143,7 +141,7 @@ impl ReviewServer {
     #[tool(annotations(read_only_hint = true))]
     async fn lint_structure(
         &self,
-        Parameters(params): Parameters<PathParams>
+        Parameters(params): Parameters<PathParams>,
     ) -> Result<Json<Vec<Finding>>, ErrorData> {
         let path = self.resolved(&params.path)?;
         let rules: Vec<Rule> = RULES
@@ -163,16 +161,16 @@ impl ReviewServer {
     )]
     fn explain_rule(
         &self,
-        Parameters(params): Parameters<RuleIdParams>
+        Parameters(params): Parameters<RuleIdParams>,
     ) -> Result<Json<RuleExplanation>, ErrorData> {
         let rule = find_rule(&params.rule_id)?;
         Ok(Json(RuleExplanation {
-            id:                  rule.id.clone(),
-            title:               rule.title.clone(),
-            severity:            rule.severity,
-            tier:                tier_name(&rule.definition).to_owned(),
-            rationale_uri:       rule.rationale_uri.clone(),
-            methodology_excerpt: resources::rationale_excerpt(&rule.rationale_uri)
+            id: rule.id.clone(),
+            title: rule.title.clone(),
+            severity: rule.severity,
+            tier: tier_name(&rule.definition).to_owned(),
+            rationale_uri: rule.rationale_uri.clone(),
+            methodology_excerpt: resources::rationale_excerpt(&rule.rationale_uri),
         }))
     }
 
@@ -210,7 +208,7 @@ fn find_rule(rule_id: &str) -> Result<&'static Rule, ErrorData> {
                 "unknown rule id `{rule_id}`; known rule ids: {}",
                 known.join(", ")
             ),
-            None
+            None,
         )
     })
 }
@@ -218,15 +216,9 @@ fn find_rule(rule_id: &str) -> Result<&'static Rule, ErrorData> {
 /// Returns the analysis tier name of a rule definition.
 const fn tier_name(definition: &RuleDefinition) -> &'static str {
     match definition {
-        RuleDefinition::Pattern {
-            ..
-        } => "pattern",
-        RuleDefinition::Ast {
-            ..
-        } => "ast",
-        RuleDefinition::Semantic {
-            ..
-        } => "semantic"
+        RuleDefinition::Pattern { .. } => "pattern",
+        RuleDefinition::Ast { .. } => "ast",
+        RuleDefinition::Semantic { .. } => "semantic",
     }
 }
 
@@ -237,24 +229,24 @@ impl ServerHandler for ReviewServer {
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
-                .build()
+                .build(),
         )
         .with_server_info(Implementation::new(
             env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION")
+            env!("CARGO_PKG_VERSION"),
         ))
         .with_instructions(
             "rustmanifest review engine. Tools run the bundled methodology rules over files \
              inside the workspace root (the server's startup directory); paths outside the root \
              are rejected. Resources expose the methodology documents under \
-             rustmanifest://methodology/ URIs; finding rationale URIs resolve to them."
+             rustmanifest://methodology/ URIs; finding rationale URIs resolve to them.",
         )
     }
 
     async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>
+        _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
         let listed = resources::DOCS
             .iter()
@@ -271,13 +263,13 @@ impl ServerHandler for ReviewServer {
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>
+        _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
         resources::find(resources::base_uri(&request.uri)).map_or_else(
             || {
                 Err(ErrorData::resource_not_found(
                     format!("unknown resource URI `{}`", request.uri),
-                    None
+                    None,
                 ))
             },
             |doc| {
@@ -285,7 +277,7 @@ impl ServerHandler for ReviewServer {
                     ResourceContents::text(doc.content, doc.uri).with_mime_type("text/markdown"),
                 ])
                 .into())
-            }
+            },
         )
     }
 }
@@ -313,13 +305,13 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(
             dir.path().join("bad.rs"),
-            "fn main() { let password = \"hunter2\"; }\n"
+            "fn main() { let password = \"hunter2\"; }\n",
         )
         .unwrap();
         let server = server_for(dir.path());
         let Json(findings) = server
             .review_file(Parameters(PathParams {
-                path: "bad.rs".to_owned()
+                path: "bad.rs".to_owned(),
             }))
             .await
             .unwrap();
@@ -336,7 +328,7 @@ mod tests {
         let server = server_for(dir.path());
         let error = server
             .review_file(Parameters(PathParams {
-                path: ".".to_owned()
+                path: ".".to_owned(),
             }))
             .await
             .map(|Json(findings)| findings)
@@ -353,7 +345,7 @@ mod tests {
         let server = server_for(&inner);
         let error = server
             .review_file(Parameters(PathParams {
-                path: "../secret.rs".to_owned()
+                path: "../secret.rs".to_owned(),
             }))
             .await
             .map(|Json(findings)| findings)
@@ -368,7 +360,7 @@ mod tests {
         let server = server_for(dir.path());
         let Json(findings) = server
             .review_path(Parameters(PathParams {
-                path: ".".to_owned()
+                path: ".".to_owned(),
             }))
             .await
             .unwrap();
@@ -384,13 +376,13 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(
             dir.path().join("mixed.rs"),
-            "pub struct ConfigLoader;\nfn main() { let password = \"hunter2\"; }\n"
+            "pub struct ConfigLoader;\nfn main() { let password = \"hunter2\"; }\n",
         )
         .unwrap();
         let server = server_for(dir.path());
         let Json(findings) = server
             .lint_structure(Parameters(PathParams {
-                path: ".".to_owned()
+                path: ".".to_owned(),
             }))
             .await
             .unwrap();
@@ -412,14 +404,14 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(
             dir.path().join("mixed.rs"),
-            "pub struct ConfigLoader;\nfn main() { let password = \"hunter2\"; }\n"
+            "pub struct ConfigLoader;\nfn main() { let password = \"hunter2\"; }\n",
         )
         .unwrap();
         let server = server_for(dir.path());
         let Json(findings) = server
             .check_rule(Parameters(RulePathParams {
                 rule_id: "RM-STRUCT-001".to_owned(),
-                path:    ".".to_owned()
+                path: ".".to_owned(),
             }))
             .await
             .unwrap();
@@ -438,7 +430,7 @@ mod tests {
         let error = server
             .check_rule(Parameters(RulePathParams {
                 rule_id: "RM-NOPE-999".to_owned(),
-                path:    ".".to_owned()
+                path: ".".to_owned(),
             }))
             .await
             .map(|Json(findings)| findings)
@@ -453,7 +445,7 @@ mod tests {
         let server = server_for(dir.path());
         let Json(explanation) = server
             .explain_rule(Parameters(RuleIdParams {
-                rule_id: "RM-STRUCT-001".to_owned()
+                rule_id: "RM-STRUCT-001".to_owned(),
             }))
             .unwrap();
         assert_eq!(explanation.id, "RM-STRUCT-001");
@@ -475,7 +467,7 @@ mod tests {
         let server = server_for(dir.path());
         let error = server
             .explain_rule(Parameters(RuleIdParams {
-                rule_id: "RM-XXX-000".to_owned()
+                rule_id: "RM-XXX-000".to_owned(),
             }))
             .map(|Json(explanation)| explanation)
             .unwrap_err();

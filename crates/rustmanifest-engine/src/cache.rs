@@ -31,7 +31,7 @@
 
 use std::{
     fs, io,
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
 };
 
 use rustmanifest_schema::{Finding, Rule};
@@ -85,7 +85,7 @@ pub fn rules_fingerprint(rules: &[&Rule]) -> Vec<u8> {
 /// failure model. Cloning is cheap; clones share the same directory.
 #[derive(Debug, Clone)]
 pub struct FindingsCache {
-    dir: PathBuf
+    dir: PathBuf,
 }
 
 impl FindingsCache {
@@ -99,9 +99,7 @@ impl FindingsCache {
     pub fn open(dir: impl Into<PathBuf>) -> io::Result<Self> {
         let dir = dir.into();
         fs::create_dir_all(&dir)?;
-        Ok(Self {
-            dir
-        })
+        Ok(Self { dir })
     }
 
     /// Returns the directory this cache stores entries in.
@@ -206,14 +204,14 @@ mod tests {
 
     fn sample_rule(id: &str, regex: &str) -> Rule {
         Rule {
-            id:            id.to_owned(),
-            severity:      Severity::Error,
-            title:         "sample".to_owned(),
+            id: id.to_owned(),
+            severity: Severity::Error,
+            title: "sample".to_owned(),
             rationale_uri: "rustmanifest://methodology/sample".to_owned(),
-            definition:    RuleDefinition::Pattern {
-                regex:         regex.to_owned(),
-                exclude_globs: vec![]
-            }
+            definition: RuleDefinition::Pattern {
+                regex: regex.to_owned(),
+                exclude_globs: vec![],
+            },
         }
     }
 
@@ -232,16 +230,14 @@ mod tests {
 
     fn sample_finding(file: &str) -> Finding {
         Finding {
-            rule_id:       "RM-AAA-001".to_owned(),
-            severity:      Severity::Error,
-            location:      Location {
-                file:  PathBuf::from(file),
-                range: Range {
-                    start: 1, end: 5
-                }
+            rule_id: "RM-AAA-001".to_owned(),
+            severity: Severity::Error,
+            location: Location {
+                file: PathBuf::from(file),
+                range: Range { start: 1, end: 5 },
             },
-            message:       "sample finding".to_owned(),
-            rationale_uri: "rustmanifest://methodology/sample".to_owned()
+            message: "sample finding".to_owned(),
+            rationale_uri: "rustmanifest://methodology/sample".to_owned(),
         }
     }
 

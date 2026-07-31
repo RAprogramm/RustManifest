@@ -15,9 +15,9 @@ use crate::{analyzer::Analyzer, error::EngineError, pragma, source::Source};
 /// Tier-1 analyzer that applies a single rule's regex to source text.
 #[derive(Debug)]
 pub struct PatternAnalyzer {
-    rule:    Rule,
-    regex:   Regex,
-    exclude: GlobSet
+    rule: Rule,
+    regex: Regex,
+    exclude: GlobSet,
 }
 
 impl PatternAnalyzer {
@@ -31,20 +31,20 @@ impl PatternAnalyzer {
     pub fn new(rule: Rule) -> Result<Self, EngineError> {
         let RuleDefinition::Pattern {
             regex: ref regex_src,
-            ref exclude_globs
+            ref exclude_globs,
         } = rule.definition
         else {
             return Err(EngineError::InvalidRegex {
                 rule_id: rule.id,
-                regex:   String::new(),
-                source:  regex::Error::Syntax("rule is not a pattern-tier rule".to_owned())
+                regex: String::new(),
+                source: regex::Error::Syntax("rule is not a pattern-tier rule".to_owned()),
             });
         };
 
         let regex = Regex::new(regex_src).map_err(|source| EngineError::InvalidRegex {
             rule_id: rule.id.clone(),
             regex: regex_src.clone(),
-            source
+            source,
         })?;
 
         let mut builder = GlobSetBuilder::new();
@@ -52,20 +52,20 @@ impl PatternAnalyzer {
             let glob = Glob::new(glob_src).map_err(|source| EngineError::InvalidGlob {
                 rule_id: rule.id.clone(),
                 glob: glob_src.clone(),
-                source
+                source,
             })?;
             builder.add(glob);
         }
         let exclude = builder.build().map_err(|source| EngineError::InvalidGlob {
             rule_id: rule.id.clone(),
             glob: exclude_globs.join(","),
-            source
+            source,
         })?;
 
         Ok(Self {
             rule,
             regex,
-            exclude
+            exclude,
         })
     }
 }
@@ -95,22 +95,19 @@ impl Analyzer for PatternAnalyzer {
             let start = u32::try_from(occurrence.start()).unwrap_or(u32::MAX);
             let end = u32::try_from(occurrence.end()).unwrap_or(u32::MAX);
             findings.push(Finding {
-                rule_id:       self.rule.id.clone(),
-                severity:      self.rule.severity,
-                location:      Location {
-                    file:  source.path().to_path_buf(),
-                    range: Range {
-                        start,
-                        end
-                    }
+                rule_id: self.rule.id.clone(),
+                severity: self.rule.severity,
+                location: Location {
+                    file: source.path().to_path_buf(),
+                    range: Range { start, end },
                 },
-                message:       format!(
+                message: format!(
                     "{}: matched at bytes {}..{}",
                     self.rule.title,
                     occurrence.start(),
                     occurrence.end()
                 ),
-                rationale_uri: self.rule.rationale_uri.clone()
+                rationale_uri: self.rule.rationale_uri.clone(),
             });
         }
         findings
@@ -137,14 +134,14 @@ mod tests {
 
     fn sample_rule() -> Rule {
         Rule {
-            id:            "RM-SEC-001".to_owned(),
-            severity:      Severity::Error,
-            title:         "Hardcoded credentials".to_owned(),
+            id: "RM-SEC-001".to_owned(),
+            severity: Severity::Error,
+            title: "Hardcoded credentials".to_owned(),
             rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
-            definition:    RuleDefinition::Pattern {
-                regex:         r#"(?i)password\s*=\s*"[^"]+""#.to_owned(),
-                exclude_globs: vec!["**/tests/**".to_owned()]
-            }
+            definition: RuleDefinition::Pattern {
+                regex: r#"(?i)password\s*=\s*"[^"]+""#.to_owned(),
+                exclude_globs: vec!["**/tests/**".to_owned()],
+            },
         }
     }
 
@@ -153,7 +150,7 @@ mod tests {
         let analyzer = PatternAnalyzer::new(sample_rule()).unwrap();
         let source = Source::new(
             PathBuf::from("src/main.rs"),
-            r#"let password = "hunter2";"#.to_owned()
+            r#"let password = "hunter2";"#.to_owned(),
         );
         let findings = analyzer.analyze(&source);
         assert_eq!(findings.len(), 1);
@@ -165,7 +162,7 @@ mod tests {
         let analyzer = PatternAnalyzer::new(sample_rule()).unwrap();
         let source = Source::new(
             PathBuf::from("src/main.rs"),
-            "fn validate_password(input: &str) -> bool { !input.is_empty() }".to_owned()
+            "fn validate_password(input: &str) -> bool { !input.is_empty() }".to_owned(),
         );
         assert!(analyzer.analyze(&source).is_empty());
     }

@@ -31,7 +31,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                         format!(
                             "import of mock library `{name}`; prefer a hand-written fake with \
                              real behavior"
-                        )
+                        ),
                     ));
                 }
             }
@@ -43,7 +43,7 @@ pub(super) fn occurrences(file: &syn::File) -> Vec<Occurrence> {
                     &attr.span(),
                     "`#[automock]` generates a mock; prefer a hand-written fake with real \
                      behavior"
-                        .to_owned()
+                        .to_owned(),
                 ));
             }
         }
@@ -57,7 +57,7 @@ const fn root_ident(tree: &syn::UseTree) -> Option<&syn::Ident> {
         syn::UseTree::Path(path) => Some(&path.ident),
         syn::UseTree::Name(name) => Some(&name.ident),
         syn::UseTree::Rename(rename) => Some(&rename.ident),
-        syn::UseTree::Glob(_) | syn::UseTree::Group(_) => None
+        syn::UseTree::Glob(_) | syn::UseTree::Group(_) => None,
     }
 }
 
@@ -70,7 +70,7 @@ fn attributes(item: &syn::Item) -> &[syn::Attribute] {
         syn::Item::Fn(function) => &function.attrs,
         syn::Item::Impl(block) => &block.attrs,
         syn::Item::Mod(module) => &module.attrs,
-        _ => &[]
+        _ => &[],
     }
 }
 

@@ -19,8 +19,8 @@ use crate::{Renderer, error::ReportError};
 
 /// Human-readable terminal renderer.
 pub struct TtyRenderer<W: Write> {
-    writer:    W,
-    use_color: bool
+    writer: W,
+    use_color: bool,
 }
 
 impl<W: Write> TtyRenderer<W> {
@@ -28,7 +28,7 @@ impl<W: Write> TtyRenderer<W> {
     pub const fn new(writer: W) -> Self {
         Self {
             writer,
-            use_color: true
+            use_color: true,
         }
     }
 
@@ -92,7 +92,7 @@ const fn style_for(severity: Severity) -> Style {
         Severity::Error => AnsiColor::Red,
         Severity::Warning => AnsiColor::Yellow,
         Severity::Info => AnsiColor::Cyan,
-        Severity::Hint => AnsiColor::Blue
+        Severity::Hint => AnsiColor::Blue,
     };
     Style::new().fg_color(Some(Color::Ansi(color))).bold()
 }
@@ -102,7 +102,7 @@ const fn label_for(severity: Severity) -> &'static str {
         Severity::Error => "error  ",
         Severity::Warning => "warning",
         Severity::Info => "info   ",
-        Severity::Hint => "hint   "
+        Severity::Hint => "hint   ",
     }
 }
 
@@ -122,17 +122,14 @@ mod tests {
 
     fn fixture() -> Vec<Finding> {
         vec![Finding {
-            rule_id:       "RM-SEC-001".to_owned(),
-            severity:      Severity::Error,
-            location:      Location {
-                file:  PathBuf::from("src/lib.rs"),
-                range: Range {
-                    start: 10,
-                    end:   25
-                }
+            rule_id: "RM-SEC-001".to_owned(),
+            severity: Severity::Error,
+            location: Location {
+                file: PathBuf::from("src/lib.rs"),
+                range: Range { start: 10, end: 25 },
             },
-            message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
-            rationale_uri: "rustmanifest://methodology/security#creds".to_owned()
+            message: "Hardcoded credentials: matched at bytes 10..25".to_owned(),
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
         }]
     }
 

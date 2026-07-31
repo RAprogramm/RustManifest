@@ -12,84 +12,82 @@
 #[derive(Debug, Clone, Copy)]
 pub struct MethodologyDoc {
     /// Canonical `rustmanifest://` URI of the document.
-    pub uri:         &'static str,
+    pub uri: &'static str,
     /// Programmatic resource name.
-    pub name:        &'static str,
+    pub name: &'static str,
     /// Human-readable document title.
-    pub title:       &'static str,
+    pub title: &'static str,
     /// Repository path the content was embedded from.
     pub source_path: &'static str,
     /// Document content in Markdown (English).
-    pub content:     &'static str
+    pub content: &'static str,
 }
 
 /// Every methodology document exposed by the server.
 pub static DOCS: [MethodologyDoc; 9] = [
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/structure",
-        name:        "structure",
-        title:       "Structural Design Principles",
+        uri: "rustmanifest://methodology/structure",
+        name: "structure",
+        title: "Structural Design Principles",
         source_path: "STRUCTURE.md",
-        content:     include_str!("../../../STRUCTURE.md")
+        content: include_str!("../../../STRUCTURE.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/code-quality",
-        name:        "code-quality",
-        title:       "Code Quality and Maintainability",
+        uri: "rustmanifest://methodology/code-quality",
+        name: "code-quality",
+        title: "Code Quality and Maintainability",
         source_path: "code-review-methodology/en/code-quality.md",
-        content:     include_str!("../../../code-review-methodology/en/code-quality.md")
+        content: include_str!("../../../code-review-methodology/en/code-quality.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/examples",
-        name:        "examples",
-        title:       "Real Project Examples",
+        uri: "rustmanifest://methodology/examples",
+        name: "examples",
+        title: "Real Project Examples",
         source_path: "code-review-methodology/en/examples.md",
-        content:     include_str!("../../../code-review-methodology/en/examples.md")
+        content: include_str!("../../../code-review-methodology/en/examples.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/index",
-        name:        "index",
-        title:       "Code Review Methodology Navigation",
+        uri: "rustmanifest://methodology/index",
+        name: "index",
+        title: "Code Review Methodology Navigation",
         source_path: "code-review-methodology/en/INDEX.md",
-        content:     include_str!("../../../code-review-methodology/en/INDEX.md")
+        content: include_str!("../../../code-review-methodology/en/INDEX.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/performance-issues",
-        name:        "performance-issues",
-        title:       "Finding Performance Issues",
+        uri: "rustmanifest://methodology/performance-issues",
+        name: "performance-issues",
+        title: "Finding Performance Issues",
         source_path: "code-review-methodology/en/performance-issues.md",
-        content:     include_str!("../../../code-review-methodology/en/performance-issues.md")
+        content: include_str!("../../../code-review-methodology/en/performance-issues.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/quick-reference",
-        name:        "quick-reference",
-        title:       "Quick Reference - Code Review Cheat Sheet",
+        uri: "rustmanifest://methodology/quick-reference",
+        name: "quick-reference",
+        title: "Quick Reference - Code Review Cheat Sheet",
         source_path: "code-review-methodology/en/quick-reference.md",
-        content:     include_str!("../../../code-review-methodology/en/quick-reference.md")
+        content: include_str!("../../../code-review-methodology/en/quick-reference.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/readme",
-        name:        "readme",
-        title:       "Code Analysis and Vulnerability Detection Methodology",
+        uri: "rustmanifest://methodology/readme",
+        name: "readme",
+        title: "Code Analysis and Vulnerability Detection Methodology",
         source_path: "code-review-methodology/en/README.md",
-        content:     include_str!("../../../code-review-methodology/en/README.md")
+        content: include_str!("../../../code-review-methodology/en/README.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/rust-specific",
-        name:        "rust-specific",
-        title:       "Rust-Specific Issues and Patterns",
+        uri: "rustmanifest://methodology/rust-specific",
+        name: "rust-specific",
+        title: "Rust-Specific Issues and Patterns",
         source_path: "code-review-methodology/en/rust-specific.md",
-        content:     include_str!("../../../code-review-methodology/en/rust-specific.md")
+        content: include_str!("../../../code-review-methodology/en/rust-specific.md"),
     },
     MethodologyDoc {
-        uri:         "rustmanifest://methodology/security-vulnerabilities",
-        name:        "security-vulnerabilities",
-        title:       "Finding Security Vulnerabilities",
+        uri: "rustmanifest://methodology/security-vulnerabilities",
+        name: "security-vulnerabilities",
+        title: "Finding Security Vulnerabilities",
         source_path: "code-review-methodology/en/security-vulnerabilities.md",
-        content:     include_str!(
-            "../../../code-review-methodology/en/security-vulnerabilities.md"
-        )
-    }
+        content: include_str!("../../../code-review-methodology/en/security-vulnerabilities.md"),
+    },
 ];
 
 /// Looks up a document by its exact `rustmanifest://` URI (no fragment).

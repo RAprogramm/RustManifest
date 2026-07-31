@@ -119,7 +119,7 @@ fn explain_known_rule_prints_title_and_uri() {
         .stdout(predicate::str::contains("RM-SEC-001"))
         .stdout(predicate::str::contains("Hardcoded credentials"))
         .stdout(predicate::str::contains(
-            "rustmanifest://methodology/security-vulnerabilities"
+            "rustmanifest://methodology/security-vulnerabilities",
         ));
 }
 
@@ -144,8 +144,8 @@ fn config_override_changes_finding_severity_in_json() {
         ("src/dirty.rs", "let password = \"hunter2\";\n"),
         (
             "rustmanifest.toml",
-            "[[overrides]]\nrule-id = \"RM-SEC-001\"\nseverity = \"warning\"\n"
-        )
+            "[[overrides]]\nrule-id = \"RM-SEC-001\"\nseverity = \"warning\"\n",
+        ),
     ]);
     let assert = rustmanifest()
         .arg("check")
@@ -173,7 +173,7 @@ fn config_override_changes_finding_severity_in_json() {
 fn config_exclude_glob_removes_findings() {
     let tree = make_tree(&[
         ("src/dirty.rs", "let password = \"hunter2\";\n"),
-        ("rustmanifest.toml", "exclude = [\"**/dirty.rs\"]\n")
+        ("rustmanifest.toml", "exclude = [\"**/dirty.rs\"]\n"),
     ]);
     rustmanifest()
         .arg("check")
@@ -190,7 +190,7 @@ fn config_exclude_glob_removes_findings() {
 fn config_minimal_profile_skips_non_error_rules() {
     let tree = make_tree(&[
         ("src/vec.rs", "let v: Vec<u8> = Vec::new();\n"),
-        ("rustmanifest.toml", "profile = \"minimal\"\n")
+        ("rustmanifest.toml", "profile = \"minimal\"\n"),
     ]);
     rustmanifest()
         .arg("check")
@@ -207,7 +207,7 @@ fn config_minimal_profile_skips_non_error_rules() {
 fn config_unknown_profile_exits_two() {
     let tree = make_tree(&[
         ("src/clean.rs", "fn main() {}\n"),
-        ("rustmanifest.toml", "profile = \"paranoid\"\n")
+        ("rustmanifest.toml", "profile = \"paranoid\"\n"),
     ]);
     rustmanifest()
         .arg("check")
@@ -223,7 +223,7 @@ fn config_unknown_profile_exits_two() {
 fn pragma_suppresses_finding() {
     let tree = make_tree(&[(
         "src/suppressed.rs",
-        "// rustmanifest: allow(RM-SEC-001) reason=\"fixture\"\nlet password = \"hunter2\";\n"
+        "// rustmanifest: allow(RM-SEC-001) reason=\"fixture\"\nlet password = \"hunter2\";\n",
     )]);
     rustmanifest()
         .arg("check")
@@ -240,8 +240,8 @@ fn cache_second_run_produces_identical_json_output() {
         ("src/dirty.rs", "let password = \"hunter2\";\n"),
         (
             "src/stale.rs",
-            "// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() {}\n"
-        )
+            "// rustmanifest: allow(RM-SEC-001) reason=\"stale\"\nfn main() {}\n",
+        ),
     ]);
     let cache_dir = TempDir::new().unwrap();
 

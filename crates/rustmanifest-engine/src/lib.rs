@@ -32,7 +32,7 @@ pub use cache::FindingsCache;
 pub use error::EngineError;
 pub use orchestrator::{
     Cancellation, Orchestrator, OrchestratorBuilder, UNUSED_PRAGMA_RATIONALE_URI,
-    UNUSED_PRAGMA_RULE_ID
+    UNUSED_PRAGMA_RULE_ID,
 };
 pub use pattern::PatternAnalyzer;
 pub use semantic::{SemanticAnalyzer, TypeGraph};

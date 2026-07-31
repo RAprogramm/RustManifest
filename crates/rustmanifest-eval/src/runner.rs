@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, path::Path, process::Command, time::Instant};
 
 use rustmanifest_engine::{
     Analyzer, AstAnalyzer, Orchestrator, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer,
-    Source, orchestrator::DEFAULT_MAX_FILE_BYTES, walker
+    Source, orchestrator::DEFAULT_MAX_FILE_BYTES, walker,
 };
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::RuleDefinition;
@@ -23,7 +23,7 @@ use tracing::warn;
 use crate::{
     corpus::{Corpus, RepoEntry},
     error::EvalError,
-    report::{RepoReport, RepoTimings, Report, p95}
+    report::{RepoReport, RepoTimings, Report, p95},
 };
 
 /// Line-count threshold under which a file participates in the p95
@@ -57,7 +57,7 @@ pub fn evaluate(corpus: &Corpus, corpus_root: &Path) -> Result<Report, EvalError
     Ok(Report {
         engine_version: env!("CARGO_PKG_VERSION").to_owned(),
         repos,
-        timings
+        timings,
     })
 }
 
@@ -66,21 +66,15 @@ fn build_orchestrator() -> Result<Orchestrator, EvalError> {
     let analyzers: Vec<Box<dyn Analyzer>> = RULES
         .iter()
         .filter_map(|rule| match rule.definition {
-            RuleDefinition::Pattern {
-                ..
-            } => Some(
+            RuleDefinition::Pattern { .. } => Some(
                 PatternAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn Analyzer>)
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn Analyzer>),
             ),
-            RuleDefinition::Ast {
-                ..
-            } => Some(
+            RuleDefinition::Ast { .. } => Some(
                 AstAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn Analyzer>)
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn Analyzer>),
             ),
-            RuleDefinition::Semantic {
-                ..
-            } => None
+            RuleDefinition::Semantic { .. } => None,
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(OrchestratorBuilder::new().analyzers(analyzers).build())
@@ -107,7 +101,7 @@ fn head_revision(path: &Path) -> String {
         .filter(|output| output.status.success())
         .map_or_else(
             || UNKNOWN_REV.to_owned(),
-            |output| String::from_utf8_lossy(&output.stdout).trim().to_owned()
+            |output| String::from_utf8_lossy(&output.stdout).trim().to_owned(),
         )
 }
 
@@ -117,13 +111,13 @@ fn evaluate_repo(
     entry: &RepoEntry,
     corpus_root: &Path,
     orchestrator: &Orchestrator,
-    semantic: &[SemanticAnalyzer]
+    semantic: &[SemanticAnalyzer],
 ) -> Result<(RepoReport, RepoTimings), EvalError> {
     let repo_path = corpus_root.join(&entry.path);
     if !repo_path.is_dir() {
         return Err(EvalError::MissingCheckout {
             name: entry.name.clone(),
-            path: repo_path
+            path: repo_path,
         });
     }
     let actual_rev = head_revision(&repo_path);
@@ -180,7 +174,7 @@ fn evaluate_repo(
         files_under_1k: u64::try_from(budget_samples.len()).unwrap_or(u64::MAX),
         max_file_ms,
         semantic_ms,
-        total_ms: repo_start.elapsed().as_secs_f64() * 1000.0
+        total_ms: repo_start.elapsed().as_secs_f64() * 1000.0,
     };
     let report = RepoReport {
         name: entry.name.clone(),
@@ -188,7 +182,7 @@ fn evaluate_repo(
         actual_rev,
         files: u64::try_from(files.len()).unwrap_or(u64::MAX),
         rust_lines,
-        findings
+        findings,
     };
     Ok((report, timings))
 }
@@ -206,11 +200,11 @@ mod tests {
     fn fixture_corpus(rev: &str) -> Corpus {
         Corpus {
             repos: vec![RepoEntry {
-                name:  "fixture".to_owned(),
-                path:  "fixture".to_owned(),
-                rev:   rev.to_owned(),
-                notes: "unit-test fixture".to_owned()
-            }]
+                name: "fixture".to_owned(),
+                path: "fixture".to_owned(),
+                rev: rev.to_owned(),
+                notes: "unit-test fixture".to_owned(),
+            }],
         }
     }
 
@@ -220,12 +214,12 @@ mod tests {
         std::fs::write(
             repo.join("src/lib.rs"),
             "// rustmanifest: allow(RM-ZZZ-999) reason=\"stale fixture pragma\"\npub fn \
-             answer() -> u32 {\n    42\n}\n"
+             answer() -> u32 {\n    42\n}\n",
         )
         .unwrap();
         std::fs::write(
             repo.join("src/other.rs"),
-            "pub struct Plain {\n    pub id: u64\n}\n"
+            "pub struct Plain {\n    pub id: u64\n}\n",
         )
         .unwrap();
     }

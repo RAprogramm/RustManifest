@@ -8,5 +8,5 @@
 //! re-exports it under the server's historical path.
 
 pub use rustmanifest_rules_core::methodology::{
-    DOCS, MethodologyDoc, base_uri, find, rationale_excerpt
+    DOCS, MethodologyDoc, base_uri, find, rationale_excerpt,
 };

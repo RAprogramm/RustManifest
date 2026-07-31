@@ -41,13 +41,13 @@ fn make_clippy_project() -> TempDir {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("Cargo.toml"),
-        "[package]\nname = \"delegate-fixture\"\nversion = \"0.0.0\"\nedition = \"2021\"\n"
+        "[package]\nname = \"delegate-fixture\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
     )
     .unwrap();
     fs::create_dir_all(dir.path().join("src")).unwrap();
     fs::write(
         dir.path().join("src").join("main.rs"),
-        "fn main() {\n    let x = 5_i32;\n    let _y = x.clone();\n}\n"
+        "fn main() {\n    let x = 5_i32;\n    let _y = x.clone();\n}\n",
     )
     .unwrap();
     dir
@@ -125,7 +125,7 @@ fn delegate_clippy_without_manifest_warns_and_succeeds() {
     fs::create_dir_all(dir.path().join("src")).unwrap();
     fs::write(
         dir.path().join("src").join("clean.rs"),
-        "fn main() { println!(\"hi\"); }\n"
+        "fn main() { println!(\"hi\"); }\n",
     )
     .unwrap();
     let output = run_check(dir.path(), true);

@@ -14,5 +14,5 @@ pub enum ReportError {
 
     /// Serialization error from `serde_json`.
     #[error("serialization error: {0}")]
-    Serialization(#[from] serde_json::Error)
+    Serialization(#[from] serde_json::Error),
 }

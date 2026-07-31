@@ -19,7 +19,7 @@
 use std::{
     fs,
     io::Write,
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
 };
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -29,14 +29,14 @@ use tempfile::TempDir;
 
 fn rule() -> Rule {
     Rule {
-        id:            "RM-SEC-001".to_owned(),
-        severity:      Severity::Error,
-        title:         "Hardcoded credentials".to_owned(),
+        id: "RM-SEC-001".to_owned(),
+        severity: Severity::Error,
+        title: "Hardcoded credentials".to_owned(),
         rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
-        definition:    RuleDefinition::Pattern {
-            regex:         r#"(?i)password\s*=\s*"[^"]+""#.to_owned(),
-            exclude_globs: vec![]
-        }
+        definition: RuleDefinition::Pattern {
+            regex: r#"(?i)password\s*=\s*"[^"]+""#.to_owned(),
+            exclude_globs: vec![],
+        },
     }
 }
 

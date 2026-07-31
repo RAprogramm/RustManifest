@@ -15,7 +15,7 @@ use crate::error::EvalError;
 pub struct Corpus {
     /// Pinned repository entries, sorted by name after loading.
     #[serde(rename = "repo")]
-    pub repos: Vec<RepoEntry>
+    pub repos: Vec<RepoEntry>,
 }
 
 /// One pinned repository inside the corpus.
@@ -23,13 +23,13 @@ pub struct Corpus {
 #[serde(deny_unknown_fields)]
 pub struct RepoEntry {
     /// Stable corpus entry name; also the report key.
-    pub name:  String,
+    pub name: String,
     /// Checkout location relative to the corpus root.
-    pub path:  String,
+    pub path: String,
     /// Pinned git commit (full hex) the baseline was blessed against.
-    pub rev:   String,
+    pub rev: String,
     /// Free-form description of why the repository is in the corpus.
-    pub notes: String
+    pub notes: String,
 }
 
 /// Parses a corpus manifest from TOML text and sorts entries by name so
@@ -41,8 +41,8 @@ pub struct RepoEntry {
 /// manifest; `origin` is only used for error reporting.
 pub fn parse(text: &str, origin: &Path) -> Result<Corpus, EvalError> {
     let mut corpus: Corpus = toml::from_str(text).map_err(|source| EvalError::CorpusParse {
-        path:   origin.to_path_buf(),
-        source: Box::new(source)
+        path: origin.to_path_buf(),
+        source: Box::new(source),
     })?;
     corpus
         .repos
@@ -59,7 +59,7 @@ pub fn parse(text: &str, origin: &Path) -> Result<Corpus, EvalError> {
 pub fn load(path: &Path) -> Result<Corpus, EvalError> {
     let text = std::fs::read_to_string(path).map_err(|source| EvalError::CorpusRead {
         path: path.to_path_buf(),
-        source
+        source,
     })?;
     parse(&text, path)
 }

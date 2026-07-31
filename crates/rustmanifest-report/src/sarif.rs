@@ -24,8 +24,8 @@ const TOOL_INFORMATION_URI: &str = "https://github.com/RAprogramm/RustManifest";
 
 /// Renders findings as a SARIF 2.1.0 document.
 pub struct SarifRenderer<W: Write> {
-    writer:       W,
-    tool_version: String
+    writer: W,
+    tool_version: String,
 }
 
 impl<W: Write> SarifRenderer<W> {
@@ -33,7 +33,7 @@ impl<W: Write> SarifRenderer<W> {
     pub fn new(writer: W, tool_version: impl Into<String>) -> Self {
         Self {
             writer,
-            tool_version: tool_version.into()
+            tool_version: tool_version.into(),
         }
     }
 
@@ -58,12 +58,12 @@ fn build_log(findings: &[Finding], tool_version: &str) -> SarifLog {
         rules_index
             .entry(finding.rule_id.as_str())
             .or_insert_with(|| RuleDescriptor {
-                id:                finding.rule_id.clone(),
-                name:              finding.rule_id.clone(),
+                id: finding.rule_id.clone(),
+                name: finding.rule_id.clone(),
                 short_description: MultiformatMessage {
-                    text: finding.message.clone()
+                    text: finding.message.clone(),
                 },
-                help_uri:          finding.rationale_uri.clone()
+                help_uri: finding.rationale_uri.clone(),
             });
     }
     let rules: Vec<RuleDescriptor> = rules_index.into_values().collect();
@@ -71,43 +71,43 @@ fn build_log(findings: &[Finding], tool_version: &str) -> SarifLog {
     let results: Vec<SarifResult> = findings
         .iter()
         .map(|finding| SarifResult {
-            rule_id:   finding.rule_id.clone(),
-            level:     level_of(finding.severity),
-            message:   MultiformatMessage {
-                text: finding.message.clone()
+            rule_id: finding.rule_id.clone(),
+            level: level_of(finding.severity),
+            message: MultiformatMessage {
+                text: finding.message.clone(),
             },
             locations: vec![SarifLocation {
                 physical_location: PhysicalLocation {
                     artifact_location: ArtifactLocation {
-                        uri: finding.location.file.display().to_string()
+                        uri: finding.location.file.display().to_string(),
                     },
-                    region:            Region {
+                    region: Region {
                         byte_offset: finding.location.range.start,
                         byte_length: finding
                             .location
                             .range
                             .end
-                            .saturating_sub(finding.location.range.start)
-                    }
-                }
-            }]
+                            .saturating_sub(finding.location.range.start),
+                    },
+                },
+            }],
         })
         .collect();
 
     SarifLog {
         version: SARIF_VERSION.to_owned(),
-        schema:  SARIF_SCHEMA_URI.to_owned(),
-        runs:    vec![Run {
+        schema: SARIF_SCHEMA_URI.to_owned(),
+        runs: vec![Run {
             tool: Tool {
                 driver: Driver {
                     name: TOOL_NAME.to_owned(),
                     version: tool_version.to_owned(),
                     information_uri: TOOL_INFORMATION_URI.to_owned(),
-                    rules
-                }
+                    rules,
+                },
             },
-            results
-        }]
+            results,
+        }],
     }
 }
 
@@ -116,7 +116,7 @@ const fn level_of(severity: Severity) -> &'static str {
         Severity::Error => "error",
         Severity::Warning => "warning",
         Severity::Info => "note",
-        Severity::Hint => "none"
+        Severity::Hint => "none",
     }
 }
 
@@ -124,65 +124,65 @@ const fn level_of(severity: Severity) -> &'static str {
 struct SarifLog {
     version: String,
     #[serde(rename = "$schema")]
-    schema:  String,
-    runs:    Vec<Run>
+    schema: String,
+    runs: Vec<Run>,
 }
 
 #[derive(Serialize)]
 struct Run {
-    tool:    Tool,
-    results: Vec<SarifResult>
+    tool: Tool,
+    results: Vec<SarifResult>,
 }
 
 #[derive(Serialize)]
 struct Tool {
-    driver: Driver
+    driver: Driver,
 }
 
 #[derive(Serialize)]
 struct Driver {
-    name:            String,
-    version:         String,
+    name: String,
+    version: String,
     #[serde(rename = "informationUri")]
     information_uri: String,
-    rules:           Vec<RuleDescriptor>
+    rules: Vec<RuleDescriptor>,
 }
 
 #[derive(Serialize)]
 struct RuleDescriptor {
-    id:                String,
-    name:              String,
+    id: String,
+    name: String,
     #[serde(rename = "shortDescription")]
     short_description: MultiformatMessage,
     #[serde(rename = "helpUri")]
-    help_uri:          String
+    help_uri: String,
 }
 
 #[derive(Serialize)]
 struct SarifResult {
     #[serde(rename = "ruleId")]
-    rule_id:   String,
-    level:     &'static str,
-    message:   MultiformatMessage,
-    locations: Vec<SarifLocation>
+    rule_id: String,
+    level: &'static str,
+    message: MultiformatMessage,
+    locations: Vec<SarifLocation>,
 }
 
 #[derive(Serialize)]
 struct SarifLocation {
     #[serde(rename = "physicalLocation")]
-    physical_location: PhysicalLocation
+    physical_location: PhysicalLocation,
 }
 
 #[derive(Serialize)]
 struct PhysicalLocation {
     #[serde(rename = "artifactLocation")]
     artifact_location: ArtifactLocation,
-    region:            Region
+    region: Region,
 }
 
 #[derive(Serialize)]
 struct ArtifactLocation {
-    uri: String
+    uri: String,
 }
 
 #[derive(Serialize)]
@@ -190,12 +190,12 @@ struct Region {
     #[serde(rename = "byteOffset")]
     byte_offset: u32,
     #[serde(rename = "byteLength")]
-    byte_length: u32
+    byte_length: u32,
 }
 
 #[derive(Serialize)]
 struct MultiformatMessage {
-    text: String
+    text: String,
 }
 
 #[cfg(test)]
@@ -214,17 +214,14 @@ mod tests {
 
     fn fixture() -> Vec<Finding> {
         vec![Finding {
-            rule_id:       "RM-SEC-001".to_owned(),
-            severity:      Severity::Error,
-            location:      Location {
-                file:  PathBuf::from("src/lib.rs"),
-                range: Range {
-                    start: 10,
-                    end:   25
-                }
+            rule_id: "RM-SEC-001".to_owned(),
+            severity: Severity::Error,
+            location: Location {
+                file: PathBuf::from("src/lib.rs"),
+                range: Range { start: 10, end: 25 },
             },
-            message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
-            rationale_uri: "rustmanifest://methodology/security#creds".to_owned()
+            message: "Hardcoded credentials: matched at bytes 10..25".to_owned(),
+            rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
         }]
     }
 
