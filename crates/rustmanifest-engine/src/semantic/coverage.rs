@@ -43,8 +43,13 @@ pub struct Coverage {
     /// inline modules.
     pub modules_total:              u64,
     /// Distinct files that became at least one module reachable from a
-    /// crate root.
+    /// cargo-layout crate root (`src/lib.rs`, `src/main.rs`, `src/bin/*`,
+    /// `build.rs`, top-level `tests/`, `benches/`, `examples/`).
     pub files_reachable:            u64,
+    /// Distinct files claimed by no layout root and promoted to standalone
+    /// crate roots of their own (compile-test fixtures, broken `mod`
+    /// chains, lone reviewed files).
+    pub files_standalone:           u64,
     /// Structure definitions captured by the type graph.
     pub structs_captured:           u64,
     /// Named fields captured across all structures.
@@ -150,7 +155,16 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
     }
     let graph = ModuleGraph::from_sources(sources);
     let modules = graph.modules();
-    let reachable: BTreeSet<usize> = modules.iter().map(|module| module.source).collect();
+    let reachable: BTreeSet<usize> = modules
+        .iter()
+        .filter(|module| module.layout)
+        .map(|module| module.source)
+        .collect();
+    let standalone: BTreeSet<usize> = modules
+        .iter()
+        .filter(|module| !module.layout && !reachable.contains(&module.source))
+        .map(|module| module.source)
+        .collect();
     let mut use_targets_total = 0u64;
     let mut use_targets_resolved = 0u64;
     let mut use_targets_external = 0u64;
@@ -178,6 +192,7 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         files_parsed,
         modules_total: count(modules.len()),
         files_reachable: count(reachable.len()),
+        files_standalone: count(standalone.len()),
         structs_captured: count(types.types().len()),
         fields_captured,
         aggregation_edges_resolved: count(types.aggregation_edges().len()),
@@ -296,8 +311,9 @@ mod tests {
         ];
         let report = coverage(&sources);
         assert_eq!(report.files_total, 3);
-        assert_eq!(report.modules_total, 2);
+        assert_eq!(report.modules_total, 3);
         assert_eq!(report.files_reachable, 2);
+        assert_eq!(report.files_standalone, 1);
         assert!(close(report.reachability_rate(), 200.0 / 3.0));
     }
 
@@ -310,11 +326,12 @@ mod tests {
     }
 
     #[test]
-    fn fallback_roots_keep_lone_files_reachable() {
+    fn lone_files_become_standalone_roots() {
         let sources = [source("rules/one.rs", ""), source("rules/two.rs", "")];
         let report = coverage(&sources);
         assert_eq!(report.modules_total, 2);
-        assert_eq!(report.files_reachable, 2);
+        assert_eq!(report.files_reachable, 0);
+        assert_eq!(report.files_standalone, 2);
     }
 
     #[test]

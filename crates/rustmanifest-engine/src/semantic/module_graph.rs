@@ -11,13 +11,15 @@
 //! reachable module receives a path of the form `crate`, `crate::a`,
 //! `crate::a::b`.
 //!
-//! Crate roots are sources whose path ends in `src/lib.rs` or
-//! `src/main.rs`. Sources not reachable from any crate root — binaries
-//! under `src/bin/`, integration tests, files whose `mod` chain is broken —
-//! are not part of the graph and are therefore invisible to module-level
-//! checks. When the slice contains no crate root at all (a lone fixture
-//! file or a single reviewed file), every source becomes its own crate
-//! root, so single-file analysis still sees the file's inline module tree.
+//! Crate roots follow cargo's target layout: `src/lib.rs`, `src/main.rs`,
+//! `src/bin/*`, `build.rs`, and the top level of `tests/`, `benches/`,
+//! and `examples/` (flat files and `*/main.rs`). Every source still
+//! unclaimed after those roots are walked — compile-test fixtures, files
+//! with broken `mod` chains, lone reviewed files — becomes its own
+//! standalone root, marked `layout: false`, so no parsed file is invisible
+//! to module-level checks. A standalone file extracted before a later
+//! root claims it can appear under both crates; counters that deduplicate
+//! by source are unaffected.
 
 use std::{
     collections::HashMap,
@@ -47,6 +49,9 @@ pub(super) struct ModuleNode {
     pub(super) path:   String,
     /// Index of the source the module's items are written in.
     pub(super) source: usize,
+    /// Whether the crate root follows cargo's target layout; `false` for
+    /// standalone fallback roots.
+    pub(super) layout: bool,
     /// Expanded `use` targets in declaration order.
     pub(super) uses:   Vec<UseTarget>
 }
@@ -58,15 +63,13 @@ pub(super) struct ModuleGraph {
 }
 
 impl ModuleGraph {
-    /// Builds the graph by walking every crate root of `sources`; files
-    /// that do not parse as Rust contribute no modules.
+    /// Builds the graph by walking every layout crate root of `sources`,
+    /// then promoting each still-unclaimed source to a standalone root;
+    /// files that do not parse as Rust contribute no modules.
     pub(super) fn from_sources(sources: &[Source]) -> Self {
-        let mut roots: Vec<usize> = (0..sources.len())
+        let roots: Vec<usize> = (0..sources.len())
             .filter(|&index| is_crate_root(sources[index].path()))
             .collect();
-        if roots.is_empty() {
-            roots = (0..sources.len()).collect();
-        }
         let mut builder = GraphBuilder {
             sources,
             by_path: sources
@@ -74,14 +77,32 @@ impl ModuleGraph {
                 .enumerate()
                 .map(|(index, source)| (source.path(), index))
                 .collect(),
-            modules: Vec::new()
+            modules: Vec::new(),
+            layout: true
         };
-        for (krate, &root) in roots.iter().enumerate() {
+        let mut krate = 0;
+        for &root in &roots {
+            if builder.claimed(root) {
+                continue;
+            }
             let dir = sources[root]
                 .path()
                 .parent()
                 .map_or_else(PathBuf::new, Path::to_path_buf);
             builder.extract_file(krate, "crate".to_owned(), root, dir);
+            krate += 1;
+        }
+        builder.layout = false;
+        for (index, source) in sources.iter().enumerate() {
+            if builder.claimed(index) {
+                continue;
+            }
+            let dir = source
+                .path()
+                .parent()
+                .map_or_else(PathBuf::new, Path::to_path_buf);
+            builder.extract_file(krate, "crate".to_owned(), index, dir);
+            krate += 1;
         }
         Self {
             modules: builder.modules
@@ -94,10 +115,49 @@ impl ModuleGraph {
     }
 }
 
-/// Returns true when `path` names a crate root file (`src/lib.rs` or
-/// `src/main.rs`).
+/// Returns true when `path` names a crate root file of cargo's target
+/// layout: `src/lib.rs`, `src/main.rs`, `build.rs`, a file under
+/// `src/bin/`, or a flat file / `*/main.rs` at the top level of `tests/`,
+/// `benches/`, or `examples/`.
 fn is_crate_root(path: &Path) -> bool {
-    path.ends_with("src/lib.rs") || path.ends_with("src/main.rs")
+    const TARGET_DIRS: [&str; 3] = ["tests", "benches", "examples"];
+    if path.ends_with("src/lib.rs") || path.ends_with("src/main.rs") {
+        return true;
+    }
+    let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if name == "build.rs" {
+        return true;
+    }
+    let parent = parent_dir_name(path);
+    if parent == Some("bin") && dir_name_at(path, 2) == Some("src") {
+        return true;
+    }
+    if name == "main.rs"
+        && dir_name_at(path, 2) == Some("bin")
+        && dir_name_at(path, 3) == Some("src")
+    {
+        return true;
+    }
+    if parent.is_some_and(|dir| TARGET_DIRS.contains(&dir)) {
+        return true;
+    }
+    name == "main.rs" && dir_name_at(path, 2).is_some_and(|dir| TARGET_DIRS.contains(&dir))
+}
+
+/// Returns the name of the directory directly containing `path`.
+fn parent_dir_name(path: &Path) -> Option<&str> {
+    dir_name_at(path, 1)
+}
+
+/// Returns the name of the directory `levels` components above the file.
+fn dir_name_at(path: &Path, levels: usize) -> Option<&str> {
+    let mut current = path;
+    for _ in 0..levels {
+        current = current.parent()?;
+    }
+    current.file_name()?.to_str()
 }
 
 /// Mutable state shared by the recursive module walk.
@@ -107,7 +167,9 @@ struct GraphBuilder<'a> {
     /// Source index by file path, for `mod name;` resolution.
     by_path: HashMap<&'a Path, usize>,
     /// Modules collected so far, in discovery order.
-    modules: Vec<ModuleNode>
+    modules: Vec<ModuleNode>,
+    /// Whether modules recorded now belong to a layout crate root.
+    layout:  bool
 }
 
 /// Position of the module currently being extracted.
@@ -151,9 +213,15 @@ impl GraphBuilder<'_> {
             krate,
             path,
             source,
+            layout: self.layout,
             uses: Vec::new()
         });
         index
+    }
+
+    /// Returns whether the source at `index` is already part of a module.
+    fn claimed(&self, index: usize) -> bool {
+        self.modules.iter().any(|module| module.source == index)
     }
 
     /// Extracts `mod` declarations and `use` items of one module body.
@@ -332,14 +400,49 @@ mod tests {
     }
 
     #[test]
-    fn unreachable_file_is_ignored() {
+    fn unreachable_file_becomes_a_standalone_root() {
         let sources = [
             source("src/lib.rs", "mod util;"),
             source("src/util.rs", ""),
             source("src/orphan.rs", "use crate::util::Item;")
         ];
         let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(paths(&graph), vec!["crate", "crate::util"]);
+        assert_eq!(paths(&graph), vec!["crate", "crate::util", "crate"]);
+        assert!(graph.modules()[0].layout);
+        assert!(graph.modules()[1].layout);
+        assert!(!graph.modules()[2].layout);
+        assert_eq!(graph.modules()[2].krate, 1);
+    }
+
+    #[test]
+    fn cargo_target_layout_files_are_crate_roots() {
+        let sources = [
+            source("src/lib.rs", ""),
+            source("src/bin/tool.rs", ""),
+            source("src/bin/other/main.rs", ""),
+            source("build.rs", ""),
+            source("tests/integration.rs", "mod common;"),
+            source("tests/common.rs", ""),
+            source("tests/suite/main.rs", ""),
+            source("benches/throughput.rs", ""),
+            source("examples/demo.rs", "")
+        ];
+        let graph = ModuleGraph::from_sources(&sources);
+        assert!(graph.modules().iter().all(|module| module.layout));
+        assert_eq!(
+            paths(&graph),
+            vec![
+                "crate",
+                "crate",
+                "crate",
+                "crate",
+                "crate",
+                "crate::common",
+                "crate",
+                "crate",
+                "crate"
+            ]
+        );
     }
 
     #[test]

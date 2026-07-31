@@ -152,7 +152,11 @@ fn report_lines(report: &Coverage) -> Vec<String> {
         line(
             "modules mapped",
             &report.modules_total.to_string(),
-            &format!("(files reachable from crate roots: {reachable}  {reach_rate:.1}%)")
+            &format!(
+                "(files reachable from crate roots: {reachable}  {reach_rate:.1}%   standalone \
+                 roots: {standalone})",
+                standalone = report.files_standalone
+            )
         ),
         line(
             "structs captured",
@@ -202,6 +206,7 @@ mod tests {
             files_parsed:               318,
             modules_total:              212,
             files_reachable:            296,
+            files_standalone:           22,
             structs_captured:           509,
             fields_captured:            2140,
             aggregation_edges_resolved: 87,
@@ -217,7 +222,8 @@ mod tests {
         assert_eq!(lines[0], "files parsed        318/318   100.0%");
         assert_eq!(
             lines[1],
-            "modules mapped      212       (files reachable from crate roots: 296/318  93.1%)"
+            "modules mapped      212       (files reachable from crate roots: 296/318  93.1%   \
+             standalone roots: 22)"
         );
         assert_eq!(
             lines[2],
