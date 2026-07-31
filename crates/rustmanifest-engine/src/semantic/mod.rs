@@ -6,10 +6,15 @@
 //! Unlike tiers 1 and 2, which inspect one file at a time, this tier builds
 //! a [`TypeGraph`] across every analyzed source and evaluates checks that
 //! need relationships between definitions: which structure aggregates which,
-//! which field groups repeat, what a field's type refers to.
+//! which field groups repeat, what a field's type refers to. Checks that
+//! reason about modules rather than types build a module graph from the
+//! same source slice — crate roots, `mod` resolution, and per-module `use`
+//! targets.
 
 mod field_group;
 mod graph;
+mod module_cycle;
+mod module_graph;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
 use tracing::trace;
@@ -46,7 +51,9 @@ impl Insight {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Check {
     /// `repeated-field-group` — identical field groups across structures.
-    RepeatedFieldGroup
+    RepeatedFieldGroup,
+    /// `module-cycles` — cycles in the module dependency graph.
+    ModuleCycles
 }
 
 impl Check {
@@ -54,14 +61,16 @@ impl Check {
     fn resolved(name: &str) -> Option<Self> {
         match name {
             "repeated-field-group" => Some(Self::RepeatedFieldGroup),
+            "module-cycles" => Some(Self::ModuleCycles),
             _ => None
         }
     }
 
-    /// Runs the check over the workspace type graph.
-    fn insights(self, graph: &TypeGraph) -> Vec<Insight> {
+    /// Runs the check over the workspace sources and their type graph.
+    fn insights(self, sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
         match self {
-            Self::RepeatedFieldGroup => field_group::insights(graph)
+            Self::RepeatedFieldGroup => field_group::insights(graph),
+            Self::ModuleCycles => module_cycle::insights(sources)
         }
     }
 }
@@ -108,7 +117,7 @@ impl SemanticAnalyzer {
     pub fn analyze(&self, sources: &[Source]) -> Vec<Finding> {
         let graph = TypeGraph::from_sources(sources);
         let mut findings = Vec::new();
-        for insight in self.check.insights(&graph) {
+        for insight in self.check.insights(sources, &graph) {
             let Some(source) = sources.get(insight.source) else {
                 continue;
             };

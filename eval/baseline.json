@@ -30,14 +30,15 @@
         "RM-STRUCT-006": 3,
         "RM-STRUCT-007": 23,
         "RM-STRUCT-008": 11,
-        "RM-STRUCT-010": 16
+        "RM-STRUCT-010": 16,
+        "RM-STRUCT-011": 4
       }
     },
     {
       "name": "hydebar",
       "pinned-rev": "1774c8decf370b9c3475ebae714b981f34ceebc5",
       "files": 318,
-      "rust-lines": 70288,
+      "rust-lines": 70397,
       "findings": {
         "RM-STRUCT-001": 6,
         "RM-STRUCT-002": 54,
@@ -47,7 +48,8 @@
         "RM-STRUCT-006": 7,
         "RM-STRUCT-007": 14,
         "RM-STRUCT-008": 39,
-        "RM-STRUCT-010": 39
+        "RM-STRUCT-010": 39,
+        "RM-STRUCT-011": 8
       }
     },
     {
@@ -64,7 +66,8 @@
         "RM-STRUCT-006": 2,
         "RM-STRUCT-007": 5,
         "RM-STRUCT-008": 1,
-        "RM-STRUCT-010": 17
+        "RM-STRUCT-010": 17,
+        "RM-STRUCT-011": 4
       }
     }
   ]
