@@ -17,6 +17,11 @@ keywords = ["rust", "config", "toml"]
 
 [dependencies]
 rustmanifest-schema = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

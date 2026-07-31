@@ -8,6 +8,7 @@
 //! spawning a child process.
 
 use std::{
+    collections::HashMap,
     io::{IsTerminal, Write},
     path::PathBuf,
     process::ExitCode
@@ -15,12 +16,14 @@ use std::{
 
 use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
+use globset::{Glob, GlobSet, GlobSetBuilder};
+use rustmanifest_config::Effective;
 use rustmanifest_engine::{
     AstAnalyzer, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
 };
 use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
-use rustmanifest_rules_core::RULES;
-use rustmanifest_schema::{Finding, RuleDefinition, Severity};
+use rustmanifest_rules_core::{RULES, methodology};
+use rustmanifest_schema::{Finding, Rule, RuleDefinition, Severity};
 use tracing::info;
 
 /// Default exit code: no findings at or above the requested severity.
@@ -51,7 +54,9 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Run the analysis engine across one or more paths.
-    Check(CheckArgs)
+    Check(CheckArgs),
+    /// Print the rationale and methodology excerpt for a rule.
+    Explain(ExplainArgs)
 }
 
 /// Arguments for the `check` subcommand.
@@ -75,7 +80,19 @@ pub struct CheckArgs {
 
     /// Per-file memory budget in bytes.
     #[arg(long, default_value_t = rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES)]
-    pub max_file_size: u64
+    pub max_file_size: u64,
+
+    /// Path to a `rustmanifest.toml` configuration file. Defaults to
+    /// `rustmanifest.toml` in the current directory when present.
+    #[arg(long)]
+    pub config: Option<PathBuf>
+}
+
+/// Arguments for the `explain` subcommand.
+#[derive(Debug, Parser)]
+pub struct ExplainArgs {
+    /// Rule identifier to explain, e.g. `RM-SEC-001`.
+    pub rule_id: String
 }
 
 /// Output format options.
@@ -115,13 +132,42 @@ impl SeverityFilter {
     }
 
     const fn admits(self, severity: Severity) -> bool {
-        let severity_level: u8 = match severity {
-            Severity::Error => 3,
-            Severity::Warning => 2,
-            Severity::Info => 1,
-            Severity::Hint => 0
-        };
-        severity_level >= self.level()
+        severity_rank(severity) >= self.level()
+    }
+}
+
+/// Numeric rank of a severity; higher means more severe.
+const fn severity_rank(severity: Severity) -> u8 {
+    match severity {
+        Severity::Error => 3,
+        Severity::Warning => 2,
+        Severity::Info => 1,
+        Severity::Hint => 0
+    }
+}
+
+/// Lowercase wire name of a severity, matching the serialized form.
+const fn severity_name(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+        Severity::Info => "info",
+        Severity::Hint => "hint"
+    }
+}
+
+/// Human-readable name of the analysis tier a rule definition belongs to.
+const fn tier_name(definition: &RuleDefinition) -> &'static str {
+    match definition {
+        RuleDefinition::Pattern {
+            ..
+        } => "pattern",
+        RuleDefinition::Ast {
+            ..
+        } => "ast",
+        RuleDefinition::Semantic {
+            ..
+        } => "semantic"
     }
 }
 
@@ -133,7 +179,8 @@ impl SeverityFilter {
 pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     init_tracing(cli.verbose);
     match cli.command {
-        Command::Check(args) => run_check(&args)
+        Command::Check(args) => run_check(&args),
+        Command::Explain(args) => run_explain(&args)
     }
 }
 
@@ -153,8 +200,18 @@ fn init_tracing(verbose: u8) {
 }
 
 fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
-    let analyzers: Vec<Box<dyn rustmanifest_engine::Analyzer>> = RULES
+    let config =
+        rustmanifest_config::load(args.config.as_deref()).context("loading configuration")?;
+    let effective = Effective::from_config(config).context("resolving configuration profile")?;
+
+    let enabled: Vec<&Rule> = RULES
         .iter()
+        .filter(|rule| effective.rule_enabled(rule))
+        .collect();
+
+    let analyzers: Vec<Box<dyn rustmanifest_engine::Analyzer>> = enabled
+        .iter()
+        .copied()
         .filter_map(|rule| match rule.definition {
             RuleDefinition::Pattern {
                 ..
@@ -175,8 +232,9 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
         .collect::<Result<Vec<_>, _>>()
         .context("building analyzers from bundled rules")?;
 
-    let semantic: Vec<SemanticAnalyzer> = RULES
+    let semantic: Vec<SemanticAnalyzer> = enabled
         .iter()
+        .copied()
         .filter(|rule| matches!(rule.definition, RuleDefinition::Semantic { .. }))
         .map(|rule| SemanticAnalyzer::new(rule.clone()))
         .collect::<Result<Vec<_>, _>>()
@@ -193,20 +251,93 @@ fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
         .max_file_bytes(args.max_file_size)
         .build();
 
-    let files = walker::discover(&args.paths).context("file discovery failed")?;
+    let discovered = walker::discover(&args.paths).context("file discovery failed")?;
+    let files = apply_globs(discovered, &effective)?;
     let mut findings = orchestrator
         .run(&files)
         .context("orchestrator run failed")?;
     findings.extend(semantic_findings(&semantic, &files, args.max_file_size));
+    apply_severity_overrides(&mut findings, &effective);
     findings.retain(|finding| args.severity_filter.admits(finding.severity));
 
     render(&findings, args.format, args.no_color)?;
 
-    if findings.is_empty() {
-        Ok(ExitCode::from(EXIT_CLEAN))
-    } else {
+    let threshold = severity_rank(effective.exit_threshold());
+    let exit_relevant = findings
+        .iter()
+        .any(|finding| severity_rank(finding.severity) >= threshold);
+    if exit_relevant {
         Ok(ExitCode::from(EXIT_FINDINGS))
+    } else {
+        Ok(ExitCode::from(EXIT_CLEAN))
     }
+}
+
+/// Applies the configuration's include and exclude globs to the discovered
+/// file list. Paths are matched as discovered; an empty include list keeps
+/// every file.
+fn apply_globs(files: Vec<PathBuf>, effective: &Effective) -> anyhow::Result<Vec<PathBuf>> {
+    let include = build_globset(effective.include()).context("compiling include globs")?;
+    let exclude = build_globset(effective.exclude()).context("compiling exclude globs")?;
+    Ok(files
+        .into_iter()
+        .filter(|path| include.as_ref().is_none_or(|set| set.is_match(path)))
+        .filter(|path| exclude.as_ref().is_none_or(|set| !set.is_match(path)))
+        .collect())
+}
+
+/// Compiles glob patterns into a single matcher; `None` when no patterns are
+/// configured.
+fn build_globset(patterns: &[String]) -> anyhow::Result<Option<GlobSet>> {
+    if patterns.is_empty() {
+        return Ok(None);
+    }
+    let mut builder = GlobSetBuilder::new();
+    for pattern in patterns {
+        let glob =
+            Glob::new(pattern).with_context(|| format!("invalid glob pattern {pattern:?}"))?;
+        builder.add(glob);
+    }
+    Ok(Some(builder.build().context("building glob set")?))
+}
+
+/// Rewrites each finding's severity to the effective severity of its rule.
+fn apply_severity_overrides(findings: &mut [Finding], effective: &Effective) {
+    let severities: HashMap<&str, Severity> = RULES
+        .iter()
+        .map(|rule| (rule.id.as_str(), effective.severity_for(rule)))
+        .collect();
+    for finding in findings {
+        if let Some(severity) = severities.get(finding.rule_id.as_str()) {
+            finding.severity = *severity;
+        }
+    }
+}
+
+/// Prints the rationale for one rule: identity, severity, tier, and the
+/// methodology excerpt referenced by its rationale URI.
+fn run_explain(args: &ExplainArgs) -> anyhow::Result<ExitCode> {
+    let Some(rule) = RULES.iter().find(|rule| rule.id == args.rule_id) else {
+        let known: Vec<&str> = RULES.iter().map(|rule| rule.id.as_str()).collect();
+        anyhow::bail!(
+            "unknown rule id {:?}; known rules: {}",
+            args.rule_id,
+            known.join(", ")
+        );
+    };
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+    writeln!(handle, "{} — {}", rule.id, rule.title).context("writing explain output")?;
+    writeln!(handle, "severity: {}", severity_name(rule.severity))
+        .context("writing explain output")?;
+    writeln!(handle, "tier: {}", tier_name(&rule.definition)).context("writing explain output")?;
+    writeln!(handle, "rationale: {}", rule.rationale_uri).context("writing explain output")?;
+    if let Some(excerpt) = methodology::rationale_excerpt(&rule.rationale_uri) {
+        writeln!(handle).context("writing explain output")?;
+        writeln!(handle, "{excerpt}").context("writing explain output")?;
+    }
+    handle.flush().context("flushing stdout")?;
+    Ok(ExitCode::from(EXIT_CLEAN))
 }
 
 /// Runs the workspace-level semantic tier over every readable Rust source

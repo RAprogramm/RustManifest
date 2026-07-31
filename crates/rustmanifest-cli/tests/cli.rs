@@ -110,6 +110,116 @@ fn sarif_output_is_well_formed() {
 }
 
 #[test]
+fn explain_known_rule_prints_title_and_uri() {
+    rustmanifest()
+        .arg("explain")
+        .arg("RM-SEC-001")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("RM-SEC-001"))
+        .stdout(predicate::str::contains("Hardcoded credentials"))
+        .stdout(predicate::str::contains(
+            "rustmanifest://methodology/security-vulnerabilities"
+        ));
+}
+
+#[test]
+fn explain_unknown_rule_exits_two_and_lists_known_ids() {
+    let assert = rustmanifest()
+        .arg("explain")
+        .arg("RM-NOPE-999")
+        .assert()
+        .failure()
+        .code(2);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("RM-SEC-001"),
+        "expected known rule ids in error output, got: {stderr}"
+    );
+}
+
+#[test]
+fn config_override_changes_finding_severity_in_json() {
+    let tree = make_tree(&[
+        ("src/dirty.rs", "let password = \"hunter2\";\n"),
+        (
+            "rustmanifest.toml",
+            "[[overrides]]\nrule-id = \"RM-SEC-001\"\nseverity = \"warning\"\n"
+        )
+    ]);
+    let assert = rustmanifest()
+        .arg("check")
+        .arg(tree.path().join("src"))
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .failure()
+        .code(1);
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let findings: serde_json::Value =
+        serde_json::from_str(&stdout).expect("JSON output must parse");
+    let overridden = findings
+        .as_array()
+        .expect("JSON output must be an array")
+        .iter()
+        .find(|finding| finding["rule-id"] == "RM-SEC-001")
+        .expect("RM-SEC-001 finding must be present");
+    assert_eq!(overridden["severity"], "warning");
+}
+
+#[test]
+fn config_exclude_glob_removes_findings() {
+    let tree = make_tree(&[
+        ("src/dirty.rs", "let password = \"hunter2\";\n"),
+        ("rustmanifest.toml", "exclude = [\"**/dirty.rs\"]\n")
+    ]);
+    rustmanifest()
+        .arg("check")
+        .arg(tree.path().join("src"))
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .success();
+}
+
+#[test]
+fn config_minimal_profile_skips_non_error_rules() {
+    let tree = make_tree(&[
+        ("src/vec.rs", "let v: Vec<u8> = Vec::new();\n"),
+        ("rustmanifest.toml", "profile = \"minimal\"\n")
+    ]);
+    rustmanifest()
+        .arg("check")
+        .arg(tree.path().join("src"))
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .success();
+}
+
+#[test]
+fn config_unknown_profile_exits_two() {
+    let tree = make_tree(&[
+        ("src/clean.rs", "fn main() {}\n"),
+        ("rustmanifest.toml", "profile = \"paranoid\"\n")
+    ]);
+    rustmanifest()
+        .arg("check")
+        .arg(tree.path().join("src"))
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .assert()
+        .failure()
+        .code(2);
+}
+
+#[test]
 fn pragma_suppresses_finding() {
     let tree = make_tree(&[(
         "src/suppressed.rs",
