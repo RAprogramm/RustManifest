@@ -53,6 +53,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         function.sig.ident.to_string(),
                         None,
                         false,
+                        is_test(&function.attrs),
                         &function.sig,
                         &function.block
                     ));
@@ -71,6 +72,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             format!("{type_name}::{}", method.sig.ident),
                             Some(&type_name),
                             trait_impl,
+                            is_test(&method.attrs),
                             &method.sig,
                             &method.block
                         ));
@@ -83,12 +85,24 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
     facts
 }
 
+/// Returns whether any attribute's last path segment is `test`, covering
+/// `#[test]` and `#[tokio::test]`-style harness attributes.
+fn is_test(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path()
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "test")
+    })
+}
+
 /// Extracts the facts of one function body against its signature.
 fn function_facts(
     source: usize,
     function: String,
     impl_type: Option<&str>,
     trait_impl: bool,
+    test: bool,
     signature: &syn::Signature,
     block: &syn::Block
 ) -> FunctionFacts {
@@ -109,6 +123,7 @@ fn function_facts(
             effects: Vec::new(),
             params,
             trait_impl,
+            test,
             calls: Vec::new(),
             clones: 0,
             allocations: 0

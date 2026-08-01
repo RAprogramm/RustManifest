@@ -42,6 +42,7 @@
       "files": 318,
       "rust-lines": 70288,
       "findings": {
+        "RM-QUAL-001": 2,
         "RM-STRUCT-001": 6,
         "RM-STRUCT-002": 54,
         "RM-STRUCT-003": 57,

@@ -104,6 +104,8 @@ pub struct FunctionFacts {
     /// Whether the function is a method of a trait impl, where the
     /// signature is dictated by the trait.
     pub trait_impl:  bool,
+    /// Whether the function carries a `#[test]`-family attribute.
+    pub test:        bool,
     /// Call candidates observed in the body, normalized: `name` for a
     /// free-function call, `Type::method` for associated and resolved
     /// method calls, `?::method` when the receiver's type is unknown.

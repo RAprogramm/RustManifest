@@ -26,6 +26,7 @@ mod loops;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
+mod naming;
 mod ownership;
 mod role;
 mod std_knowledge;
@@ -67,7 +68,10 @@ enum Check {
     LoopInvariantClone,
     /// `loop-allocation` — fresh container allocations repeated every
     /// iteration although the value never escapes the iteration.
-    LoopAllocation
+    LoopAllocation,
+    /// `deceptive-name` — read-named functions that write state or touch
+    /// the outside world.
+    DeceptiveName
 }
 
 impl Check {
@@ -80,6 +84,7 @@ impl Check {
             "borrowable-params" => Some(Self::BorrowableParams),
             "loop-invariant-clone" => Some(Self::LoopInvariantClone),
             "loop-allocation" => Some(Self::LoopAllocation),
+            "deceptive-name" => Some(Self::DeceptiveName),
             _ => None
         }
     }
@@ -92,7 +97,8 @@ impl Check {
             Self::StructureSize => composition::insights(graph),
             Self::BorrowableParams => ownership::insights(sources, graph),
             Self::LoopInvariantClone => loops::clone_insights(sources),
-            Self::LoopAllocation => loops::allocation_insights(sources)
+            Self::LoopAllocation => loops::allocation_insights(sources),
+            Self::DeceptiveName => naming::insights(sources)
         }
     }
 }
