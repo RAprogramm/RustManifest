@@ -34,7 +34,7 @@ const LIE_EFFECTS: [Effect; 2] = [Effect::Process, Effect::ConsoleIo];
 pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
     let mut found = Vec::new();
     for fact in behavior(sources) {
-        if fact.trait_impl || fact.test {
+        if fact.flags.trait_impl() || fact.flags.test() {
             continue;
         }
         let Some(verb) = read_promise(&fact) else {

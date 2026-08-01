@@ -42,7 +42,7 @@ pub fn fact_json(
         "calls": entry.calls,
         "clones": entry.clones,
         "allocations": entry.allocations,
-        "test": entry.test,
+        "test": entry.flags.test(),
         "role": role(entry).to_string()
     });
     if with_features && let serde_json::Value::Object(fields) = &mut object {

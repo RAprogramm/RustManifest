@@ -16,6 +16,7 @@ mod borrow_fix;
 mod calls;
 mod composition;
 mod coverage;
+mod dead;
 mod doc_synth;
 mod doc_truth;
 mod docs;
@@ -41,7 +42,7 @@ use tracing::trace;
 
 use self::insight::Insight;
 pub use self::{
-    behavior::{Effect, FunctionFacts, ParamFacts, ParamMode, behavior},
+    behavior::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode, behavior},
     calls::{CallGraph, call_graph, transitive_effects},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
@@ -84,7 +85,9 @@ enum Check {
     DeceptiveDoc,
     /// `orphan-file` — files reachable from no crate root, with a
     /// plausible forgotten `mod` mount point.
-    OrphanFile
+    OrphanFile,
+    /// `dead-function` — private functions no call ever mentions.
+    DeadFunction
 }
 
 impl Check {
@@ -100,6 +103,7 @@ impl Check {
             "deceptive-name" => Some(Self::DeceptiveName),
             "deceptive-doc" => Some(Self::DeceptiveDoc),
             "orphan-file" => Some(Self::OrphanFile),
+            "dead-function" => Some(Self::DeadFunction),
             _ => None
         }
     }
@@ -115,7 +119,8 @@ impl Check {
             Self::LoopAllocation => loops::allocation_insights(sources),
             Self::DeceptiveName => naming::insights(sources),
             Self::DeceptiveDoc => doc_truth::insights(sources),
-            Self::OrphanFile => orphan::insights(sources)
+            Self::OrphanFile => orphan::insights(sources),
+            Self::DeadFunction => dead::insights(sources)
         }
     }
 }

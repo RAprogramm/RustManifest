@@ -35,7 +35,7 @@ pub fn features(facts: &FunctionFacts) -> Vec<Feature> {
     let owner = facts.function.split_once("::").map(|(owner, _)| owner);
     let mut out = Vec::with_capacity(37);
     out.push(feature("is-method", owner.is_some()));
-    out.push(feature("is-trait-impl", facts.trait_impl));
+    out.push(feature("is-trait-impl", facts.flags.trait_impl()));
     out.push(feature("returns-result", !facts.error_types.is_empty()));
     out.push(feature("constructs-types", !facts.constructs.is_empty()));
     for (name, effect) in [

@@ -39,7 +39,7 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
         let Some(fact) = behaviors.iter().find(|fact| fact.function == doc.function) else {
             continue;
         };
-        if fact.trait_impl || fact.test || builder_convention(&doc.function) {
+        if fact.flags.trait_impl() || fact.flags.test() || builder_convention(&doc.function) {
             continue;
         }
         let writes: Vec<&str> = fact

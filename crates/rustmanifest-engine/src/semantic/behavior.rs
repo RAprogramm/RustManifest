@@ -26,7 +26,7 @@ mod types;
 use rustmanifest_schema::Range;
 use syn::visit::Visit;
 
-pub use self::types::{Effect, FunctionFacts, ParamFacts, ParamMode};
+pub use self::types::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode};
 use self::{
     collector::FactCollector,
     signature::{error_types, param_facts, parameter_types}
@@ -52,10 +52,13 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         index,
                         function.sig.ident.to_string(),
                         &ItemContext {
-                            impl_type:  None,
-                            trait_impl: false,
-                            test:       is_test(&function.attrs),
-                            public:     matches!(function.vis, syn::Visibility::Public(_))
+                            impl_type: None,
+                            flags:     item_flags(
+                                false,
+                                &function.attrs,
+                                matches!(function.vis, syn::Visibility::Public(_)),
+                                false
+                            )
                         },
                         &function.sig,
                         &function.block
@@ -66,6 +69,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         continue;
                     };
                     let trait_impl = block.trait_.is_some();
+                    let impl_attributed = is_attributed(&block.attrs);
                     for impl_item in &block.items {
                         let syn::ImplItem::Fn(method) = impl_item else {
                             continue;
@@ -75,9 +79,12 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             format!("{type_name}::{}", method.sig.ident),
                             &ItemContext {
                                 impl_type: Some(&type_name),
-                                trait_impl,
-                                test: is_test(&method.attrs),
-                                public: matches!(method.vis, syn::Visibility::Public(_))
+                                flags:     item_flags(
+                                    trait_impl,
+                                    &method.attrs,
+                                    matches!(method.vis, syn::Visibility::Public(_)),
+                                    impl_attributed
+                                )
                             },
                             &method.sig,
                             &method.block
@@ -105,13 +112,46 @@ fn is_test(attrs: &[syn::Attribute]) -> bool {
 /// Declaration context of one item: where it sits and what it declares.
 struct ItemContext<'name> {
     /// Impl self type for methods, `None` for free functions.
-    impl_type:  Option<&'name str>,
-    /// Whether the item belongs to a trait impl.
+    impl_type: Option<&'name str>,
+    /// Declaration flags of the item.
+    flags:     FunctionFlags
+}
+
+/// Packs declaration flags from the trait context, attributes, and
+/// visibility.
+fn item_flags(
     trait_impl: bool,
-    /// Whether the item carries a `#[test]`-family attribute.
-    test:       bool,
-    /// Whether the item is declared `pub` in any form.
-    public:     bool
+    attrs: &[syn::Attribute],
+    public: bool,
+    inherited_attr: bool
+) -> FunctionFlags {
+    let mut bits = 0u8;
+    if trait_impl {
+        bits |= FunctionFlags::TRAIT_IMPL;
+    }
+    if is_test(attrs) {
+        bits |= FunctionFlags::TEST;
+    }
+    if public {
+        bits |= FunctionFlags::PUBLIC;
+    }
+    if inherited_attr || is_attributed(attrs) {
+        bits |= FunctionFlags::ATTRIBUTED;
+    }
+    FunctionFlags::from_bits(bits)
+}
+
+/// Returns whether any attribute is neither a doc comment nor a `test`
+/// harness marker.
+fn is_attributed(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        let last = attr
+            .path()
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string());
+        !matches!(last.as_deref(), Some("doc" | "test"))
+    })
 }
 
 /// Extracts the facts of one function body against its signature.
@@ -138,9 +178,7 @@ fn function_facts(
             error_types: Vec::new(),
             effects: Vec::new(),
             params,
-            trait_impl: context.trait_impl,
-            test: context.test,
-            public: context.public,
+            flags: context.flags,
             calls: Vec::new(),
             clones: 0,
             allocations: 0

@@ -22,6 +22,7 @@ rayon = { workspace = true }
 proc-macro2 = { workspace = true }
 regex = { workspace = true }
 rustmanifest-rules-core = { workspace = true }
+quote = { workspace = true }
 syn = { workspace = true }
 rustmanifest-schema = { workspace = true }
 serde_json = { workspace = true }

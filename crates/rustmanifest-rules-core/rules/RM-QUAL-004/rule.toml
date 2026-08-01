@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-QUAL-004"
+severity = "warning"
+title = "Private function never mentioned"
+rationale-uri = "rustmanifest://methodology/code-quality"
+
+[definition.semantic]
+check = "dead-function"

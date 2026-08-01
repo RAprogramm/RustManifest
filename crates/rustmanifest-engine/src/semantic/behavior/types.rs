@@ -77,6 +77,54 @@ impl fmt::Display for ParamMode {
     }
 }
 
+/// Declaration flags of one function, packed to stay a single value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FunctionFlags(u8);
+
+impl FunctionFlags {
+    /// Bit marking a trait-impl method.
+    pub const TRAIT_IMPL: u8 = 1;
+    /// Bit marking a `#[test]`-family function.
+    pub const TEST: u8 = 1 << 1;
+    /// Bit marking external `pub` visibility.
+    pub const PUBLIC: u8 = 1 << 2;
+    /// Bit marking a non-doc, non-test attribute.
+    pub const ATTRIBUTED: u8 = 1 << 3;
+
+    /// Builds the flag set from `Self::*` bit constants or-ed together.
+    #[must_use]
+    pub const fn from_bits(bits: u8) -> Self {
+        Self(bits)
+    }
+
+    /// Whether the function is a method of a trait impl, where the
+    /// signature is dictated by the trait.
+    #[must_use]
+    pub const fn trait_impl(self) -> bool {
+        self.0 & Self::TRAIT_IMPL != 0
+    }
+
+    /// Whether the function carries a `#[test]`-family attribute.
+    #[must_use]
+    pub const fn test(self) -> bool {
+        self.0 & Self::TEST != 0
+    }
+
+    /// Whether the function is visible outside the crate (plain `pub`);
+    /// restricted forms like `pub(crate)` stay `false`.
+    #[must_use]
+    pub const fn public(self) -> bool {
+        self.0 & Self::PUBLIC != 0
+    }
+
+    /// Whether the function carries any attribute besides docs and the
+    /// `test` family — an attribute can mean an external entry point.
+    #[must_use]
+    pub const fn attributed(self) -> bool {
+        self.0 & Self::ATTRIBUTED != 0
+    }
+}
+
 /// Behavioral facts of one function or method.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFacts {
@@ -101,14 +149,9 @@ pub struct FunctionFacts {
     pub effects:     Vec<Effect>,
     /// Ownership profile of each parameter, in declaration order.
     pub params:      Vec<ParamFacts>,
-    /// Whether the function is a method of a trait impl, where the
-    /// signature is dictated by the trait.
-    pub trait_impl:  bool,
-    /// Whether the function carries a `#[test]`-family attribute.
-    pub test:        bool,
-    /// Whether the function is visible outside the crate (plain `pub`);
-    /// restricted forms like `pub(crate)` stay `false`.
-    pub public:      bool,
+    /// Declaration flags: trait-impl membership, test marker, external
+    /// visibility, extra attributes.
+    pub flags:       FunctionFlags,
     /// Call candidates observed in the body, normalized: `name` for a
     /// free-function call, `Type::method` for associated and resolved
     /// method calls, `?::method` when the receiver's type is unknown.

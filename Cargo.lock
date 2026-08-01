@@ -1129,6 +1129,7 @@ dependencies = [
  "ignore",
  "insta",
  "proc-macro2",
+ "quote",
  "rayon",
  "regex",
  "rustmanifest-rules-core",

@@ -24,7 +24,7 @@ use crate::source::Source;
 pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
     let mut found = Vec::new();
     for fact in super::behavior::behavior(sources) {
-        if fact.trait_impl || consuming_by_convention(&fact.function) {
+        if fact.flags.trait_impl() || consuming_by_convention(&fact.function) {
             continue;
         }
         let candidates: Vec<(&str, &str)> = fact
@@ -68,7 +68,12 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
             });
         }
         let fixes = if let [(param_name, _)] = candidates.as_slice() {
-            super::borrow_fix::borrow_fixes(sources, &fact.function, param_name, fact.public)
+            super::borrow_fix::borrow_fixes(
+                sources,
+                &fact.function,
+                param_name,
+                fact.flags.public()
+            )
         } else {
             Vec::new()
         };
