@@ -14,14 +14,23 @@
 //! accessor-style tails); and consuming-by-convention methods (`into_*`)
 //! are exempt entirely.
 
+use std::collections::BTreeMap;
+
 use rustmanifest_schema::TraceStep;
 
-use super::{TypeGraph, behavior::ParamMode, insight::Insight, std_knowledge::is_copy_type};
+use super::{
+    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes,
+    std_knowledge::is_copy_type
+};
 use crate::source::Source;
 
 /// Reports owned parameters that could be shared borrows, one insight per
 /// function with at least one such parameter.
 pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
+    let weights: BTreeMap<String, (Option<u64>, u32)> = shapes(sources)
+        .into_iter()
+        .map(|shape| (shape.name, (shape.payload, shape.indirections)))
+        .collect();
     let mut found = Vec::new();
     for fact in super::behavior::behavior(sources) {
         if fact.flags.trait_impl() || consuming_by_convention(&fact.function) {
@@ -47,9 +56,27 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
             .map(|(name, type_name)| format!("`{name}: {type_name}`"))
             .collect::<Vec<_>>()
             .join(", ");
+        let priced: Vec<(u64, u32)> = candidates
+            .iter()
+            .filter_map(|(_, type_name)| {
+                weights
+                    .get(*type_name)
+                    .map(|(payload, indirections)| (payload.unwrap_or(0), *indirections))
+            })
+            .collect();
+        let copied_bytes: u64 = priced.iter().map(|(payload, _)| payload).sum();
+        let dragged_heaps: u32 = priced.iter().map(|(_, indirections)| indirections).sum();
+        let price = if copied_bytes > 0 || dragged_heaps > 0 {
+            format!(
+                "; the by-value pass provably moves at least {copied_bytes} bytes and {dragged_heaps} \
+                 heap header(s) per call"
+            )
+        } else {
+            String::new()
+        };
         let detail = format!(
             "fn `{}` takes {listed} by value but only reads fields; take a shared reference \
-             instead so callers keep ownership",
+             instead so callers keep ownership{price}",
             fact.function
         );
         let mut trace = Vec::new();
@@ -66,6 +93,15 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
                 fact:   format!("`{type_name}` is a workspace type without `Copy`"),
                 reason: "derives and impls in the type graph show no Copy".to_owned()
             });
+            if let Some((Some(payload), indirections)) = weights.get(*type_name) {
+                trace.push(TraceStep {
+                    fact:   format!(
+                        "`{type_name}` weighs {payload} guaranteed field byte(s) and \
+                         {indirections} heap header(s)"
+                    ),
+                    reason: "memory-shape facts derived from the definition".to_owned()
+                });
+            }
         }
         let fixes = if let [(param_name, _)] = candidates.as_slice() {
             super::borrow_fix::borrow_fixes(
@@ -140,6 +176,24 @@ mod tests {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let graph = TypeGraph::from_sources(&sources);
         insights(&sources, &graph).len()
+    }
+
+    #[test]
+    fn the_deviation_price_is_stated_in_bytes_and_heap_headers() {
+        let sources = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "struct Report { name: String, total: u64 }\nfn summarize(report: Report) -> u64 { \
+             report.total }"
+                .to_owned()
+        )];
+        let graph = TypeGraph::from_sources(&sources);
+        let all = insights(&sources, &graph);
+        assert_eq!(all.len(), 1);
+        assert!(
+            all[0]
+                .detail
+                .contains("moves at least 32 bytes and 1 heap header(s) per call")
+        );
     }
 
     #[test]
@@ -229,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn trace_explains_all_three_conditions() {
+    fn trace_explains_every_condition_and_the_price() {
         let sources = [Source::new(
             PathBuf::from("src/lib.rs"),
             "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { report.total }"
@@ -237,7 +291,8 @@ mod tests {
         )];
         let graph = TypeGraph::from_sources(&sources);
         let insights = insights(&sources, &graph);
-        assert_eq!(insights[0].trace.len(), 3);
+        assert_eq!(insights[0].trace.len(), 4);
         assert!(insights[0].trace[2].fact.contains("without `Copy`"));
+        assert!(insights[0].trace[3].fact.contains("weighs 8 guaranteed field byte(s)"));
     }
 }
