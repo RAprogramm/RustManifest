@@ -147,7 +147,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Placeholder for mcp-validator suite
-        run: |
-          echo "MCP conformance suite is scaffolded; the server lands in Phase 2."
-          echo "This job exists so the gate is wired today and only the body changes later."
+      - name: Show toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: mcp-conformance
+      - name: Scripted stdio conformance suite
+        run: cargo test --package rustmanifest-mcp --test stdio_conformance --locked
