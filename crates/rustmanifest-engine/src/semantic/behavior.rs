@@ -605,6 +605,18 @@ mod tests {
     }
 
     #[test]
+    fn sql_macros_split_into_read_and_write_effects() {
+        let all = facts(
+            "fn load() { let row = query_as!(Row, \"SELECT id FROM users\"); }\nfn save() { \
+             query!(\"INSERT INTO users (id) VALUES ($1)\", 1); }\nfn opaque() { \
+             query!(dynamic_sql); }"
+        );
+        assert_eq!(named(&all, "load").effects, vec![Effect::DatabaseRead]);
+        assert_eq!(named(&all, "save").effects, vec![Effect::DatabaseWrite]);
+        assert!(named(&all, "opaque").effects.is_empty());
+    }
+
+    #[test]
     fn conflicting_associated_returns_stay_untyped() {
         let all = facts(
             "mod a { pub struct Cfg { pub set: u32 } impl Cfg { pub fn load() -> Self { Self { \

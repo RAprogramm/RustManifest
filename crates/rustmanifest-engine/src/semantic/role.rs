@@ -48,12 +48,14 @@ impl fmt::Display for Role {
 }
 
 /// Effects that reach outside the process.
-const OUTSIDE_EFFECTS: [Effect; 5] = [
+const OUTSIDE_EFFECTS: [Effect; 7] = [
     Effect::FileSystem,
     Effect::Network,
     Effect::Process,
     Effect::Environment,
-    Effect::ConsoleIo
+    Effect::ConsoleIo,
+    Effect::DatabaseRead,
+    Effect::DatabaseWrite
 ];
 
 /// Derives the coarse role of one function from its facts.

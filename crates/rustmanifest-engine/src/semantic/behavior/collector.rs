@@ -552,13 +552,18 @@ impl<'ast> Visit<'ast> for FactCollector {
     }
 
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
-        if let Some(ident) = invocation.path.get_ident() {
-            let name = ident.to_string();
+        if let Some(segment) = invocation.path.segments.last() {
+            let name = segment.ident.to_string();
             if CONSOLE_MACROS.contains(&name.as_str()) {
                 self.facts.effects.push(Effect::ConsoleIo);
             }
             if name == "vec" || name == "format" {
                 self.facts.allocations += 1;
+            }
+            if let Some(effect) =
+                knowledge::sql_macro_effect(&name, &invocation.tokens.to_string())
+            {
+                self.facts.effects.push(effect);
             }
         }
         syn::visit::visit_macro(self, invocation);

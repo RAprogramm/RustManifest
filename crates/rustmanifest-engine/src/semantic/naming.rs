@@ -25,9 +25,11 @@ use crate::source::Source;
 const READ_VERBS: [&str; 5] = ["get", "has", "is", "len", "peek"];
 
 /// Effects that contradict a read promise. Observation-style effects —
-/// filesystem reads, network fetches, environment lookups — do not break
-/// a read promise; producing console output or spawning processes does.
-const LIE_EFFECTS: [Effect; 2] = [Effect::Process, Effect::ConsoleIo];
+/// filesystem reads, network fetches, database reads, environment
+/// lookups — do not break a read promise; producing console output,
+/// spawning processes, or writing the database does.
+const LIE_EFFECTS: [Effect; 3] =
+    [Effect::Process, Effect::ConsoleIo, Effect::DatabaseWrite];
 
 /// Reports functions whose name promises a read while the body provably
 /// writes state or touches the outside world.
@@ -124,6 +126,18 @@ mod tests {
 
     fn found(text: &str) -> usize {
         insights(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]).len()
+    }
+
+    #[test]
+    fn getter_that_writes_the_database_is_a_lie_but_selecting_is_not() {
+        assert_eq!(
+            found("fn get_user() { query!(\"INSERT INTO audit (a) VALUES (1)\"); }"),
+            1
+        );
+        assert_eq!(
+            found("fn get_user() { let row = query!(\"SELECT id FROM users\"); }"),
+            0
+        );
     }
 
     #[test]

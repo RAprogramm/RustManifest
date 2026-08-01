@@ -66,6 +66,40 @@ pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
         .map(|(_, _, effect)| *effect)
 }
 
+/// SQL-carrying macro names of the `sqlx` crate.
+const SQL_MACROS: [&str; 6] = [
+    "query",
+    "query_as",
+    "query_as_unchecked",
+    "query_scalar",
+    "query_scalar_unchecked",
+    "query_unchecked"
+];
+
+/// Classifies a SQL-carrying macro invocation into a database effect by
+/// the first keyword of its first string literal. Statements whose kind
+/// is not provable from the keyword yield nothing — silence over
+/// guessing.
+pub(super) fn sql_macro_effect(macro_name: &str, tokens: &str) -> Option<Effect> {
+    if !SQL_MACROS.contains(&macro_name) {
+        return None;
+    }
+    let after_quote = tokens.split_once('"')?.1;
+    let keyword: String = after_quote
+        .trim_start()
+        .chars()
+        .take_while(char::is_ascii_alphabetic)
+        .collect::<String>()
+        .to_ascii_uppercase();
+    match keyword.as_str() {
+        "SELECT" => Some(Effect::DatabaseRead),
+        "ALTER" | "CREATE" | "DELETE" | "DROP" | "INSERT" | "TRUNCATE" | "UPDATE" => {
+            Some(Effect::DatabaseWrite)
+        }
+        _ => None
+    }
+}
+
 /// Looks up the effect of a free call rooted in a pack's crate name.
 pub(super) fn crate_effect(first_segment: &str) -> Option<Effect> {
     PACKS

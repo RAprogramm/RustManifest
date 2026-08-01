@@ -118,7 +118,7 @@ fn summary(fact: &FunctionFacts, graph: &TypeGraph) -> String {
             format!("Updates {}.", written.join(", "))
         }
         Role::Io => {
-            let touched: Vec<&str> = fact
+            let mut touched: Vec<&str> = fact
                 .effects
                 .iter()
                 .filter_map(|effect| match effect {
@@ -127,9 +127,11 @@ fn summary(fact: &FunctionFacts, graph: &TypeGraph) -> String {
                     Effect::Process => Some("child processes"),
                     Effect::Environment => Some("the process environment"),
                     Effect::ConsoleIo => Some("the console"),
+                    Effect::DatabaseRead | Effect::DatabaseWrite => Some("the database"),
                     Effect::Unsafe => None
                 })
                 .collect();
+            touched.dedup();
             format!("Interacts with {}.", touched.join(" and "))
         }
         Role::Pure | Role::Unknown => "Computes a value from its inputs.".to_owned()

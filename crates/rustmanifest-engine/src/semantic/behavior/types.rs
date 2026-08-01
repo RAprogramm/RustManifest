@@ -24,7 +24,12 @@ pub enum Effect {
     /// Environment access through `std::env`.
     Environment,
     /// Console output through print-family macros.
-    ConsoleIo
+    ConsoleIo,
+    /// Database query provably reading rows: SQL starting with `SELECT`.
+    DatabaseRead,
+    /// Database statement provably mutating state: SQL starting with a
+    /// write keyword (`INSERT`, `UPDATE`, `DELETE`, DDL).
+    DatabaseWrite
 }
 
 impl fmt::Display for Effect {
@@ -35,7 +40,9 @@ impl fmt::Display for Effect {
             Self::Network => "net",
             Self::Process => "process",
             Self::Environment => "env",
-            Self::ConsoleIo => "console"
+            Self::ConsoleIo => "console",
+            Self::DatabaseRead => "db-read",
+            Self::DatabaseWrite => "db-write"
         };
         out.write_str(name)
     }
