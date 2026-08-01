@@ -394,3 +394,30 @@ The extractor decision from §9 is implemented: the engine consumes a
   smallest-enclosing-definition ranges; nested items inside bodies
   attribute to the innermost function, same as the ground-truth
   harness measured at 96.9% agreement.
+
+### First application runs (same day)
+
+- **Where the lift comes from** (masterror, per caller-callee pair):
+  of the overlay-addable pairs, 47% were calls the syntactic
+  extractor never saw as candidates — macro-generated bodies, the §10
+  cause confirmed from the consuming side; 30% had the method name
+  under a different or uncertain owner; 22% sat in the
+  unknown-receiver bucket a typed receiver would have settled. The
+  index recovers exactly the classes the taxonomy predicted, in that
+  order.
+- **Against the §10 gate: unmoved at 11/33 — and the wall now has a
+  name.** With the tokio index overlaying the tokio+mio+socket2
+  derivation run, effect-carrying functions rose 1479 → 1495 but no
+  gate row flipped, for two mechanically verified reasons. First, the
+  four `NO FUNCTION` rows are trait defaults syn never sees; an
+  overlay can only connect functions that exist as facts on both
+  ends, and no index can conjure the missing endpoint. Second, the
+  socket rows resolve in SCIP to methods that exist in facts under
+  *colliding short names* — tokio and mio each define the same
+  `Type::method` — and the overlay inherits the unique-match guard by
+  design, so it refuses the ambiguous join rather than guess. The
+  binding constraint is now fact-name granularity: facts key on short
+  qualified names, SCIP symbols are globally unique, and the join
+  discards that uniqueness. Module-qualified fact keys are the
+  unlock, and they sharpen every resolver bucket, not only the
+  overlay.
