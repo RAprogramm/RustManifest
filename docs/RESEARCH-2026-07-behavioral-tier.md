@@ -329,3 +329,32 @@ gate: derivation is admitted when it reproduces them.
   with the eval baseline byte-stable, so the gain is pure fact
   coverage, not finding drift. Remaining misses sit in causes 2–4 as
   predicted; none moved without their repair.
+- **Repairs 2 and 4a shipped; gate did not move — negative result with
+  a new cause.** Trait default methods are now extracted under their
+  trait's name (unit-proven: a default body's effect lands on
+  `Trait::method`), and a 47-row std method-effect table (File,
+  TcpStream, UdpSocket, TcpListener, Command, Child, Stdin/out/err,
+  OpenOptions, DirBuilder) sits under receiver-typed method calls as
+  the axiom floor. The gate stayed at **11/33** because both repairs
+  hit walls the taxonomy had not named:
+  1. *Macro-wrapped declarations* — tokio and hyper wrap their ext
+     traits in `cfg_*!` macro invocations, so no `trait` item exists
+     for syn to see; the four `NO FUNCTION` rows stay. The repair is
+     expansion, not extraction — same thread as thiserror derive
+     knowledge.
+  2. *Higher-order IO chains* — the axiom floor did light up inside
+     the dependency graph (tokio+mio+socket2 functions with effects
+     1407 → 1479), but tokio routes instance IO through closures
+     (`do_io(|inner| inner.read(buf))`), and closure parameters are
+     untyped, so the chain to the public method breaks. Documented
+     higher-order opacity, now with a measured face.
+  Eval baseline stayed byte-stable; fork-hyper gained trait-default
+  functions (1225 → 1236) with effects nearly flat (295 → 296) — the
+  corpus's own receivers are generic, exactly where the syntactic
+  tier's ceiling sits. Conclusion: the remaining 22 rows are not
+  reachable by cheaper syntactic repairs; they need expansion
+  (macro-wrapped items) and either blanket-impl reasoning or the SCIP
+  accuracy layer resolving ext-trait call sites directly. The
+  derivation program pauses here by design — the next leverage is the
+  phase-4 SCIP layer, which serves both this gate and the resolver's
+  missing quarter from §9.
