@@ -104,7 +104,8 @@ fn json_object(
             "field-reads": param.field_reads
         })).collect::<Vec<_>>(),
         "clones": entry.clones,
-        "allocations": entry.allocations
+        "allocations": entry.allocations,
+        "role": rustmanifest_engine::role(entry).to_string()
     });
     if with_features && let serde_json::Value::Object(fields) = &mut object {
         fields.insert(
@@ -152,6 +153,7 @@ mod tests {
         assert_eq!(object["writes"][0], "Wallet.balance");
         assert_eq!(object["error-types"][0], "String");
         assert_eq!(object["effects"][0], "console");
+        assert_eq!(object["role"], "io");
         assert!(object["features"].is_null());
     }
 

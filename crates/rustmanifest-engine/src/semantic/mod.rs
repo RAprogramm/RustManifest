@@ -24,6 +24,7 @@ mod module_cycle;
 mod module_graph;
 mod module_overview;
 mod ownership;
+mod role;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
@@ -37,7 +38,8 @@ pub use self::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
     invariant::check_invariants,
-    module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview}
+    module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
+    role::{Role, role}
 };
 use crate::{error::EngineError, pragma, source::Source};
 

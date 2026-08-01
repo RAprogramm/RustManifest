@@ -37,8 +37,8 @@ pub use orchestrator::{
 pub use pattern::PatternAnalyzer;
 pub use semantic::{
     Absorption, Coverage, Effect, ExpansionReport, Feature, FunctionFacts, ImplNode, MethodNode,
-    ModuleEdge, ModuleInfo, ModuleOverview, ParamFacts, ParamMode, SemanticAnalyzer, TraitNode,
-    TypeGraph, TypeKind, TypeNode, behavior, check_invariants, coverage, coverage_with, expansion,
-    features, module_overview, unresolved_targets
+    ModuleEdge, ModuleInfo, ModuleOverview, ParamFacts, ParamMode, Role, SemanticAnalyzer,
+    TraitNode, TypeGraph, TypeKind, TypeNode, behavior, check_invariants, coverage, coverage_with,
+    expansion, features, module_overview, role, unresolved_targets
 };
 pub use source::Source;
