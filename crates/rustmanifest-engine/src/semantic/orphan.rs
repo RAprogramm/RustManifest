@@ -7,9 +7,9 @@
 //! but forgot the `mod name;` declaration, and then cannot understand why
 //! the compiler does not see the handlers inside. The check fires only
 //! when a plausible parent module file exists in the analyzed sources —
-//! same-directory `mod.rs`, the directory-named file one level up, or the
-//! crate root for direct `src/` children — so loose fixture files in
-//! unstructured directories stay silent.
+//! the modern directory-named file one level up first, the crate root for
+//! direct `src/` children, legacy same-directory `mod.rs` last — so loose
+//! fixture files in unstructured directories stay silent.
 //!
 //! The finding carries a file-addressed fix inserting `mod name;` into
 //! the parent, marked maybe-incorrect: where a module is mounted is a
@@ -114,7 +114,7 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
 /// Finds the plausible parent module file of `path` among `sources`.
 fn parent_module_file(sources: &[Source], path: &Path) -> Option<(usize, PathBuf)> {
     let dir = path.parent()?;
-    let mut candidates: Vec<PathBuf> = vec![dir.join("mod.rs")];
+    let mut candidates: Vec<PathBuf> = Vec::new();
     if let (Some(grand), Some(dir_name)) = (dir.parent(), dir.file_name()) {
         candidates.push(grand.join(format!("{}.rs", dir_name.to_string_lossy())));
         if dir_name == "src" {
@@ -125,6 +125,7 @@ fn parent_module_file(sources: &[Source], path: &Path) -> Option<(usize, PathBuf
         candidates.push(dir.join("lib.rs"));
         candidates.push(dir.join("main.rs"));
     }
+    candidates.push(dir.join("mod.rs"));
     for candidate in candidates {
         if candidate == path {
             continue;
