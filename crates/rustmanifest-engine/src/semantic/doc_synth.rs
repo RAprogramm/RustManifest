@@ -13,14 +13,18 @@
 
 use super::{
     behavior::{Effect, FunctionFacts},
+    graph::TypeGraph,
     role::{Role, role}
 };
 
-/// Renders a rustdoc draft for one function from its facts, one `///`
-/// line per entry.
+/// Renders a rustdoc draft for one function from its facts.
+///
+/// One `///` line per entry; field references resolve through the type
+/// graph into linkable `[Type::field]` doc paths when the field provably
+/// exists.
 #[must_use]
-pub fn doc_draft(fact: &FunctionFacts) -> String {
-    let mut lines: Vec<String> = vec![summary(fact)];
+pub fn doc_draft(fact: &FunctionFacts, graph: &TypeGraph) -> String {
+    let mut lines: Vec<String> = vec![summary(fact, graph)];
     if !fact.error_types.is_empty() {
         lines.push(String::new());
         lines.push("# Errors".to_owned());
@@ -61,7 +65,7 @@ pub fn doc_draft(fact: &FunctionFacts) -> String {
 
 /// Summary derived from what the body provably does — the code is the
 /// source of truth, never the name.
-fn summary(fact: &FunctionFacts) -> String {
+fn summary(fact: &FunctionFacts, graph: &TypeGraph) -> String {
     match role(fact) {
         Role::Constructor => fact.constructs.first().map_or_else(
             || "Creates a new value.".to_owned(),
@@ -69,13 +73,18 @@ fn summary(fact: &FunctionFacts) -> String {
         ),
         Role::Accessor => fact.reads.first().map_or_else(
             || "Returns a value derived from the current state.".to_owned(),
-            |read| format!("Returns the current value of `{read}`.")
+            |read| {
+                format!(
+                    "Returns the current value of {}.",
+                    field_reference(graph, read)
+                )
+            }
         ),
         Role::Mutator => {
             let written: Vec<String> = fact
                 .writes
                 .iter()
-                .map(|write| format!("`{write}`"))
+                .map(|write| field_reference(graph, write))
                 .collect();
             format!("Updates {}.", written.join(", "))
         }
@@ -96,6 +105,20 @@ fn summary(fact: &FunctionFacts) -> String {
         }
         Role::Pure | Role::Unknown => "Computes a value from its inputs.".to_owned()
     }
+}
+
+/// Resolves an `Owner.field` fact key through the type graph: a field
+/// that provably exists becomes a linkable `[Owner::field]` rustdoc
+/// path; anything unresolved stays a plain code span, never a fake link.
+fn field_reference(graph: &TypeGraph, key: &str) -> String {
+    if let Some((owner, field)) = key.split_once('.')
+        && graph
+            .type_named(owner)
+            .is_some_and(|node| node.fields.iter().any(|entry| entry.name == field))
+    {
+        return format!("[`{owner}::{field}`]");
+    }
+    format!("`{key}`")
 }
 
 /// Returns whether the body provably may panic through `unwrap` or
@@ -123,8 +146,13 @@ mod tests {
     use crate::{semantic::behavior, source::Source};
 
     fn draft(text: &str, name: &str) -> String {
-        let facts = behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]);
-        doc_draft(facts.iter().find(|fact| fact.function == name).unwrap())
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let facts = behavior(&sources);
+        let graph = crate::semantic::TypeGraph::from_sources(&sources);
+        doc_draft(
+            facts.iter().find(|fact| fact.function == name).unwrap(),
+            &graph
+        )
     }
 
     #[test]
@@ -133,7 +161,7 @@ mod tests {
                     { self.balance } }";
         assert_eq!(
             draft(text, "Wallet::get_balance"),
-            "/// Returns the current value of `Wallet.balance`."
+            "/// Returns the current value of [`Wallet::balance`]."
         );
     }
 
@@ -143,7 +171,7 @@ mod tests {
                     { self.hits += 1; self.hits } }";
         assert_eq!(
             draft(text, "Counter::get_hits"),
-            "/// Updates `Counter.hits`."
+            "/// Updates [`Counter::hits`]."
         );
     }
 
