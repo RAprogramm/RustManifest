@@ -181,16 +181,15 @@ pub fn call_graph(facts: &[FunctionFacts], context: &ResolutionContext) -> CallG
 
 /// Builds the call graph with an optional SCIP overlay.
 ///
-/// The overlay holds per-fact callee names read from a name-resolved
-/// index, applied after the syntactic candidates. Overlay names resolve
-/// through the same unique-match tables; an edge the candidates already
-/// produced is not recounted, so [`CallGraph::scip_resolved`] states
-/// exactly what the index added.
+/// The overlay holds per-fact callee fact indices already bound by the
+/// index layer, applied after the syntactic candidates. An edge the
+/// candidates already produced is not recounted, so
+/// [`CallGraph::scip_resolved`] states exactly what the index added.
 #[must_use]
 pub fn call_graph_with(
     facts: &[FunctionFacts],
     context: &ResolutionContext,
-    overlay: Option<&[Vec<String>]>
+    overlay: Option<&[Vec<usize>]>
 ) -> CallGraph {
     let module_segments = &context.segments;
     let (by_qualified, by_bare_free, by_method) = name_tables(facts);
@@ -274,9 +273,7 @@ pub fn call_graph_with(
         }
         edges[index].sort_unstable();
     }
-    let scip_resolved = overlay.map_or(0, |overlay| {
-        apply_overlay(&mut edges, overlay, &by_qualified, &by_bare_free)
-    });
+    let scip_resolved = overlay.map_or(0, |overlay| apply_overlay(&mut edges, overlay));
     CallGraph {
         edges,
         resolved,
@@ -311,29 +308,14 @@ fn name_tables(facts: &[FunctionFacts]) -> NameTables<'_> {
     (by_qualified, by_bare_free, by_method)
 }
 
-/// Applies overlay callee names onto the edge lists, resolving each
-/// through the unique-match tables, and returns how many edges the
-/// overlay added beyond the ones already present.
-fn apply_overlay(
-    edges: &mut [Vec<usize>],
-    overlay: &[Vec<String>],
-    by_qualified: &BTreeMap<&str, Vec<usize>>,
-    by_bare_free: &BTreeMap<&str, Vec<usize>>
-) -> u64 {
+/// Applies overlay callee indices onto the edge lists and returns how
+/// many edges the overlay added beyond the ones already present.
+fn apply_overlay(edges: &mut [Vec<usize>], overlay: &[Vec<usize>]) -> u64 {
     let mut added = 0u64;
     for (index, callees) in overlay.iter().enumerate().take(edges.len()) {
-        for callee in callees {
-            let matches = callee
-                .rsplit_once("::")
-                .map_or_else(
-                    || by_bare_free.get(callee.as_str()),
-                    |_| by_qualified.get(callee.as_str())
-                )
-                .filter(|indices| indices.len() == 1);
-            if let Some(indices) = matches
-                && !edges[index].contains(&indices[0])
-            {
-                edges[index].push(indices[0]);
+        for &callee in callees {
+            if !edges[index].contains(&callee) {
+                edges[index].push(callee);
                 added += 1;
             }
         }
@@ -422,11 +404,7 @@ mod tests {
         let context = super::resolution_context(&sources);
         let caller = index_of(&all, "caller");
         let mut overlay = vec![Vec::new(); all.len()];
-        overlay[caller] = vec![
-            "Wallet::credit".to_owned(),
-            "helper".to_owned(),
-            "External::call".to_owned(),
-        ];
+        overlay[caller] = vec![index_of(&all, "Wallet::credit"), index_of(&all, "helper")];
         let graph = super::call_graph_with(&all, &context, Some(&overlay));
         let callees = graph.callees(caller);
         assert!(callees.contains(&index_of(&all, "Wallet::credit")));

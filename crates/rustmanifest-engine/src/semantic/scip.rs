@@ -37,8 +37,19 @@ pub enum ScipError {
 /// Name-resolved call edges of one SCIP index, keyed by caller.
 #[derive(Debug, Default)]
 pub struct ScipEdges {
-    /// `(relative path, caller qualified name)` to callee names.
-    by_caller: BTreeMap<(String, String), Vec<String>>
+    /// `(relative path, caller qualified name)` to callees.
+    by_caller: BTreeMap<(String, String), Vec<Callee>>
+}
+
+/// One name-resolved callee read from the index.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Callee {
+    /// Short qualified name in the engine's shape.
+    short:      String,
+    /// Crate the symbol belongs to, from the symbol header.
+    crate_name: String,
+    /// Full descriptor path: modules, owner type, method.
+    segments:   Vec<String>
 }
 
 impl ScipEdges {
@@ -57,7 +68,7 @@ impl ScipEdges {
     /// Builds caller-keyed edges from decoded documents.
     #[must_use]
     fn from_documents(documents: &[wire::Document]) -> Self {
-        let mut by_caller: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+        let mut by_caller: BTreeMap<(String, String), Vec<Callee>> = BTreeMap::new();
         for document in documents {
             let definitions = function_definitions(document);
             for occurrence in &document.occurrences {
@@ -77,7 +88,7 @@ impl ScipEdges {
                     by_caller
                         .entry((document.relative_path.clone(), definition.name.clone()))
                         .or_default()
-                        .push(qualified_name(&occurrence.symbol));
+                        .push(callee(&occurrence.symbol));
                 }
             }
         }
@@ -90,30 +101,65 @@ impl ScipEdges {
         }
     }
 
-    /// Callee names recorded for the function `caller` in the document
-    /// whose relative path ends the given source path.
-    #[must_use]
-    pub fn callees(&self, source_path: &str, caller: &str) -> &[String] {
+    /// Callees recorded for the function `caller` in the document whose
+    /// relative path ends the given source path.
+    fn callees(&self, source_path: &str, caller: &str) -> &[Callee] {
         self.by_caller
             .iter()
             .find(|((path, name), _)| name == caller && path_matches(source_path, path))
             .map_or(&[], |(_, callees)| callees.as_slice())
     }
 
-    /// Additional call candidates per fact index: SCIP callees of each
-    /// function the syntactic candidates may have missed.
+    /// Resolves each function's SCIP callees to fact indices.
+    ///
+    /// A callee whose short name is unique among the facts binds
+    /// directly. A colliding short name — the same `Type::method`
+    /// defined by more than one analyzed crate — is settled by the
+    /// symbol's full identity: the crate name against the crate the
+    /// fact's file belongs to, and the descriptor path against the
+    /// fact's module path. A collision the full identity cannot settle
+    /// is dropped, never guessed.
     #[must_use]
-    pub fn candidates(&self, facts: &[FunctionFacts], sources: &[Source]) -> Vec<Vec<String>> {
+    pub fn candidates(&self, facts: &[FunctionFacts], sources: &[Source]) -> Vec<Vec<usize>> {
+        let mut by_short: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+        for (index, fact) in facts.iter().enumerate() {
+            by_short.entry(&fact.function).or_default().push(index);
+        }
+        let identities = identity::of_sources(sources);
         facts
             .iter()
             .map(|fact| {
-                sources.get(fact.source).map_or_else(Vec::new, |source| {
-                    self.callees(&source.path().to_string_lossy(), &fact.function)
-                        .to_vec()
-                })
+                let Some(source) = sources.get(fact.source) else {
+                    return Vec::new();
+                };
+                self.callees(&source.path().to_string_lossy(), &fact.function)
+                    .iter()
+                    .filter_map(|callee| resolve(callee, &by_short, facts, &identities))
+                    .collect()
             })
             .collect()
     }
+}
+
+/// Binds one callee to a fact index: directly when the short name is
+/// unique, through the full symbol identity when it collides.
+fn resolve(
+    callee: &Callee,
+    by_short: &BTreeMap<&str, Vec<usize>>,
+    facts: &[FunctionFacts],
+    identities: &[identity::SourceIdentity]
+) -> Option<usize> {
+    let matches = by_short.get(callee.short.as_str())?;
+    if let [only] = matches.as_slice() {
+        return Some(*only);
+    }
+    let mut settled = matches.iter().filter(|&&index| {
+        identities
+            .get(facts[index].source)
+            .is_some_and(|identity| identity.matches(callee, &facts[index].function))
+    });
+    let first = settled.next()?;
+    settled.next().is_none().then_some(*first)
 }
 
 /// SCIP symbol-role bit marking a definition occurrence.
@@ -192,21 +238,49 @@ fn range_bounds(range: &[i32]) -> Option<((i32, i32), (i32, i32))> {
     }
 }
 
-/// Renders a SCIP function symbol as the engine's qualified name shape:
-/// `Type::method` when the descriptor carries an owner, the bare name
-/// otherwise. Descriptors start after the fourth space-separated header
-/// token; `impl` owners resolve through the `[Type]` disambiguator, and
+/// Parses a SCIP function symbol into the engine's callee shape: the
+/// short qualified name, the owning crate from the symbol header, and
+/// the full descriptor path for collision settling.
+///
+/// Descriptors start after the fourth space-separated header token;
+/// `impl` owners resolve through the `[Type]` disambiguator, and
 /// backtick-escaped generic owners drop their arguments.
-fn qualified_name(symbol: &str) -> String {
+fn callee(symbol: &str) -> Callee {
+    let crate_name = symbol.split(' ').nth(2).unwrap_or_default().to_owned();
     let descriptor = symbol
         .splitn(5, ' ')
         .nth(4)
         .unwrap_or(symbol)
         .trim_end_matches("().");
-    let segment = descriptor.rsplit('/').next().unwrap_or(descriptor);
+    let mut raw: Vec<&str> = descriptor
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .collect();
+    let last = raw.pop().unwrap_or_default();
+    let mut segments: Vec<String> = raw.into_iter().map(strip_generics).collect();
+    let (owner, method) = owner_method(last);
+    if !owner.is_empty() {
+        segments.push(owner.clone());
+    }
+    segments.push(method.clone());
+    let short = if owner.is_empty() {
+        method
+    } else {
+        format!("{owner}::{method}")
+    };
+    Callee {
+        short,
+        crate_name,
+        segments
+    }
+}
+
+/// Splits one descriptor segment into `(owner type, method name)`, the
+/// owner empty for free functions.
+fn owner_method(segment: &str) -> (String, String) {
     let Some((owner, method)) = segment.split_once('#') else {
         let (_, bare) = split_brackets(segment);
-        return strip_generics(&bare);
+        return (String::new(), strip_generics(&bare));
     };
     let (bracketed, bare) = split_brackets(method);
     let owner = strip_generics(owner);
@@ -217,11 +291,12 @@ fn qualified_name(symbol: &str) -> String {
     } else {
         owner
     };
-    if owner.is_empty() {
-        bare
-    } else {
-        format!("{owner}::{bare}")
-    }
+    (owner, bare)
+}
+
+/// Renders a SCIP function symbol as the engine's qualified name shape.
+fn qualified_name(symbol: &str) -> String {
+    callee(symbol).short
 }
 
 /// Splits leading `[..]` disambiguators off a descriptor name, keeping
@@ -247,6 +322,112 @@ fn strip_generics(name: &str) -> String {
     trimmed
         .find('<')
         .map_or_else(|| trimmed.to_string(), |open| trimmed[..open].to_string())
+}
+
+/// Identity of one analyzed source file for collision settling: which
+/// crate it belongs to and which module path it holds, derived from the
+/// file path and the module graph. Inline submodules share the file's
+/// primary module — a documented approximation; a collision the
+/// identity cannot settle is dropped, so the approximation can only
+/// withhold an edge, never invent one.
+mod identity {
+    use super::{super::module_graph::ModuleGraph, Callee};
+    use crate::source::Source;
+
+    /// Crate and module identity of one source file.
+    pub(super) struct SourceIdentity {
+        /// Crate directory name from the file path, version suffix kept.
+        crate_name: String,
+        /// Module path segments below the crate root.
+        modules:    Vec<String>
+    }
+
+    impl SourceIdentity {
+        /// Returns whether this file can own the callee's symbol under
+        /// the given short function name.
+        pub(super) fn matches(&self, callee: &Callee, function: &str) -> bool {
+            if !crate_matches(&self.crate_name, &callee.crate_name) {
+                return false;
+            }
+            let mut full = self.modules.clone();
+            full.extend(function.split("::").map(str::to_owned));
+            suffix_aligned(&full, &callee.segments)
+        }
+    }
+
+    /// Builds the identity of every source: the crate from the path,
+    /// the module path from the graph's primary module for the file.
+    pub(super) fn of_sources(sources: &[Source]) -> Vec<SourceIdentity> {
+        let graph = ModuleGraph::from_sources(sources);
+        let mut modules: Vec<Option<(bool, Vec<String>)>> = vec![None; sources.len()];
+        for module in graph.modules() {
+            let segments: Vec<String> =
+                module.path.split("::").skip(1).map(str::to_owned).collect();
+            let candidate = (module.layout, segments);
+            let slot = &mut modules[module.source];
+            let replace = match slot {
+                None => true,
+                Some((layout, kept)) => {
+                    (candidate.0 && !*layout)
+                        || (candidate.0 == *layout && candidate.1.len() < kept.len())
+                }
+            };
+            if replace {
+                *slot = Some(candidate);
+            }
+        }
+        sources
+            .iter()
+            .zip(modules)
+            .map(|(source, module)| SourceIdentity {
+                crate_name: crate_of_path(&source.path().to_string_lossy()),
+                modules:    module.map(|(_, segments)| segments).unwrap_or_default()
+            })
+            .collect()
+    }
+
+    /// Crate directory name of one source path: the path component
+    /// preceding its `src` directory, or the file's parent directory.
+    fn crate_of_path(path: &str) -> String {
+        let normalized = path.replace('\\', "/");
+        let components: Vec<&str> = normalized.split('/').filter(|c| !c.is_empty()).collect();
+        components
+            .iter()
+            .position(|component| *component == "src")
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|index| components.get(index))
+            .or_else(|| {
+                components
+                    .len()
+                    .checked_sub(2)
+                    .and_then(|i| components.get(i))
+            })
+            .map(|name| (*name).to_owned())
+            .unwrap_or_default()
+    }
+
+    /// Returns whether a crate directory name names the symbol's crate,
+    /// tolerating a registry `-<version>` suffix and dash/underscore
+    /// spelling differences.
+    fn crate_matches(directory: &str, symbol_crate: &str) -> bool {
+        let stripped = directory
+            .rfind('-')
+            .filter(|&split| {
+                directory[split + 1..]
+                    .chars()
+                    .next()
+                    .is_some_and(|first| first.is_ascii_digit())
+            })
+            .map_or(directory, |split| &directory[..split]);
+        stripped.replace('-', "_") == symbol_crate.replace('-', "_")
+    }
+
+    /// Returns whether the shorter of the two segment lists equals the
+    /// tail of the longer one.
+    fn suffix_aligned(ours: &[String], theirs: &[String]) -> bool {
+        let overlap = ours.len().min(theirs.len());
+        overlap > 0 && ours[ours.len() - overlap..] == theirs[theirs.len() - overlap..]
+    }
 }
 
 /// Returns whether a workspace source path ends with the index's
@@ -531,10 +712,70 @@ mod tests {
     fn references_attribute_to_their_enclosing_definition() {
         let documents = wire::documents(&index()).unwrap();
         let edges = ScipEdges::from_documents(&documents);
-        let callees = edges.callees("./src/lib.rs", "caller");
-        assert_eq!(callees, ["Wallet::credit", "remove_dir_all"]);
+        let shorts: Vec<&str> = edges
+            .callees("./src/lib.rs", "caller")
+            .iter()
+            .map(|callee| callee.short.as_str())
+            .collect();
+        assert_eq!(shorts, ["Wallet::credit", "remove_dir_all"]);
         assert!(edges.callees("./src/lib.rs", "unknown").is_empty());
         assert!(edges.callees("./other.rs", "caller").is_empty());
+    }
+
+    #[test]
+    fn colliding_short_names_settle_through_crate_and_module_path() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [
+            Source::new(
+                PathBuf::from("tokio-1.53.1/src/net/tcp/stream.rs"),
+                "pub struct TcpStream;\nimpl TcpStream { pub fn read(&self) {} }\npub fn \
+                 caller(stream: &TcpStream) { stream.read(); }"
+                    .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("mio-1.1.1/src/net/tcp/stream.rs"),
+                "pub struct TcpStream;\nimpl TcpStream { pub fn read(&self) {} }".to_owned()
+            )
+        ];
+        let facts = behavior(&sources);
+        let mut document = Vec::new();
+        put_field(&mut document, 1, b"tokio-1.53.1/src/net/tcp/stream.rs");
+        put_field(
+            &mut document,
+            2,
+            &occurrence(
+                "rust-analyzer cargo tokio 1.53.1 net/tcp/stream/caller().",
+                &[2, 7, 13],
+                super::DEFINITION_ROLE,
+                &[2, 0, 2, 60]
+            )
+        );
+        put_field(
+            &mut document,
+            2,
+            &occurrence(
+                "rust-analyzer cargo mio 1.1.1 net/tcp/stream/TcpStream#read().",
+                &[2, 40, 44],
+                0,
+                &[]
+            )
+        );
+        let mut bytes = Vec::new();
+        put_field(&mut bytes, 2, &document);
+        let documents = wire::documents(&bytes).unwrap();
+        let edges = ScipEdges::from_documents(&documents);
+        let overlay = edges.candidates(&facts, &sources);
+        let caller = facts
+            .iter()
+            .position(|fact| fact.function == "caller")
+            .unwrap();
+        let mio_read = facts
+            .iter()
+            .position(|fact| fact.function == "TcpStream::read" && fact.source == 1)
+            .unwrap();
+        assert_eq!(overlay[caller], [mio_read]);
     }
 
     #[test]
