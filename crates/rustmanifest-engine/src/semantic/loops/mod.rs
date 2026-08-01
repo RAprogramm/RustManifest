@@ -33,7 +33,7 @@ mod collect;
 mod origin;
 mod uses;
 
-use rustmanifest_schema::TraceStep;
+use rustmanifest_schema::{Applicability, Fix, Range, TraceStep};
 
 use self::{collect::candidates, origin::Origin};
 use super::insight::Insight;
@@ -85,12 +85,26 @@ pub(super) fn clone_insights(sources: &[Source]) -> Vec<Insight> {
                 reason: "only field reads and shared borrows were seen after the `let`".to_owned()
             },
         ];
-        found.push(Insight::new(
-            candidate.source,
-            candidate.range,
-            detail,
-            trace
-        ));
+        let fixes = candidate.hoist.as_ref().map_or_else(Vec::new, |plan| {
+            vec![
+                Fix {
+                    range:         plan.stmt_lines,
+                    replacement:   String::new(),
+                    applicability: Applicability::MachineApplicable
+                },
+                Fix {
+                    range:         Range {
+                        start: plan.insert_at,
+                        end:   plan.insert_at
+                    },
+                    replacement:   format!("{}{}\n", plan.outer_indent, plan.stmt_text),
+                    applicability: Applicability::MachineApplicable
+                },
+            ]
+        });
+        found.push(
+            Insight::new(candidate.source, candidate.range, detail, trace).with_fixes(fixes)
+        );
     }
     found
 }
@@ -132,12 +146,26 @@ pub(super) fn allocation_insights(sources: &[Source]) -> Vec<Insight> {
                 reason: "it is used, but never moved, returned, or passed to a macro".to_owned()
             },
         ];
-        found.push(Insight::new(
-            candidate.source,
-            candidate.range,
-            detail,
-            trace
-        ));
+        let fixes = candidate.hoist.as_ref().map_or_else(Vec::new, |plan| {
+            vec![
+                Fix {
+                    range:         plan.stmt_lines,
+                    replacement:   format!("{}{}.clear();\n", plan.inner_indent, candidate.name),
+                    applicability: Applicability::MachineApplicable
+                },
+                Fix {
+                    range:         Range {
+                        start: plan.insert_at,
+                        end:   plan.insert_at
+                    },
+                    replacement:   format!("{}{}\n", plan.outer_indent, plan.stmt_text),
+                    applicability: Applicability::MachineApplicable
+                },
+            ]
+        });
+        found.push(
+            Insight::new(candidate.source, candidate.range, detail, trace).with_fixes(fixes)
+        );
     }
     found
 }

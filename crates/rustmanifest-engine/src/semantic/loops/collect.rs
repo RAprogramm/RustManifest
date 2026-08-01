@@ -7,7 +7,7 @@
 //! candidates; this module never decides what is a violation.
 
 use rustmanifest_schema::Range;
-use syn::visit::Visit;
+use syn::{spanned::Spanned, visit::Visit};
 
 use super::{
     origin::{Origin, allocation_origin, clone_origin},
@@ -20,6 +20,22 @@ use crate::{
     },
     source::Source
 };
+
+/// Everything needed to hoist a loop-local `let` out of its loop as a
+/// byte-precise fix: where the statement's lines sit, where to insert
+/// before the loop, and the indentation on both sides.
+pub(super) struct HoistPlan {
+    /// Line-expanded byte range of the `let` statement, newline included.
+    pub(super) stmt_lines:   Range,
+    /// Insertion offset: start of the loop's own line.
+    pub(super) insert_at:    u32,
+    /// Indentation of the loop line.
+    pub(super) outer_indent: String,
+    /// Indentation of the statement's line inside the loop body.
+    pub(super) inner_indent: String,
+    /// Raw statement text as written.
+    pub(super) stmt_text:    String
+}
 
 /// One loop-local `let` binding eligible for either check.
 pub(super) struct Candidate {
@@ -34,7 +50,10 @@ pub(super) struct Candidate {
     /// How the binding obtained its value.
     pub(super) origin:   Origin,
     /// Classified uses of the binding after its `let`.
-    pub(super) uses:     UseSummary
+    pub(super) uses:     UseSummary,
+    /// Hoisting coordinates when the statement sits cleanly on its own
+    /// lines; `None` disables fix synthesis for the candidate.
+    pub(super) hoist:    Option<HoistPlan>
 }
 
 /// Collects loop-local `let` candidates from every function in `sources`.
@@ -44,14 +63,16 @@ pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
         let Ok(file) = syn::parse_file(source.text()) else {
             continue;
         };
+        let text = source.text();
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
         for item in items {
             match item {
                 syn::Item::Fn(function) => {
                     let mut finder = LoopFinder {
-                        source:     index,
-                        function:   function.sig.ident.to_string(),
+                        source: index,
+                        function: function.sig.ident.to_string(),
+                        text,
                         candidates: &mut found
                     };
                     finder.visit_block(&function.block);
@@ -65,8 +86,9 @@ pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
                             continue;
                         };
                         let mut finder = LoopFinder {
-                            source:     index,
-                            function:   format!("{type_name}::{}", method.sig.ident),
+                            source: index,
+                            function: format!("{type_name}::{}", method.sig.ident),
+                            text,
                             candidates: &mut found
                         };
                         finder.visit_block(&method.block);
@@ -85,13 +107,16 @@ struct LoopFinder<'out> {
     source:     usize,
     /// Qualified name of the enclosing function.
     function:   String,
+    /// Full source text, for line expansion and indentation.
+    text:       &'out str,
     /// Output collection shared across loops of the function.
     candidates: &'out mut Vec<Candidate>
 }
 
 impl LoopFinder<'_> {
-    /// Analyzes one loop body, given the idents bound by the loop pattern.
-    fn analyze_loop(&mut self, pattern: Option<&syn::Pat>, body: &syn::Block) {
+    /// Analyzes one loop body, given the idents bound by the loop pattern
+    /// and the byte offset where the loop expression starts.
+    fn analyze_loop(&mut self, pattern: Option<&syn::Pat>, body: &syn::Block, loop_start: usize) {
         let mut bound = Vec::new();
         if let Some(pattern) = pattern {
             pattern_idents(pattern, &mut bound);
@@ -128,6 +153,7 @@ impl LoopFinder<'_> {
                 uses.visit_stmt(later);
             }
             let bytes = ident.span().byte_range();
+            let hoist = hoist_plan(self.text, statement.span().byte_range(), loop_start);
             self.candidates.push(Candidate {
                 source: self.source,
                 function: self.function.clone(),
@@ -137,7 +163,8 @@ impl LoopFinder<'_> {
                 },
                 name,
                 origin,
-                uses: uses.summary
+                uses: uses.summary,
+                hoist
             });
         }
     }
@@ -145,19 +172,48 @@ impl LoopFinder<'_> {
 
 impl<'ast> Visit<'ast> for LoopFinder<'_> {
     fn visit_expr_for_loop(&mut self, expr: &'ast syn::ExprForLoop) {
-        self.analyze_loop(Some(&expr.pat), &expr.body);
+        self.analyze_loop(Some(&expr.pat), &expr.body, expr.span().byte_range().start);
         syn::visit::visit_expr_for_loop(self, expr);
     }
 
     fn visit_expr_while(&mut self, expr: &'ast syn::ExprWhile) {
-        self.analyze_loop(None, &expr.body);
+        self.analyze_loop(None, &expr.body, expr.span().byte_range().start);
         syn::visit::visit_expr_while(self, expr);
     }
 
     fn visit_expr_loop(&mut self, expr: &'ast syn::ExprLoop) {
-        self.analyze_loop(None, &expr.body);
+        self.analyze_loop(None, &expr.body, expr.span().byte_range().start);
         syn::visit::visit_expr_loop(self, expr);
     }
+}
+
+/// Builds the hoisting coordinates for a statement span, or `None` when
+/// the statement does not sit cleanly on its own lines.
+fn hoist_plan(text: &str, stmt: std::ops::Range<usize>, loop_start: usize) -> Option<HoistPlan> {
+    let line_start = text[..stmt.start].rfind('\n').map_or(0, |at| at + 1);
+    if !text[line_start..stmt.start].trim().is_empty() {
+        return None;
+    }
+    let after = &text[stmt.end..];
+    let line_break = after.find('\n')?;
+    if !after[..line_break].trim().is_empty() {
+        return None;
+    }
+    let stmt_lines_end = stmt.end + line_break + 1;
+    let loop_line_start = text[..loop_start].rfind('\n').map_or(0, |at| at + 1);
+    if !text[loop_line_start..loop_start].trim().is_empty() {
+        return None;
+    }
+    Some(HoistPlan {
+        stmt_lines:   Range {
+            start: u32::try_from(line_start).ok()?,
+            end:   u32::try_from(stmt_lines_end).ok()?
+        },
+        insert_at:    u32::try_from(loop_line_start).ok()?,
+        outer_indent: text[loop_line_start..loop_start].to_owned(),
+        inner_indent: text[line_start..stmt.start].to_owned(),
+        stmt_text:    text[stmt].to_owned()
+    })
 }
 
 /// Visitor collecting every identifier bound by a pattern in a block.

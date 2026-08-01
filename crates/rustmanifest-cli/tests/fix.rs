@@ -65,3 +65,50 @@ fn fix_deletes_the_line_and_the_rerun_is_clean() {
         .assert()
         .success();
 }
+
+fn tree_with_hoistable_clone() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "#[derive(Clone)]\npub struct Config {\n    pub retries: u32\n}\n\npub fn total(config: \
+         &Config, jobs: &[u32]) -> u32 {\n    let mut total = 0;\n    for job in jobs {\n        \
+         let snapshot = config.clone();\n        total += snapshot.retries + job;\n    }\n    \
+         total\n}\n"
+    )
+    .unwrap();
+    dir
+}
+
+#[test]
+fn hoist_fix_moves_the_clone_before_the_loop_and_rerun_is_clean() {
+    let tree = tree_with_hoistable_clone();
+    rustmanifest()
+        .arg("check")
+        .arg("--format")
+        .arg("json")
+        .arg(tree.path())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("RM-MEM-002"));
+    rustmanifest()
+        .arg("check")
+        .arg("--fix")
+        .arg("--format")
+        .arg("json")
+        .arg(tree.path())
+        .assert()
+        .success();
+    let text = fs::read_to_string(tree.path().join("src/lib.rs")).unwrap();
+    let clone_at = text.find("let snapshot = config.clone();").unwrap();
+    let loop_at = text.find("for job in jobs").unwrap();
+    assert!(
+        clone_at < loop_at,
+        "clone must sit before the loop:\n{text}"
+    );
+    rustmanifest()
+        .arg("check")
+        .arg(tree.path())
+        .assert()
+        .success();
+}

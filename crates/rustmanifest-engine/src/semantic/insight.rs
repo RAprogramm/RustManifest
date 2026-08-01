@@ -8,7 +8,7 @@
 //! instead of reaching back into the tier root — keeping the semantic
 //! tier's own module graph acyclic.
 
-use rustmanifest_schema::TraceStep;
+use rustmanifest_schema::{Fix, TraceStep};
 
 /// One workspace-level violation reported by a semantic check.
 #[derive(Debug)]
@@ -20,7 +20,9 @@ pub(super) struct Insight {
     /// Check-specific description including the reasoning chain.
     pub(super) detail: String,
     /// Machine-readable derivation steps backing the detail.
-    pub(super) trace:  Vec<TraceStep>
+    pub(super) trace:  Vec<TraceStep>,
+    /// Byte-precise fixes resolving the violation, when provable.
+    pub(super) fixes:  Vec<Fix>
 }
 
 impl Insight {
@@ -35,7 +37,14 @@ impl Insight {
             source,
             range,
             detail,
-            trace
+            trace,
+            fixes: Vec::new()
         }
+    }
+
+    /// Attaches provable fixes to the insight.
+    pub(super) fn with_fixes(mut self, fixes: Vec<Fix>) -> Self {
+        self.fixes = fixes;
+        self
     }
 }
