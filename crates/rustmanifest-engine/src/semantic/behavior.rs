@@ -355,7 +355,7 @@ fn error_types(signature: &syn::Signature) -> Vec<String> {
 }
 
 /// Mutating methods that count as a write to the field they are called on.
-const MUTATING_METHODS: [&str; 12] = [
+pub(super) const MUTATING_METHODS: [&str; 12] = [
     "borrow_mut",
     "clear",
     "get_mut",

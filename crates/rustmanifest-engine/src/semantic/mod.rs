@@ -18,6 +18,7 @@ mod expansion;
 mod field_group;
 mod graph;
 mod invariant;
+mod loops;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
@@ -80,7 +81,13 @@ enum Check {
     StructureSize,
     /// `borrowable-params` — owned non-`Copy` parameters that only read
     /// fields and should be shared borrows.
-    BorrowableParams
+    BorrowableParams,
+    /// `loop-invariant-clone` — clones of loop-invariant places that are
+    /// only read and could be hoisted out of the loop.
+    LoopInvariantClone,
+    /// `loop-allocation` — fresh container allocations repeated every
+    /// iteration although the value never escapes the iteration.
+    LoopAllocation
 }
 
 impl Check {
@@ -91,6 +98,8 @@ impl Check {
             "module-cycles" => Some(Self::ModuleCycles),
             "structure-size" => Some(Self::StructureSize),
             "borrowable-params" => Some(Self::BorrowableParams),
+            "loop-invariant-clone" => Some(Self::LoopInvariantClone),
+            "loop-allocation" => Some(Self::LoopAllocation),
             _ => None
         }
     }
@@ -101,7 +110,9 @@ impl Check {
             Self::RepeatedFieldGroup => field_group::insights(sources, graph),
             Self::ModuleCycles => module_cycle::insights(sources),
             Self::StructureSize => composition::insights(graph),
-            Self::BorrowableParams => ownership::insights(sources, graph)
+            Self::BorrowableParams => ownership::insights(sources, graph),
+            Self::LoopInvariantClone => loops::clone_insights(sources),
+            Self::LoopAllocation => loops::allocation_insights(sources)
         }
     }
 }

@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-MEM-003"
+severity = "warning"
+title = "Fresh allocation every loop iteration"
+rationale-uri = "rustmanifest://methodology/performance-issues#repeated-allocations-in-loop"
+
+[definition.semantic]
+check = "loop-allocation"
