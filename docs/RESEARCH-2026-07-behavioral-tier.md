@@ -1,0 +1,175 @@
+# Behavioral tier research — July 2026 state of the art
+
+Synthesis of four research passes (tooling landscape, analysis infrastructure,
+behavioral-fact best practices, Tsetlin machines) into an implementation plan
+for the next tier of the engine: understanding what code *does*, not only what
+it *is*, and enforcing user-declared domain invariants.
+
+Verification legend: facts below were gathered from live sources in August
+2026 unless marked as inference.
+
+---
+
+## 1. The niche is open
+
+- No tool for Rust enforces field-level behavioral invariants ("field
+  `Wallet.balance` may only be written from module `ledger`"). Verified by
+  absence across every search: cargo-pup (DataDog, ~0.1.8) is the nearest
+  competitor and stops at module/import/shape checks **and requires a pinned
+  nightly** (`nightly-2026-01-22`); rust_arkitect and arch_test are
+  `use`-graph only. A June 2026 users.rust-lang.org thread concluded no
+  mature ArchUnit equivalent exists for Rust.
+- CodeQL gained Rust GA (October 2025, extractor built on rust-analyzer) —
+  it is the strongest reference for a fact schema and the main incumbent,
+  but it is proprietary infrastructure with its own query language, not a
+  cargo-native stable-toolchain tool.
+- Error-type extraction ("which error types can this function return") has
+  no dedicated tooling anywhere. First-mover territory.
+- No published work applies Tsetlin machines to source-code classification
+  (defect prediction, naming, code smells). Also first-mover territory.
+
+## 2. Proven architecture to copy
+
+Every serious fact engine (CodeQL, Glean, Kythe) converges on the same
+pipeline, validated across the industry:
+
+    dumb total extractor  →  typed fact base  →  declarative derivation
+
+- Extraction stays mechanical: every field access becomes a primitive fact
+  (`accesses(fn, field, mode, span)`), every call a fact, every signature a
+  fact. No cleverness at extraction time.
+- "Function F writes field X" is a **derived relation**, not a primitive:
+  `writes(F, X) :- assigns(F, _, X). writes(F, X) :- calls(F, G), writes(G, X).`
+- Derivation engine: **Ascent 0.8** (March 2026) — Datalog embedded in Rust
+  proc macros, relations are plain Rust types, BYODS custom data structures,
+  parallel evaluation, and `ascent-interpreter` for runtime-loaded rules
+  (user-supplied invariants without recompiling). Actively maintained.
+- Rule surface for users, two levels (the CodeQL-power / Semgrep-UX split):
+  1. declarative TOML/RON in dependency-cruiser style:
+     `deny { write = "Wallet.balance", except-from = "crate::ledger" }`
+  2. raw Datalog escape hatch for power users.
+
+## 3. Extraction layer choice
+
+| Layer | Status July 2026 | Verdict |
+|---|---|---|
+| `syn` AST (current engine) | stable, no name resolution, no macro expansion | keep as tier-2; insufficient alone for reliable write-sets |
+| rust-analyzer `ra_ap_hir` | 0.0.344 (July 27, 2026), weekly releases, **works on stable**, zero API stability promise | the practical sweet spot; same choice CodeQL and cargo-scan made; pin the version, budget churn tax |
+| `rustc_public` (ex stable-MIR) | nightly-only, not on crates.io (MCP #949 open), SemVer crate is an aspiration | future refinement path, not a foundation today |
+| Flowistry / rustc_plugin | alive (May 2026 releases), nightly-pinned | reference for MIR dataflow later |
+| MIRAI | archived Aug 2024, fork stale since Mar 2025 | dead, ignore |
+| contracts (`#[requires]/#[ensures]`) | nightly experiment, MCP #759, no stabilization | watch; align invariant syntax so migration is possible |
+
+Decision: keep the fact **schema IR-agnostic**. Start extraction from what we
+have (syn + our expansion absorption — already better than plain syn), add a
+`ra_ap_hir`-backed extractor as an accuracy upgrade for name/type resolution,
+leave a slot for a `rustc_public` refiner when it ships on crates.io.
+
+## 4. Behavioral fact taxonomy
+
+Primitive facts per function/method (all with spans):
+
+- `reads(fn, type.field)` / `writes(fn, type.field)` — receiver-aware;
+  `&mut self` methods without a summary are conservatively "may write Self".
+- `constructs(fn, type)`
+- `calls(fn, callee)` — already have interaction edges; formalize.
+- `returns_error(fn, error_type)` — resolve `Result<_, E>` in signatures
+  plus `From` conversions at `?` sites. Nobody does this; we should.
+- `effect(fn, category)` — adopt the cargo-scan taxonomy (arXiv 2602.06466,
+  Feb 2026): unsafe effects (raw deref, FFI, static mut), system effects
+  (std fs/io/net/process/env sink patterns; same mechanism pointed at
+  sqlx/diesel/redis for DB effects), higher-order effects (closures and fn
+  pointers = opacity markers).
+- Interior mutability: classify `.borrow_mut()/.lock()/.set()/.store()` on a
+  field as writes to that field; detect `UnsafeCell`-carrying types by known
+  std wrappers; document unsafe/FFI/trait-object opacity honestly. Whole
+  soundness here is a research problem — we aim for "sound modulo a
+  documented escape-hatch list", same as cargo-scan.
+
+## 5. Interpretable learning layer: tsetlin-rs
+
+Own crate, verified state v0.3.4 (Jan 2026 feature work, active deps):
+
+- Deterministic: explicit `seed` on every training entry point, Xoshiro256++;
+  inference is pure boolean clause evaluation — same input, same output,
+  same explanation. Sequential training mode for full reproducibility.
+- Interpretability is first-class: `Rule { included, negated, polarity }`
+  extracted from clauses, `explain_string(x, feature_names)` renders
+  "predicted X because name_len>=20=1 AND has_doc=0". The whole model dumps
+  as a reviewable rule list.
+- Missing piece (ours to build): feature binarization. Boolean predicates
+  (`is_pub`, `returns_result`, `has_doc`, `writes_foreign_field`, ...),
+  thermometer encoding for counts (arity, fields, LOC thresholds), one-hot
+  for categories. The fact base from §4 is exactly the feature source.
+- Field-tested guidance (2026 literature): 100–500 clauses for structured
+  problems, literal-budget for short readable clauses, sparse TM for large
+  token vocabularies, small-data regimes are TM's home turf — fits per-repo
+  convention learning where examples number in the hundreds.
+- Roles in the engine, all decision-transparent (no black box anywhere):
+  1. rank findings by learned repo-specific acceptance (train on
+     accepted/suppressed findings via `partial_fit` — online adaptation);
+  2. learn project naming/structure conventions as explicit clauses the
+     user can audit;
+  3. classify entities (handler/repository/entity/service) from behavioral
+     feature vectors to power layer rules without manual annotation.
+- Novelty: no published TM-on-source-code work exists (verified). This
+  combination — deterministic fact engine + clause-transparent learner —
+  is unoccupied ground.
+
+## 6. Verification adjacency (not our lane, but alignment)
+
+- Kani: healthy, AWS-backed, production CI use (Firecracker, std-library
+  campaign, 16k+ harnesses). Complementary: proves bounded properties in
+  user-written harnesses; does not extract facts or enforce architecture.
+- Creusot: active (POPL 2026 tutorial), deductive, Why3; for small verified
+  cores only. Prusti: momentum lost.
+- Contracts experiment annotated ~200 std functions (June 2026 paper).
+  Takeaway: express our invariants in a syntax morally compatible with
+  `requires/ensures` so a future bridge is cheap.
+
+## 6b. Ownership and memory understanding (added after review)
+
+The plan above covered *what code does* but not *how it holds memory* —
+ownership, borrowing, and optimization advice. That is a required part of
+the engine's understanding, phased the same way:
+
+- **Ownership facts per function** (syntactic tier, works today):
+  parameters classified owned / borrowed / mutably borrowed with their
+  types; `.clone()` / `.to_owned()` / `.to_string()` call sites; heap
+  allocation sites (`Box::new`, `Vec::new`, `vec![]`, `String::from`);
+  how each owned parameter is actually used (only field reads vs moved
+  on / mutated).
+- **Reasoning rules over those facts** (deterministic, trace-carrying):
+  an owned non-`Copy` parameter whose only observed use is field reads
+  should be a borrow (`Copy`-ness known from the type graph's derive
+  knowledge, including absorbed expansions); clone-inside-loop; repeated
+  allocation where reuse is evident. Where clippy already owns a lint
+  (`redundant_clone`, `needless_pass_by_value` on MIR), delegate rather
+  than duplicate — our value is workspace context plus the derivation
+  trace.
+- **Precision ceiling** at the syntactic tier is documented honestly:
+  move/borrow flow is approximated by use-shape, not borrow-checked; the
+  MIR refiner (phase 6 below) is where real dataflow lands later.
+
+## 7. Phased plan
+
+1. **Facts tier in the engine** (stable toolchain, current extractor):
+   read/write/construct/error/effect facts from syn-level bodies with the
+   documented conservative rules; facts exposed via a `facts` subcommand
+   (JSON) so everything is inspectable, coverage counters extended.
+2. **Invariant rules**: TOML rule surface (`deny-write`, `only-from`,
+   `layer`, `no-effect`) compiled to checks over the fact base; findings
+   carry full derivation traces like every other tier. This is the
+   "Wallet.balance only from ledger" milestone — the thing no Rust tool has.
+3. **Ascent integration**: move derivation to Datalog rules once fact
+   volume/rule complexity justifies it; evaluate `ascent-interpreter` for
+   user-loaded rules.
+4. **ra_ap_hir extractor**: name/type-resolved facts (pinned version),
+   raising write-set precision from syntactic to semantic.
+5. **tsetlin-rs layer**: binarizer over the fact base, seeded training,
+   clause dump as auditable convention rules; ranking of findings first
+   (lowest risk, immediate value).
+6. **rustc_public refiner**: when it lands on crates.io.
+
+Each phase lands behind the existing quality gate (clippy pedantic+nursery
+deny, full tests, eval corpus regression check) with local commits only.
