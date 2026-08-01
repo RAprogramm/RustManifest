@@ -30,6 +30,7 @@ mod insight;
 mod invariant;
 mod knowledge;
 mod layers;
+mod layout;
 mod loops;
 mod module_cycle;
 mod module_graph;
@@ -60,6 +61,7 @@ pub use self::{
     },
     invariant::check_invariants,
     layers::{ModuleLayer, layers},
+    layout::{TypeShape, shapes},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,

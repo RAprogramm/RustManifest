@@ -57,6 +57,7 @@ pub fn overview_markdown(sources: &[Source], top: usize, conventions: &[Conventi
     role_section(&mut out, &facts);
     boundary_section(&mut out, sources, &facts, top);
     state_section(&mut out, &facts, top);
+    shape_section(&mut out, sources, top);
     layer_section(&mut out, sources, top);
     convention_section(&mut out, conventions, top);
     out.push_str("\nFindings are a separate concern: run `rustmanifest check` for them.\n");
@@ -242,6 +243,43 @@ fn boundary_section(out: &mut String, sources: &[Source], facts: &[FunctionFacts
         out.push_str(line);
     }
     truncation_note(out, boundaries.len(), top);
+    out.push('\n');
+}
+
+/// Prints the heaviest types by guaranteed field payload: what a copy
+/// provably costs and how many heap indirections each value drags.
+fn shape_section(out: &mut String, sources: &[Source], top: usize) {
+    out.push_str("## Memory shape\n\n");
+    let mut weighed: Vec<crate::semantic::TypeShape> = crate::semantic::shapes(sources)
+        .into_iter()
+        .filter(|shape| shape.payload.is_some() || shape.indirections > 0)
+        .collect();
+    if weighed.is_empty() {
+        out.push_str("- no sizable types observed\n\n");
+        return;
+    }
+    weighed.sort_by(|a, b| {
+        b.payload
+            .unwrap_or(0)
+            .cmp(&a.payload.unwrap_or(0))
+            .then_with(|| b.indirections.cmp(&a.indirections))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    for shape in weighed.iter().take(top) {
+        let payload = shape.payload.map_or_else(
+            || "payload unresolved".to_owned(),
+            |bytes| format!("{bytes} B guaranteed field payload")
+        );
+        let copy = if shape.copyable { ", Copy" } else { "" };
+        push(
+            out,
+            &format!(
+                "- `{}`: {payload}, {} heap indirection(s){copy}\n",
+                shape.name, shape.indirections
+            )
+        );
+    }
+    truncation_note(out, weighed.len(), top);
     out.push('\n');
 }
 
