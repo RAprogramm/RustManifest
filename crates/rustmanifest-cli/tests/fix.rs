@@ -112,3 +112,36 @@ fn hoist_fix_moves_the_clone_before_the_loop_and_rerun_is_clean() {
         .assert()
         .success();
 }
+
+fn tree_with_borrowable_param() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub struct Report {\n    pub total: u64\n}\n\nfn summarize(report: Report) -> u64 {\n    \
+         report.total\n}\n\npub fn run(report: Report) -> u64 {\n    summarize(report)\n}\n"
+    )
+    .unwrap();
+    dir
+}
+
+#[test]
+fn borrow_fix_rewrites_signature_and_caller_and_rerun_is_clean() {
+    let tree = tree_with_borrowable_param();
+    rustmanifest()
+        .arg("check")
+        .arg("--fix")
+        .arg("--format")
+        .arg("json")
+        .arg(tree.path())
+        .assert()
+        .success();
+    let text = fs::read_to_string(tree.path().join("src/lib.rs")).unwrap();
+    assert!(text.contains("fn summarize(report: &Report)"), "{text}");
+    assert!(text.contains("summarize(&report)"), "{text}");
+    rustmanifest()
+        .arg("check")
+        .arg(tree.path())
+        .assert()
+        .success();
+}

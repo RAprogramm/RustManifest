@@ -67,7 +67,12 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
                 reason: "derives and impls in the type graph show no Copy".to_owned()
             });
         }
-        found.push(Insight::new(fact.source, fact.range, detail, trace));
+        let fixes = if let [(param_name, _)] = candidates.as_slice() {
+            super::borrow_fix::borrow_fixes(sources, &fact.function, param_name, fact.public)
+        } else {
+            Vec::new()
+        };
+        found.push(Insight::new(fact.source, fact.range, detail, trace).with_fixes(fixes));
     }
     found
 }

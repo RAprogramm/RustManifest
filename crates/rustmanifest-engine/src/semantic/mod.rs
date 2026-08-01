@@ -12,6 +12,7 @@
 //! targets.
 
 mod behavior;
+mod borrow_fix;
 mod calls;
 mod composition;
 mod coverage;
