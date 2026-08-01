@@ -13,6 +13,7 @@ pub mod facts;
 pub mod graph;
 pub mod learn;
 pub mod manifests;
+pub mod overview;
 
 use std::{
     collections::HashMap,
@@ -76,7 +77,9 @@ pub enum Command {
     /// Print an architecture diagram of the analyzed sources.
     Graph(GraphArgs),
     /// Learn per-role convention clauses and print them as JSON.
-    Learn(learn::LearnArgs)
+    Learn(learn::LearnArgs),
+    /// Print everything the engine knows about the project as one report.
+    Overview(overview::OverviewArgs)
 }
 
 /// Arguments for the `check` subcommand.
@@ -224,7 +227,8 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Explain(args) => run_explain(&args),
         Command::Facts(args) => facts::run_facts(&args),
         Command::Graph(args) => graph::run_graph(&args),
-        Command::Learn(args) => learn::run_learn(&args)
+        Command::Learn(args) => learn::run_learn(&args),
+        Command::Overview(args) => overview::run_overview(&args)
     }
 }
 

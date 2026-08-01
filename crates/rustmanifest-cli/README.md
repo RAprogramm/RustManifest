@@ -9,7 +9,10 @@ rustmanifest explain <rule-id>
 rustmanifest facts <path>
 rustmanifest graph <path>
 rustmanifest learn <path>
+rustmanifest overview <path>
 ```
+
+`rustmanifest overview <path>` prints everything the engine knows about the project as one deterministic Markdown report: size and understanding honesty, the module map with cycle warnings, the most connected types, the behavioral role distribution, outside-world boundary functions, the most contended state fields, and the conventions the learning layer extracted.
 
 Outputs JSON, SARIF 2.1.0, or human-readable TTY. Used directly from local shells, pre-commit hooks, and CI. Exit codes: `0` clean, `1` findings at or above the severity filter, `2` operational error.
 
