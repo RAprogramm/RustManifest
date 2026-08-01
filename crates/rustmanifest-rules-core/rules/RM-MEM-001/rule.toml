@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-MEM-001"
+severity = "warning"
+title = "Owned parameter only reads fields"
+rationale-uri = "rustmanifest://methodology/structure#immutability-first"
+
+[definition.semantic]
+check = "borrowable-params"

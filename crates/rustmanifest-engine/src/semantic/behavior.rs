@@ -117,6 +117,9 @@ pub struct FunctionFacts {
     pub effects:     Vec<Effect>,
     /// Ownership profile of each parameter, in declaration order.
     pub params:      Vec<ParamFacts>,
+    /// Whether the function is a method of a trait impl, where the
+    /// signature is dictated by the trait.
+    pub trait_impl:  bool,
     /// `.clone()` / `.to_owned()` / `.to_string()` call sites observed.
     pub clones:      u32,
     /// Heap allocation sites observed (`Box::new`, `Vec::new`, `vec![]`,
@@ -142,6 +145,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         index,
                         function.sig.ident.to_string(),
                         None,
+                        false,
                         &function.sig,
                         &function.block
                     ));
@@ -150,6 +154,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                     let Some(type_name) = impl_type_name(block) else {
                         continue;
                     };
+                    let trait_impl = block.trait_.is_some();
                     for impl_item in &block.items {
                         let syn::ImplItem::Fn(method) = impl_item else {
                             continue;
@@ -158,6 +163,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             index,
                             format!("{type_name}::{}", method.sig.ident),
                             Some(&type_name),
+                            trait_impl,
                             &method.sig,
                             &method.block
                         ));
@@ -186,6 +192,7 @@ fn function_facts(
     source: usize,
     function: String,
     impl_type: Option<&str>,
+    trait_impl: bool,
     signature: &syn::Signature,
     block: &syn::Block
 ) -> FunctionFacts {
@@ -205,6 +212,7 @@ fn function_facts(
             error_types: Vec::new(),
             effects: Vec::new(),
             params,
+            trait_impl,
             clones: 0,
             allocations: 0
         },
@@ -537,7 +545,8 @@ impl<'ast> Visit<'ast> for FactCollector {
         if let syn::Expr::Path(path) = field.base.as_ref()
             && let Some(ident) = path.path.get_ident()
         {
-            self.bump_param(&ident.to_string(), true);
+            let named = matches!(field.member, syn::Member::Named(_));
+            self.bump_param(&ident.to_string(), named);
             return;
         }
         syn::visit::visit_expr_field(self, field);

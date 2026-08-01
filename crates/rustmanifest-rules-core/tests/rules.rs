@@ -46,11 +46,11 @@ fn ids_are_unique() {
 
 #[test]
 fn ids_follow_naming_convention() {
-    let id_re = Regex::new(r"^RM-(SEC|PERF|RUST|QUAL|STRUCT)-\d{3}$").unwrap();
+    let id_re = Regex::new(r"^RM-(SEC|PERF|RUST|QUAL|STRUCT|MEM)-\d{3}$").unwrap();
     for rule in RULES.iter() {
         assert!(
             id_re.is_match(&rule.id),
-            "rule id {:?} violates RM-(SEC|PERF|RUST|QUAL|STRUCT)-NNN",
+            "rule id {:?} violates RM-(SEC|PERF|RUST|QUAL|STRUCT|MEM)-NNN",
             rule.id
         );
     }

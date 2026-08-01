@@ -52,6 +52,9 @@ pub struct TypeNode {
     /// Whether the type exists only in macro expansion, absent from
     /// surface syntax.
     pub generated: bool,
+    /// Trait names listed in `#[derive(...)]` attributes on the
+    /// definition.
+    pub derives:   Vec<String>,
     /// Named fields (or enum variant payloads) in declaration order; empty
     /// for tuple and unit structs.
     pub fields:    Vec<FieldNode>
@@ -341,8 +344,30 @@ fn node(source: usize, definition: &syn::ItemStruct) -> TypeNode {
         range: byte_range(&bytes),
         kind: TypeKind::Struct,
         generated: false,
+        derives: derive_names(&definition.attrs),
         fields
     }
+}
+
+/// Lists the trait names of every `#[derive(...)]` attribute.
+fn derive_names(attrs: &[syn::Attribute]) -> Vec<String> {
+    let mut names = Vec::new();
+    for attribute in attrs {
+        if !attribute.path().is_ident("derive") {
+            continue;
+        }
+        let parsed = attribute.parse_args_with(
+            syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated
+        );
+        if let Ok(paths) = parsed {
+            for path in paths {
+                if let Some(segment) = path.segments.last() {
+                    names.push(segment.ident.to_string());
+                }
+            }
+        }
+    }
+    names
 }
 
 /// Converts a span byte range into the schema [`Range`].
@@ -376,6 +401,7 @@ fn enum_node(source: usize, definition: &syn::ItemEnum) -> TypeNode {
         range: byte_range(&bytes),
         kind: TypeKind::Enum,
         generated: false,
+        derives: derive_names(&definition.attrs),
         fields
     }
 }

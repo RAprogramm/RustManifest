@@ -21,6 +21,7 @@ mod invariant;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
+mod ownership;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
@@ -76,7 +77,10 @@ enum Check {
     ModuleCycles,
     /// `structure-size` — oversized structures with a graph-derived split
     /// suggestion.
-    StructureSize
+    StructureSize,
+    /// `borrowable-params` — owned non-`Copy` parameters that only read
+    /// fields and should be shared borrows.
+    BorrowableParams
 }
 
 impl Check {
@@ -86,6 +90,7 @@ impl Check {
             "repeated-field-group" => Some(Self::RepeatedFieldGroup),
             "module-cycles" => Some(Self::ModuleCycles),
             "structure-size" => Some(Self::StructureSize),
+            "borrowable-params" => Some(Self::BorrowableParams),
             _ => None
         }
     }
@@ -95,7 +100,8 @@ impl Check {
         match self {
             Self::RepeatedFieldGroup => field_group::insights(sources, graph),
             Self::ModuleCycles => module_cycle::insights(sources),
-            Self::StructureSize => composition::insights(graph)
+            Self::StructureSize => composition::insights(graph),
+            Self::BorrowableParams => ownership::insights(sources, graph)
         }
     }
 }
