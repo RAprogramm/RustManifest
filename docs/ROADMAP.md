@@ -4,7 +4,7 @@ Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
 **Current status (2026-08-01):** Phases 1C, 1D, 2, and 2S shipped. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, and the first reasoning rule `RM-MEM-001` (borrowable-params). The stdio MCP server ships five tools and nine bundled methodology resources.
 
-**Next:** remaining §6b reasoning rules over ownership facts (clone-inside-loop, repeated allocation); then Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, resolved-name extractor, tsetlin-rs ranking, MIR refiner).
+**Next:** Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, resolved-name extractor, tsetlin-rs ranking, MIR refiner).
 
 ---
 
@@ -110,6 +110,7 @@ Executes the plan in [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RES
 - **Behavioral facts** (`semantic/behavior.rs`): per-function reads, writes, constructs, error types, and effects (unsafe, filesystem, network, process, env, console); let-binding type inference for field owner resolution; exported via `rustmanifest facts`.
 - **User-declared invariants** (`semantic/invariant.rs`): `[[invariants]]` in `rustmanifest.toml` — field writer allowlists (`write-only-from`) and effect bans (`deny-in`) — checked against the fact base, surfaced as `RM-INV-*` findings with full traces.
 - **Ownership facts** (`semantic/behavior.rs`, `semantic/ownership.rs`): parameter modes (owned / borrowed / mutably borrowed), use shapes, clone and heap-allocation call sites; first reasoning rule `RM-MEM-001` — owned non-`Copy` parameter whose only observed use is field reads should be a borrow.
+- **Loop ownership rules** (`semantic/loops.rs`, the §6b follow-ups): `RM-MEM-002` — a read-only clone of a loop-invariant place belongs before the loop; `RM-MEM-003` — a container allocated fresh every iteration that never escapes the iteration belongs outside the loop, cleared per pass.
 - **Coverage honesty** (`semantic/coverage.rs`, `rustmanifest coverage`): reports what the engine understands, with `--expand` measuring derive/macro output.
 - Precision ceiling documented: move/borrow flow approximated by use-shape at the syntactic tier; real dataflow lands with the MIR refiner (research plan phase 6).
 
