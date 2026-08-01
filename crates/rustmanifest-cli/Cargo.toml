@@ -30,6 +30,7 @@ clap = { workspace = true }
 globset = { workspace = true }
 rustmanifest-config = { workspace = true }
 rustmanifest-engine = { workspace = true }
+rustmanifest-learn = { workspace = true }
 rustmanifest-report = { workspace = true }
 rustmanifest-rules-core = { workspace = true }
 rustmanifest-schema = { workspace = true }

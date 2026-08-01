@@ -11,6 +11,7 @@ pub mod coverage;
 pub mod expand;
 pub mod facts;
 pub mod graph;
+pub mod learn;
 pub mod manifests;
 
 use std::{
@@ -73,7 +74,9 @@ pub enum Command {
     /// Print behavioral facts of every function as JSON.
     Facts(facts::FactsArgs),
     /// Print an architecture diagram of the analyzed sources.
-    Graph(GraphArgs)
+    Graph(GraphArgs),
+    /// Learn per-role convention clauses and print them as JSON.
+    Learn(learn::LearnArgs)
 }
 
 /// Arguments for the `check` subcommand.
@@ -220,7 +223,8 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Explain(args) => run_explain(&args),
         Command::Facts(args) => facts::run_facts(&args),
-        Command::Graph(args) => graph::run_graph(&args)
+        Command::Graph(args) => graph::run_graph(&args),
+        Command::Learn(args) => learn::run_learn(&args)
     }
 }
 

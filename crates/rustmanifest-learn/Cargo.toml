@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "rustmanifest-learn"
+description = "Interpretable learning layer for rustmanifest: Tsetlin clauses over the behavioral fact base."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+categories = ["development-tools"]
+keywords = ["rust", "lint", "static-analysis", "machine-learning"]
+
+[dependencies]
+rustmanifest-engine = { workspace = true }
+tsetlin-rs = { workspace = true }
+
+[lints]
+workspace = true
