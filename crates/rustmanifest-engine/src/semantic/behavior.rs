@@ -120,11 +120,21 @@ struct ItemContext<'name> {
     flags:     FunctionFlags
 }
 
-/// Maps every uniquely named function to the last segment of its plain
-/// return type; names with conflicting returns map to nothing, so typing
-/// through this table never guesses.
-fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, String> {
-    let mut table: std::collections::BTreeMap<String, Option<String>> =
+/// Return type of one workspace function as the typing table sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Returned {
+    /// Last segment of the written return type, `Self` resolved.
+    pub(super) plain:   String,
+    /// Success type inside a `Result`/`Option` return, `Self` resolved.
+    pub(super) success: Option<String>
+}
+
+/// Maps every uniquely named free function — and every associated
+/// function keyed `Type::name` — to its return type; keys with
+/// conflicting returns map to nothing, so typing through this table
+/// never guesses.
+fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Returned> {
+    let mut table: std::collections::BTreeMap<String, Option<Returned>> =
         std::collections::BTreeMap::new();
     for source in sources {
         let Ok(file) = syn::parse_file(source.text()) else {
@@ -133,34 +143,99 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, String
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
         for item in items {
-            let signature = match item {
-                syn::Item::Fn(function) => &function.sig,
-                _ => continue
-            };
-            let syn::ReturnType::Type(_, ty) = &signature.output else {
-                continue;
-            };
-            let syn::Type::Path(path) = ty.as_ref() else {
-                continue;
-            };
-            let Some(returned) = path.path.segments.last().map(|s| s.ident.to_string()) else {
-                continue;
-            };
-            let name = signature.ident.to_string();
-            table
-                .entry(name)
-                .and_modify(|known| {
-                    if known.as_deref() != Some(returned.as_str()) {
-                        *known = None;
+            match item {
+                syn::Item::Fn(function) => {
+                    record_return(&mut table, function.sig.ident.to_string(), None, &function.sig);
+                }
+                syn::Item::Impl(block) => {
+                    let Some(owner) = impl_type_name(block) else {
+                        continue;
+                    };
+                    for impl_item in &block.items {
+                        if let syn::ImplItem::Fn(method) = impl_item {
+                            record_return(
+                                &mut table,
+                                format!("{owner}::{}", method.sig.ident),
+                                Some(&owner),
+                                &method.sig
+                            );
+                        }
                     }
-                })
-                .or_insert(Some(returned));
+                }
+                _ => {}
+            }
         }
     }
     table
         .into_iter()
         .filter_map(|(name, returned)| returned.map(|r| (name, r)))
         .collect()
+}
+
+/// Records one function's return under `key`, dropping the key on
+/// conflicting observations.
+fn record_return(
+    table: &mut std::collections::BTreeMap<String, Option<Returned>>,
+    key: String,
+    owner: Option<&str>,
+    signature: &syn::Signature
+) {
+    let Some(returned) = returned_of(signature, owner) else {
+        return;
+    };
+    table
+        .entry(key)
+        .and_modify(|known| {
+            if known.as_ref() != Some(&returned) {
+                *known = None;
+            }
+        })
+        .or_insert(Some(returned));
+}
+
+/// Reads a signature's plain return type and, for `Result`/`Option`
+/// returns, the success type carried in the first type argument.
+fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Option<Returned> {
+    let syn::ReturnType::Type(_, ty) = &signature.output else {
+        return None;
+    };
+    let syn::Type::Path(path) = ty.as_ref() else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    let plain = resolve_self(segment.ident.to_string(), owner);
+    let success = if segment.ident == "Result" || segment.ident == "Option" {
+        first_type_argument(segment).map(|name| resolve_self(name, owner))
+    } else {
+        None
+    };
+    Some(Returned {
+        plain,
+        success
+    })
+}
+
+/// Last segment of the first angle-bracketed type argument.
+fn first_type_argument(segment: &syn::PathSegment) -> Option<String> {
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    arguments.args.iter().find_map(|argument| {
+        if let syn::GenericArgument::Type(syn::Type::Path(path)) = argument {
+            path.path.segments.last().map(|s| s.ident.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+/// Substitutes `Self` with the impl owner when one is known.
+fn resolve_self(name: String, owner: Option<&str>) -> String {
+    if name == "Self" {
+        owner.map_or(name, str::to_owned)
+    } else {
+        name
+    }
 }
 
 /// Packs declaration flags from the trait context, attributes, and
@@ -207,7 +282,7 @@ fn function_facts(
     context: &ItemContext<'_>,
     signature: &syn::Signature,
     block: &syn::Block,
-    fn_returns: &std::collections::BTreeMap<String, String>
+    fn_returns: &std::collections::BTreeMap<String, Returned>
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let params = param_facts(signature, context.impl_type);
@@ -221,6 +296,7 @@ fn function_facts(
             },
             reads: Vec::new(),
             writes: Vec::new(),
+            builds: Vec::new(),
             constructs: Vec::new(),
             error_types: Vec::new(),
             effects: Vec::new(),
@@ -231,7 +307,8 @@ fn function_facts(
             allocations: 0
         },
         param_types: parameter_types(signature, context.impl_type),
-        fn_returns:  fn_returns.clone()
+        fn_returns:  fn_returns.clone(),
+        fresh:       std::collections::BTreeSet::new()
     };
     if signature.unsafety.is_some() {
         collector.facts.effects.push(Effect::Unsafe);
@@ -364,9 +441,73 @@ mod tests {
              let wallet = make(); wallet.balance = 4; }"
         );
         assert_eq!(named(&all, "annotated").writes, vec!["Wallet.balance"]);
-        assert_eq!(named(&all, "literal").writes, vec!["Wallet.balance"]);
-        assert_eq!(named(&all, "constructed").writes, vec!["Wallet.balance"]);
+        assert_eq!(named(&all, "literal").builds, vec!["Wallet.balance"]);
+        assert_eq!(named(&all, "constructed").builds, vec!["Wallet.balance"]);
         assert_eq!(named(&all, "opaque").writes, vec!["?.balance"]);
+    }
+
+    #[test]
+    fn associated_factories_type_their_bindings() {
+        let all = facts(
+            "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Self { Self { balance: 0 \
+             } } }\nfn opened() { let wallet = Wallet::open(); wallet.balance = 1; }"
+        );
+        assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
+    }
+
+    #[test]
+    fn try_unwrapped_factories_yield_the_success_type() {
+        let all = facts(
+            "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Result<Self, String> { \
+             Ok(Self { balance: 0 }) } }\nfn opened() -> Result<(), String> { let wallet = \
+             Wallet::open()?; wallet.balance = 1; Ok(()) }"
+        );
+        assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
+    }
+
+    #[test]
+    fn awaited_factories_resolve_through_the_table() {
+        let all = facts(
+            "struct Pool { size: u32 }\nimpl Pool { async fn connect() -> Result<Self, String> { \
+             Ok(Self { size: 0 }) } }\nasync fn ready() -> Result<(), String> { let pool = \
+             Pool::connect().await?; pool.size = 1; Ok(()) }"
+        );
+        assert_eq!(named(&all, "ready").builds, vec!["Pool.size"]);
+    }
+
+    #[test]
+    fn assembling_a_fresh_value_is_a_build_not_a_write() {
+        let all = facts(
+            "struct Order { items: u32 }\nimpl Order { fn load() -> Result<Self, String> { \
+             Ok(Self { items: 0 }) } }\nstruct Repo;\nimpl Repo { fn get_order(&self) -> \
+             Result<Order, String> { let mut order = Order::load()?; order.items = 3; Ok(order) \
+             } }"
+        );
+        let getter = named(&all, "Repo::get_order");
+        assert!(getter.writes.is_empty());
+        assert_eq!(getter.builds, vec!["Order.items"]);
+    }
+
+    #[test]
+    fn rebinding_a_fresh_name_to_state_restores_write_facts() {
+        let all = facts(
+            "struct Wallet { balance: i64 }\nimpl Wallet { fn new() -> Self { Self { balance: 0 \
+             } } }\nfn rebind(source: &mut Wallet) { let wallet = Wallet::new(); let wallet = \
+             source; wallet.balance = 1; }"
+        );
+        let facts = named(&all, "rebind");
+        assert!(facts.builds.is_empty());
+        assert_eq!(facts.writes, vec!["Wallet.balance"]);
+    }
+
+    #[test]
+    fn conflicting_associated_returns_stay_untyped() {
+        let all = facts(
+            "mod a { pub struct Cfg { pub set: u32 } impl Cfg { pub fn load() -> Self { Self { \
+             set: 0 } } } }\nmod b { pub struct Cfg; impl Cfg { pub fn load() -> u32 { 0 } } \
+             }\nfn use_it() { let cfg = a::Cfg::load(); cfg.set = 1; }"
+        );
+        assert_eq!(named(&all, "use_it").writes, vec!["?.set"]);
     }
 
     #[test]

@@ -72,6 +72,7 @@ pub fn fact_json(
         "file": file,
         "reads": entry.reads,
         "writes": entry.writes,
+        "builds": entry.builds,
         "constructs": entry.constructs,
         "error-types": entry.error_types,
         "effects": entry.effects.iter().map(ToString::to_string).collect::<Vec<_>>(),

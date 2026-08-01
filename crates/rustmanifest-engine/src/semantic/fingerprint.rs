@@ -36,6 +36,7 @@ pub fn behavior_fingerprint(fact: &FunctionFacts) -> u64 {
     for list in [
         &fact.reads,
         &fact.writes,
+        &fact.builds,
         &fact.constructs,
         &fact.error_types,
         &fact.calls

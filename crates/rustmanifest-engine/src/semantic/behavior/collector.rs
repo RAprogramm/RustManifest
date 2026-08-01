@@ -5,11 +5,12 @@
 //! reads, writes, constructions, effects, clones, and allocations — from
 //! one function body against its signature-derived parameter types.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use syn::visit::Visit;
 
 use super::{
+    Returned,
     signature::type_last_segment,
     types::{Effect, FunctionFacts}
 };
@@ -24,8 +25,10 @@ pub(super) struct FactCollector {
     pub(super) facts:       FunctionFacts,
     /// Parameter name to type-name mapping from the signature.
     pub(super) param_types: BTreeMap<String, String>,
-    /// Uniquely named workspace functions to their plain return types.
-    pub(super) fn_returns:  BTreeMap<String, String>
+    /// Uniquely named workspace functions to their return types.
+    pub(super) fn_returns:  BTreeMap<String, Returned>,
+    /// Let bindings holding a value provably constructed in this body.
+    pub(super) fresh:       BTreeSet<String>
 }
 
 impl FactCollector {
@@ -46,19 +49,37 @@ impl FactCollector {
         Some(format!("{owner}.{name}"))
     }
 
-    /// Records the outermost field of an assignment target as a write and
-    /// counts the base parameter's use so a written-through parameter never
-    /// looks read-only.
+    /// Records the outermost field of an assignment target as a write —
+    /// or as a build when the base is a freshly constructed local — and
+    /// counts the base parameter's use so a written-through parameter
+    /// never looks read-only.
     fn record_write_target(&mut self, target: &syn::Expr) {
         if let syn::Expr::Field(field) = target {
             if let Some(key) = self.field_key(field) {
-                self.facts.writes.push(key);
+                self.record_field_write(field, key);
             }
             if let syn::Expr::Path(path) = field.base.as_ref()
                 && let Some(ident) = path.path.get_ident()
             {
                 self.bump_param(&ident.to_string(), false);
             }
+        }
+    }
+
+    /// Routes one field write to `builds` when its base binding holds a
+    /// value constructed in this body, to `writes` otherwise.
+    fn record_field_write(&mut self, field: &syn::ExprField, key: String) {
+        let fresh_base = matches!(
+            field.base.as_ref(),
+            syn::Expr::Path(path) if path
+                .path
+                .get_ident()
+                .is_some_and(|ident| self.fresh.contains(&ident.to_string()))
+        );
+        if fresh_base {
+            self.facts.builds.push(key);
+        } else {
+            self.facts.writes.push(key);
         }
     }
 
@@ -78,17 +99,52 @@ impl FactCollector {
         }
     }
 
-    /// Types an initializer that calls a uniquely named workspace
-    /// function with a known plain return type.
+    /// Normalizes a call expression into its return-table key, seeing
+    /// through `.await` and preferring the owner-qualified associated
+    /// key over the bare free-function name.
+    fn call_key(&self, expression: &syn::Expr) -> Option<String> {
+        match expression {
+            syn::Expr::Await(awaited) => self.call_key(&awaited.base),
+            syn::Expr::Call(call) => {
+                let syn::Expr::Path(path) = call.func.as_ref() else {
+                    return None;
+                };
+                let segments = &path.path.segments;
+                let name = segments.last()?.ident.to_string();
+                if segments.len() >= 2 {
+                    let written = segments[segments.len() - 2].ident.to_string();
+                    let owner = if written == "Self" {
+                        self.param_types
+                            .get("self")
+                            .cloned()
+                            .unwrap_or(written)
+                    } else {
+                        written
+                    };
+                    let qualified = format!("{owner}::{name}");
+                    if self.fn_returns.contains_key(&qualified) {
+                        return Some(qualified);
+                    }
+                }
+                self.fn_returns.contains_key(&name).then_some(name)
+            }
+            _ => None
+        }
+    }
+
+    /// Types an expression that calls a uniquely named workspace
+    /// function: a `?`-unwrapped call yields the success type, a plain
+    /// call the written return type.
     fn called_return(&self, expression: &syn::Expr) -> Option<String> {
-        let syn::Expr::Call(call) = expression else {
-            return None;
-        };
-        let syn::Expr::Path(path) = call.func.as_ref() else {
-            return None;
-        };
-        let name = path.path.segments.last()?.ident.to_string();
-        self.fn_returns.get(&name).cloned()
+        if let syn::Expr::Try(tried) = expression {
+            return self
+                .call_key(&tried.expr)
+                .and_then(|key| self.fn_returns.get(&key))
+                .and_then(|returned| returned.success.clone());
+        }
+        self.call_key(expression)
+            .and_then(|key| self.fn_returns.get(&key))
+            .map(|returned| returned.plain.clone())
     }
 
     /// Classifies a call path against the effect sink patterns.
@@ -194,11 +250,19 @@ impl<'ast> Visit<'ast> for FactCollector {
             }
             _ => None
         };
-        if let (Some(name), Some(init)) = (name, &local.init)
-            && let Some(type_name) =
+        if let (Some(name), init) = (name, &local.init) {
+            let constructed = init.as_ref().and_then(|init| {
                 initializer_type(&init.expr).or_else(|| self.called_return(&init.expr))
-        {
-            self.param_types.insert(name, type_name);
+            });
+            match constructed {
+                Some(type_name) => {
+                    self.param_types.insert(name.clone(), type_name);
+                    self.fresh.insert(name);
+                }
+                None => {
+                    self.fresh.remove(&name);
+                }
+            }
         }
         syn::visit::visit_local(self, local);
     }
@@ -235,7 +299,7 @@ impl<'ast> Visit<'ast> for FactCollector {
             && let syn::Expr::Field(field) = call.receiver.as_ref()
             && let Some(key) = self.field_key(field)
         {
-            self.facts.writes.push(key);
+            self.record_field_write(field, key);
         }
         if method == "clone" || method == "to_owned" || method == "to_string" {
             self.facts.clones += 1;

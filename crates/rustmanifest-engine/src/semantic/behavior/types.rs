@@ -138,9 +138,13 @@ pub struct FunctionFacts {
     /// Fields read, as `Owner.field`; `?` owner when the receiver's type
     /// is not resolvable from the signature.
     pub reads:       Vec<String>,
-    /// Fields written, same notation as `reads`; covers plain and compound
-    /// assignment plus known mutating methods on a field expression.
+    /// Fields written on pre-existing state, same notation as `reads`;
+    /// covers plain and compound assignment plus known mutating methods
+    /// on a field expression.
     pub writes:      Vec<String>,
+    /// Fields written on values constructed inside the body — assembly
+    /// of a fresh value, invisible to callers as mutation.
+    pub builds:      Vec<String>,
     /// Types constructed through struct literals.
     pub constructs:  Vec<String>,
     /// Error types the signature can return (`Result<_, E>` → `E`).
