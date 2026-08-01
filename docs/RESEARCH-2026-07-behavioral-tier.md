@@ -263,3 +263,56 @@ guessed at.
   i.e. expansion knowledge, not method knowledge. The tokio pack
   shipped same day (fork-hyper: functions with a known network effect
   37 → 92); http and serde_json are next.
+
+## 10. Deriving pack knowledge from dependency sources (2026-08-02)
+
+Hand-written packs do not scale to the ecosystem. The alternative was
+tested the day it was proposed: dependency sources already sit unpacked
+in the cargo registry cache (`cargo metadata` maps every resolved
+version to its path, `cargo fetch` fills gaps without compiling), and
+the engine's own extractor runs on them unchanged — a dependency is
+just another workspace. Effects should then derive from the std axioms
+(`fs::`/`net::`/`process::`/`env::` path sinks) closed over the
+dependency's internal call graph, and the three hand packs become the
+gate: derivation is admitted when it reproduces them.
+
+- **Setup**: `rustmanifest facts` over tempfile 3.27.0, reqwest 0.13.4,
+  and tokio 1.53.1 (the latter jointly with mio and socket2 so closure
+  can cross into the crates where sockets actually live). 33 hand-pack
+  effect rows checked against derived per-function effect sets,
+  cfg-duplicate definitions merged by union.
+- **Result**: **8/33 rows reproduced, 0 contradictions, 21 with no
+  derived effect, 4 with no matching function.** Derivation never
+  produced a wrong effect — it is incomplete, not unsound. Joint
+  analysis matters: `TcpStream::connect` gains `net` only when socket2
+  is in the analysis set; `Response::{bytes,json,text}` reproduce
+  inside reqwest alone but `RequestBuilder::send` cannot — its network
+  bottom is in hyper, outside the analyzed set. Scale is a non-issue:
+  tokio+mio+socket2 is 4564 functions, seconds per crate set.
+- **Failure taxonomy** (each miss traced to its mechanism):
+  1. *Import-blind effect classification* — `TempDir::close` calls
+     `remove_dir_all` bare, imported via `use std::fs::remove_dir_all`;
+     the path sink sees no `fs::` segment and stays silent. The module
+     graph already resolves use targets; effect classification just
+     never consults it. Cheapest fix, benefits workspace analysis too.
+  2. *Trait-default attribution loss* — `read_exact`, `write_all` exist
+     in the derived set as free functions: trait default methods lose
+     their owner, so a row keyed `TcpStream::write_all` can never
+     match. Extractor naming gap.
+  3. *Receiver-typing gaps* — `NamedTempFile::keep` delegates to
+     `self.path.keep()` and the field's type never binds
+     (`?::keep`), so closure has no edge to follow.
+  4. *Missing axiom floor* — tokio/mio socket reads bottom out in libc
+     syscalls (`unsafe` FFI, no `std::net` path) and in method calls on
+     std types (`Read::read` on an inner `std::net::TcpStream`), which
+     path patterns cannot see. The axiom layer needs std *method*
+     knowledge and a libc/syscall table, or those chains stay dark.
+- **Verdict**: the architecture is validated in direction — extraction
+  over dependency sources is sound, cheap, and needs no new
+  infrastructure — but the gate is failed at 24% coverage, so hand
+  packs stay as the knowledge source until causes 1, 2, and 4 are
+  implemented. Order fixed by cost/benefit: use-resolved effect
+  classification first (pure engine improvement, helps every tier),
+  then trait-default attribution, then the std-method/libc axiom
+  floor. Derived tables are additive only — a pack row always wins
+  over silence, derivation fills where no pack exists.
