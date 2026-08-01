@@ -105,6 +105,30 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         ));
                     }
                 }
+                syn::Item::Trait(definition) => {
+                    let trait_name = definition.ident.to_string();
+                    let public = matches!(definition.vis, syn::Visibility::Public(_));
+                    for trait_item in &definition.items {
+                        let syn::TraitItem::Fn(method) = trait_item else {
+                            continue;
+                        };
+                        let Some(block) = &method.default else {
+                            continue;
+                        };
+                        facts.push(function_facts(
+                            index,
+                            format!("{trait_name}::{}", method.sig.ident),
+                            &ItemContext {
+                                impl_type: Some(&trait_name),
+                                flags:     item_flags(true, &method.attrs, public, false)
+                            },
+                            &method.sig,
+                            block,
+                            &tables,
+                            &imports
+                        ));
+                    }
+                }
                 _ => {}
             }
         }
@@ -307,6 +331,21 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Return
                     };
                     for impl_item in &block.items {
                         if let syn::ImplItem::Fn(method) = impl_item {
+                            record_return(
+                                &mut table,
+                                format!("{owner}::{}", method.sig.ident),
+                                Some(&owner),
+                                &method.sig
+                            );
+                        }
+                    }
+                }
+                syn::Item::Trait(definition) => {
+                    let owner = definition.ident.to_string();
+                    for trait_item in &definition.items {
+                        if let syn::TraitItem::Fn(method) = trait_item
+                            && method.default.is_some()
+                        {
                             record_return(
                                 &mut table,
                                 format!("{owner}::{}", method.sig.ident),
@@ -585,6 +624,17 @@ mod tests {
     }
 
     #[test]
+    fn trait_default_methods_carry_their_owner() {
+        let all = facts(
+            "pub trait Reporter {\n    fn emit(&self);\n    fn shout(&self) { \
+             println!(\"hi\"); }\n}"
+        );
+        let shout = named(&all, "Reporter::shout");
+        assert_eq!(shout.effects, vec![Effect::ConsoleIo]);
+        assert!(all.iter().all(|f| f.function != "Reporter::emit"));
+    }
+
+    #[test]
     fn imported_names_classify_through_their_use_paths() {
         let all = facts(
             "use std::fs::remove_dir_all;\nuse std::fs::write as write_file;\nuse \
@@ -597,6 +647,19 @@ mod tests {
         assert_eq!(named(&all, "open").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "module").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "who").effects, vec![Effect::Environment]);
+    }
+
+    #[test]
+    fn std_method_axioms_fire_on_typed_receivers() {
+        let all = facts(
+            "struct Log { sink: File }\nimpl Log { fn flush(&self) { \
+             self.sink.sync_all().ok(); } }\nfn pump(stream: &mut TcpStream) { \
+             stream.read(&mut []).ok(); }\nfn untyped(stream: &mut Unknown) { \
+             stream.read(&mut []).ok(); }"
+        );
+        assert_eq!(named(&all, "Log::flush").effects, vec![Effect::FileSystem]);
+        assert_eq!(named(&all, "pump").effects, vec![Effect::Network]);
+        assert!(named(&all, "untyped").effects.is_empty());
     }
 
     #[test]
