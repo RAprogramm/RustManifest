@@ -15,6 +15,7 @@ mod behavior;
 mod calls;
 mod composition;
 mod coverage;
+mod doc_synth;
 mod docs;
 mod expansion;
 mod expr;
@@ -40,6 +41,7 @@ pub use self::{
     behavior::{Effect, FunctionFacts, ParamFacts, ParamMode, behavior},
     calls::{CallGraph, call_graph, transitive_effects},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
+    doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
     expansion::{ExpansionReport, expansion},
     features::{Feature, features},
