@@ -421,3 +421,22 @@ The extractor decision from §9 is implemented: the engine consumes a
   discards that uniqueness. Module-qualified fact keys are the
   unlock, and they sharpen every resolver bucket, not only the
   overlay.
+- **Granularity repair shipped same day.** The join now settles
+  colliding short names through the symbol's full identity: the crate
+  from the symbol header against the crate the fact's file belongs to
+  (registry version suffixes and dash/underscore spelling tolerated),
+  and the descriptor path against the fact's module path from the
+  module graph, suffix-aligned. The overlay hands the call graph
+  bound fact indices instead of names; a collision the identity
+  cannot settle is dropped, never guessed. Measured: the overlay's
+  lift grew from +290 to **+401** edges on the engine's workspace and
+  from +718 to **+777** on masterror — the collision bucket was real
+  and is now largely connected. The §10 gate still reads 11/33 with
+  effect-carrying functions flat at 1495, and the residual cause is
+  now isolated to one mechanism: tokio and mio route the actual IO
+  sink through a closure at *every* level of the chain
+  (`do_io(|inner| inner.read(buf))`), the closure parameter is
+  untyped, so the effect never enters any fact — and edges, however
+  perfect, cannot carry an effect that no endpoint holds. The next
+  unlock for the gate is closure-parameter receiver typing, a
+  behavior-extractor repair, not a resolution one.
