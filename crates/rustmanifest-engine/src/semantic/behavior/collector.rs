@@ -23,7 +23,9 @@ pub(super) struct FactCollector {
     /// Facts collected so far.
     pub(super) facts:       FunctionFacts,
     /// Parameter name to type-name mapping from the signature.
-    pub(super) param_types: BTreeMap<String, String>
+    pub(super) param_types: BTreeMap<String, String>,
+    /// Uniquely named workspace functions to their plain return types.
+    pub(super) fn_returns:  BTreeMap<String, String>
 }
 
 impl FactCollector {
@@ -74,6 +76,19 @@ impl FactCollector {
                 param.field_reads += 1;
             }
         }
+    }
+
+    /// Types an initializer that calls a uniquely named workspace
+    /// function with a known plain return type.
+    fn called_return(&self, expression: &syn::Expr) -> Option<String> {
+        let syn::Expr::Call(call) = expression else {
+            return None;
+        };
+        let syn::Expr::Path(path) = call.func.as_ref() else {
+            return None;
+        };
+        let name = path.path.segments.last()?.ident.to_string();
+        self.fn_returns.get(&name).cloned()
     }
 
     /// Classifies a call path against the effect sink patterns.
@@ -180,7 +195,8 @@ impl<'ast> Visit<'ast> for FactCollector {
             _ => None
         };
         if let (Some(name), Some(init)) = (name, &local.init)
-            && let Some(type_name) = initializer_type(&init.expr)
+            && let Some(type_name) =
+                initializer_type(&init.expr).or_else(|| self.called_return(&init.expr))
         {
             self.param_types.insert(name, type_name);
         }
@@ -230,7 +246,7 @@ impl<'ast> Visit<'ast> for FactCollector {
                 .get_ident()
                 .and_then(|ident| self.param_types.get(&ident.to_string()))
                 .cloned(),
-            _ => None
+            other => self.called_return(other)
         };
         match receiver_type {
             Some(owner) => self.record_call(Some(&owner), &method),

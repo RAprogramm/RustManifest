@@ -299,4 +299,18 @@ mod tests {
             &[index_of(&all, "helper")]
         );
     }
+
+    #[test]
+    fn factory_typed_receivers_resolve_method_calls() {
+        let all = facts(
+            "struct Wallet { balance: i64 }\nimpl Wallet { fn balance(&self) -> i64 { \
+             self.balance } }\nfn make_wallet() -> Wallet { Wallet { balance: 0 } }\nfn \
+             audit() -> i64 { let w = make_wallet(); w.balance() }\nfn peek() -> i64 { \
+             make_wallet().balance() }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let target = index_of(&all, "Wallet::balance");
+        assert!(graph.callees(index_of(&all, "audit")).contains(&target));
+        assert!(graph.callees(index_of(&all, "peek")).contains(&target));
+    }
 }

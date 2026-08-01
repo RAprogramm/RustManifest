@@ -38,6 +38,7 @@ use crate::source::Source;
 /// not parse as Rust contribute no facts.
 #[must_use]
 pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
+    let fn_returns = return_types(sources);
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
         let Ok(file) = syn::parse_file(source.text()) else {
@@ -61,7 +62,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             )
                         },
                         &function.sig,
-                        &function.block
+                        &function.block,
+                        &fn_returns
                     ));
                 }
                 syn::Item::Impl(block) => {
@@ -87,7 +89,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                                 )
                             },
                             &method.sig,
-                            &method.block
+                            &method.block,
+                            &fn_returns
                         ));
                     }
                 }
@@ -115,6 +118,49 @@ struct ItemContext<'name> {
     impl_type: Option<&'name str>,
     /// Declaration flags of the item.
     flags:     FunctionFlags
+}
+
+/// Maps every uniquely named function to the last segment of its plain
+/// return type; names with conflicting returns map to nothing, so typing
+/// through this table never guesses.
+fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, String> {
+    let mut table: std::collections::BTreeMap<String, Option<String>> =
+        std::collections::BTreeMap::new();
+    for source in sources {
+        let Ok(file) = syn::parse_file(source.text()) else {
+            continue;
+        };
+        let mut items = Vec::new();
+        crate::ast::flattened(&file.items, &mut items);
+        for item in items {
+            let signature = match item {
+                syn::Item::Fn(function) => &function.sig,
+                _ => continue
+            };
+            let syn::ReturnType::Type(_, ty) = &signature.output else {
+                continue;
+            };
+            let syn::Type::Path(path) = ty.as_ref() else {
+                continue;
+            };
+            let Some(returned) = path.path.segments.last().map(|s| s.ident.to_string()) else {
+                continue;
+            };
+            let name = signature.ident.to_string();
+            table
+                .entry(name)
+                .and_modify(|known| {
+                    if known.as_deref() != Some(returned.as_str()) {
+                        *known = None;
+                    }
+                })
+                .or_insert(Some(returned));
+        }
+    }
+    table
+        .into_iter()
+        .filter_map(|(name, returned)| returned.map(|r| (name, r)))
+        .collect()
 }
 
 /// Packs declaration flags from the trait context, attributes, and
@@ -160,7 +206,8 @@ fn function_facts(
     function: String,
     context: &ItemContext<'_>,
     signature: &syn::Signature,
-    block: &syn::Block
+    block: &syn::Block,
+    fn_returns: &std::collections::BTreeMap<String, String>
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let params = param_facts(signature, context.impl_type);
@@ -183,7 +230,8 @@ fn function_facts(
             clones: 0,
             allocations: 0
         },
-        param_types: parameter_types(signature, context.impl_type)
+        param_types: parameter_types(signature, context.impl_type),
+        fn_returns:  fn_returns.clone()
     };
     if signature.unsafety.is_some() {
         collector.facts.effects.push(Effect::Unsafe);
