@@ -112,6 +112,7 @@ Executes the plan in [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RES
 - **Ownership facts** (`semantic/behavior.rs`, `semantic/ownership.rs`): parameter modes (owned / borrowed / mutably borrowed), use shapes, clone and heap-allocation call sites; first reasoning rule `RM-MEM-001` — owned non-`Copy` parameter whose only observed use is field reads should be a borrow.
 - **Loop ownership rules** (`semantic/loops.rs`, the §6b follow-ups): `RM-MEM-002` — a read-only clone of a loop-invariant place belongs before the loop; `RM-MEM-003` — a container allocated fresh every iteration that never escapes the iteration belongs outside the loop, cleared per pass.
 - **Coverage honesty** (`semantic/coverage.rs`, `rustmanifest coverage`): reports what the engine understands, with `--expand` measuring derive/macro output.
+- **Feature binarizer** (`semantic/features.rs`, `rustmanifest facts --features`): fixed-order named binary features per function — boolean predicates plus thermometer-encoded counts — the substrate for the interpretable learning layer and role classification (research doc §5).
 - Precision ceiling documented: move/borrow flow approximated by use-shape at the syntactic tier; real dataflow lands with the MIR refiner (research plan phase 6).
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
