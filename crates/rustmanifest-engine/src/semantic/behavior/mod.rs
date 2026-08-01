@@ -55,7 +55,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             impl_type:  None,
                             trait_impl: false,
                             test:       is_test(&function.attrs),
-                            public:     !matches!(function.vis, syn::Visibility::Inherited)
+                            public:     matches!(function.vis, syn::Visibility::Public(_))
                         },
                         &function.sig,
                         &function.block
@@ -77,7 +77,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                                 impl_type: Some(&type_name),
                                 trait_impl,
                                 test: is_test(&method.attrs),
-                                public: !matches!(method.vis, syn::Visibility::Inherited)
+                                public: matches!(method.vis, syn::Visibility::Public(_))
                             },
                             &method.sig,
                             &method.block

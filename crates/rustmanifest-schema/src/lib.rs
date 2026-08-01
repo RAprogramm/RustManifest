@@ -109,7 +109,10 @@ pub enum Applicability {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Fix {
-    /// Byte range in the finding's file that the replacement covers.
+    /// File the fix applies to; `None` means the finding's own file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file:          Option<PathBuf>,
+    /// Byte range in the target file that the replacement covers.
     pub range:         Range,
     /// Replacement text for the range.
     pub replacement:   String,

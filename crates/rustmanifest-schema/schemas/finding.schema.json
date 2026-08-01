@@ -71,8 +71,15 @@
           "description": "How safely the fix can be applied automatically.",
           "$ref": "#/$defs/Applicability"
         },
+        "file": {
+          "description": "File the fix applies to; `None` means the finding's own file.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "range": {
-          "description": "Byte range in the finding's file that the replacement covers.",
+          "description": "Byte range in the target file that the replacement covers.",
           "$ref": "#/$defs/Range"
         },
         "replacement": {

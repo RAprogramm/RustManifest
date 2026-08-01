@@ -145,3 +145,33 @@ fn borrow_fix_rewrites_signature_and_caller_and_rerun_is_clean() {
         .assert()
         .success();
 }
+
+#[test]
+fn borrow_fix_rewrites_a_caller_in_another_file() {
+    let dir = TempDir::new().unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "mod caller;\npub struct Report {\n    pub total: u64\n}\n\npub(crate) fn \
+         summarize(report: Report) -> u64 {\n    report.total\n}\n"
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("src/caller.rs"),
+        "use crate::{Report, summarize};\n\npub fn run(report: Report) -> u64 {\n    \
+         summarize(report)\n}\n"
+    )
+    .unwrap();
+    rustmanifest()
+        .arg("check")
+        .arg("--fix")
+        .arg("--format")
+        .arg("json")
+        .arg(dir.path())
+        .assert()
+        .success();
+    let lib = fs::read_to_string(dir.path().join("src/lib.rs")).unwrap();
+    let caller = fs::read_to_string(dir.path().join("src/caller.rs")).unwrap();
+    assert!(lib.contains("summarize(report: &Report)"), "{lib}");
+    assert!(caller.contains("summarize(&report)"), "{caller}");
+}

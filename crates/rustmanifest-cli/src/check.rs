@@ -255,10 +255,11 @@ fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize> {
     for finding in findings {
         for fix in &finding.fixes {
             if fix.applicability == Applicability::MachineApplicable {
-                per_file
-                    .entry(finding.location.file.as_path())
-                    .or_default()
-                    .push(fix);
+                let target = fix
+                    .file
+                    .as_deref()
+                    .unwrap_or(finding.location.file.as_path());
+                per_file.entry(target).or_default().push(fix);
             }
         }
     }

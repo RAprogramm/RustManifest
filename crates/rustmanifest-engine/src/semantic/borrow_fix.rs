@@ -19,6 +19,8 @@
 //! `&expr` in the matching argument of every located call. A `self`
 //! receiver needs only the signature edit — method-call sites auto-ref.
 
+use std::path::PathBuf;
+
 use rustmanifest_schema::{Applicability, Fix, Range};
 use syn::{spanned::Spanned, visit::Visit};
 
@@ -42,18 +44,24 @@ pub(super) fn borrow_fixes(
         owner: function.rsplit_once("::").map(|(owner, _)| owner),
         param,
         source_index: 0,
+        current_path: PathBuf::new(),
+        collect_calls: false,
         definitions: Vec::new(),
         signature_edit: None,
         param_position: None,
         call_edits: Vec::new(),
         bare_path_refs: 0
     };
-    for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
-            continue;
-        };
-        scan.source_index = index;
-        scan.visit_file(&file);
+    for phase in [false, true] {
+        scan.collect_calls = phase;
+        for (index, source) in sources.iter().enumerate() {
+            let Ok(file) = syn::parse_file(source.text()) else {
+                continue;
+            };
+            scan.source_index = index;
+            scan.current_path = source.path().to_path_buf();
+            scan.visit_file(&file);
+        }
     }
     if scan.definitions.len() != 1 || scan.bare_path_refs > 0 {
         return Vec::new();
@@ -78,6 +86,10 @@ struct Scan<'names> {
     param:          &'names str,
     /// Index of the source currently visited.
     source_index:   usize,
+    /// Path of the source currently visited.
+    current_path:   PathBuf,
+    /// Phase switch: definitions are recorded first, calls second.
+    collect_calls:  bool,
     /// Every function or method definition matching the bare name.
     definitions:    Vec<usize>,
     /// The signature edit, once the target definition is seen.
@@ -101,7 +113,7 @@ impl Scan<'_> {
                     if self.param == "self" && receiver.reference.is_none() =>
                 {
                     let bytes = receiver.span().byte_range();
-                    self.signature_edit = Some(insertion(bytes.start, "&"));
+                    self.signature_edit = Some(insertion(bytes.start, "&", None));
                 }
                 syn::FnArg::Typed(argument) => {
                     let syn::Pat::Ident(pattern) = argument.pat.as_ref() else {
@@ -111,7 +123,7 @@ impl Scan<'_> {
                         continue;
                     }
                     let bytes = argument.ty.span().byte_range();
-                    self.signature_edit = Some(insertion(bytes.start, "&"));
+                    self.signature_edit = Some(insertion(bytes.start, "&", None));
                     let receiver_shift = usize::from(matches!(
                         signature.inputs.first(),
                         Some(syn::FnArg::Receiver(_))
@@ -133,27 +145,30 @@ impl Scan<'_> {
                 return;
             }
             let bytes = argument.span().byte_range();
-            self.call_edits.push(insertion(bytes.start, "&"));
+            self.call_edits
+                .push(insertion(bytes.start, "&", Some(self.current_path.clone())));
         }
     }
 }
 
-/// Builds a zero-width machine-applicable insertion.
-fn insertion(at: usize, text: &str) -> Fix {
+/// Builds a zero-width machine-applicable insertion, addressed to
+/// `file` or to the finding's own file when `None`.
+fn insertion(at: usize, text: &str, file: Option<PathBuf>) -> Fix {
     let offset = u32::try_from(at).unwrap_or(u32::MAX);
     Fix {
-        range:         Range {
+        file,
+        range: Range {
             start: offset,
             end:   offset
         },
-        replacement:   text.to_owned(),
+        replacement: text.to_owned(),
         applicability: Applicability::MachineApplicable
     }
 }
 
 impl<'ast> Visit<'ast> for Scan<'_> {
     fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
-        if self.owner.is_none() && item.sig.ident == self.bare {
+        if !self.collect_calls && self.owner.is_none() && item.sig.ident == self.bare {
             self.record_definition(&item.sig);
         }
         syn::visit::visit_item_fn(self, item);
@@ -167,6 +182,7 @@ impl<'ast> Visit<'ast> for Scan<'_> {
         for entry in &item.items {
             if let syn::ImplItem::Fn(method) = entry
                 && method.sig.ident == self.bare
+                && !self.collect_calls
             {
                 if item.trait_.is_none()
                     && self
@@ -190,7 +206,9 @@ impl<'ast> Visit<'ast> for Scan<'_> {
                 .last()
                 .is_some_and(|segment| segment.ident == self.bare)
         {
-            self.record_call(&call.args);
+            if self.collect_calls {
+                self.record_call(&call.args);
+            }
             for argument in &call.args {
                 self.visit_expr(argument);
             }
@@ -200,18 +218,19 @@ impl<'ast> Visit<'ast> for Scan<'_> {
     }
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        if call.method == self.bare && self.owner.is_some() {
+        if self.collect_calls && call.method == self.bare && self.owner.is_some() {
             self.record_call(&call.args);
         }
         syn::visit::visit_expr_method_call(self, call);
     }
 
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
-        if path
-            .path
-            .segments
-            .last()
-            .is_some_and(|segment| segment.ident == self.bare)
+        if self.collect_calls
+            && path
+                .path
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == self.bare)
         {
             self.bare_path_refs += 1;
         }

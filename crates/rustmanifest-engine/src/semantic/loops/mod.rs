@@ -88,11 +88,13 @@ pub(super) fn clone_insights(sources: &[Source]) -> Vec<Insight> {
         let fixes = candidate.hoist.as_ref().map_or_else(Vec::new, |plan| {
             vec![
                 Fix {
+                    file:          None,
                     range:         plan.stmt_lines,
                     replacement:   String::new(),
                     applicability: Applicability::MachineApplicable
                 },
                 Fix {
+                    file:          None,
                     range:         Range {
                         start: plan.insert_at,
                         end:   plan.insert_at
@@ -149,11 +151,13 @@ pub(super) fn allocation_insights(sources: &[Source]) -> Vec<Insight> {
         let fixes = candidate.hoist.as_ref().map_or_else(Vec::new, |plan| {
             vec![
                 Fix {
+                    file:          None,
                     range:         plan.stmt_lines,
                     replacement:   format!("{}{}.clear();\n", plan.inner_indent, candidate.name),
                     applicability: Applicability::MachineApplicable
                 },
                 Fix {
+                    file:          None,
                     range:         Range {
                         start: plan.insert_at,
                         end:   plan.insert_at
