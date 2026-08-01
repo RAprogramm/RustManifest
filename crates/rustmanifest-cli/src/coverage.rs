@@ -222,9 +222,14 @@ fn report_lines(report: &Coverage) -> Vec<String> {
             "call candidates",
             &report.call_candidates_total.to_string(),
             &format!(
-                "resolved to one workspace function {calls_resolved}  {call_rate:.1}%",
+                "resolved in-workspace {calls_resolved}  {call_rate:.1}%   external \
+                 {calls_external}   unknown receiver {calls_unknown}   accounted \
+                 {call_accounted:.1}%",
                 calls_resolved = report.call_candidates_resolved,
-                call_rate = report.call_resolution_rate()
+                call_rate = report.call_resolution_rate(),
+                calls_external = report.call_candidates_external,
+                calls_unknown = report.call_candidates_unknown,
+                call_accounted = report.call_accounted_rate()
             )
         ),
         line(
@@ -278,7 +283,9 @@ mod tests {
             derives_seen:               233,
             item_macros_seen:           12,
             call_candidates_total:      5000,
-            call_candidates_resolved:   1066
+            call_candidates_resolved:   1066,
+            call_candidates_external:   3600,
+            call_candidates_unknown:    200
         };
         let lines = report_lines(&report);
         assert_eq!(lines.len(), 7);
@@ -304,7 +311,8 @@ mod tests {
         );
         assert_eq!(
             lines[5],
-            "call candidates     5000      resolved to one workspace function 1066  21.3%"
+            "call candidates     5000      resolved in-workspace 1066  21.3%   external 3600   \
+             unknown receiver 200   accounted 93.3%"
         );
         assert_eq!(
             lines[6],

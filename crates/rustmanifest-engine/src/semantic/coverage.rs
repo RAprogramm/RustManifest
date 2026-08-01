@@ -88,7 +88,13 @@ pub struct Coverage {
     /// Call candidates observed across all function bodies.
     pub call_candidates_total:      u64,
     /// Call candidates that resolved to exactly one workspace function.
-    pub call_candidates_resolved:   u64
+    pub call_candidates_resolved:   u64,
+    /// Unmatched call candidates whose owner names no workspace type or
+    /// module — attributable to external code.
+    pub call_candidates_external:   u64,
+    /// Unmatched call candidates whose receiver type never resolved —
+    /// the engine's own understanding gap.
+    pub call_candidates_unknown:    u64
 }
 
 impl Coverage {
@@ -128,6 +134,17 @@ impl Coverage {
     #[must_use]
     pub const fn call_resolution_rate(&self) -> f64 {
         percent(self.call_candidates_resolved, self.call_candidates_total)
+    }
+
+    /// Share of call candidates accounted for — resolved in-workspace or
+    /// attributed to external code — in percent of
+    /// `call_candidates_total`.
+    #[must_use]
+    pub const fn call_accounted_rate(&self) -> f64 {
+        percent(
+            self.call_candidates_resolved + self.call_candidates_external,
+            self.call_candidates_total
+        )
     }
 }
 
@@ -245,7 +262,9 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         derives_seen,
         item_macros_seen,
         call_candidates_total: graph.resolved() + graph.unresolved(),
-        call_candidates_resolved: graph.resolved()
+        call_candidates_resolved: graph.resolved(),
+        call_candidates_external: graph.external(),
+        call_candidates_unknown: graph.unknown_receiver()
     }
 }
 

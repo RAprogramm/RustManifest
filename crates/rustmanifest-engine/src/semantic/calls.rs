@@ -60,11 +60,17 @@ pub fn resolution_segments(sources: &[Source]) -> BTreeSet<String> {
 #[derive(Debug)]
 pub struct CallGraph {
     /// Callee fact indices per caller fact index.
-    edges:      Vec<Vec<usize>>,
+    edges:            Vec<Vec<usize>>,
     /// Call candidates that resolved to exactly one known function.
-    resolved:   u64,
+    resolved:         u64,
     /// Candidates that were ambiguous or named no known function.
-    unresolved: u64
+    unresolved:       u64,
+    /// Unmatched candidates whose owner names no workspace type or
+    /// module — attributable to external code, honestly out of scope.
+    external:         u64,
+    /// Unmatched `?::method` candidates — the receiver's type never
+    /// resolved, the engine's own understanding gap.
+    unknown_receiver: u64
 }
 
 impl CallGraph {
@@ -86,6 +92,19 @@ impl CallGraph {
     pub const fn unresolved(&self) -> u64 {
         self.unresolved
     }
+
+    /// Unmatched candidates attributable to external code: the owner
+    /// names no workspace type or module.
+    #[must_use]
+    pub const fn external(&self) -> u64 {
+        self.external
+    }
+
+    /// Unmatched candidates whose receiver type never resolved.
+    #[must_use]
+    pub const fn unknown_receiver(&self) -> u64 {
+        self.unknown_receiver
+    }
 }
 
 /// Builds the call graph of `facts` by resolving every call candidate.
@@ -106,9 +125,16 @@ pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -
             Some((_, method)) => by_method.entry(method).or_default().push(index)
         }
     }
+    let workspace_owners: BTreeSet<&str> = facts
+        .iter()
+        .filter_map(|fact| fact.function.rsplit_once("::"))
+        .map(|(owner, _)| owner)
+        .collect();
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
     let mut resolved = 0u64;
     let mut unresolved = 0u64;
+    let mut external = 0u64;
+    let mut unknown_receiver = 0u64;
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
             let matches = candidate.strip_prefix("?::").map_or_else(
@@ -134,7 +160,16 @@ pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -
                         edges[index].push(indices[0]);
                     }
                 }
-                _ => unresolved += 1
+                _ => {
+                    unresolved += 1;
+                    if candidate.starts_with("?::") {
+                        unknown_receiver += 1;
+                    } else if candidate.rsplit_once("::").is_some_and(|(owner, _)| {
+                        !workspace_owners.contains(owner) && !module_segments.contains(owner)
+                    }) {
+                        external += 1;
+                    }
+                }
             }
         }
         edges[index].sort_unstable();
@@ -142,7 +177,9 @@ pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -
     CallGraph {
         edges,
         resolved,
-        unresolved
+        unresolved,
+        external,
+        unknown_receiver
     }
 }
 
@@ -211,6 +248,19 @@ mod tests {
             &[index_of(&all, "helper")]
         );
         assert_eq!(graph.resolved(), 1);
+    }
+
+    #[test]
+    fn unmatched_candidates_split_into_external_and_unknown_receiver() {
+        let all = facts(
+            "fn go() { let text = String::from(\"x\"); opaque().push(text); }\nstruct Own;\nimpl \
+             Own { fn seen() {} }\nfn miss() { Own::gone(); }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(graph.resolved(), 0);
+        assert_eq!(graph.external(), 1);
+        assert_eq!(graph.unknown_receiver(), 1);
+        assert_eq!(graph.unresolved(), 4);
     }
 
     #[test]
