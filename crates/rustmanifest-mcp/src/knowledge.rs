@@ -43,13 +43,7 @@ pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn facts(target: &Path, filter: Option<&str>) -> Result<serde_json::Value, EngineError> {
     let sources = sources_for(target)?;
-    let all = rustmanifest_engine::behavior(&sources);
-    let selected: Vec<serde_json::Value> = all
-        .iter()
-        .filter(|entry| filter.is_none_or(|needle| entry.function.contains(needle)))
-        .map(|entry| facts_export::fact_json(entry, &sources, false))
-        .collect();
-    Ok(serde_json::Value::Array(selected))
+    Ok(facts_export::facts_json(&sources, filter, false, false))
 }
 
 /// One learned convention clause on the wire.

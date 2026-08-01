@@ -15,7 +15,7 @@ use std::{io::Write, path::PathBuf, process::ExitCode};
 
 use anyhow::Context;
 use clap::Parser;
-use rustmanifest_engine::{FunctionFacts, behavior, walker};
+use rustmanifest_engine::walker;
 
 use crate::EXIT_CLEAN;
 
@@ -49,29 +49,12 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let facts = behavior(&sources);
-    let selected: Vec<&FunctionFacts> = facts
-        .iter()
-        .filter(|entry| {
-            args.filter
-                .as_ref()
-                .is_none_or(|needle| entry.function.contains(needle.as_str()))
-        })
-        .filter(|entry| {
-            !args.active
-                || !entry.writes.is_empty()
-                || !entry.effects.is_empty()
-                || !entry.error_types.is_empty()
-        })
-        .collect();
-    let rendered = serde_json::to_string_pretty(
-        &selected
-            .iter()
-            .map(|entry| {
-                rustmanifest_engine::facts_export::fact_json(entry, &sources, args.features)
-            })
-            .collect::<Vec<_>>()
-    )
+    let rendered = serde_json::to_string_pretty(&rustmanifest_engine::facts_export::facts_json(
+        &sources,
+        args.filter.as_deref(),
+        args.active,
+        args.features
+    ))
     .context("serializing facts")?;
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();

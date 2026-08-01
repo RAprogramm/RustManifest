@@ -8,10 +8,61 @@
 //! render through this projection, so the wire shape has a single source
 //! of truth. The binarized feature vector is appended on request.
 
+use std::collections::BTreeSet;
+
 use crate::{
-    semantic::{FunctionFacts, features, role},
+    semantic::{FunctionFacts, call_graph, features, module_overview, role, transitive_effects},
     source::Source
 };
+
+/// Renders every function's facts as one JSON array.
+///
+/// The canonical shape shared by the CLI and the MCP server, including
+/// per-function transitive effects closed over the resolved call graph.
+/// `filter` narrows by substring of the qualified name; `active` keeps
+/// only functions with a write, effect, or error type.
+#[must_use]
+pub fn facts_json(
+    sources: &[Source],
+    filter: Option<&str>,
+    active: bool,
+    with_features: bool
+) -> serde_json::Value {
+    let facts = crate::semantic::behavior(sources);
+    let module_segments: BTreeSet<String> = module_overview(sources)
+        .modules()
+        .iter()
+        .filter_map(|module| module.path.rsplit("::").next())
+        .map(ToOwned::to_owned)
+        .collect();
+    let graph = call_graph(&facts, &module_segments);
+    let transitive = transitive_effects(&facts, &graph);
+    let selected: Vec<serde_json::Value> = facts
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| filter.is_none_or(|needle| entry.function.contains(needle)))
+        .filter(|(_, entry)| {
+            !active
+                || !entry.writes.is_empty()
+                || !entry.effects.is_empty()
+                || !entry.error_types.is_empty()
+        })
+        .map(|(index, entry)| {
+            let mut object = fact_json(entry, sources, with_features);
+            if let serde_json::Value::Object(fields) = &mut object {
+                fields.insert(
+                    "transitive-effects".to_owned(),
+                    transitive[index]
+                        .iter()
+                        .map(|effect| serde_json::Value::String(effect.to_string()))
+                        .collect()
+                );
+            }
+            object
+        })
+        .collect();
+    serde_json::Value::Array(selected)
+}
 
 /// Renders one function's facts as a JSON object, with the binarized
 /// feature vector appended when requested.
