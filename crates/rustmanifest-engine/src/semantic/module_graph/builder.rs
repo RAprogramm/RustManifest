@@ -116,10 +116,7 @@ impl GraphBuilder<'_> {
             .and_then(|relative| {
                 let file = scope.dir.join(relative);
                 let parent = file.parent().map(Path::to_path_buf);
-                self.by_path
-                    .get(file.as_path())
-                    .copied()
-                    .zip(parent)
+                self.by_path.get(file.as_path()).copied().zip(parent)
             })
             .or_else(|| {
                 self.child_source(&scope.dir, &name)
