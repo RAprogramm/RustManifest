@@ -251,6 +251,19 @@ mod tests {
     }
 
     #[test]
+    fn field_receivers_resolve_through_struct_definitions() {
+        let all = facts(
+            "struct Engine;\nimpl Engine { fn start(&self) {} }\nstruct Car { engine: Engine \
+             }\nimpl Car { fn drive(&self) { self.engine.start(); } }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(
+            graph.callees(index_of(&all, "Car::drive")),
+            &[index_of(&all, "Engine::start")]
+        );
+    }
+
+    #[test]
     fn unmatched_candidates_split_into_external_and_unknown_receiver() {
         let all = facts(
             "fn go() { let text = String::from(\"x\"); opaque().push(text); }\nstruct Own;\nimpl \

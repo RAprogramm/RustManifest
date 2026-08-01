@@ -29,7 +29,7 @@ use syn::visit::Visit;
 pub use self::types::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode};
 use self::{
     collector::FactCollector,
-    signature::{error_types, param_facts, parameter_types}
+    signature::{error_types, param_facts, parameter_types, type_last_segment}
 };
 use super::expr::impl_type_name;
 use crate::source::Source;
@@ -38,7 +38,10 @@ use crate::source::Source;
 /// not parse as Rust contribute no facts.
 #[must_use]
 pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
-    let fn_returns = return_types(sources);
+    let tables = TypeTables {
+        returns: return_types(sources),
+        fields:  field_types(sources)
+    };
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
         let Ok(file) = syn::parse_file(source.text()) else {
@@ -63,7 +66,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         },
                         &function.sig,
                         &function.block,
-                        &fn_returns
+                        &tables
                     ));
                 }
                 syn::Item::Impl(block) => {
@@ -90,7 +93,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             },
                             &method.sig,
                             &method.block,
-                            &fn_returns
+                            &tables
                         ));
                     }
                 }
@@ -118,6 +121,57 @@ struct ItemContext<'name> {
     impl_type: Option<&'name str>,
     /// Declaration flags of the item.
     flags:     FunctionFlags
+}
+
+/// Workspace typing tables shared by every function's fact extraction.
+struct TypeTables {
+    /// Uniquely named functions to their return types.
+    returns: std::collections::BTreeMap<String, Returned>,
+    /// `Type.field` keys of uniquely named structs to field type names.
+    fields:  std::collections::BTreeMap<String, String>
+}
+
+/// Maps every named field of a uniquely named struct — keyed
+/// `Type.field` — to its type's last segment; keys with conflicting
+/// observations map to nothing, so typing through this table never
+/// guesses.
+fn field_types(sources: &[Source]) -> std::collections::BTreeMap<String, String> {
+    let mut table: std::collections::BTreeMap<String, Option<String>> =
+        std::collections::BTreeMap::new();
+    for source in sources {
+        let Ok(file) = syn::parse_file(source.text()) else {
+            continue;
+        };
+        let mut items = Vec::new();
+        crate::ast::flattened(&file.items, &mut items);
+        for item in items {
+            let syn::Item::Struct(definition) = item else {
+                continue;
+            };
+            let syn::Fields::Named(named) = &definition.fields else {
+                continue;
+            };
+            for field in &named.named {
+                let (Some(name), Some(type_name)) =
+                    (field.ident.as_ref(), type_last_segment(&field.ty))
+                else {
+                    continue;
+                };
+                table
+                    .entry(format!("{}.{name}", definition.ident))
+                    .and_modify(|known| {
+                        if known.as_deref() != Some(type_name.as_str()) {
+                            *known = None;
+                        }
+                    })
+                    .or_insert(Some(type_name));
+            }
+        }
+    }
+    table
+        .into_iter()
+        .filter_map(|(key, type_name)| type_name.map(|t| (key, t)))
+        .collect()
 }
 
 /// Return type of one workspace function as the typing table sees it.
@@ -282,7 +336,7 @@ fn function_facts(
     context: &ItemContext<'_>,
     signature: &syn::Signature,
     block: &syn::Block,
-    fn_returns: &std::collections::BTreeMap<String, Returned>
+    tables: &TypeTables
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let params = param_facts(signature, context.impl_type);
@@ -307,7 +361,8 @@ fn function_facts(
             allocations: 0
         },
         param_types: parameter_types(signature, context.impl_type),
-        fn_returns:  fn_returns.clone(),
+        fn_returns:  tables.returns.clone(),
+        field_types: tables.fields.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
     if signature.unsafety.is_some() {

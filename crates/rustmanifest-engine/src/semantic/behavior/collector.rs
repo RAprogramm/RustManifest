@@ -27,6 +27,8 @@ pub(super) struct FactCollector {
     pub(super) param_types: BTreeMap<String, String>,
     /// Uniquely named workspace functions to their return types.
     pub(super) fn_returns:  BTreeMap<String, Returned>,
+    /// `Type.field` keys of workspace structs to field type names.
+    pub(super) field_types: BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
     pub(super) fresh:       BTreeSet<String>
 }
@@ -309,6 +311,10 @@ impl<'ast> Visit<'ast> for FactCollector {
                 .path
                 .get_ident()
                 .and_then(|ident| self.param_types.get(&ident.to_string()))
+                .cloned(),
+            syn::Expr::Field(field) => self
+                .field_key(field)
+                .and_then(|key| self.field_types.get(&key))
                 .cloned(),
             other => self.called_return(other)
         };
