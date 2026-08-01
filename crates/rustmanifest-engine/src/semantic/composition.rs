@@ -13,7 +13,7 @@
 
 use rustmanifest_schema::TraceStep;
 
-use super::{Insight, TypeGraph, field_group, graph::TypeNode};
+use super::{TypeGraph, field_group, graph::TypeNode, insight::Insight};
 
 /// Maximum number of named fields a structure may declare.
 const FIELD_LIMIT: usize = 4;

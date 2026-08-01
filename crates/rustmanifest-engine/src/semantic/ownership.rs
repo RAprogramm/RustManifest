@@ -16,7 +16,7 @@
 
 use rustmanifest_schema::TraceStep;
 
-use super::{Insight, TypeGraph, behavior::ParamMode};
+use super::{TypeGraph, behavior::ParamMode, insight::Insight};
 use crate::source::Source;
 
 /// Reports owned parameters that could be shared borrows, one insight per

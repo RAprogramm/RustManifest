@@ -20,7 +20,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use syn::visit::Visit;
 
-use super::{graph::TypeGraph, module_cycle, module_graph::ModuleGraph};
+use super::{
+    graph::TypeGraph,
+    module_graph::{ModuleGraph, resolved_module}
+};
 use crate::source::Source;
 
 /// Raw coverage counters of one analyzed source slice.
@@ -182,7 +185,7 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
     for (from, module) in modules.iter().enumerate() {
         for use_target in &module.uses {
             use_targets_total += 1;
-            if module_cycle::resolved_module(modules, from, &use_target.target).is_some() {
+            if resolved_module(modules, from, &use_target.target).is_some() {
                 use_targets_resolved += 1;
             } else if external_target(&use_target.target, external_crates) {
                 use_targets_external += 1;
@@ -248,7 +251,7 @@ pub fn unresolved_targets(
     let mut targets = BTreeMap::new();
     for (from, module) in modules.iter().enumerate() {
         for use_target in &module.uses {
-            if module_cycle::resolved_module(modules, from, &use_target.target).is_none()
+            if resolved_module(modules, from, &use_target.target).is_none()
                 && !external_target(&use_target.target, external_crates)
             {
                 *targets.entry(use_target.target.clone()).or_default() += 1;

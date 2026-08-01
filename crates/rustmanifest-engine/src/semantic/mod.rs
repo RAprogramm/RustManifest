@@ -18,6 +18,7 @@ mod expansion;
 mod features;
 mod field_group;
 mod graph;
+mod insight;
 mod invariant;
 mod loops;
 mod module_cycle;
@@ -26,9 +27,10 @@ mod module_overview;
 mod ownership;
 mod role;
 
-use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
+use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
 use tracing::trace;
 
+use self::insight::Insight;
 pub use self::{
     behavior::{Effect, FunctionFacts, ParamFacts, ParamMode, behavior},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
@@ -42,36 +44,6 @@ pub use self::{
     role::{Role, role}
 };
 use crate::{error::EngineError, pragma, source::Source};
-
-/// One workspace-level violation reported by a semantic check.
-#[derive(Debug)]
-pub(crate) struct Insight {
-    /// Index of the source the finding anchors to.
-    source: usize,
-    /// Byte range of the anchoring definition.
-    range:  rustmanifest_schema::Range,
-    /// Check-specific description including the reasoning chain.
-    detail: String,
-    /// Machine-readable derivation steps backing the detail.
-    trace:  Vec<TraceStep>
-}
-
-impl Insight {
-    /// Creates an insight anchored to `source` at `range`.
-    pub(crate) const fn new(
-        source: usize,
-        range: rustmanifest_schema::Range,
-        detail: String,
-        trace: Vec<TraceStep>
-    ) -> Self {
-        Self {
-            source,
-            range,
-            detail,
-            trace
-        }
-    }
-}
 
 /// Built-in semantic checks addressable from `definition.semantic`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

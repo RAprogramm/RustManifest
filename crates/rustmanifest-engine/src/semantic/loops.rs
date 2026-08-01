@@ -26,7 +26,7 @@
 use rustmanifest_schema::{Range, TraceStep};
 use syn::visit::Visit;
 
-use super::{Insight, behavior::MUTATING_METHODS};
+use super::{behavior::MUTATING_METHODS, insight::Insight};
 use crate::source::Source;
 
 /// Reports loop-invariant clones that could be hoisted out of the loop.

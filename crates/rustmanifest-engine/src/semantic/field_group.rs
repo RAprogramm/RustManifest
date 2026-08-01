@@ -10,8 +10,9 @@ use std::collections::BTreeMap;
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    Insight, TypeGraph,
-    graph::{TypeKind, TypeNode}
+    TypeGraph,
+    graph::{TypeKind, TypeNode},
+    insight::Insight
 };
 use crate::source::Source;
 
@@ -147,7 +148,7 @@ mod tests {
 
     use super::insights;
     use crate::{
-        semantic::{Insight, TypeGraph},
+        semantic::{TypeGraph, insight::Insight},
         source::Source
     };
 
