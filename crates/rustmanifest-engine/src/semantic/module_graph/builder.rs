@@ -101,6 +101,7 @@ impl GraphBuilder<'_> {
         let name = item.ident.to_string();
         let path = format!("{}::{name}", scope.path);
         let dir = scope.dir.join(&name);
+
         if let Some((_, items)) = &item.content {
             let module = self.push_module(scope.krate, path.clone(), scope.source);
             let child = ModuleScope {
@@ -111,8 +112,21 @@ impl GraphBuilder<'_> {
                 dir
             };
             self.extract_items(&child, items);
-        } else if let Some(source) = self.child_source(&scope.dir, &name) {
-            self.extract_file(scope.krate, path, source, dir);
+        } else if let Some((source, source_dir)) = path_attribute(item)
+            .and_then(|relative| {
+                let file = scope.dir.join(relative);
+                let parent = file.parent().map(Path::to_path_buf);
+                self.by_path
+                    .get(file.as_path())
+                    .copied()
+                    .zip(parent)
+            })
+            .or_else(|| {
+                self.child_source(&scope.dir, &name)
+                    .map(|source| (source, dir.clone()))
+            })
+        {
+            self.extract_file(scope.krate, path, source, source_dir);
         }
     }
 
@@ -146,6 +160,27 @@ impl GraphBuilder<'_> {
             }
         }
     }
+}
+
+/// Extracts the string of a `#[path = "..."]` attribute on a `mod`
+/// declaration, which mounts the module from an explicit file relative to
+/// the declaring file's directory.
+fn path_attribute(item: &syn::ItemMod) -> Option<String> {
+    item.attrs.iter().find_map(|attr| {
+        if !attr.path().is_ident("path") {
+            return None;
+        }
+        let syn::Meta::NameValue(pair) = &attr.meta else {
+            return None;
+        };
+        let syn::Expr::Lit(literal) = &pair.value else {
+            return None;
+        };
+        let syn::Lit::Str(text) = &literal.lit else {
+            return None;
+        };
+        Some(text.value())
+    })
 }
 
 /// Expands a use tree into flat path strings without a leading `::`.

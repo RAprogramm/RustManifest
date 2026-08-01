@@ -31,6 +31,7 @@ mod module_cycle;
 mod module_graph;
 mod module_overview;
 mod naming;
+mod orphan;
 mod ownership;
 mod role;
 mod std_knowledge;
@@ -80,7 +81,10 @@ enum Check {
     DeceptiveName,
     /// `deceptive-doc` — doc summaries claiming a read over a mutating
     /// body.
-    DeceptiveDoc
+    DeceptiveDoc,
+    /// `orphan-file` — files reachable from no crate root, with a
+    /// plausible forgotten `mod` mount point.
+    OrphanFile
 }
 
 impl Check {
@@ -95,6 +99,7 @@ impl Check {
             "loop-allocation" => Some(Self::LoopAllocation),
             "deceptive-name" => Some(Self::DeceptiveName),
             "deceptive-doc" => Some(Self::DeceptiveDoc),
+            "orphan-file" => Some(Self::OrphanFile),
             _ => None
         }
     }
@@ -109,7 +114,8 @@ impl Check {
             Self::LoopInvariantClone => loops::clone_insights(sources),
             Self::LoopAllocation => loops::allocation_insights(sources),
             Self::DeceptiveName => naming::insights(sources),
-            Self::DeceptiveDoc => doc_truth::insights(sources)
+            Self::DeceptiveDoc => doc_truth::insights(sources),
+            Self::OrphanFile => orphan::insights(sources)
         }
     }
 }
