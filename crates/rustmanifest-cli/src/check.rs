@@ -76,7 +76,13 @@ pub struct CheckArgs {
     /// parseable output, or malformed JSON lines are each reported as a
     /// warning, while findings from parseable lines are still used.
     #[arg(long)]
-    pub delegate_clippy: bool
+    pub delegate_clippy: bool,
+
+    /// Apply machine-applicable fixes to the analyzed files, then re-run
+    /// the analysis so the output reflects the corrected sources. Only
+    /// fixes proven safe are applied; everything else stays a suggestion.
+    #[arg(long)]
+    pub fix: bool
 }
 
 /// Output format options.
@@ -131,6 +137,34 @@ const fn severity_rank(severity: Severity) -> u8 {
 }
 
 pub(crate) fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
+    let (mut findings, effective) = collect_findings(args)?;
+    if args.fix {
+        let applied = apply_machine_fixes(&findings)?;
+        if applied > 0 {
+            info!(
+                applied,
+                "machine-applicable fixes applied; re-running analysis"
+            );
+            (findings, _) = collect_findings(args)?;
+        }
+    }
+
+    render(&findings, args.format, args.no_color)?;
+
+    let threshold = severity_rank(effective.exit_threshold());
+    let exit_relevant = findings
+        .iter()
+        .any(|finding| severity_rank(finding.severity) >= threshold);
+    if exit_relevant {
+        Ok(ExitCode::from(EXIT_FINDINGS))
+    } else {
+        Ok(ExitCode::from(EXIT_CLEAN))
+    }
+}
+
+/// Runs the full analysis pipeline once and returns the filtered findings
+/// with the effective configuration.
+fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>, Effective)> {
     let config =
         rustmanifest_config::load(args.config.as_deref()).context("loading configuration")?;
     let effective = Effective::from_config(config).context("resolving configuration profile")?;
@@ -209,18 +243,51 @@ pub(crate) fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
     }
     apply_severity_overrides(&mut findings, &effective);
     findings.retain(|finding| args.severity_filter.admits(finding.severity));
+    Ok((findings, effective))
+}
 
-    render(&findings, args.format, args.no_color)?;
-
-    let threshold = severity_rank(effective.exit_threshold());
-    let exit_relevant = findings
-        .iter()
-        .any(|finding| severity_rank(finding.severity) >= threshold);
-    if exit_relevant {
-        Ok(ExitCode::from(EXIT_FINDINGS))
-    } else {
-        Ok(ExitCode::from(EXIT_CLEAN))
+/// Applies every machine-applicable fix, grouped per file, edits sorted
+/// descending by start so earlier offsets stay valid. Returns how many
+/// fixes were applied; a file that changed on disk is skipped honestly.
+fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize> {
+    use rustmanifest_schema::Applicability;
+    let mut per_file: HashMap<&Path, Vec<&rustmanifest_schema::Fix>> = HashMap::new();
+    for finding in findings {
+        for fix in &finding.fixes {
+            if fix.applicability == Applicability::MachineApplicable {
+                per_file
+                    .entry(finding.location.file.as_path())
+                    .or_default()
+                    .push(fix);
+            }
+        }
     }
+    let mut applied = 0usize;
+    let mut files: Vec<&Path> = per_file.keys().copied().collect();
+    files.sort_unstable();
+    for path in files {
+        let mut edits = per_file.remove(path).unwrap_or_default();
+        edits.sort_by_key(|edit| std::cmp::Reverse(edit.range.start));
+        edits.dedup_by(|a, b| a.range == b.range && a.replacement == b.replacement);
+        let mut text = std::fs::read_to_string(path)
+            .with_context(|| format!("reading {} for fixing", path.display()))?;
+        let mut touched = false;
+        for edit in edits {
+            let (start, end) = (edit.range.start as usize, edit.range.end as usize);
+            if end > text.len() || start > end {
+                warn!(path = %path.display(), "fix range out of bounds; skipped");
+                continue;
+            }
+            text.replace_range(start..end, &edit.replacement);
+            touched = true;
+            applied += 1;
+        }
+        if touched {
+            std::fs::write(path, text)
+                .with_context(|| format!("writing fixed {}", path.display()))?;
+        }
+    }
+    Ok(applied)
 }
 
 /// Applies the configuration's include and exclude globs to the discovered

@@ -25,7 +25,7 @@ use std::{
 };
 
 use rayon::prelude::*;
-use rustmanifest_schema::{Finding, Location, Range, Severity, TraceStep};
+use rustmanifest_schema::{Applicability, Finding, Fix, Location, Range, Severity, TraceStep};
 use tracing::{debug, info, instrument, trace, warn};
 
 use self::builder::CacheHandle;
@@ -245,10 +245,34 @@ impl Orchestrator {
                     fact:   format!("pragma `{pragma_text}` at line {}", unused.line_index + 1),
                     reason: step_reason
                 }],
-                fixes: Vec::new()
+                fixes: vec![Fix {
+                    range:         line_range(text, unused.line_index),
+                    replacement:   String::new(),
+                    applicability: Applicability::MachineApplicable
+                }]
             });
         }
         findings
+    }
+}
+
+/// Byte range of one whole line of `text`, trailing newline included, so
+/// replacing it with nothing deletes the line.
+fn line_range(text: &str, line_index: usize) -> Range {
+    let mut start = 0usize;
+    for (index, line) in text.split_inclusive('\n').enumerate() {
+        let end = start + line.len();
+        if index == line_index {
+            return Range {
+                start: u32::try_from(start).unwrap_or(u32::MAX),
+                end:   u32::try_from(end).unwrap_or(u32::MAX)
+            };
+        }
+        start = end;
+    }
+    Range {
+        start: u32::try_from(start).unwrap_or(u32::MAX),
+        end:   u32::try_from(start).unwrap_or(u32::MAX)
     }
 }
 
