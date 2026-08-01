@@ -113,6 +113,8 @@ Executes the plan in [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RES
 - **Loop ownership rules** (`semantic/loops.rs`, the §6b follow-ups): `RM-MEM-002` — a read-only clone of a loop-invariant place belongs before the loop; `RM-MEM-003` — a container allocated fresh every iteration that never escapes the iteration belongs outside the loop, cleared per pass.
 - **Coverage honesty** (`semantic/coverage.rs`, `rustmanifest coverage`): reports what the engine understands, with `--expand` measuring derive/macro output.
 - **Feature binarizer** (`semantic/features.rs`, `rustmanifest facts --features`): fixed-order named binary features per function — boolean predicates plus thermometer-encoded counts — the substrate for the interpretable learning layer and role classification (research doc §5).
+- **Role heuristics** (`semantic/role.rs`): deterministic coarse role per function (io / mutator / constructor / accessor / pure / unknown), priority-ordered, surfaced in `rustmanifest facts` — the bootstrap labeling for the learning layer.
+- **Interpretable learning layer** (`rustmanifest-learn`, `rustmanifest learn`): one deterministic Tsetlin machine per role over the binarized features, dumped as an auditable clause list (research doc §5, admitted by the §8 gate result: +17pp macro-F1 over logistic regression). Clauses describe the codebase; they are never a source of findings.
 - Precision ceiling documented: move/borrow flow approximated by use-shape at the syntactic tier; real dataflow lands with the MIR refiner (research plan phase 6).
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
