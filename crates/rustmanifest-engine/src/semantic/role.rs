@@ -69,7 +69,7 @@ pub fn role(facts: &FunctionFacts) -> Role {
     if !facts.writes.is_empty() {
         return Role::Mutator;
     }
-    if !facts.constructs.is_empty() {
+    if !facts.constructs.is_empty() || !facts.builds.is_empty() {
         return Role::Constructor;
     }
     if !facts.reads.is_empty() {
@@ -124,6 +124,18 @@ mod tests {
             first_role(
                 "struct Wallet { balance: i64 }\nimpl Wallet { fn new() -> Self { Self { \
                  balance: 0 } } }"
+            ),
+            Role::Constructor
+        );
+    }
+
+    #[test]
+    fn fresh_value_assemblers_are_constructors() {
+        assert_eq!(
+            first_role(
+                "struct Order { items: u32 }\nfn fetch() -> Order { let mut order = \
+                 Order::empty(); order.items = 3; order }\nimpl Order { fn empty() -> Self { \
+                 Self { items: 0 } } }"
             ),
             Role::Constructor
         );

@@ -86,10 +86,20 @@ pub fn doc_draft(fact: &FunctionFacts, graph: &TypeGraph) -> String {
 /// source of truth, never the name.
 fn summary(fact: &FunctionFacts, graph: &TypeGraph) -> String {
     match role(fact) {
-        Role::Constructor => fact.constructs.first().map_or_else(
-            || "Creates a new value.".to_owned(),
-            |constructed| format!("Creates a new [`{constructed}`].")
-        ),
+        Role::Constructor => fact
+            .constructs
+            .first()
+            .cloned()
+            .or_else(|| {
+                fact.builds
+                    .first()
+                    .and_then(|built| built.split_once('.'))
+                    .map(|(owner, _)| owner.to_owned())
+            })
+            .map_or_else(
+                || "Creates a new value.".to_owned(),
+                |constructed| format!("Creates a new [`{constructed}`].")
+            ),
         Role::Accessor => fact.reads.first().map_or_else(
             || "Returns a value derived from the current state.".to_owned(),
             |read| {
@@ -192,6 +202,14 @@ mod tests {
             draft(text, "Counter::get_hits"),
             "/// Updates [`Counter::hits`]."
         );
+    }
+
+    #[test]
+    fn assemblers_document_the_built_type_not_an_update() {
+        let text = "struct Order { items: u32 }\nimpl Order { fn empty() -> Self { Self { items: \
+                    0 } } }\nstruct Repo;\nimpl Repo { fn fetch(&self) -> Order { let mut order \
+                    = Order::empty(); order.items = 3; order } }";
+        assert_eq!(draft(text, "Repo::fetch"), "/// Creates a new [`Order`].");
     }
 
     #[test]
