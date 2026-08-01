@@ -173,3 +173,31 @@ the engine's understanding, phased the same way:
 
 Each phase lands behind the existing quality gate (clippy pedantic+nursery
 deny, full tests, eval corpus regression check) with local commits only.
+
+## 8. Admission-gate experiment result (2026-08-01)
+
+The §5 gate — a Tsetlin machine must beat logistic regression on identical
+features by >= 5pp F1 before any integration — was run as an out-of-repo
+prototype the day the binarizer landed.
+
+- **Setup**: 8327 functions from the four eval-corpus repos, the 37-feature
+  binarized vectors from `rustmanifest facts --features`, labels from the
+  engine's deterministic `role()` heuristic (io / mutator / constructor /
+  accessor / pure / unknown), deterministic 80/20 split. `tsetlin-rs`
+  v0.3.4 `MultiClass` (200 clauses, threshold 15, 30 epochs, fixed seed)
+  against a one-vs-rest logistic regression trained on identical features.
+- **Result**: Tsetlin accuracy 0.9988, macro-F1 0.9955; logistic regression
+  accuracy 0.9640, macro-F1 0.8224. Margin **+17.3pp macro-F1 — gate
+  passed**. The linear model loses exactly where roles are conjunctive and
+  priority-ordered; clauses express that natively.
+- **Interpretability confirmed**: the extracted positive clauses for `io`
+  are literally the ground-truth rule, one effect per clause
+  (`IF effect-console`, `IF effect-fs`, `IF effect-net`,
+  `IF effect-process`) — the model is a readable rule list, not a black
+  box.
+- **Honest caveat**: labels are heuristic-derived from the same fact base,
+  so this measures expressivity and clause recoverability, not discovery.
+  The discovery-grade rerun happens when real acceptance labels
+  (accepted vs suppressed findings) accumulate from actual use; until
+  then the gate result licenses building the integration surface, not
+  shipping learned rules as defaults.
