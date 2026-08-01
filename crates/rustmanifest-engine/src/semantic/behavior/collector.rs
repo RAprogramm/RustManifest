@@ -9,7 +9,10 @@ use std::collections::BTreeMap;
 
 use syn::visit::Visit;
 
-use super::{Effect, FunctionFacts, signature::type_last_segment};
+use super::{
+    signature::type_last_segment,
+    types::{Effect, FunctionFacts}
+};
 use crate::semantic::expr::{MUTATING_METHODS, compound_assignment};
 
 /// Console-output macros classified as [`Effect::ConsoleIo`].

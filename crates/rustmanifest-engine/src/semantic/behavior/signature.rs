@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{ParamFacts, ParamMode};
+use super::types::{ParamFacts, ParamMode};
 
 /// Builds the ownership profile of every parameter, `self` included.
 pub(super) fn param_facts(signature: &syn::Signature, impl_type: Option<&str>) -> Vec<ParamFacts> {
