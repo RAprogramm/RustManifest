@@ -38,6 +38,25 @@ pub struct PathParams {
     pub path: String
 }
 
+/// Parameters for `project_overview`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct OverviewParams {
+    /// File or directory path resolved against the workspace root.
+    pub path: String,
+    /// Cap for every ranked list in the report; defaults to 10.
+    pub top:  Option<usize>
+}
+
+/// Parameters for `function_facts`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FactsParams {
+    /// File or directory path resolved against the workspace root.
+    pub path:   String,
+    /// Only include functions whose qualified name contains this
+    /// substring.
+    pub filter: Option<String>
+}
+
 /// Parameters for `explain_rule`.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RuleIdParams {
@@ -154,6 +173,47 @@ impl ReviewServer {
         findings_for(rules, path).await.map(Json)
     }
 
+    /// Render everything the engine knows about a path as one Markdown
+    /// report: size and coverage honesty, module map with cycle warnings,
+    /// central types, behavioral roles, outside-world boundaries, most
+    /// contended state, and learned conventions.
+    #[tool(annotations(read_only_hint = true))]
+    async fn project_overview(
+        &self,
+        Parameters(params): Parameters<OverviewParams>
+    ) -> Result<String, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        let top = params.top.unwrap_or(10);
+        blocking(move || crate::knowledge::overview(&path, top)).await
+    }
+
+    /// Return behavioral facts of every function under a path as a JSON
+    /// array: reads, writes, constructions, error types, effects,
+    /// parameter ownership, and the derived behavioral role.
+    #[tool(annotations(read_only_hint = true))]
+    async fn function_facts(
+        &self,
+        Parameters(params): Parameters<FactsParams>
+    ) -> Result<Json<serde_json::Value>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::facts(&path, params.filter.as_deref()))
+            .await
+            .map(Json)
+    }
+
+    /// Learn per-role convention clauses over a path and return them as
+    /// an auditable rule list; training is deterministic.
+    #[tool(annotations(read_only_hint = true))]
+    async fn learn_conventions(
+        &self,
+        Parameters(params): Parameters<PathParams>
+    ) -> Result<Json<Vec<crate::knowledge::ConventionClause>>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::conventions(&path))
+            .await
+            .map(Json)
+    }
+
     /// Explain one bundled rule: identifier, title, severity, tier,
     /// rationale URI, and the methodology excerpt the URI resolves to.
     #[tool(annotations(read_only_hint = true))]
@@ -183,6 +243,21 @@ impl ReviewServer {
             .resolve(requested)
             .map_err(|error| ErrorData::invalid_params(error.to_string(), None))
     }
+}
+
+/// Runs a synchronous knowledge computation on a blocking worker and maps
+/// failures to MCP errors.
+async fn blocking<T, F>(work: F) -> Result<T, ErrorData>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, rustmanifest_engine::EngineError> + Send + 'static
+{
+    tokio::task::spawn_blocking(work)
+        .await
+        .map_err(|error| {
+            ErrorData::internal_error(format!("knowledge task failed: {error}"), None)
+        })?
+        .map_err(|error| ErrorData::internal_error(error.to_string(), None))
 }
 
 /// Runs the given rules on a blocking worker and maps failures to MCP
@@ -496,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn tool_router_exposes_all_five_tools() {
+    fn tool_router_exposes_all_eight_tools() {
         let tools = ReviewServer::tool_router().list_all();
         let mut names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
         names.sort_unstable();
@@ -505,7 +580,10 @@ mod tests {
             [
                 "check_rule",
                 "explain_rule",
+                "function_facts",
+                "learn_conventions",
                 "lint_structure",
+                "project_overview",
                 "review_file",
                 "review_path"
             ]

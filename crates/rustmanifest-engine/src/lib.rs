@@ -19,6 +19,7 @@ pub mod analyzer;
 pub mod ast;
 pub mod cache;
 pub mod error;
+pub mod facts_export;
 pub mod orchestrator;
 pub mod overview;
 pub mod pattern;

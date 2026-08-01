@@ -21,6 +21,7 @@
 )]
 
 pub mod analysis;
+pub mod knowledge;
 pub mod resources;
 pub mod server;
 pub mod workspace;

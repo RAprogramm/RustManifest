@@ -22,6 +22,7 @@ path = "src/main.rs"
 [dependencies]
 rustmanifest-schema = { workspace = true }
 rustmanifest-engine = { workspace = true }
+rustmanifest-learn = { workspace = true }
 rustmanifest-rules-core = { workspace = true }
 rustmanifest-config = { workspace = true }
 rustmanifest-report = { workspace = true }

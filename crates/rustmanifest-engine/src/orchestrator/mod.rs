@@ -32,7 +32,7 @@ use self::builder::CacheHandle;
 pub use self::{builder::OrchestratorBuilder, cancellation::Cancellation};
 use crate::{
     analyzer::Analyzer,
-    cache::{self, FindingsCache},
+    cache::FindingsCache,
     error::{EngineError, EngineResult},
     pragma,
     source::Source

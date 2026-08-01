@@ -18,7 +18,7 @@ use rustmanifest_schema::TraceStep;
 
 use super::{
     insight::Insight,
-    module_graph::{ModuleGraph, ModuleNode, resolved_module}
+    module_graph::{ModuleGraph, resolved_module}
 };
 use crate::source::Source;
 

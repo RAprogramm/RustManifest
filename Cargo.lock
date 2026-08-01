@@ -1182,6 +1182,7 @@ dependencies = [
  "rmcp",
  "rustmanifest-config",
  "rustmanifest-engine",
+ "rustmanifest-learn",
  "rustmanifest-report",
  "rustmanifest-rules-core",
  "rustmanifest-schema",

@@ -37,6 +37,11 @@ fn session(requests: &[Value]) -> BTreeMap<i64, Value> {
         "pub struct ConfigLoader {\n    path: String\n}\n"
     )
     .expect("probe file");
+    std::fs::write(
+        workspace.path().join("logic.rs"),
+        "pub fn shout(text: &str) {\n    println!(\"{text}\");\n}\n"
+    )
+    .expect("logic file");
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_rustmanifest-mcp"))
         .current_dir(workspace.path())
@@ -99,6 +104,12 @@ fn scripted() -> BTreeMap<i64, Value> {
         }}),
         json!({"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {
             "name": "no_such_tool", "arguments": {}
+        }}),
+        json!({"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {
+            "name": "project_overview", "arguments": {"path": "."}
+        }}),
+        json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {
+            "name": "function_facts", "arguments": {"path": "logic.rs"}
         }})
     ])
 }
@@ -114,7 +125,7 @@ fn handshake_reports_server_identity_and_capabilities() {
 }
 
 #[test]
-fn tools_list_exposes_exactly_the_five_tools() {
+fn tools_list_exposes_exactly_the_eight_tools() {
     let responses = scripted();
     let mut names: Vec<&str> = responses[&2]["result"]["tools"]
         .as_array()
@@ -128,11 +139,33 @@ fn tools_list_exposes_exactly_the_five_tools() {
         [
             "check_rule",
             "explain_rule",
+            "function_facts",
+            "learn_conventions",
             "lint_structure",
+            "project_overview",
             "review_file",
             "review_path"
         ]
     );
+}
+
+#[test]
+fn project_overview_renders_the_knowledge_report() {
+    let responses = scripted();
+    let text = responses[&8]["result"]["content"][0]["text"]
+        .as_str()
+        .expect("overview text");
+    assert!(text.contains("# Project overview"));
+    assert!(text.contains("## Behavioral roles"));
+}
+
+#[test]
+fn function_facts_report_roles() {
+    let responses = scripted();
+    let text = responses[&9]["result"]["content"][0]["text"]
+        .as_str()
+        .expect("facts text");
+    assert!(text.contains("\"role\""));
 }
 
 #[test]
