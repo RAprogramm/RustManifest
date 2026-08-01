@@ -15,7 +15,7 @@
 //! function transitively touches the filesystem. Cycles (recursion) are
 //! handled by the fixpoint iteration.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::behavior::{Effect, FunctionFacts};
 
@@ -52,8 +52,13 @@ impl CallGraph {
 }
 
 /// Builds the call graph of `facts` by resolving every call candidate.
+///
+/// `module_segments` lists the last path segments of workspace modules;
+/// a qualified candidate whose qualifier names such a module falls back
+/// to a unique free function by bare name (`crate::io::persist()` →
+/// `persist`). An empty set disables the fallback.
 #[must_use]
-pub fn call_graph(facts: &[FunctionFacts]) -> CallGraph {
+pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -> CallGraph {
     let mut by_qualified: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut by_bare_free: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut by_method: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
@@ -71,11 +76,17 @@ pub fn call_graph(facts: &[FunctionFacts]) -> CallGraph {
         for candidate in &fact.calls {
             let matches = candidate.strip_prefix("?::").map_or_else(
                 || {
-                    if candidate.contains("::") {
-                        by_qualified.get(candidate.as_str())
-                    } else {
-                        by_bare_free.get(candidate.as_str())
-                    }
+                    candidate.rsplit_once("::").map_or_else(
+                        || by_bare_free.get(candidate.as_str()),
+                        |(qualifier, bare)| {
+                            by_qualified.get(candidate.as_str()).or_else(|| {
+                                module_segments
+                                    .contains(qualifier)
+                                    .then(|| by_bare_free.get(bare))
+                                    .flatten()
+                            })
+                        }
+                    )
                 },
                 |method| by_method.get(method)
             );
@@ -157,7 +168,7 @@ mod tests {
     #[test]
     fn free_function_calls_resolve_by_bare_name() {
         let all = facts("fn helper() {}\nfn caller() { helper(); }");
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert_eq!(
             graph.callees(index_of(&all, "caller")),
             &[index_of(&all, "helper")]
@@ -169,7 +180,7 @@ mod tests {
     fn associated_calls_resolve_by_qualified_name() {
         let all =
             facts("struct Board;\nimpl Board { fn reset() {} }\nfn wipe() { Board::reset(); }");
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert_eq!(
             graph.callees(index_of(&all, "wipe")),
             &[index_of(&all, "Board::reset")]
@@ -182,7 +193,7 @@ mod tests {
             "struct Wallet { balance: i64 }\nimpl Wallet { fn balance(&self) -> i64 { \
              self.balance } }\nfn audit(wallet: &Wallet) -> i64 { wallet.balance() }"
         );
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert_eq!(
             graph.callees(index_of(&all, "audit")),
             &[index_of(&all, "Wallet::balance")]
@@ -195,7 +206,7 @@ mod tests {
             "struct A;\nimpl A { fn go(&self) {} }\nstruct B;\nimpl B { fn go(&self) {} }\nfn \
              run(x: u32) { x.go(); }"
         );
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert!(graph.callees(index_of(&all, "run")).is_empty());
         assert_eq!(graph.unresolved(), 1);
     }
@@ -206,7 +217,7 @@ mod tests {
             "fn log(text: &str) { println!(\"{text}\"); }\nfn middle(text: &str) { log(text); \
              }\nfn top(text: &str) { middle(text); }"
         );
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         let effects = transitive_effects(&all, &graph);
         assert_eq!(effects[index_of(&all, "top")], vec![Effect::ConsoleIo]);
         assert_eq!(effects[index_of(&all, "middle")], vec![Effect::ConsoleIo]);
@@ -218,7 +229,7 @@ mod tests {
             "fn ping(n: u32) { if n > 0 { pong(n - 1); } }\nfn pong(n: u32) { println!(\"{n}\"); \
              ping(n); }"
         );
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         let effects = transitive_effects(&all, &graph);
         assert_eq!(effects[index_of(&all, "ping")], vec![Effect::ConsoleIo]);
     }
@@ -226,7 +237,7 @@ mod tests {
     #[test]
     fn external_calls_are_honestly_unresolved() {
         let all = facts("fn read() -> String { std::fs::read_to_string(\"x\").unwrap() }");
-        let graph = call_graph(&all);
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert_eq!(graph.resolved(), 0);
         assert!(graph.unresolved() > 0);
     }

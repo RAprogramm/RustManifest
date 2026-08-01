@@ -9,10 +9,20 @@
 //! [`behavior`] facts with the module graph — each function's file maps to
 //! its module path, module lists match by `::`-aligned prefix — and every
 //! violation carries the full derivation as a trace.
+//!
+//! Effect bans are enforced **transitively**: a function in a denied
+//! module violates the ban even when the effect happens inside a callee,
+//! not its own body. The trace then carries the resolved call chain from
+//! the violating function down to the function that performs the effect
+//! directly.
 
 use rustmanifest_schema::{Finding, Invariant, Location, Severity, TraceStep};
 
-use super::{behavior::behavior, module_overview::module_overview};
+use super::{
+    behavior::{FunctionFacts, behavior},
+    calls::{CallGraph, call_graph, transitive_effects},
+    module_overview::module_overview
+};
 use crate::{pragma, source::Source};
 
 /// Checks every invariant over `sources`, honoring pragma suppression in
@@ -28,6 +38,14 @@ pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Fin
     }
     let facts = behavior(sources);
     let overview = module_overview(sources);
+    let module_segments: std::collections::BTreeSet<String> = overview
+        .modules()
+        .iter()
+        .filter_map(|module| module.path.rsplit("::").next())
+        .map(ToOwned::to_owned)
+        .collect();
+    let graph = call_graph(&facts, &module_segments);
+    let transitive = transitive_effects(&facts, &graph);
     let module_of = |source: usize| -> String {
         sources
             .get(source)
@@ -46,10 +64,18 @@ pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Fin
             .clone()
             .unwrap_or_else(|| format!("RM-INV-{:03}", index + 1));
         let severity = invariant.severity.unwrap_or(Severity::Error);
-        for fact in &facts {
+        for (fact_index, fact) in facts.iter().enumerate() {
             let module = module_of(fact.source);
-            let violation = field_violation(invariant, fact, &module)
-                .or_else(|| effect_violation(invariant, fact, &module));
+            let violation = field_violation(invariant, fact, &module).or_else(|| {
+                effect_violation(
+                    invariant,
+                    &facts,
+                    fact_index,
+                    &transitive[fact_index],
+                    &graph,
+                    &module
+                )
+            });
             let Some((detail, trace)) = violation else {
                 continue;
             };
@@ -117,15 +143,18 @@ fn field_violation(
 }
 
 /// Checks the effect-ban constraint of one invariant against one
-/// function's facts.
+/// function's direct and transitive effects.
 fn effect_violation(
     invariant: &Invariant,
-    fact: &super::behavior::FunctionFacts,
+    facts: &[FunctionFacts],
+    fact_index: usize,
+    reachable: &[super::behavior::Effect],
+    graph: &CallGraph,
     module: &str
 ) -> Option<(String, Vec<TraceStep>)> {
     let effect = invariant.effect.as_deref()?;
-    if !fact
-        .effects
+    let fact = facts.get(fact_index)?;
+    if !reachable
         .iter()
         .any(|observed| observed.to_string() == effect)
     {
@@ -134,27 +163,98 @@ fn effect_violation(
     if !covered_by_any(module, &invariant.deny_in) {
         return None;
     }
+    let direct = fact
+        .effects
+        .iter()
+        .any(|observed| observed.to_string() == effect);
     let denied = invariant.deny_in.join(", ");
-    let detail = format!(
-        "invariant violated: `{}` performs `{effect}` inside module `{module}`, but the effect is \
-         denied in [{denied}]",
-        fact.function
-    );
-    let trace = vec![
-        TraceStep {
+    let mut trace = Vec::new();
+    let how = if direct {
+        trace.push(TraceStep {
             fact:   format!("fn `{}` performs `{effect}`", fact.function),
             reason: "observed effect-sink call or block in the body".to_owned()
-        },
-        TraceStep {
-            fact:   format!("fn `{}` lives in module `{module}`", fact.function),
-            reason: "module graph maps its file to this path".to_owned()
-        },
-        TraceStep {
-            fact:   format!("denied in: [{denied}]"),
-            reason: "module is covered by a denied prefix".to_owned()
-        },
-    ];
+        });
+        String::new()
+    } else {
+        let chain = effect_chain(facts, graph, fact_index, effect);
+        for window in chain.windows(2) {
+            trace.push(TraceStep {
+                fact:   format!(
+                    "fn `{}` calls fn `{}`",
+                    facts[window[0]].function, facts[window[1]].function
+                ),
+                reason: "resolved call edge".to_owned()
+            });
+        }
+        if let Some(&sink) = chain.last() {
+            trace.push(TraceStep {
+                fact:   format!("fn `{}` performs `{effect}`", facts[sink].function),
+                reason: "observed effect-sink call or block in the body".to_owned()
+            });
+            format!(" through `{}`", facts[sink].function)
+        } else {
+            String::new()
+        }
+    };
+    let verb = if direct {
+        "performs"
+    } else {
+        "transitively performs"
+    };
+    let detail = format!(
+        "invariant violated: `{}` {verb} `{effect}`{how} inside module `{module}`, but the \
+         effect is denied in [{denied}]",
+        fact.function
+    );
+    trace.push(TraceStep {
+        fact:   format!("fn `{}` lives in module `{module}`", fact.function),
+        reason: "module graph maps its file to this path".to_owned()
+    });
+    trace.push(TraceStep {
+        fact:   format!("denied in: [{denied}]"),
+        reason: "module is covered by a denied prefix".to_owned()
+    });
     Some((detail, trace))
+}
+
+/// Finds the shortest resolved call chain from `start` to a function that
+/// performs `effect` directly, both endpoints included; empty when no such
+/// chain exists.
+fn effect_chain(
+    facts: &[FunctionFacts],
+    graph: &CallGraph,
+    start: usize,
+    effect: &str
+) -> Vec<usize> {
+    let mut parent: Vec<Option<usize>> = vec![None; facts.len()];
+    let mut visited = vec![false; facts.len()];
+    let mut queue = std::collections::VecDeque::from([start]);
+    visited[start] = true;
+    while let Some(current) = queue.pop_front() {
+        if current != start
+            && facts[current]
+                .effects
+                .iter()
+                .any(|observed| observed.to_string() == effect)
+        {
+            let mut chain = vec![current];
+            let mut cursor = current;
+            while let Some(previous) = parent[cursor] {
+                chain.push(previous);
+                cursor = previous;
+            }
+            chain.reverse();
+            return chain;
+        }
+        for &next in graph.callees(current) {
+            if !visited[next] {
+                visited[next] = true;
+                parent[next] = Some(current);
+                queue.push_back(next);
+            }
+        }
+    }
+    Vec::new()
 }
 
 /// Returns whether `module` equals one of `prefixes` or sits below one,
@@ -287,5 +387,73 @@ mod tests {
     #[test]
     fn no_invariants_means_no_work() {
         assert!(check_invariants(&wallet_sources(), &[]).is_empty());
+    }
+
+    #[test]
+    fn transitive_effect_in_a_denied_module_is_reported_with_the_chain() {
+        let sources = vec![
+            source("src/lib.rs", "mod domain; mod io;"),
+            source(
+                "src/domain.rs",
+                "pub fn decide(flag: bool) { if flag { crate::io::persist(); } }"
+            ),
+            source(
+                "src/io.rs",
+                "pub fn persist() { std::fs::write(\"x\", \"y\").ok(); }"
+            ),
+        ];
+        let invariant = Invariant {
+            id:              Some("NO-FS-IN-DOMAIN".to_owned()),
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          Some("fs".to_owned()),
+            deny_in:         vec!["crate::domain".to_owned()],
+            severity:        None
+        };
+        let findings = check_invariants(&sources, &[invariant]);
+        assert_eq!(findings.len(), 1);
+        let finding = &findings[0];
+        assert!(
+            finding
+                .message
+                .contains("`decide` transitively performs `fs`")
+        );
+        assert!(finding.message.contains("through `persist`"));
+        assert!(
+            finding
+                .trace
+                .iter()
+                .any(|step| step.fact.contains("`decide` calls fn `persist`"))
+        );
+        assert!(
+            finding
+                .trace
+                .iter()
+                .any(|step| step.fact.contains("`persist` performs `fs`"))
+        );
+    }
+
+    #[test]
+    fn transitive_effect_outside_denied_modules_passes() {
+        let sources = vec![
+            source("src/lib.rs", "mod app; mod io;"),
+            source(
+                "src/app.rs",
+                "pub fn run(flag: bool) { if flag { crate::io::persist(); } }"
+            ),
+            source(
+                "src/io.rs",
+                "pub fn persist() { std::fs::write(\"x\", \"y\").ok(); }"
+            ),
+        ];
+        let invariant = Invariant {
+            id:              None,
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          Some("fs".to_owned()),
+            deny_in:         vec!["crate::domain".to_owned()],
+            severity:        None
+        };
+        assert!(check_invariants(&sources, &[invariant]).is_empty());
     }
 }
