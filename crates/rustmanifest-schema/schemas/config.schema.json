@@ -50,6 +50,20 @@
       "description": "One user-declared behavioral invariant.\n\nExactly one subject is expected per entry: `field` (with\n`write-only-from`) constrains who may write a field; `effect` (with\n`deny-in`) bans a side-effect category from parts of the module tree.\nModule lists hold module-path prefixes (`crate::ledger` covers\n`crate::ledger::posting`).",
       "type": "object",
       "properties": {
+        "call-deny-from": {
+          "description": "Module-path prefix whose functions must not call into\n`call_deny_to`, directly or through callees.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "call-deny-to": {
+          "description": "Module-path prefix that `call_deny_from` must not reach.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "deny-in": {
           "description": "Module-path prefixes where `effect` is denied.",
           "type": "array",

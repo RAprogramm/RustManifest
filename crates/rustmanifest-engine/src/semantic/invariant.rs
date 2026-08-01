@@ -66,16 +66,20 @@ pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Fin
         let severity = invariant.severity.unwrap_or(Severity::Error);
         for (fact_index, fact) in facts.iter().enumerate() {
             let module = module_of(fact.source);
-            let violation = field_violation(invariant, fact, &module).or_else(|| {
-                effect_violation(
-                    invariant,
-                    &facts,
-                    fact_index,
-                    &transitive[fact_index],
-                    &graph,
-                    &module
-                )
-            });
+            let violation = field_violation(invariant, fact, &module)
+                .or_else(|| {
+                    effect_violation(
+                        invariant,
+                        &facts,
+                        fact_index,
+                        &transitive[fact_index],
+                        &graph,
+                        &module
+                    )
+                })
+                .or_else(|| {
+                    call_violation(invariant, &facts, fact_index, &graph, &module, &module_of)
+                });
             let Some((detail, trace)) = violation else {
                 continue;
             };
@@ -218,6 +222,94 @@ fn effect_violation(
     Some((detail, trace))
 }
 
+/// Checks the layer constraint of one invariant: functions under
+/// `call-deny-from` must not reach functions under `call-deny-to`.
+fn call_violation(
+    invariant: &Invariant,
+    facts: &[FunctionFacts],
+    fact_index: usize,
+    graph: &CallGraph,
+    module: &str,
+    module_of: &dyn Fn(usize) -> String
+) -> Option<(String, Vec<TraceStep>)> {
+    let from = invariant.call_deny_from.as_deref()?;
+    let to = invariant.call_deny_to.as_deref()?;
+    if !covered_by_any(module, std::slice::from_ref(&from.to_owned())) {
+        return None;
+    }
+    let fact = facts.get(fact_index)?;
+    let chain = reach_chain(facts, graph, fact_index, |target| {
+        covered_by_any(
+            &module_of(facts[target].source),
+            std::slice::from_ref(&to.to_owned())
+        )
+    })?;
+    let sink = *chain.last()?;
+    let mut trace = Vec::new();
+    for window in chain.windows(2) {
+        trace.push(TraceStep {
+            fact:   format!(
+                "fn `{}` calls fn `{}`",
+                facts[window[0]].function, facts[window[1]].function
+            ),
+            reason: "resolved call edge".to_owned()
+        });
+    }
+    trace.push(TraceStep {
+        fact:   format!("fn `{}` lives under `{to}`", facts[sink].function),
+        reason: "module graph maps its file below the denied prefix".to_owned()
+    });
+    trace.push(TraceStep {
+        fact:   format!("fn `{}` lives under `{from}`", fact.function),
+        reason: "module graph maps its file below the constrained prefix".to_owned()
+    });
+    let direct = chain.len() == 2;
+    let how = if direct {
+        "calls"
+    } else {
+        "transitively reaches"
+    };
+    let detail = format!(
+        "invariant violated: `{}` ({from}) {how} `{}` ({to}); the layer boundary forbids it",
+        fact.function, facts[sink].function
+    );
+    Some((detail, trace))
+}
+
+/// Finds the shortest resolved call chain from `start` to any function
+/// matching `target`, both endpoints included.
+fn reach_chain(
+    facts: &[FunctionFacts],
+    graph: &CallGraph,
+    start: usize,
+    target: impl Fn(usize) -> bool
+) -> Option<Vec<usize>> {
+    let mut parent: Vec<Option<usize>> = vec![None; facts.len()];
+    let mut visited = vec![false; facts.len()];
+    let mut queue = std::collections::VecDeque::from([start]);
+    visited[start] = true;
+    while let Some(current) = queue.pop_front() {
+        if current != start && target(current) {
+            let mut chain = vec![current];
+            let mut cursor = current;
+            while let Some(previous) = parent[cursor] {
+                chain.push(previous);
+                cursor = previous;
+            }
+            chain.reverse();
+            return Some(chain);
+        }
+        for &next in graph.callees(current) {
+            if !visited[next] {
+                visited[next] = true;
+                parent[next] = Some(current);
+                queue.push_back(next);
+            }
+        }
+    }
+    None
+}
+
 /// Finds the shortest resolved call chain from `start` to a function that
 /// performs `effect` directly, both endpoints included; empty when no such
 /// chain exists.
@@ -311,6 +403,8 @@ mod tests {
             write_only_from: vec!["crate::ledger".to_owned()],
             effect:          None,
             deny_in:         Vec::new(),
+            call_deny_from:  None,
+            call_deny_to:    None,
             severity:        None
         }
     }
@@ -360,6 +454,8 @@ mod tests {
             write_only_from: Vec::new(),
             effect:          Some("fs".to_owned()),
             deny_in:         vec!["crate::domain".to_owned()],
+            call_deny_from:  None,
+            call_deny_to:    None,
             severity:        Some(Severity::Warning)
         };
         let findings = check_invariants(&sources, &[invariant]);
@@ -409,6 +505,8 @@ mod tests {
             write_only_from: Vec::new(),
             effect:          Some("fs".to_owned()),
             deny_in:         vec!["crate::domain".to_owned()],
+            call_deny_from:  None,
+            call_deny_to:    None,
             severity:        None
         };
         let findings = check_invariants(&sources, &[invariant]);
@@ -453,6 +551,60 @@ mod tests {
             write_only_from: Vec::new(),
             effect:          Some("fs".to_owned()),
             deny_in:         vec!["crate::domain".to_owned()],
+            call_deny_from:  None,
+            call_deny_to:    None,
+            severity:        None
+        };
+        assert!(check_invariants(&sources, &[invariant]).is_empty());
+    }
+
+    #[test]
+    fn layer_boundary_reports_the_reach_chain() {
+        let sources = vec![
+            source("src/lib.rs", "mod api; mod domain; mod storage;"),
+            source("src/api.rs", "pub fn handle() { crate::domain::decide(); }"),
+            source(
+                "src/domain.rs",
+                "pub fn decide() { crate::storage::save(); }"
+            ),
+            source("src/storage.rs", "pub fn save() {}"),
+        ];
+        let invariant = Invariant {
+            id:              Some("API-NOT-STORAGE".to_owned()),
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          None,
+            deny_in:         Vec::new(),
+            call_deny_from:  Some("crate::api".to_owned()),
+            call_deny_to:    Some("crate::storage".to_owned()),
+            severity:        None
+        };
+        let findings = check_invariants(&sources, &[invariant]);
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].message.contains("transitively reaches"));
+        assert!(
+            findings[0]
+                .trace
+                .iter()
+                .any(|step| step.fact.contains("`handle` calls fn `decide`"))
+        );
+    }
+
+    #[test]
+    fn layers_that_never_touch_pass() {
+        let sources = vec![
+            source("src/lib.rs", "mod api; mod storage;"),
+            source("src/api.rs", "pub fn handle() {}"),
+            source("src/storage.rs", "pub fn save() {}"),
+        ];
+        let invariant = Invariant {
+            id:              None,
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          None,
+            deny_in:         Vec::new(),
+            call_deny_from:  Some("crate::api".to_owned()),
+            call_deny_to:    Some("crate::storage".to_owned()),
             severity:        None
         };
         assert!(check_invariants(&sources, &[invariant]).is_empty());

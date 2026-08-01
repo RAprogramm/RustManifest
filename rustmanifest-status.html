@@ -10,8 +10,8 @@
 :root[data-theme="dark"]{--paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;--oxide:#D96A47;--deep:#E88B6C;--ok:#8fae7f;--blk:#E08573;--plan:#9A8E7C}
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{background:var(--paper);color:var(--ink);font:1rem/1.65 Charter,"Bitstream Charter","Sitka Text",Cambria,Georgia,serif;hanging-punctuation:first last}
-.mono,.caps,.rid,.badge,thead th,#themebtn,footer{font-family:ui-monospace,"Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+body{background:var(--paper);color:var(--ink);font:1rem/1.65 Charter,Cambria,Georgia,serif;hanging-punctuation:first last}
+.mono,.caps,.rid,.badge,thead th,#themebtn,footer{font-family:ui-monospace,Menlo,Consolas,monospace}
 .wrap{max-width:72rem;margin:0 auto;padding:0 1.5rem}
 .grid{display:grid;grid-template-columns:240px 1fr;gap:4rem}
 main{max-width:70ch;min-width:0}
@@ -20,36 +20,35 @@ main{max-width:70ch;min-width:0}
 a{color:var(--oxide);text-decoration:none}
 a:hover{text-decoration:underline}
 .top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding-top:2rem}
-#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.25rem 0}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem}
 #themebtn:hover{color:var(--oxide)}
 h1{font-size:clamp(2rem,4vw,2.5rem);font-weight:650;line-height:1.15;margin:.5rem 0}
 h1 .ox{color:var(--oxide)}
-.meta-line{font-size:.8125rem;color:var(--muted)}
+.ml{font-size:.8125rem;color:var(--muted)}
 .abstract{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:1.25rem 0;margin-top:1.5rem}
-.abstract p{font-size:1.125rem;line-height:1.65;max-width:72ch}
-.abstract .num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums}
+.abstract p{font-size:1.125rem;line-height:1.65}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums}
 nav.toc{position:sticky;top:2rem;align-self:start;font-size:.8125rem}
 nav.toc ol{list-style:none;margin:.5rem 0 1.5rem}
 nav.toc a{display:block;color:var(--muted);padding:.2rem 0 .2rem .75rem;border-left:2px solid transparent}
-nav.toc .n{font-variant-numeric:tabular-nums;margin-right:.4rem;font-size:.75rem}
+nav.toc .n{font-variant-numeric:tabular-nums;margin-right:.4rem;font-size:.75rem;font-family:ui-monospace,Menlo,monospace}
 nav.toc a.on{color:var(--ink);border-left-color:var(--oxide)}
 .docmeta{font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.75rem;line-height:1.9}
 section{margin-top:3rem;border-top:1px solid var(--line);padding-top:1.5rem;scroll-margin-top:3.5rem}
 main section:first-child{margin-top:2rem;border-top:none;padding-top:0}
-.shead{display:flex;align-items:baseline;gap:.6rem}
-.shead .sn{color:var(--oxide);font-size:.9375rem;font-variant-numeric:tabular-nums}
-.shead h2{font-size:1.125rem;font-weight:600;flex:1}
-.shead .anchor{opacity:0;font-size:.875rem}
-.shead:hover .anchor{opacity:1}
+.sh{display:flex;align-items:baseline;gap:.6rem}
+.sh .sn{color:var(--oxide);font-size:.9375rem;font-variant-numeric:tabular-nums}
+.sh h2{font-size:1.125rem;font-weight:600;flex:1}
+.sh .an{opacity:0;font-size:.875rem}
+.sh:hover .an{opacity:1}
 h3.rub{font-size:1.375rem;font-weight:650}
 p{margin-top:.75rem;max-width:72ch}
 ul.f{margin:.75rem 0 0 1.1rem}
 ul.f li{margin-top:.35rem}
 .rid{font-size:.8125rem;background:var(--paper2);border-radius:2px;padding:.05em .3em;white-space:nowrap}
-.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6875rem;letter-spacing:.05em;text-transform:uppercase;border:1px solid;border-radius:2px;padding:.15em .5em;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6875rem;letter-spacing:.05em;text-transform:uppercase;border:1px solid color-mix(in srgb,currentColor 25%,transparent);background:color-mix(in srgb,currentColor 8%,transparent);border-radius:2px;padding:.15em .5em;white-space:nowrap}
 .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
 .b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
-.badge{border-color:color-mix(in srgb,currentColor 25%,transparent);background:color-mix(in srgb,currentColor 8%,transparent)}
 .tbl{overflow-x:auto;margin-top:1rem}
 @media (min-width:1200px){.brk{width:920px;margin-left:calc((70ch - 920px)/2)}}
 table{border-collapse:collapse;width:100%;font-size:.875rem;min-width:34rem}
@@ -67,18 +66,17 @@ footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;text
 @media (max-width:960px){
 .grid{display:block}
 nav.toc{position:sticky;top:0;background:color-mix(in srgb,var(--paper) 95%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);height:44px;display:flex;align-items:center;overflow-x:auto;white-space:nowrap;z-index:8;margin:0 -1.5rem;padding:0 1.5rem}
-nav.toc .rub-t,nav.toc .docmeta{display:none}
+nav.toc .rt,nav.toc .docmeta{display:none}
 nav.toc ol{display:flex;gap:1rem;margin:0}
 nav.toc a{border-left:none;border-bottom:2px solid transparent;padding:.5rem 0}
 nav.toc a.on{border-bottom-color:var(--oxide)}
-nav.toc .full{display:none}
+nav.toc .fu{display:none}
 section{scroll-margin-top:56px}
 }
-@media (min-width:961px){nav.toc .short{display:none}}
+@media (min-width:961px){nav.toc .sm{display:none}}
 @media print{
 nav.toc,#bar,#themebtn{display:none}
 table,dl.pr{break-inside:avoid}
-body{font-size:10.5pt}
 a{color:inherit}
 }
 </style>
@@ -92,7 +90,7 @@ a{color:inherit}
 <button id="themebtn" type="button" aria-label="Переключить тему">свет/тьма</button>
 </div>
 <h1>rustmanifest <span class="ox">::</span> методология как код</h1>
-<p class="meta-line mono">RAprogramm/RustManifest · rust 1.95.0 · edition 2024</p>
+<p class="ml mono">RAprogramm/RustManifest · rust 1.95.0 · edition 2024</p>
 <div class="abstract">
 <p class="caps">Аннотация</p>
 <p>rustmanifest — детерминированный движок понимания Rust-кода: методология проекта исполняется как правила, ни одной модели в контуре анализа. Три яруса извлечения фактов — regex, AST, семантика воркспейса — питают пакет из <span class="num">21</span> правила; каждая находка несёт полную трассу вывода, одинаковый вход даёт байт-в-байт одинаковый выход. На корпусе из четырёх репозиториев (<span class="num">190 769</span> строк) консервативные ворота дали <span class="num">0</span> ложных срабатываний у всех разобранных правил; recall не измерен — точность прежде охвата. Обучаемый слой на машине Цетлина прошёл ворота допуска: macro-F1 <span class="num">0.9955</span> против <span class="num">0.8224</span> у логрегрессии на идентичных признаках. Межфайловые авто-правки безопасны под доказуемыми воротами; слои архитектуры выведены из графа вызовов.</p>
@@ -101,64 +99,64 @@ a{color:inherit}
 
 <div class="grid">
 <nav class="toc" aria-label="Содержание">
-<p class="caps rub-t">Содержание</p>
+<p class="caps rt">Содержание</p>
 <ol>
-<li><a href="#s01"><span class="n mono">§01</span><span class="full">Постановка проблемы</span><span class="short">Проблема</span></a></li>
-<li><a href="#s02"><span class="n mono">§02</span><span class="full">Контекст и пробелы</span><span class="short">Контекст</span></a></li>
-<li><a href="#s03"><span class="n mono">§03</span><span class="full">Гипотезы и вердикты</span><span class="short">Гипотезы</span></a></li>
-<li><a href="#s04"><span class="n mono">§04</span><span class="full">Метод</span><span class="short">Метод</span></a></li>
-<li><a href="#s05"><span class="n mono">§05</span><span class="full">Эксперименты</span><span class="short">Эксперименты</span></a></li>
-<li><a href="#s06"><span class="n mono">§06</span><span class="full">Границы</span><span class="short">Границы</span></a></li>
-<li><a href="#s07"><span class="n mono">§07</span><span class="full">Программа исследования</span><span class="short">Программа</span></a></li>
-<li><a href="#princ"><span class="n mono">·</span><span class="full">Принципы</span><span class="short">Принципы</span></a></li>
-<li><a href="#tiers"><span class="n mono">·</span><span class="full">Ярусы</span><span class="short">Ярусы</span></a></li>
-<li><a href="#status"><span class="n mono">·</span><span class="full">Статус</span><span class="short">Статус</span></a></li>
+<li><a href="#s01"><span class="n">§01</span><span class="fu">Постановка проблемы</span><span class="sm">Проблема</span></a></li>
+<li><a href="#s02"><span class="n">§02</span><span class="fu">Контекст и пробелы</span><span class="sm">Контекст</span></a></li>
+<li><a href="#s03"><span class="n">§03</span><span class="fu">Гипотезы и вердикты</span><span class="sm">Гипотезы</span></a></li>
+<li><a href="#s04"><span class="n">§04</span><span class="fu">Метод</span><span class="sm">Метод</span></a></li>
+<li><a href="#s05"><span class="n">§05</span><span class="fu">Эксперименты</span><span class="sm">Эксперименты</span></a></li>
+<li><a href="#s06"><span class="n">§06</span><span class="fu">Границы</span><span class="sm">Границы</span></a></li>
+<li><a href="#s07"><span class="n">§07</span><span class="fu">Программа исследования</span><span class="sm">Программа</span></a></li>
+<li><a href="#princ"><span class="n">·</span><span class="fu">Принципы</span><span class="sm">Принципы</span></a></li>
+<li><a href="#tiers"><span class="n">·</span><span class="fu">Ярусы</span><span class="sm">Ярусы</span></a></li>
+<li><a href="#status"><span class="n">·</span><span class="fu">Статус</span><span class="sm">Статус</span></a></li>
 </ol>
 <div class="docmeta mono">2026-08-01 · main<br>правил: 21 · тестов: 413<br>корпус: 190 769 строк</div>
 </nav>
 
 <main>
 <section id="s01" aria-labelledby="h01">
-<div class="shead"><span class="sn mono">§01</span><h2 id="h01">Постановка проблемы</h2><a class="anchor" href="#s01" aria-hidden="true">§</a></div>
-<p>Можно ли исполнять стайлгайд проекта как код — детерминированно, без модели в контуре понимания? Требования: одинаковый вход — байт-в-байт одинаковый выход; каждая находка несёт полную трассу вывода. Код — единственная исполняемая истина: имя функции — обещание (<span class="rid">get_</span>/<span class="rid">is_</span> обещают наблюдение), doc-комментарий — обещание длиннее; тело лгать не может. Противоречие обещания и наблюдения всегда решается правкой обещания (<span class="rid">RM-QUAL-001</span> — обманчивое имя, <span class="rid">RM-QUAL-002</span> — обманчивый rustdoc). Методология исполняется как правила, а не читается как проза; тот же движок — ворота и для человека, и для агента через MCP.</p>
+<div class="sh"><span class="sn mono">§01</span><h2 id="h01">Постановка проблемы</h2><a class="an" href="#s01" aria-hidden="true">§</a></div>
+<p>Можно ли исполнять стайлгайд проекта как код — без модели в контуре понимания? Требования: одинаковый вход — байт-в-байт одинаковый выход; каждая находка несёт полную трассу вывода. Код — единственная исполняемая истина: имя функции — обещание (<span class="rid">get_</span>/<span class="rid">is_</span> обещают наблюдение), doc-комментарий — обещание длиннее; тело лгать не может, и противоречие всегда решается правкой обещания (<span class="rid">RM-QUAL-001</span>, <span class="rid">RM-QUAL-002</span>). Методология исполняется как правила, а не читается как проза; тот же движок — ворота и для человека, и для агента через MCP.</p>
 </section>
 
 <section id="s02" aria-labelledby="h02">
-<div class="shead"><span class="sn mono">§02</span><h2 id="h02">Контекст и пробелы (июль 2026)</h2><a class="anchor" href="#s02" aria-hidden="true">§</a></div>
-<p>Занято: clippy — 700+ линтов, но per-crate, без воркспейса; dylint требует нестабильного <span class="rid">rustc_*</span> API; ast-grep и semgrep — чистый синтаксис; Miri, Kani, Creusot — верификация, не извлечение фактов. CodeQL — Rust GA с октября 2025, главный референс схемы фактов, но проприетарен и не cargo-native. <span class="rid">ra_ap_*</span> нестабилен, <span class="rid">rustc_public</span> — nightly-only. LLM-ревьюеры недетерминированы; связка «статика находит — LLM объясняет» — уже стандарт отрасли (ZeroFalse: F1 0.91–0.95), не дифференциатор. Пустые ниши:</p>
+<div class="sh"><span class="sn mono">§02</span><h2 id="h02">Контекст и пробелы (июль 2026)</h2><a class="an" href="#s02" aria-hidden="true">§</a></div>
+<p>Занято: clippy — 700+ линтов, но per-crate, без воркспейса; dylint требует нестабильного <span class="rid">rustc_*</span> API; ast-grep и semgrep — чистый синтаксис; Miri, Kani, Creusot — верификация, не извлечение фактов. CodeQL — Rust GA с октября 2025, главный референс схемы фактов, но проприетарен и не cargo-native; <span class="rid">ra_ap_*</span> нестабилен, <span class="rid">rustc_public</span> — nightly-only. LLM-ревьюеры недетерминированы; связка «статика находит — LLM объясняет» — уже стандарт отрасли (ZeroFalse: F1 0.91–0.95), не дифференциатор. Пустые ниши:</p>
 <ul class="f">
 <li>архитектурные инварианты уровня воркспейса — ArchUnit для Rust отсутствует;</li>
-<li>машинно-проверяемый манифест правил, единая база фактов, трасса вывода находки — детерминированные ворота для LLM-патчей;</li>
+<li>манифест правил, единая база фактов, трасса вывода — детерминированные ворота для LLM-патчей;</li>
 <li>машина Цетлина на исходном коде — публикаций не нашлось.</li>
 </ul>
 </section>
 
 <section id="s03" aria-labelledby="h03">
-<div class="shead"><span class="sn mono">§03</span><h2 id="h03">Гипотезы и вердикты</h2><a class="anchor" href="#s03" aria-hidden="true">§</a></div>
+<div class="sh"><span class="sn mono">§03</span><h2 id="h03">Гипотезы и вердикты</h2><a class="an" href="#s03" aria-hidden="true">§</a></div>
 <p>Пять гипотез проверены экспериментально; отрицательные исходы промежуточных вариантов записаны как данные наравне с положительными.</p>
 <div class="tbl brk"><table>
-<caption>Табл. 1. Гипотезы и вердикты; все числа — из реальных прогонов по закреплённым ревизиям.</caption>
+<caption>Табл. 1. Гипотезы и вердикты; числа — из прогонов по закреплённым ревизиям.</caption>
 <thead><tr><th>№</th><th>Гипотеза</th><th>Проверка</th><th>Вердикт</th></tr></thead>
 <tbody>
-<tr><td class="mono">H1</td><td>Формульность rustdoc допускает детерминированный синтез без модели</td><td>шаблоны с фактами в слотах: резюме, # Errors, # Panics, # Safety, # Arguments; ссылки [Type::field] через граф типов; грамматика гарантирована конструкцией</td><td><span class="badge b-ok">подтверждена</span></td></tr>
-<tr><td class="mono">H2</td><td>Машина Цетлина восстанавливает правила и бьёт логрегрессию</td><td>8327 функций, 37 признаков: macro-F1 0.9955 против 0.8224, отрыв +17.3 п.п. при воротах ≥5 п.п.; оговорка — метки эвристические</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H1</td><td>Формульность rustdoc допускает детерминированный синтез без модели</td><td>шаблоны с фактами в слотах; ссылки [Type::field] через граф типов; грамматика гарантирована конструкцией</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H2</td><td>Машина Цетлина восстанавливает правила и бьёт логрегрессию</td><td>macro-F1 0.9955 против 0.8224, отрыв +17.3 п.п. при воротах ≥5 п.п.; метки эвристические — оговорка</td><td><span class="badge b-ok">подтверждена</span></td></tr>
 <tr><td class="mono">H3</td><td>Консервативные ворота дают 0 ложных срабатываний</td><td>6 правил на корпусе 190 769 строк — 0 ложных; recall неизвестен</td><td><span class="badge b-ok">подтверждена</span></td></tr>
-<tr><td class="mono">H4</td><td>Межфайловые авто-правки безопасны под доказуемыми воротами</td><td>6 сквозных тестов «нашёл → починил → доказал тишину»; первый вариант опровергнут — дефект адресации чужих файлов, исправлен</td><td><span class="badge b-ok">подтверждена</span></td></tr>
-<tr><td class="mono">H5</td><td>Слои архитектуры выводимы из графа вызовов</td><td>8 уровней на самом движке; артефакт завышения глубин исправлен (SCC-first); взаимные узлы помечаются «запутаны», не ранжируются</td><td><span class="badge b-wip">частично</span></td></tr>
+<tr><td class="mono">H4</td><td>Межфайловые авто-правки безопасны под доказуемыми воротами</td><td>6 тестов «нашёл → починил → доказал тишину»; первый вариант опровергнут — дефект адресации чужих файлов, исправлен</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H5</td><td>Слои архитектуры выводимы из графа вызовов</td><td>8 уровней на самом движке; завышение глубин исправлено (SCC-first); взаимные узлы — «запутаны»</td><td><span class="badge b-wip">частично</span></td></tr>
 </tbody>
 </table></div>
 </section>
 
 <section id="s04" aria-labelledby="h04">
-<div class="shead"><span class="sn mono">§04</span><h2 id="h04">Метод</h2><a class="anchor" href="#s04" aria-hidden="true">§</a></div>
-<p>Конвейер по схеме CodeQL/Glean/Kythe: тупой тотальный экстрактор → типизированная база фактов → декларативный вывод; аналитика — производные отношения, не примитивы. Правило — силлогизм: таксономия (данные, не мнение) даёт класс обещания, факты тела дают наблюдение, противоречие — находка с полной трассой; каждое уточнение точности — снова данные, не костыль. Детерминизм байт-в-байт всюду, включая обучаемый слой: фиксированный seed, чистая булева оценка клауз; клаузы описывают код и никогда не порождают находок. Clippy не дублируется: наличие секций rustdoc — <span class="rid">missing_errors_doc</span>, истинность — наша; <span class="rid">redundant_clone</span> на MIR — делегирование.</p>
+<div class="sh"><span class="sn mono">§04</span><h2 id="h04">Метод</h2><a class="an" href="#s04" aria-hidden="true">§</a></div>
+<p>Конвейер по схеме CodeQL/Glean/Kythe: тупой тотальный экстрактор → типизированная база фактов → декларативный вывод; аналитика — производные отношения. Правило — силлогизм: таксономия (данные, не мнение) даёт класс обещания, факты тела дают наблюдение, противоречие — находка с полной трассой; каждое уточнение точности — снова данные, не костыль. Детерминизм байт-в-байт всюду, включая обучаемый слой: фиксированный seed, булева оценка клауз; клаузы описывают код и никогда не порождают находок. Clippy не дублируется: наличие секций rustdoc — <span class="rid">missing_errors_doc</span>, истинность — наша; <span class="rid">redundant_clone</span> на MIR — делегирование.</p>
 </section>
 
 <section id="s05" aria-labelledby="h05">
-<div class="shead"><span class="sn mono">§05</span><h2 id="h05">Эксперименты</h2><a class="anchor" href="#s05" aria-hidden="true">§</a></div>
-<p>Корпус — четыре репозитория с закреплёнными ревизиями, базлайн — 552 находки. Отрицательные результаты — полноправные данные: каждый класс шума разобран вручную и закрыт как данные правила, не как костыль.</p>
+<div class="sh"><span class="sn mono">§05</span><h2 id="h05">Эксперименты</h2><a class="an" href="#s05" aria-hidden="true">§</a></div>
+<p>Корпус — четыре репозитория с закреплёнными ревизиями, базлайн — 552 находки. Отрицательные результаты — полноправные данные: каждый класс шума разобран вручную и закрыт как данные правила.</p>
 <div class="tbl brk"><table>
-<caption>Табл. 2. Корпус оценки (eval/baseline.json); «макс. правило» — наибольший вклад в находки.</caption>
+<caption>Табл. 2. Корпус оценки (eval/baseline.json).</caption>
 <thead><tr><th>Репозиторий</th><th class="r">Файлов</th><th class="r">Строк</th><th class="r">Находок</th><th>Макс. правило</th></tr></thead>
 <tbody>
 <tr><td class="mono">hydebar</td><td class="r">318</td><td class="r">70 288</td><td class="r">267</td><td class="mono">RM-STRUCT-003 · 57</td></tr>
@@ -169,30 +167,21 @@ a{color:inherit}
 </tbody>
 </table></div>
 <div class="tbl brk"><table>
-<caption>Табл. 3. Точность правил с классификацией причин шума; «недоказуемо» всегда означает молчание, не находку.</caption>
+<caption>Табл. 3. Точность правил; «недоказуемо» всегда означает молчание, не находку.</caption>
 <thead><tr><th>Правило</th><th class="r">Сырых</th><th class="r">Наст.</th><th class="r">Ложных</th><th>Классы шума, закрытые как данные</th></tr></thead>
 <tbody>
-<tr><td class="mono">RM-QUAL-001</td><td class="r">13</td><td class="r">2</td><td class="r">0</td><td>чтение окружения/файлов/сети — наблюдение (обещание ломают лишь печать и запуск процессов); _mut снимает обещание; тесты и trait-impl исключены; неразрешённый получатель отфильтрован</td></tr>
-<tr><td class="mono">RM-QUAL-003</td><td class="r">21</td><td class="r">—</td><td class="r">0</td><td>все 17 hyper — объявления mod в макрообёртках: недоказуемо, молчание; остальное закрыто поддержкой #[path = "…"]-монтирования</td></tr>
-<tr><td class="mono">RM-QUAL-004</td><td class="r">160</td><td class="r">—</td><td class="r">0</td><td>три круга ручного ревью: колбэки-значения; вызовы в токенах format!/select!; строки serde(default = "…"); dbus-interface impl; проза doc-комментариев — не упоминание</td></tr>
-<tr><td class="mono">RM-MEM-002/003</td><td class="r">—</td><td class="r">—</td><td class="r">0</td><td>ложных нет с первого прогона; Copy-ность — из графа типов с поглощёнными derive-развёртками</td></tr>
-<tr><td class="mono">RM-MEM-001</td><td class="r">—</td><td class="r">+2</td><td class="r">0</td><td>база знаний std как decl-таблицы дала 2 настоящих находки на стороннем коде fork-hyper</td></tr>
+<tr><td class="mono">RM-QUAL-001</td><td class="r">13</td><td class="r">2</td><td class="r">0</td><td>чтение окружения/файлов/сети — наблюдение, обещание ломают лишь печать и запуск процессов; _mut снимает обещание; тесты и trait-impl исключены; неразрешённый получатель отфильтрован</td></tr>
+<tr><td class="mono">RM-QUAL-003</td><td class="r">21</td><td class="r">—</td><td class="r">0</td><td>17 hyper — объявления mod в макрообёртках: недоказуемо, молчание; остальное закрыто поддержкой #[path]-монтирования</td></tr>
+<tr><td class="mono">RM-QUAL-004</td><td class="r">160</td><td class="r">—</td><td class="r">0</td><td>три круга ручного ревью: колбэки-значения; токены format!/select!; строки serde(default = "…"); dbus-interface impl; проза doc-комментариев — не упоминание</td></tr>
+<tr><td class="mono">RM-MEM-002/003</td><td class="r">—</td><td class="r">—</td><td class="r">0</td><td>ложных нет с первого прогона; Copy-ность — из графа типов с derive-развёртками</td></tr>
+<tr><td class="mono">RM-MEM-001</td><td class="r">—</td><td class="r">+2</td><td class="r">0</td><td>база знаний std как decl-таблицы: 2 настоящих находки на стороннем коде fork-hyper</td></tr>
 </tbody>
 </table></div>
-<p>Ворота обучаемого яруса (2026-08-01): 8327 функций, 37 бинарных признаков, детерминированный сплит 80/20, фиксированный seed. Машина Цетлина (<span class="rid">tsetlin-rs</span> v0.3.4, 200 клауз): accuracy 0.9988, macro-F1 0.9955; логрегрессия: 0.9640 и 0.8224. Клаузы роли io — буквально исходное правило, по одному эффекту на клаузу. Оговорка: метки выведены из той же базы фактов — замер выразимости, не открытия. Dogfood: первый прогон overview нашёл цикл модулей в самом движке — распутан тем же днём; граф вызовов — 867 рёбер, замыкание эффектов: 147 эффектных функций против 85 прямых; слои — 8 уровней, фундамент — ровно модули данных, одна настоящая запутанность.</p>
-<div class="tbl brk"><table>
-<caption>Табл. 4. Самозамер понимания — живые прогоны; «учтено» — импорт разрешён в воркспейсе или отнесён к объявленной зависимости.</caption>
-<thead><tr><th>Репозиторий</th><th class="r">Распарсено</th><th class="r">Достижимо</th><th class="r">Импортов учтено</th></tr></thead>
-<tbody>
-<tr><td class="mono">aura-api</td><td class="r">259/259</td><td class="r">84.2 %</td><td class="r">2224/2384 · 93.3 %</td></tr>
-<tr><td class="mono">masterror</td><td class="r">169/169</td><td class="r">58.6 %</td><td class="r">1128/1228 · 91.9 %</td></tr>
-<tr><td class="mono">sea_battle</td><td class="r">24/24</td><td class="r">95.8 %</td><td class="r">133/156 · 85.3 %</td></tr>
-</tbody>
-</table></div>
+<p>Ворота обучаемого яруса: 8327 функций, 37 бинарных признаков, сплит 80/20, фиксированный seed. Машина Цетлина (<span class="rid">tsetlin-rs</span> v0.3.4, 200 клауз): accuracy 0.9988, macro-F1 0.9955; логрегрессия: 0.9640 и 0.8224. Клаузы роли io — буквально исходное правило, по одному эффекту на клаузу; метки выведены из той же базы фактов — замер выразимости, не открытия. На собственном воркспейсе: граф вызовов — 867 рёбер, замыкание эффектов даёт 147 эффектных функций против 85 прямых; слои — 8 уровней, фундамент — ровно модули данных, одна настоящая запутанность. Самозамер понимания на живых репозиториях: достижимость 58.6–95.8 %, импортов учтено 85.3–93.3 % (aura-api 259/259 файлов, masterror 169/169, sea_battle 24/24).</p>
 </section>
 
 <section id="s06" aria-labelledby="h06">
-<div class="shead"><span class="sn mono">§06</span><h2 id="h06">Границы и открытые вопросы</h2><a class="anchor" href="#s06" aria-hidden="true">§</a></div>
+<div class="sh"><span class="sn mono">§06</span><h2 id="h06">Границы и открытые вопросы</h2><a class="an" href="#s06" aria-hidden="true">§</a></div>
 <ul class="f">
 <li>Синтаксический потолок: поток владения аппроксимируется формой использования, не borrow-check; настоящий dataflow — будущий MIR-уточнитель.</li>
 <li>Макросы — зона недоказуемости: объявления в макрообёртках дают молчание, не находку.</li>
@@ -202,7 +191,7 @@ a{color:inherit}
 </section>
 
 <section id="s07" aria-labelledby="h07">
-<div class="shead"><span class="sn mono">§07</span><h2 id="h07">Программа исследования</h2><a class="anchor" href="#s07" aria-hidden="true">§</a></div>
+<div class="sh"><span class="sn mono">§07</span><h2 id="h07">Программа исследования</h2><a class="an" href="#s07" aria-hidden="true">§</a></div>
 <div class="tbl brk"><table>
 <caption>Табл. 5. Программа дальше; «заблокировано» — внешняя зависимость, не дефект.</caption>
 <thead><tr><th>Направление</th><th>Механизм</th><th>Статус</th></tr></thead>
@@ -254,8 +243,7 @@ var r=document.documentElement,b=document.getElementById("themebtn");
 try{var s=localStorage.getItem("rm-theme");if(s)r.setAttribute("data-theme",s)}catch(e){}
 b.addEventListener("click",function(){
 var d=r.getAttribute("data-theme")==="dark"||(!r.getAttribute("data-theme")&&matchMedia("(prefers-color-scheme: dark)").matches);
-var n=d?"light":"dark";
-r.setAttribute("data-theme",n);
+var n=d?"light":"dark";r.setAttribute("data-theme",n);
 try{localStorage.setItem("rm-theme",n)}catch(e){}
 });
 var bar=document.getElementById("bar");
@@ -263,12 +251,12 @@ addEventListener("scroll",function(){
 var h=document.documentElement,m=h.scrollHeight-h.clientHeight;
 bar.style.width=(m>0?100*h.scrollTop/m:0)+"%";
 },{passive:true});
-var L={},cur=null;
+var L={},c=null;
 document.querySelectorAll("nav.toc a").forEach(function(a){L[a.getAttribute("href").slice(1)]=a});
 var io=new IntersectionObserver(function(es){
 es.forEach(function(e){if(e.isIntersecting){
-if(cur)cur.classList.remove("on");
-cur=L[e.target.id];if(cur)cur.classList.add("on");
+if(c)c.classList.remove("on");
+c=L[e.target.id];if(c)c.classList.add("on");
 }});
 },{rootMargin:"-15% 0px -70% 0px"});
 document.querySelectorAll("main section").forEach(function(s){io.observe(s)});

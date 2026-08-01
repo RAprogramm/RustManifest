@@ -213,6 +213,13 @@ pub struct Invariant {
     /// Module-path prefixes where `effect` is denied.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub deny_in:         Vec<String>,
+    /// Module-path prefix whose functions must not call into
+    /// `call_deny_to`, directly or through callees.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_deny_from:  Option<String>,
+    /// Module-path prefix that `call_deny_from` must not reach.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_deny_to:    Option<String>,
     /// Severity of violations; `error` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub severity:        Option<Severity>
