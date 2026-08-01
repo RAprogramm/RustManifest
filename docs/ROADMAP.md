@@ -2,9 +2,9 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-07-31):** Phases 1C, 1D, and 2 shipped. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section; the tier-3 type graph powers `RM-STRUCT-010` (repeated field group), per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md). Phase 1D: `rustmanifest.toml` with profiles and severity overrides, `explain <RULE-ID>`, engine-synthesized `RM-META-001` for unused pragmas, content-addressed findings cache behind `--cache`. Phase 2: the stdio MCP server ships five tools (`review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`) and nine bundled methodology resources; methodology documents moved to `rustmanifest-rules-core` as the single source.
+**Current status (2026-08-01):** Phases 1C, 1D, 2, and 2S shipped. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, and the first reasoning rule `RM-MEM-001` (borrowable-params). The stdio MCP server ships five tools and nine bundled methodology resources.
 
-**Next:** Phase 1F/3 — cache follow-ups, clippy delegation; conformance suite for MCP.
+**Next:** remaining §6b reasoning rules over ownership facts (clone-inside-loop, repeated allocation); then Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, resolved-name extractor, tsetlin-rs ranking, MIR refiner).
 
 ---
 
@@ -100,6 +100,18 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 - **Roots**: client-supplied workspace; server refuses access outside.
 - Conformance test suite against the Anthropic mcp-validator wired into CI.
 - All server-facing strings are English regardless of request language.
+
+### Phase 2S — Semantic tier: fact base, behavior, ownership ✅ done (local)
+
+Executes the plan in [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07-behavioral-tier.md](./RESEARCH-2026-07-behavioral-tier.md) on the stable syntactic extractor.
+
+- **Type graph** (`semantic/graph.rs`): structs, enums, traits, impls, methods, fields, interaction edges; absorbs derive and macro expansion output so generated types count as understood.
+- **Module graph** (`semantic/module_graph.rs`): crate roots from Cargo target layout, `mod`/`use` resolution including Rust 2018 uniform paths, dependency cycle detection (`RM-STRUCT-011`), mermaid/dot diagrams via `rustmanifest graph`.
+- **Behavioral facts** (`semantic/behavior.rs`): per-function reads, writes, constructs, error types, and effects (unsafe, filesystem, network, process, env, console); let-binding type inference for field owner resolution; exported via `rustmanifest facts`.
+- **User-declared invariants** (`semantic/invariant.rs`): `[[invariants]]` in `rustmanifest.toml` — field writer allowlists (`write-only-from`) and effect bans (`deny-in`) — checked against the fact base, surfaced as `RM-INV-*` findings with full traces.
+- **Ownership facts** (`semantic/behavior.rs`, `semantic/ownership.rs`): parameter modes (owned / borrowed / mutably borrowed), use shapes, clone and heap-allocation call sites; first reasoning rule `RM-MEM-001` — owned non-`Copy` parameter whose only observed use is field reads should be a borrow.
+- **Coverage honesty** (`semantic/coverage.rs`, `rustmanifest coverage`): reports what the engine understands, with `--expand` measuring derive/macro output.
+- Precision ceiling documented: move/borrow flow approximated by use-shape at the syntactic tier; real dataflow lands with the MIR refiner (research plan phase 6).
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
