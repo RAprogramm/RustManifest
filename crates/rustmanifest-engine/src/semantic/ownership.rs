@@ -19,8 +19,7 @@ use std::collections::BTreeMap;
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes,
-    std_knowledge::is_copy_type
+    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes, std_knowledge::is_copy_type
 };
 use crate::source::Source;
 
@@ -293,6 +292,10 @@ mod tests {
         let insights = insights(&sources, &graph);
         assert_eq!(insights[0].trace.len(), 4);
         assert!(insights[0].trace[2].fact.contains("without `Copy`"));
-        assert!(insights[0].trace[3].fact.contains("weighs 8 guaranteed field byte(s)"));
+        assert!(
+            insights[0].trace[3]
+                .fact
+                .contains("weighs 8 guaranteed field byte(s)")
+        );
     }
 }

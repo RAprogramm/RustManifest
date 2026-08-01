@@ -28,8 +28,7 @@ const READ_VERBS: [&str; 5] = ["get", "has", "is", "len", "peek"];
 /// filesystem reads, network fetches, database reads, environment
 /// lookups — do not break a read promise; producing console output,
 /// spawning processes, or writing the database does.
-const LIE_EFFECTS: [Effect; 3] =
-    [Effect::Process, Effect::ConsoleIo, Effect::DatabaseWrite];
+const LIE_EFFECTS: [Effect; 3] = [Effect::Process, Effect::ConsoleIo, Effect::DatabaseWrite];
 
 /// Reports functions whose name promises a read while the body provably
 /// writes state or touches the outside world.

@@ -55,17 +55,17 @@ fn owns_heap(type_name: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeShape {
     /// Type name.
-    pub name:          String,
+    pub name:         String,
     /// Summed guaranteed byte sizes of the fields — the bytes a copy
     /// provably touches; `None` for enums, whose live variant is a
     /// runtime property.
-    pub payload:       Option<u64>,
+    pub payload:      Option<u64>,
     /// Fields owning heap storage behind their stack header.
-    pub indirections:  u32,
+    pub indirections: u32,
     /// Whether the definition derives `Copy`.
-    pub copyable:      bool,
+    pub copyable:     bool,
     /// Field type names the engine could not size, honestly listed.
-    pub unresolved:    Vec<String>
+    pub unresolved:   Vec<String>
 }
 
 /// Computes the memory shape of every type the graph captured.
@@ -120,8 +120,8 @@ pub fn shapes(sources: &[Source]) -> Vec<TypeShape> {
                 .map(|field| field.type_name.clone())
                 .collect();
             TypeShape {
-                name:         node.name.clone(),
-                payload:      if node.kind == TypeKind::Struct {
+                name: node.name.clone(),
+                payload: if node.kind == TypeKind::Struct {
                     payloads.get(node.name.as_str()).copied().flatten()
                 } else {
                     None
@@ -133,7 +133,7 @@ pub fn shapes(sources: &[Source]) -> Vec<TypeShape> {
                         .count()
                 )
                 .unwrap_or(u32::MAX),
-                copyable:     node.derives.iter().any(|derive| derive == "Copy"),
+                copyable: node.derives.iter().any(|derive| derive == "Copy"),
                 unresolved
             }
         })

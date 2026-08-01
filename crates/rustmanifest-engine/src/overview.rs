@@ -226,9 +226,7 @@ fn boundary_section(out: &mut String, sources: &[Source], facts: &[FunctionFacts
             let qualifier = if duplicated {
                 sources
                     .get(fact.source)
-                    .map_or_else(String::new, |source| {
-                        format!(" ({})", source.short_path())
-                    })
+                    .map_or_else(String::new, |source| format!(" ({})", source.short_path()))
             } else {
                 String::new()
             };

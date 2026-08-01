@@ -201,7 +201,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "fn log(text: &str) { println!(\"{text}\"); }\nfn calc(value: u64) -> u64 { value * \
              2 }"
-                .to_owned()
+            .to_owned()
         )];
         assert!(learn_roles(&source, LearnOptions::default()).is_empty());
     }
