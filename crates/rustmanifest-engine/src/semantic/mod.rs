@@ -15,6 +15,7 @@ mod behavior;
 mod composition;
 mod coverage;
 mod expansion;
+mod expr;
 mod features;
 mod field_group;
 mod graph;

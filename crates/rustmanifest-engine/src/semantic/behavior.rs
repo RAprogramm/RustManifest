@@ -24,6 +24,7 @@ use std::{collections::BTreeMap, fmt};
 use rustmanifest_schema::Range;
 use syn::visit::Visit;
 
+use super::expr::{MUTATING_METHODS, compound_assignment, impl_type_name};
 use crate::source::Source;
 
 /// Side-effect category observed in a function body.
@@ -174,17 +175,6 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
         }
     }
     facts
-}
-
-/// Renders the last path segment of an impl's self type.
-fn impl_type_name(block: &syn::ItemImpl) -> Option<String> {
-    let syn::Type::Path(path) = block.self_ty.as_ref() else {
-        return None;
-    };
-    path.path
-        .segments
-        .last()
-        .map(|segment| segment.ident.to_string())
 }
 
 /// Extracts the facts of one function body against its signature.
@@ -354,22 +344,6 @@ fn error_types(signature: &syn::Signature) -> Vec<String> {
         .collect()
 }
 
-/// Mutating methods that count as a write to the field they are called on.
-pub(super) const MUTATING_METHODS: [&str; 12] = [
-    "borrow_mut",
-    "clear",
-    "get_mut",
-    "insert",
-    "lock",
-    "push",
-    "remove",
-    "replace",
-    "set",
-    "store",
-    "take",
-    "write"
-];
-
 /// Console-output macros classified as [`Effect::ConsoleIo`].
 const CONSOLE_MACROS: [&str; 5] = ["dbg", "eprint", "eprintln", "print", "println"];
 
@@ -520,19 +494,7 @@ impl<'ast> Visit<'ast> for FactCollector {
     }
 
     fn visit_expr_binary(&mut self, binary: &'ast syn::ExprBinary) {
-        if matches!(
-            binary.op,
-            syn::BinOp::AddAssign(_)
-                | syn::BinOp::SubAssign(_)
-                | syn::BinOp::MulAssign(_)
-                | syn::BinOp::DivAssign(_)
-                | syn::BinOp::RemAssign(_)
-                | syn::BinOp::BitXorAssign(_)
-                | syn::BinOp::BitAndAssign(_)
-                | syn::BinOp::BitOrAssign(_)
-                | syn::BinOp::ShlAssign(_)
-                | syn::BinOp::ShrAssign(_)
-        ) {
+        if compound_assignment(binary.op) {
             self.record_write_target(&binary.left);
         }
         syn::visit::visit_expr_binary(self, binary);
