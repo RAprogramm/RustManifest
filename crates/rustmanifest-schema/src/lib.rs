@@ -91,6 +91,32 @@ pub struct TraceStep {
     pub reason: String
 }
 
+/// How safely a [`Fix`] can be applied without human review.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum Applicability {
+    /// The fix is proven correct; an automated applier may apply it.
+    MachineApplicable,
+    /// The fix expresses intent but needs human review before applying.
+    MaybeIncorrect
+}
+
+/// One byte-precise replacement that resolves (part of) a [`Finding`].
+///
+/// A fix replaces exactly the bytes of `range` in the finding's file with
+/// `replacement`. Multi-edit fixes carry several entries; appliers must
+/// apply entries of one finding together or not at all.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct Fix {
+    /// Byte range in the finding's file that the replacement covers.
+    pub range:         Range,
+    /// Replacement text for the range.
+    pub replacement:   String,
+    /// How safely the fix can be applied automatically.
+    pub applicability: Applicability
+}
+
 /// A finding emitted by the engine for one rule against one source location.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -108,7 +134,11 @@ pub struct Finding {
     /// Machine-readable derivation trace; absent on the wire when empty, so
     /// payloads produced before this field existed remain valid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub trace:         Vec<TraceStep>
+    pub trace:         Vec<TraceStep>,
+    /// Byte-precise fixes resolving the finding; absent on the wire when
+    /// empty, so payloads produced before this field existed remain valid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fixes:         Vec<Fix>
 }
 
 /// Source location of a finding.
@@ -227,7 +257,8 @@ mod tests {
             },
             message: "sample".to_owned(),
             rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
-            trace
+            trace,
+            fixes: Vec::new()
         }
     }
 

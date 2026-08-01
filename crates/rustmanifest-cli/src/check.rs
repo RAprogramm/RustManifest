@@ -403,7 +403,8 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
         },
         message: text.to_owned(),
         rationale_uri: format!("{CLIPPY_INDEX_URL}{lint_anchor}"),
-        trace: Vec::new()
+        trace: Vec::new(),
+        fixes: Vec::new()
     })
 }
 

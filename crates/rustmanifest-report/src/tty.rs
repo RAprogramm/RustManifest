@@ -140,7 +140,8 @@ mod tests {
             },
             message:       "Hardcoded credentials: matched at bytes 10..25".to_owned(),
             rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
-            trace:         Vec::new()
+            trace:         Vec::new(),
+            fixes:         Vec::new()
         }]
     }
 

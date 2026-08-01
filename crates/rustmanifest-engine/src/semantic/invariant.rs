@@ -98,7 +98,8 @@ pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Fin
                 },
                 message: detail,
                 rationale_uri: format!("rustmanifest://invariants/{rule_id}"),
-                trace
+                trace,
+                fixes: Vec::new()
             });
         }
     }

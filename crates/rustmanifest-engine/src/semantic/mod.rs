@@ -176,7 +176,8 @@ impl SemanticAnalyzer {
                 },
                 message:       format!("{}: {}", self.rule.title, insight.detail),
                 rationale_uri: self.rule.rationale_uri.clone(),
-                trace:         insight.trace
+                trace:         insight.trace,
+                fixes:         Vec::new()
             });
         }
         findings

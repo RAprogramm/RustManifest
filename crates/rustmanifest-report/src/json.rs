@@ -66,7 +66,8 @@ mod tests {
             trace:         vec![TraceStep {
                 fact:   "bytes 10..25 in src/lib.rs".to_owned(),
                 reason: "regex of RM-SEC-001 matched".to_owned()
-            }]
+            }],
+            fixes:         Vec::new()
         }]
     }
 

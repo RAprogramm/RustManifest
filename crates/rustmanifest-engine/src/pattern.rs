@@ -119,7 +119,8 @@ impl Analyzer for PatternAnalyzer {
                         source.path().display()
                     ),
                     reason: format!("regex of {} matched", self.rule.id)
-                }]
+                }],
+                fixes:         Vec::new()
             });
         }
         findings

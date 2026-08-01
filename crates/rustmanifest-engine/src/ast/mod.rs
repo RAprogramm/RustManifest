@@ -169,7 +169,8 @@ impl Analyzer for AstAnalyzer {
                 },
                 message: format!("{}: {}", self.rule.title, occurrence.detail),
                 rationale_uri: self.rule.rationale_uri.clone(),
-                trace
+                trace,
+                fixes: Vec::new()
             });
         }
         findings

@@ -244,7 +244,8 @@ impl Orchestrator {
                 trace: vec![TraceStep {
                     fact:   format!("pragma `{pragma_text}` at line {}", unused.line_index + 1),
                     reason: step_reason
-                }]
+                }],
+                fixes: Vec::new()
             });
         }
         findings

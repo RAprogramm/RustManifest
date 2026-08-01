@@ -4,6 +4,13 @@
   "description": "A finding emitted by the engine for one rule against one source location.",
   "type": "object",
   "properties": {
+    "fixes": {
+      "description": "Byte-precise fixes resolving the finding; absent on the wire when\nempty, so payloads produced before this field existed remain valid.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Fix"
+      }
+    },
     "location": {
       "description": "Source location where the rule fired.",
       "$ref": "#/$defs/Location"
@@ -41,6 +48,45 @@
     "rationale-uri"
   ],
   "$defs": {
+    "Applicability": {
+      "description": "How safely a [`Fix`] can be applied without human review.",
+      "oneOf": [
+        {
+          "description": "The fix is proven correct; an automated applier may apply it.",
+          "type": "string",
+          "const": "machine-applicable"
+        },
+        {
+          "description": "The fix expresses intent but needs human review before applying.",
+          "type": "string",
+          "const": "maybe-incorrect"
+        }
+      ]
+    },
+    "Fix": {
+      "description": "One byte-precise replacement that resolves (part of) a [`Finding`].\n\nA fix replaces exactly the bytes of `range` in the finding's file with\n`replacement`. Multi-edit fixes carry several entries; appliers must\napply entries of one finding together or not at all.",
+      "type": "object",
+      "properties": {
+        "applicability": {
+          "description": "How safely the fix can be applied automatically.",
+          "$ref": "#/$defs/Applicability"
+        },
+        "range": {
+          "description": "Byte range in the finding's file that the replacement covers.",
+          "$ref": "#/$defs/Range"
+        },
+        "replacement": {
+          "description": "Replacement text for the range.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "range",
+        "replacement",
+        "applicability"
+      ]
+    },
     "Location": {
       "description": "Source location of a finding.",
       "type": "object",
