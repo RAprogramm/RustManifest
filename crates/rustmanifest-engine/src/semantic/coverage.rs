@@ -84,7 +84,11 @@ pub struct Coverage {
     pub derives_seen:               u64,
     /// Item-level macro invocations seen; their expansions are not
     /// analyzed.
-    pub item_macros_seen:           u64
+    pub item_macros_seen:           u64,
+    /// Call candidates observed across all function bodies.
+    pub call_candidates_total:      u64,
+    /// Call candidates that resolved to exactly one workspace function.
+    pub call_candidates_resolved:   u64
 }
 
 impl Coverage {
@@ -117,6 +121,13 @@ impl Coverage {
             self.use_targets_resolved + self.use_targets_external,
             self.use_targets_total
         )
+    }
+
+    /// Share of call candidates that resolved to exactly one workspace
+    /// function, in percent of `call_candidates_total`.
+    #[must_use]
+    pub const fn call_resolution_rate(&self) -> f64 {
+        percent(self.call_candidates_resolved, self.call_candidates_total)
     }
 }
 
@@ -194,6 +205,8 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
             }
         }
     }
+    let facts = super::behavior::behavior(sources);
+    let graph = super::calls::call_graph(&facts, &super::calls::resolution_segments(sources));
     let types = TypeGraph::from_sources(sources);
     let fields_captured = types
         .types()
@@ -230,7 +243,9 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         use_targets_external,
         use_targets_unresolved,
         derives_seen,
-        item_macros_seen
+        item_macros_seen,
+        call_candidates_total: graph.resolved() + graph.unresolved(),
+        call_candidates_resolved: graph.resolved()
     }
 }
 

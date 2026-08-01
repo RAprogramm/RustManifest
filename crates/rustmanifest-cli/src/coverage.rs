@@ -219,6 +219,15 @@ fn report_lines(report: &Coverage) -> Vec<String> {
             )
         ),
         line(
+            "call candidates",
+            &report.call_candidates_total.to_string(),
+            &format!(
+                "resolved to one workspace function {calls_resolved}  {call_rate:.1}%",
+                calls_resolved = report.call_candidates_resolved,
+                call_rate = report.call_resolution_rate()
+            )
+        ),
+        line(
             "derives seen",
             &report.derives_seen.to_string(),
             &format!("item macros seen {macros}   (expansions not analyzed)")
@@ -267,10 +276,12 @@ mod tests {
             use_targets_external:       2400,
             use_targets_unresolved:     24,
             derives_seen:               233,
-            item_macros_seen:           12
+            item_macros_seen:           12,
+            call_candidates_total:      5000,
+            call_candidates_resolved:   1066
         };
         let lines = report_lines(&report);
-        assert_eq!(lines.len(), 6);
+        assert_eq!(lines.len(), 7);
         assert_eq!(lines[0], "files parsed        318/318   100.0%");
         assert_eq!(
             lines[1],
@@ -293,6 +304,10 @@ mod tests {
         );
         assert_eq!(
             lines[5],
+            "call candidates     5000      resolved to one workspace function 1066  21.3%"
+        );
+        assert_eq!(
+            lines[6],
             "derives seen        233       item macros seen 12   (expansions not analyzed)"
         );
     }
