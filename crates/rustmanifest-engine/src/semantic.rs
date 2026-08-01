@@ -36,6 +36,7 @@ mod module_overview;
 mod naming;
 mod orphan;
 mod ownership;
+mod rename_op;
 mod role;
 mod std_knowledge;
 
@@ -58,6 +59,7 @@ pub use self::{
     invariant::check_invariants,
     layers::{ModuleLayer, layers},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
+    rename_op::rename_module_fixes,
     role::{Role, role}
 };
 use crate::{error::EngineError, pragma, source::Source};
