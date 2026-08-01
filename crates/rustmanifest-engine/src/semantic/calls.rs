@@ -272,6 +272,124 @@ mod tests {
     }
 
     #[test]
+    fn loop_variables_type_through_collection_elements() {
+        let all = facts(
+            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
+             }\nfn go(items: &[S]) { for item in items { item.ping(); } }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(
+            graph.callees(index_of(&all, "go")),
+            &[index_of(&all, "S::ping")]
+        );
+    }
+
+    #[test]
+    fn closure_parameters_type_through_iterated_elements() {
+        let all = facts(
+            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
+             }\nfn go(items: Vec<S>) { items.iter().for_each(|item| item.ping()); }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(
+            graph.callees(index_of(&all, "go")),
+            &[index_of(&all, "S::ping")]
+        );
+    }
+
+    #[test]
+    fn indexed_receivers_type_through_collection_elements() {
+        let all = facts(
+            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
+             }\nfn go(items: &[S]) { items[0].ping(); }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(
+            graph.callees(index_of(&all, "go")),
+            &[index_of(&all, "S::ping")]
+        );
+    }
+
+    #[test]
+    fn field_collections_type_their_iterated_elements() {
+        let all = facts(
+            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
+             }\nstruct Holder { items: Vec<S> }\nimpl Holder { fn go(&self) { for item in \
+             &self.items { item.ping(); } } }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(
+            graph.callees(index_of(&all, "Holder::go")),
+            &[index_of(&all, "S::ping")]
+        );
+    }
+
+    #[test]
+    fn unwrapped_external_constructors_attribute_calls_outside() {
+        let all = facts(
+            "struct S;\nimpl S { fn path(&self) {} }\nstruct T;\nimpl T { fn path(&self) {} \
+             }\nfn go() { let dir = TempDir::new().unwrap(); dir.path(); }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(graph.unknown_receiver(), 0);
+        assert_eq!(graph.external(), 3);
+    }
+
+    #[test]
+    fn builder_chains_type_through_return_tables() {
+        let all = facts(
+            "struct R;\nimpl R { fn new() -> Self { R } fn with_color(self) -> Self { self } fn \
+             render(&self) {} }\nstruct Q;\nimpl Q { fn render(&self) {} }\nfn go() { let out = \
+             R::new().with_color(); out.render(); }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "R::render"))
+        );
+    }
+
+    #[test]
+    fn enumerate_tuples_bind_the_element_half() {
+        let all = facts(
+            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
+             }\nfn go(items: &[S]) { for (index, item) in items.iter().enumerate() { \
+             item.ping(); } }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "S::ping"))
+        );
+    }
+
+    #[test]
+    fn optional_accessors_yield_the_element_type() {
+        let all = facts(
+            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
+             }\nfn go(items: &[S]) -> Option<()> { items.get(0)?.ping(); Some(()) }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "S::ping"))
+        );
+    }
+
+    #[test]
+    fn known_external_constructors_attribute_calls_outside() {
+        let all = facts(
+            "struct S;\nimpl S { fn path(&self) {} }\nstruct T;\nimpl T { fn path(&self) {} \
+             }\nfn go() { let dir = tempfile::tempdir().unwrap(); dir.path(); }"
+        );
+        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        assert_eq!(graph.unknown_receiver(), 0);
+    }
+
+    #[test]
     fn unmatched_candidates_split_into_external_and_unknown_receiver() {
         let all = facts(
             "fn go() { let text = String::from(\"x\"); opaque().push(text); opaque().ping(); \

@@ -86,6 +86,75 @@ pub(super) fn parameter_types(
     types
 }
 
+/// Renders the element type of a collection: slices, arrays, and the
+/// std sequence containers carrying one type argument, looking through
+/// references.
+pub(super) fn element_type(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Reference(reference) => element_type(&reference.elem),
+        syn::Type::Slice(slice) => concrete_element(&slice.elem),
+        syn::Type::Array(array) => concrete_element(&array.elem),
+        syn::Type::Path(path) => {
+            let segment = path.path.segments.last()?;
+            let name = segment.ident.to_string();
+            if !matches!(name.as_str(), "Vec" | "VecDeque" | "BTreeSet" | "HashSet") {
+                return None;
+            }
+            let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+            arguments.args.iter().find_map(|argument| {
+                if let syn::GenericArgument::Type(inner) = argument {
+                    concrete_element(inner)
+                } else {
+                    None
+                }
+            })
+        }
+        _ => None
+    }
+}
+
+/// Last segment of a concrete element type, seeing through the std
+/// smart pointers; trait objects yield nothing — a boxed `dyn` element
+/// has no one concrete type to resolve against.
+fn concrete_element(ty: &syn::Type) -> Option<String> {
+    if let syn::Type::Path(path) = ty
+        && let Some(segment) = path.path.segments.last()
+        && matches!(segment.ident.to_string().as_str(), "Box" | "Rc" | "Arc")
+    {
+        let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+            return None;
+        };
+        return arguments.args.iter().find_map(|argument| {
+            if let syn::GenericArgument::Type(inner) = argument {
+                concrete_element(inner)
+            } else {
+                None
+            }
+        });
+    }
+    if matches!(ty, syn::Type::TraitObject(_)) {
+        return None;
+    }
+    type_last_segment(ty)
+}
+
+/// Maps parameter names to the element type of their declared
+/// collection type, when one is evident.
+pub(super) fn parameter_elements(signature: &syn::Signature) -> BTreeMap<String, String> {
+    let mut elements = BTreeMap::new();
+    for input in &signature.inputs {
+        if let syn::FnArg::Typed(argument) = input
+            && let (syn::Pat::Ident(pattern), Some(element)) =
+                (argument.pat.as_ref(), element_type(&argument.ty))
+        {
+            elements.insert(pattern.ident.to_string(), element);
+        }
+    }
+    elements
+}
+
 /// Renders the last path segment of a type, looking through references.
 pub(super) fn type_last_segment(ty: &syn::Type) -> Option<String> {
     match ty {

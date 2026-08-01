@@ -29,7 +29,10 @@ use syn::visit::Visit;
 pub use self::types::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode};
 use self::{
     collector::FactCollector,
-    signature::{error_types, param_facts, parameter_types, type_last_segment}
+    signature::{
+        element_type, error_types, param_facts, parameter_elements, parameter_types,
+        type_last_segment
+    }
 };
 use super::expr::impl_type_name;
 use crate::source::Source;
@@ -38,9 +41,11 @@ use crate::source::Source;
 /// not parse as Rust contribute no facts.
 #[must_use]
 pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
+    let (fields, field_elems) = field_tables(sources);
     let tables = TypeTables {
         returns: return_types(sources),
-        fields:  field_types(sources)
+        fields,
+        field_elems
     };
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
@@ -126,17 +131,52 @@ struct ItemContext<'name> {
 /// Workspace typing tables shared by every function's fact extraction.
 struct TypeTables {
     /// Uniquely named functions to their return types.
-    returns: std::collections::BTreeMap<String, Returned>,
+    returns:     std::collections::BTreeMap<String, Returned>,
     /// `Type.field` keys of uniquely named structs to field type names.
-    fields:  std::collections::BTreeMap<String, String>
+    fields:      std::collections::BTreeMap<String, String>,
+    /// `Type.field` keys of collection-typed fields to element types.
+    field_elems: std::collections::BTreeMap<String, String>
+}
+
+/// Records `value` under `key`, dropping the key on conflicting
+/// observations so typing through the table never guesses.
+fn note_unique(
+    table: &mut std::collections::BTreeMap<String, Option<String>>,
+    key: String,
+    value: String
+) {
+    table
+        .entry(key)
+        .and_modify(|known| {
+            if known.as_deref() != Some(value.as_str()) {
+                *known = None;
+            }
+        })
+        .or_insert(Some(value));
+}
+
+/// Keeps only the keys that settled on exactly one observation.
+fn settled(
+    table: std::collections::BTreeMap<String, Option<String>>
+) -> std::collections::BTreeMap<String, String> {
+    table
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|v| (key, v)))
+        .collect()
 }
 
 /// Maps every named field of a uniquely named struct — keyed
-/// `Type.field` — to its type's last segment; keys with conflicting
-/// observations map to nothing, so typing through this table never
-/// guesses.
-fn field_types(sources: &[Source]) -> std::collections::BTreeMap<String, String> {
-    let mut table: std::collections::BTreeMap<String, Option<String>> =
+/// `Type.field` — to its type's last segment, and every
+/// collection-typed field to its element type.
+fn field_tables(
+    sources: &[Source]
+) -> (
+    std::collections::BTreeMap<String, String>,
+    std::collections::BTreeMap<String, String>
+) {
+    let mut plain: std::collections::BTreeMap<String, Option<String>> =
+        std::collections::BTreeMap::new();
+    let mut elems: std::collections::BTreeMap<String, Option<String>> =
         std::collections::BTreeMap::new();
     for source in sources {
         let Ok(file) = syn::parse_file(source.text()) else {
@@ -152,26 +192,20 @@ fn field_types(sources: &[Source]) -> std::collections::BTreeMap<String, String>
                 continue;
             };
             for field in &named.named {
-                let (Some(name), Some(type_name)) =
-                    (field.ident.as_ref(), type_last_segment(&field.ty))
-                else {
+                let Some(name) = field.ident.as_ref() else {
                     continue;
                 };
-                table
-                    .entry(format!("{}.{name}", definition.ident))
-                    .and_modify(|known| {
-                        if known.as_deref() != Some(type_name.as_str()) {
-                            *known = None;
-                        }
-                    })
-                    .or_insert(Some(type_name));
+                let key = format!("{}.{name}", definition.ident);
+                if let Some(type_name) = type_last_segment(&field.ty) {
+                    note_unique(&mut plain, key.clone(), type_name);
+                }
+                if let Some(element) = element_type(&field.ty) {
+                    note_unique(&mut elems, key, element);
+                }
             }
         }
     }
-    table
-        .into_iter()
-        .filter_map(|(key, type_name)| type_name.map(|t| (key, t)))
-        .collect()
+    (settled(plain), settled(elems))
 }
 
 /// Return type of one workspace function as the typing table sees it.
@@ -361,8 +395,10 @@ fn function_facts(
             allocations: 0
         },
         param_types: parameter_types(signature, context.impl_type),
+        elem_types:  parameter_elements(signature),
         fn_returns:  tables.returns.clone(),
         field_types: tables.fields.clone(),
+        field_elems: tables.field_elems.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
     if signature.unsafety.is_some() {

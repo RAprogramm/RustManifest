@@ -102,6 +102,12 @@ pub(super) fn is_copy_type(name: &str) -> bool {
     COPY_TYPES.contains(&name)
 }
 
+/// Well-known external constructor functions by call name, with the
+/// concrete type each one produces (`Result`/`Option` wrappers already
+/// unwrapped, since these are consumed behind `unwrap`/`?`).
+pub(super) const EXTERNAL_CONSTRUCTORS: [(&str, &str); 2] =
+    [("tempdir", "TempDir"), ("temp_dir", "PathBuf")];
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

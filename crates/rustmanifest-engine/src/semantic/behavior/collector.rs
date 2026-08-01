@@ -11,13 +11,44 @@ use syn::visit::Visit;
 
 use super::{
     Returned,
-    signature::type_last_segment,
+    signature::{element_type, type_last_segment},
     types::{Effect, FunctionFacts}
 };
-use crate::semantic::expr::{MUTATING_METHODS, compound_assignment};
+use crate::semantic::{
+    expr::{MUTATING_METHODS, compound_assignment},
+    std_knowledge::EXTERNAL_CONSTRUCTORS
+};
 
 /// Console-output macros classified as [`Effect::ConsoleIo`].
 const CONSOLE_MACROS: [&str; 5] = ["dbg", "eprint", "eprintln", "print", "println"];
+
+/// Iterator and `Option` adapters whose single-parameter closure
+/// receives one element of the adapted collection or option.
+const ITERATOR_ADAPTERS: [&str; 18] = [
+    "all",
+    "and_then",
+    "any",
+    "filter",
+    "filter_map",
+    "find",
+    "find_map",
+    "flat_map",
+    "for_each",
+    "inspect",
+    "is_some_and",
+    "map",
+    "map_or",
+    "map_or_else",
+    "position",
+    "retain",
+    "skip_while",
+    "take_while"
+];
+
+/// Iterator constructors and element accessors that keep the
+/// collection's element type.
+const ITERATOR_SOURCES: [&str; 7] =
+    ["drain", "first", "get", "into_iter", "iter", "iter_mut", "last"];
 
 /// Syntax visitor accumulating facts from one function body.
 pub(super) struct FactCollector {
@@ -25,10 +56,14 @@ pub(super) struct FactCollector {
     pub(super) facts:       FunctionFacts,
     /// Parameter name to type-name mapping from the signature.
     pub(super) param_types: BTreeMap<String, String>,
+    /// Binding name to collection element type, from the signature.
+    pub(super) elem_types:  BTreeMap<String, String>,
     /// Uniquely named workspace functions to their return types.
     pub(super) fn_returns:  BTreeMap<String, Returned>,
     /// `Type.field` keys of workspace structs to field type names.
     pub(super) field_types: BTreeMap<String, String>,
+    /// `Type.field` keys of collection-typed fields to element types.
+    pub(super) field_elems: BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
     pub(super) fresh:       BTreeSet<String>
 }
@@ -101,6 +136,67 @@ impl FactCollector {
         }
     }
 
+    /// Element type of an iterable expression: a binding or field of a
+    /// known collection type, seen through references, parentheses, and
+    /// the plain iterator constructors.
+    fn element_of(&self, expression: &syn::Expr) -> Option<String> {
+        match expression {
+            syn::Expr::Reference(reference) => self.element_of(&reference.expr),
+            syn::Expr::Paren(inner) => self.element_of(&inner.expr),
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .and_then(|ident| self.elem_types.get(&ident.to_string()))
+                .cloned(),
+            syn::Expr::Field(field) => self
+                .field_key(field)
+                .and_then(|key| self.field_elems.get(&key))
+                .cloned(),
+            syn::Expr::MethodCall(call)
+                if ITERATOR_SOURCES.contains(&call.method.to_string().as_str()) =>
+            {
+                self.element_of(&call.receiver)
+            }
+            _ => None
+        }
+    }
+
+    /// Element type behind an `Option`-returning collection accessor —
+    /// `get`, `first`, `last` — on a known element type.
+    fn optional_element(&self, expression: &syn::Expr) -> Option<String> {
+        let syn::Expr::MethodCall(call) = expression else {
+            return None;
+        };
+        if !matches!(call.method.to_string().as_str(), "get" | "first" | "last") {
+            return None;
+        }
+        self.element_of(&call.receiver)
+    }
+
+    /// Binds one loop or closure pattern against the iterated element
+    /// type, seeing through `enumerate`'s index tuple.
+    fn bind_element(&mut self, pattern: &syn::Pat, iterable: &syn::Expr) {
+        if let syn::Expr::MethodCall(call) = iterable
+            && call.method == "enumerate"
+        {
+            if let syn::Pat::Tuple(tuple) = pattern
+                && tuple.elems.len() == 2
+                && let (Some(name), Some(element)) = (
+                    binding_name(&tuple.elems[1]),
+                    self.element_of(&call.receiver)
+                )
+            {
+                self.param_types.insert(name, element);
+            }
+            return;
+        }
+        if let (Some(name), Some(element)) =
+            (binding_name(pattern), self.element_of(iterable))
+        {
+            self.param_types.insert(name, element);
+        }
+    }
+
     /// Normalizes a call expression into its return-table key, seeing
     /// through `.await` and preferring the owner-qualified associated
     /// key over the bare free-function name.
@@ -134,19 +230,77 @@ impl FactCollector {
         }
     }
 
-    /// Types an expression that calls a uniquely named workspace
-    /// function: a `?`-unwrapped call yields the success type, a plain
-    /// call the written return type.
+    /// Types any expression the tables can settle: bindings and fields
+    /// by their recorded types, indexed collections by element, calls
+    /// through [`Self::called_return`].
+    fn expr_type(&self, expression: &syn::Expr) -> Option<String> {
+        match expression {
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .and_then(|ident| self.param_types.get(&ident.to_string()))
+                .cloned(),
+            syn::Expr::Field(field) => self
+                .field_key(field)
+                .and_then(|key| self.field_types.get(&key))
+                .cloned(),
+            syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
+            other => self.called_return(other)
+        }
+    }
+
+    /// Types an expression that calls a function with a known return: a
+    /// `?`- or `unwrap`/`expect`-unwrapped call yields the success
+    /// type, a plain call the written return type, a method chain
+    /// resolves receiver-first, and a well-known external constructor
+    /// keeps its external type name so calls on it attribute outside.
     fn called_return(&self, expression: &syn::Expr) -> Option<String> {
-        if let syn::Expr::Try(tried) = expression {
-            return self
+        match expression {
+            syn::Expr::Try(tried) => self
                 .call_key(&tried.expr)
                 .and_then(|key| self.fn_returns.get(&key))
-                .and_then(|returned| returned.success.clone());
+                .and_then(|returned| returned.success.clone())
+                .or_else(|| self.optional_element(&tried.expr)),
+            syn::Expr::MethodCall(call)
+                if call.method == "unwrap" || call.method == "expect" =>
+            {
+                if let Some(key) = self.call_key(&call.receiver) {
+                    return self
+                        .fn_returns
+                        .get(&key)
+                        .and_then(|returned| returned.success.clone());
+                }
+                self.optional_element(&call.receiver)
+                    .or_else(|| initializer_type(&call.receiver))
+                    .or_else(|| self.called_return(&call.receiver))
+            }
+            syn::Expr::MethodCall(call) => {
+                let owner = self.expr_type(&call.receiver)?;
+                self.fn_returns
+                    .get(&format!("{owner}::{}", call.method))
+                    .map(|returned| returned.plain.clone())
+            }
+            syn::Expr::Call(call) => {
+                if let Some(key) = self.call_key(expression) {
+                    return self
+                        .fn_returns
+                        .get(&key)
+                        .map(|returned| returned.plain.clone());
+                }
+                let syn::Expr::Path(path) = call.func.as_ref() else {
+                    return None;
+                };
+                let name = path.path.segments.last()?.ident.to_string();
+                EXTERNAL_CONSTRUCTORS
+                    .iter()
+                    .find(|(constructor, _)| *constructor == name)
+                    .map(|(_, produced)| (*produced).to_owned())
+            }
+            _ => self
+                .call_key(expression)
+                .and_then(|key| self.fn_returns.get(&key))
+                .map(|returned| returned.plain.clone())
         }
-        self.call_key(expression)
-            .and_then(|key| self.fn_returns.get(&key))
-            .map(|returned| returned.plain.clone())
     }
 
     /// Classifies a call path against the effect sink patterns.
@@ -190,6 +344,17 @@ impl FactCollector {
             Some(owner) => format!("{owner}::{callee}")
         };
         self.facts.calls.push(candidate);
+    }
+}
+
+/// Name of a single binding pattern, seen through references and type
+/// ascriptions.
+fn binding_name(pattern: &syn::Pat) -> Option<String> {
+    match pattern {
+        syn::Pat::Ident(ident) => Some(ident.ident.to_string()),
+        syn::Pat::Reference(reference) => binding_name(&reference.pat),
+        syn::Pat::Type(typed) => binding_name(&typed.pat),
+        _ => None
     }
 }
 
@@ -245,6 +410,10 @@ impl<'ast> Visit<'ast> for FactCollector {
                         self.param_types
                             .insert(pattern.ident.to_string(), type_name);
                     }
+                    if let Some(element) = element_type(&typed.ty) {
+                        self.elem_types
+                            .insert(pattern.ident.to_string(), element);
+                    }
                     Some(pattern.ident.to_string())
                 } else {
                     None
@@ -267,6 +436,11 @@ impl<'ast> Visit<'ast> for FactCollector {
             }
         }
         syn::visit::visit_local(self, local);
+    }
+
+    fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
+        self.bind_element(&loop_expr.pat, &loop_expr.expr);
+        syn::visit::visit_expr_for_loop(self, loop_expr);
     }
 
     fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
@@ -306,19 +480,17 @@ impl<'ast> Visit<'ast> for FactCollector {
         if method == "clone" || method == "to_owned" || method == "to_string" {
             self.facts.clones += 1;
         }
-        let receiver_type = match call.receiver.as_ref() {
-            syn::Expr::Path(path) => path
-                .path
-                .get_ident()
-                .and_then(|ident| self.param_types.get(&ident.to_string()))
-                .cloned(),
-            syn::Expr::Field(field) => self
-                .field_key(field)
-                .and_then(|key| self.field_types.get(&key))
-                .cloned(),
-            other => self.called_return(other)
-        };
-        match receiver_type {
+        if ITERATOR_ADAPTERS.contains(&method.as_str()) {
+            for argument in &call.args {
+                if let syn::Expr::Closure(closure) = argument
+                    && closure.inputs.len() == 1
+                    && let Some(pattern) = closure.inputs.first()
+                {
+                    self.bind_element(pattern, &call.receiver);
+                }
+            }
+        }
+        match self.expr_type(&call.receiver) {
             Some(owner) => self.record_call(Some(&owner), &method),
             None => self.record_call(Some("?"), &method)
         }
