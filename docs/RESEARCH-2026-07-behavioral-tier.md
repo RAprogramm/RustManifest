@@ -201,3 +201,65 @@ prototype the day the binarizer landed.
   (accepted vs suppressed findings) accumulate from actual use; until
   then the gate result licenses building the integration surface, not
   shipping learned rules as defaults.
+
+## 9. Ground-truth experiment: syntactic resolver vs SCIP (2026-08-02)
+
+Before committing to the §7 phase-4 extractor, the syntactic call
+resolver was measured against a name-resolved ground truth instead of
+guessed at.
+
+- **Setup**: `rust-analyzer scip` (1.95/1.96 toolchain components, runs
+  on stable) over the six eval-corpus repos; call edges reconstructed
+  from occurrence ranges nested in definition `enclosing_range`s; the
+  engine's per-function call sets exported by `rustmanifest facts` and
+  joined on `(file, qualified name)`. In-workspace edges only; callers
+  compared only where both sides analyzed the function.
+- **Result** (precision = our resolved edge confirmed by SCIP, strict
+  `Type::method` match; recall = SCIP workspace edge we resolved):
+
+  | repo | callers matched | precision | recall |
+  |---|---|---|---|
+  | masterror | 79.5% | 97.4% | 81.3% |
+  | fork-hyper (all features) | 83.2% | 92.7% | 79.6% |
+  | hydebar | 91.4% | 95.5% | 72.8% |
+  | entity-derive | 75.4% | 99.6% | 79.8% |
+  | aura-api | 79.0% | 100.0% | 68.3% |
+  | ratma-studio-api | 78.1% | 99.8% | 56.4% |
+
+  Aggregate: **precision 96.9%** (11085/11435), **recall 74.3%**
+  (13811/18590).
+- **Failure taxonomy**. False resolutions concentrate in one class:
+  name collision with an external type (39× `syn::Error::new` bound to
+  the workspace `Error::new` in masterror-derive; `Bytes::from`,
+  `h2::client::Builder` methods in hyper). Recall losses split into
+  calls never seen as candidates — macro-generated bodies
+  (`pin_project`'s `project`, derived impls, `thiserror`-generated
+  `From::from` at `?` sites) — and candidates seen but not uniquely
+  bound: trait-impl dispatch (`poll_*` families), `Default::default`,
+  `.clone()` on derived impls.
+- **Method caveats**: rust-analyzer indexes only cfg-active code — the
+  first fork-hyper run with default features produced a blind ground
+  truth (caller match 31.5%, apparent precision 78.0%) and was
+  discarded; `cargo.features = "all"` restored validity. SCIP also
+  counts operator desugarings (`?` as `Result::branch`, `.await` as
+  `Future::poll`, arithmetic as trait calls) that the engine
+  deliberately does not model as calls; these were excluded from edge
+  sets by construction, not by filtering.
+- **Verdict**: the conservative resolver is precision-grade (96.9%
+  aggregate, four repos at or above 97%) — resolution-by-unique-match
+  holds. The missing quarter of edges is structural: name resolution
+  through macro expansion and trait dispatch, exactly what the
+  syntactic tier cannot see. The phase-4 upgrade is therefore justified
+  and its shape is settled by this experiment: consume the SCIP index
+  as an optional accuracy layer (stable toolchain, 15–40 s per medium
+  workspace, format stable) rather than linking `ra_ap_hir` — the
+  PLAN.md §3.2 argument, now with numbers. Indexing cost keeps it
+  opt-in; the syntactic resolver stays the fast default.
+- **Priority signal for knowledge packs**: the same edges rank external
+  callees by volume. After the std family, the top uncovered crates
+  across the corpus are tokio (1877 calls), http (1633), syn (849),
+  axum (825), serde_json (688). thiserror does not appear in call
+  counts at all — its weight sits in derive-generated `From` impls,
+  i.e. expansion knowledge, not method knowledge. The tokio pack
+  shipped same day (fork-hyper: functions with a known network effect
+  37 → 92); http and serde_json are next.
