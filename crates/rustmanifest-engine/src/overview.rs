@@ -55,7 +55,7 @@ pub fn overview_markdown(sources: &[Source], top: usize, conventions: &[Conventi
     module_section(&mut out, &modules);
     type_section(&mut out, &graph, top);
     role_section(&mut out, &facts);
-    boundary_section(&mut out, &facts, top);
+    boundary_section(&mut out, sources, &facts, top);
     state_section(&mut out, &facts, top);
     layer_section(&mut out, sources, top);
     convention_section(&mut out, conventions, top);
@@ -102,10 +102,11 @@ fn size_section(out: &mut String, stats: &Coverage, functions: usize) {
     push(
         out,
         &format!(
-            "- imports resolved: {:.1}% ({} of {})\n\n",
-            stats.resolution_rate(),
+            "- imports: {} total — {} resolved in-workspace, {} outside the workspace (see \
+             `coverage` for the external/unresolved split)\n\n",
+            stats.use_targets_total,
             stats.use_targets_resolved,
-            stats.use_targets_total
+            stats.use_targets_total - stats.use_targets_resolved
         )
     );
 }
@@ -195,16 +196,20 @@ fn role_section(out: &mut String, facts: &[FunctionFacts]) {
     out.push('\n');
 }
 
-/// Prints functions that touch the world outside the process.
-fn boundary_section(out: &mut String, facts: &[FunctionFacts], top: usize) {
+/// Prints functions that touch the world outside the process; a name
+/// shared by several functions is qualified by its file.
+fn boundary_section(out: &mut String, sources: &[Source], facts: &[FunctionFacts], top: usize) {
     out.push_str("## Outside-world boundaries\n\n");
-    let boundaries: Vec<String> = facts
+    let touching: Vec<&FunctionFacts> = facts
         .iter()
         .filter(|fact| {
             fact.effects
                 .iter()
                 .any(|effect| BOUNDARY_EFFECTS.contains(effect))
         })
+        .collect();
+    let boundaries: Vec<String> = touching
+        .iter()
         .map(|fact| {
             let effects: Vec<String> = fact
                 .effects
@@ -212,7 +217,21 @@ fn boundary_section(out: &mut String, facts: &[FunctionFacts], top: usize) {
                 .filter(|effect| BOUNDARY_EFFECTS.contains(effect))
                 .map(ToString::to_string)
                 .collect();
-            format!("- `{}`: {}\n", fact.function, effects.join(", "))
+            let duplicated = touching
+                .iter()
+                .filter(|other| other.function == fact.function)
+                .count()
+                > 1;
+            let qualifier = if duplicated {
+                sources
+                    .get(fact.source)
+                    .map_or_else(String::new, |source| {
+                        format!(" ({})", source.short_path())
+                    })
+            } else {
+                String::new()
+            };
+            format!("- `{}`{qualifier}: {}\n", fact.function, effects.join(", "))
         })
         .collect();
     if boundaries.is_empty() {

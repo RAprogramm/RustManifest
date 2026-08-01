@@ -115,7 +115,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::create_dir_all(dir.path().join("src")).unwrap();
         let mut text = String::new();
-        for index in 0..20 {
+        for index in 0..25 {
             use std::fmt::Write;
             writeln!(
                 text,

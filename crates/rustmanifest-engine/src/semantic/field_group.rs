@@ -76,7 +76,7 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
                  — extract it into its own component and aggregate it",
                 owners
                     .iter()
-                    .map(|node| format!("`{}`", node.name))
+                    .map(|node| qualified_name(sources, &owners, node))
                     .collect::<Vec<_>>()
                     .join(", "),
                 group.join(", ")
@@ -88,6 +88,24 @@ pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
             Insight::new(anchor.source, anchor.range, detail, trace)
         })
         .collect()
+}
+
+/// Renders one owner's name, qualified by its file name when another
+/// owner in the same group carries the same type name.
+fn qualified_name(sources: &[Source], owners: &[&TypeNode], node: &TypeNode) -> String {
+    let duplicated = owners
+        .iter()
+        .filter(|owner| owner.name == node.name)
+        .count()
+        > 1;
+    if !duplicated {
+        return format!("`{}`", node.name);
+    }
+    let file = sources.get(node.source).map_or_else(
+        || "<unknown file>".to_owned(),
+        crate::source::Source::short_path
+    );
+    format!("`{}` ({file})", node.name)
 }
 
 /// Builds the trace step recording that one owner structure declares the

@@ -41,22 +41,30 @@ pub struct LearnedClause {
 #[derive(Debug, Clone, Copy)]
 pub struct LearnOptions {
     /// Clauses per role machine.
-    pub clauses:   usize,
+    pub clauses:           usize,
     /// Training epochs.
-    pub epochs:    usize,
+    pub epochs:            usize,
     /// Vote threshold of each machine.
-    pub threshold: i32,
+    pub threshold:         i32,
     /// Seed for every machine; same seed, same clauses.
-    pub seed:      u64
+    pub seed:              u64,
+    /// Fewest functions worth learning from; below it nothing is
+    /// learned — clauses fitted on a handful of examples memorize
+    /// them instead of expressing a convention.
+    pub min_functions:     usize,
+    /// Fewest positive examples a role needs for its machine to train.
+    pub min_role_examples: usize
 }
 
 impl Default for LearnOptions {
     fn default() -> Self {
         Self {
-            clauses:   20,
-            epochs:    30,
-            threshold: 10,
-            seed:      42
+            clauses:           20,
+            epochs:            30,
+            threshold:         10,
+            seed:              42,
+            min_functions:     50,
+            min_role_examples: 10
         }
     }
 }
@@ -69,7 +77,7 @@ impl Default for LearnOptions {
 #[must_use]
 pub fn learn_roles(sources: &[Source], options: LearnOptions) -> Vec<LearnedClause> {
     let facts = behavior(sources);
-    if facts.is_empty() {
+    if facts.len() < options.min_functions.max(1) {
         return Vec::new();
     }
     let names: Vec<&'static str> = features(&facts[0])
@@ -92,7 +100,8 @@ pub fn learn_roles(sources: &[Source], options: LearnOptions) -> Vec<LearnedClau
             .iter()
             .map(|label| u8::from(label == role_name))
             .collect();
-        if !targets.contains(&1) {
+        let positives: usize = targets.iter().copied().map(usize::from).sum();
+        if positives < options.min_role_examples.max(1) {
             continue;
         }
         let mut machine = TsetlinMachine::quick(options.clauses, names.len(), options.threshold);
@@ -149,7 +158,7 @@ mod tests {
 
     fn corpus() -> [Source; 1] {
         let mut text = String::new();
-        for index in 0..20 {
+        for index in 0..25 {
             writeln!(
                 text,
                 "fn log_{index}(text: &str) {{ println!(\"{{text}}\"); }}"
@@ -184,6 +193,17 @@ mod tests {
     #[test]
     fn empty_sources_learn_nothing() {
         assert!(learn_roles(&[], LearnOptions::default()).is_empty());
+    }
+
+    #[test]
+    fn tiny_corpora_learn_nothing() {
+        let source = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "fn log(text: &str) { println!(\"{text}\"); }\nfn calc(value: u64) -> u64 { value * \
+             2 }"
+                .to_owned()
+        )];
+        assert!(learn_roles(&source, LearnOptions::default()).is_empty());
     }
 
     #[test]

@@ -24,7 +24,7 @@ fn mixed_tree() -> TempDir {
     let dir = TempDir::new().unwrap();
     fs::create_dir_all(dir.path().join("src")).unwrap();
     let mut text = String::new();
-    for index in 0..20 {
+    for index in 0..25 {
         writeln!(
             text,
             "pub fn log_{index}(text: &str) {{ println!(\"{{text}}\"); }}"

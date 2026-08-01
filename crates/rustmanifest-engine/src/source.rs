@@ -59,6 +59,22 @@ impl Source {
         &self.path
     }
 
+    /// Renders the trailing three path components — enough to tell two
+    /// same-named files in different crates apart without printing the
+    /// whole path.
+    #[must_use]
+    pub fn short_path(&self) -> String {
+        let mut components: Vec<String> = self
+            .path
+            .components()
+            .rev()
+            .take(3)
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        components.reverse();
+        components.join("/")
+    }
+
     /// Returns the file text.
     #[must_use]
     pub fn text(&self) -> &str {
