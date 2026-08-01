@@ -32,3 +32,15 @@ name = "entity-derive"
 path = "open-source/entity-derive"
 rev = "1142243afa97f27435d67d5e3b5ab65f2b389576"
 notes = "proc-macro crate"
+
+[[repo]]
+name = "aura-api"
+path = "aura/aura-api"
+rev = "b2717618842dfc1f9528fc7e5ee04f95238eb114"
+notes = "own production API workspace"
+
+[[repo]]
+name = "ratma-studio-api"
+path = "RATMA/ratma-studio/ratma-studio-api"
+rev = "84c9587e421359ac8daa43acbbca4fc05383fb6a"
+notes = "own studio API service"
