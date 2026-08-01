@@ -4,12 +4,15 @@ Command-line frontend for the `rustmanifest` engine.
 
 ```
 rustmanifest check <path>
-rustmanifest review-diff <revspec>
+rustmanifest coverage <path>
 rustmanifest explain <rule-id>
-rustmanifest init
+rustmanifest facts <path>
+rustmanifest graph <path>
 ```
 
-Outputs JSON, SARIF 2.1.0, or human-readable TTY. Used directly from local shells, pre-commit hooks, and CI.
+Outputs JSON, SARIF 2.1.0, or human-readable TTY. Used directly from local shells, pre-commit hooks, and CI. Exit codes: `0` clean, `1` findings at or above the severity filter, `2` operational error.
+
+`rustmanifest coverage <path>` reports how much of the analyzed sources the engine actually understands (with `--expand` measuring derive/macro output through `cargo +nightly rustc -Zunpretty=expanded`). `rustmanifest facts <path>` dumps behavioral facts of every function as JSON (`--filter`, `--active`).
 
 ## Architecture diagrams
 
@@ -25,5 +28,3 @@ graph LR
 ## Clippy delegation
 
 `rustmanifest check --delegate-clippy <path>` additionally runs `cargo clippy --message-format=json --quiet` when `<path>` contains a `Cargo.toml` (the probe is shallow; parent workspace manifests are not searched). Clippy diagnostics are surfaced as **advisory** findings under rustmanifest's reporting umbrella: the rule id is the full clippy code (e.g. `clippy::clone_on_copy`), the severity is clippy's own (`error` → error, `warning` → warning, anything else → info), and the rationale URI links to the corresponding entry in the [clippy lint index](https://rust-lang.github.io/rust-clippy/master/index.html). Delegation is best-effort: a missing `cargo`, a failed invocation, or malformed output lines only produce warnings and never fail the run.
-
-Phase 0 ships only the binary skeleton with `--version` and the subcommand surface locked in.
