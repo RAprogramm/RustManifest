@@ -1,0 +1,118 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! Ecosystem knowledge packs: what the engine knows about well-known
+//! third-party crates, encoded as data — one module per crate.
+//!
+//! A pack declares the crate's constructor functions and method return
+//! types, and the effect its calls carry — at method precision, so a
+//! pure accessor on an IO-owning type never inherits an effect it does
+//! not have. Packs grow by adding a line and never guess: an entry
+//! states what the crate's own documentation guarantees. Workspace
+//! facts always win — a pack is consulted only when the workspace
+//! itself has no answer.
+
+mod reqwest;
+mod tempfile;
+
+use super::behavior::Effect;
+
+/// Everything one pack knows about one crate.
+pub(super) struct CrateKnowledge {
+    /// Crate name as it appears in call paths.
+    pub name:           &'static str,
+    /// Constructor call names with the concrete type each produces;
+    /// `Result`/`Option` wrappers already unwrapped, since these are
+    /// consumed behind `unwrap`/`?`.
+    pub constructors:   &'static [(&'static str, &'static str)],
+    /// `(type, method, returned type)` rows typing the crate's builder
+    /// and accessor chains, wrappers unwrapped the same way.
+    pub method_returns: &'static [(&'static str, &'static str, &'static str)],
+    /// `(type, method, effect)` rows for the calls that actually
+    /// perform the effect.
+    pub method_effects: &'static [(&'static str, &'static str, Effect)],
+    /// Effect of free-function calls rooted in the crate's own name,
+    /// e.g. a one-shot helper at the crate root.
+    pub crate_effect:   Option<Effect>
+}
+
+/// Every registered pack.
+const PACKS: [&CrateKnowledge; 2] = [&reqwest::PACK, &tempfile::PACK];
+
+/// Looks up the type produced by a known external constructor call.
+pub(super) fn constructor_type(name: &str) -> Option<&'static str> {
+    PACKS
+        .iter()
+        .flat_map(|pack| pack.constructors)
+        .find(|(constructor, _)| *constructor == name)
+        .map(|(_, produced)| *produced)
+}
+
+/// Looks up the return type of a pack-known method on a pack-known type.
+pub(super) fn method_return(owner: &str, method: &str) -> Option<&'static str> {
+    PACKS
+        .iter()
+        .flat_map(|pack| pack.method_returns)
+        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
+        .map(|(_, _, returned)| *returned)
+}
+
+/// Looks up the effect performed by a pack-known method call.
+pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
+    PACKS
+        .iter()
+        .flat_map(|pack| pack.method_effects)
+        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
+        .map(|(_, _, effect)| *effect)
+}
+
+/// Looks up the effect of a free call rooted in a pack's crate name.
+pub(super) fn crate_effect(first_segment: &str) -> Option<Effect> {
+    PACKS
+        .iter()
+        .find(|pack| pack.name == first_segment)
+        .and_then(|pack| pack.crate_effect)
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use super::{
+        super::behavior::Effect, constructor_type, crate_effect, method_effect, method_return
+    };
+
+    #[test]
+    fn constructors_resolve_to_their_produced_types() {
+        assert_eq!(constructor_type("tempdir"), Some("TempDir"));
+        assert_eq!(constructor_type("unknown_fn"), None);
+    }
+
+    #[test]
+    fn builder_chains_type_through_method_returns() {
+        assert_eq!(method_return("Client", "get"), Some("RequestBuilder"));
+        assert_eq!(method_return("RequestBuilder", "send"), Some("Response"));
+        assert_eq!(method_return("TempDir", "path"), None);
+    }
+
+    #[test]
+    fn only_performing_methods_carry_effects() {
+        assert_eq!(
+            method_effect("RequestBuilder", "send"),
+            Some(Effect::Network)
+        );
+        assert_eq!(method_effect("Client", "get"), None);
+        assert_eq!(method_effect("TempDir", "path"), None);
+        assert_eq!(method_effect("TempDir", "close"), Some(Effect::FileSystem));
+    }
+
+    #[test]
+    fn crate_roots_carry_their_one_shot_effect() {
+        assert_eq!(crate_effect("reqwest"), Some(Effect::Network));
+        assert_eq!(crate_effect("serde"), None);
+    }
+}

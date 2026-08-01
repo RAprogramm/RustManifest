@@ -592,6 +592,19 @@ mod tests {
     }
 
     #[test]
+    fn knowledge_packs_type_chains_and_carry_effects() {
+        let all = facts(
+            "async fn fetch(client: &Client) -> Result<String, String> { let body = \
+             client.get(\"u\").send().await.unwrap().text().await.unwrap(); Ok(body) }\nfn \
+             probe() { let dir = tempfile::tempdir().unwrap(); dir.close().unwrap(); }"
+        );
+        assert!(named(&all, "fetch").effects.contains(&Effect::Network));
+        let probe = named(&all, "probe");
+        assert!(probe.effects.contains(&Effect::FileSystem));
+        assert!(probe.calls.contains(&"TempDir::close".to_owned()));
+    }
+
+    #[test]
     fn conflicting_associated_returns_stay_untyped() {
         let all = facts(
             "mod a { pub struct Cfg { pub set: u32 } impl Cfg { pub fn load() -> Self { Self { \

@@ -16,6 +16,7 @@ use super::{
 };
 use crate::semantic::{
     expr::{MUTATING_METHODS, compound_assignment},
+    knowledge,
     std_knowledge::EXTERNAL_CONSTRUCTORS
 };
 
@@ -274,11 +275,16 @@ impl FactCollector {
                     .or_else(|| initializer_type(&call.receiver))
                     .or_else(|| self.called_return(&call.receiver))
             }
+            syn::Expr::Await(awaited) => self.called_return(&awaited.base),
             syn::Expr::MethodCall(call) => {
                 let owner = self.expr_type(&call.receiver)?;
+                let method = call.method.to_string();
                 self.fn_returns
-                    .get(&format!("{owner}::{}", call.method))
+                    .get(&format!("{owner}::{method}"))
                     .map(|returned| returned.plain.clone())
+                    .or_else(|| {
+                        knowledge::method_return(&owner, &method).map(str::to_owned)
+                    })
             }
             syn::Expr::Call(call) => {
                 if let Some(key) = self.call_key(expression) {
@@ -295,6 +301,7 @@ impl FactCollector {
                     .iter()
                     .find(|(constructor, _)| *constructor == name)
                     .map(|(_, produced)| (*produced).to_owned())
+                    .or_else(|| knowledge::constructor_type(&name).map(str::to_owned))
             }
             _ => self
                 .call_key(expression)
@@ -324,6 +331,10 @@ impl FactCollector {
             Some(Effect::Process)
         } else if joined.contains("env::") {
             Some(Effect::Environment)
+        } else if segments.len() == 2 {
+            segments
+                .first()
+                .and_then(|first| knowledge::crate_effect(first))
         } else {
             None
         };
@@ -491,7 +502,12 @@ impl<'ast> Visit<'ast> for FactCollector {
             }
         }
         match self.expr_type(&call.receiver) {
-            Some(owner) => self.record_call(Some(&owner), &method),
+            Some(owner) => {
+                if let Some(effect) = knowledge::method_effect(&owner, &method) {
+                    self.facts.effects.push(effect);
+                }
+                self.record_call(Some(&owner), &method);
+            }
             None => self.record_call(Some("?"), &method)
         }
         syn::visit::visit_expr_method_call(self, call);

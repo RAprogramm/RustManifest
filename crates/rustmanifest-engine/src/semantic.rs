@@ -28,6 +28,7 @@ mod fingerprint;
 mod graph;
 mod insight;
 mod invariant;
+mod knowledge;
 mod layers;
 mod loops;
 mod module_cycle;
