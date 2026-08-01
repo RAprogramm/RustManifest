@@ -104,6 +104,10 @@ pub struct FunctionFacts {
     /// Whether the function is a method of a trait impl, where the
     /// signature is dictated by the trait.
     pub trait_impl:  bool,
+    /// Call candidates observed in the body, normalized: `name` for a
+    /// free-function call, `Type::method` for associated and resolved
+    /// method calls, `?::method` when the receiver's type is unknown.
+    pub calls:       Vec<String>,
     /// `.clone()` / `.to_owned()` / `.to_string()` call sites observed.
     pub clones:      u32,
     /// Heap allocation sites observed (`Box::new`, `Vec::new`, `vec![]`,

@@ -39,6 +39,7 @@ pub fn fact_json(
             "uses": param.uses,
             "field-reads": param.field_reads
         })).collect::<Vec<_>>(),
+        "calls": entry.calls,
         "clones": entry.clones,
         "allocations": entry.allocations,
         "role": role(entry).to_string()

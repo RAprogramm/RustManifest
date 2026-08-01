@@ -109,6 +109,7 @@ fn function_facts(
             effects: Vec::new(),
             params,
             trait_impl,
+            calls: Vec::new(),
             clones: 0,
             allocations: 0
         },
@@ -127,6 +128,8 @@ fn function_facts(
     collector.facts.constructs.dedup();
     collector.facts.effects.sort();
     collector.facts.effects.dedup();
+    collector.facts.calls.sort();
+    collector.facts.calls.dedup();
     collector.facts
 }
 

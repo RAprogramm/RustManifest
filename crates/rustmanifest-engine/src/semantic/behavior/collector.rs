@@ -104,6 +104,20 @@ impl FactCollector {
             self.facts.effects.push(effect);
         }
     }
+
+    /// Records one normalized call candidate, resolving `Self` and typed
+    /// receivers through the local type map.
+    fn record_call(&mut self, owner: Option<&str>, callee: &str) {
+        let candidate = match owner {
+            None => callee.to_owned(),
+            Some("Self") => self.param_types.get("self").map_or_else(
+                || format!("Self::{callee}"),
+                |own| format!("{own}::{callee}")
+            ),
+            Some(owner) => format!("{owner}::{callee}")
+        };
+        self.facts.calls.push(candidate);
+    }
 }
 
 /// Infers the type name of a `let` initializer: a struct literal or a
@@ -135,6 +149,20 @@ fn initializer_type(expression: &syn::Expr) -> Option<String> {
 }
 
 impl<'ast> Visit<'ast> for FactCollector {
+    fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        if let syn::Expr::Path(path) = call.func.as_ref() {
+            let segments = &path.path.segments;
+            if segments.len() == 1 {
+                self.record_call(None, &segments[0].ident.to_string());
+            } else if segments.len() >= 2 {
+                let owner = segments[segments.len() - 2].ident.to_string();
+                let callee = segments[segments.len() - 1].ident.to_string();
+                self.record_call(Some(&owner), &callee);
+            }
+        }
+        syn::visit::visit_expr_call(self, call);
+    }
+
     fn visit_local(&mut self, local: &'ast syn::Local) {
         let name = match &local.pat {
             syn::Pat::Ident(pattern) => Some(pattern.ident.to_string()),
@@ -195,6 +223,18 @@ impl<'ast> Visit<'ast> for FactCollector {
         }
         if method == "clone" || method == "to_owned" || method == "to_string" {
             self.facts.clones += 1;
+        }
+        let receiver_type = match call.receiver.as_ref() {
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .and_then(|ident| self.param_types.get(&ident.to_string()))
+                .cloned(),
+            _ => None
+        };
+        match receiver_type {
+            Some(owner) => self.record_call(Some(&owner), &method),
+            None => self.record_call(Some("?"), &method)
         }
         syn::visit::visit_expr_method_call(self, call);
     }

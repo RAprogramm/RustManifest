@@ -12,6 +12,7 @@
 //! targets.
 
 mod behavior;
+mod calls;
 mod composition;
 mod coverage;
 mod expansion;
@@ -34,6 +35,7 @@ use tracing::trace;
 use self::insight::Insight;
 pub use self::{
     behavior::{Effect, FunctionFacts, ParamFacts, ParamMode, behavior},
+    calls::{CallGraph, call_graph, transitive_effects},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     expansion::{ExpansionReport, expansion},
     features::{Feature, features},
