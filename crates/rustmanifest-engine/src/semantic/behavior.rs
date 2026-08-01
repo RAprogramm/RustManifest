@@ -57,6 +57,42 @@ impl fmt::Display for Effect {
     }
 }
 
+/// How one parameter takes and uses its value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParamFacts {
+    /// Parameter name as written.
+    pub name:        String,
+    /// Last segment of the declared type.
+    pub type_name:   String,
+    /// How the parameter receives the value.
+    pub mode:        ParamMode,
+    /// Total observed uses of the parameter in the body.
+    pub uses:        u32,
+    /// Uses that are only field reads on the parameter.
+    pub field_reads: u32
+}
+
+/// Ownership mode of a parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamMode {
+    /// Taken by value: the caller gives up ownership.
+    Owned,
+    /// Taken by shared reference.
+    Borrowed,
+    /// Taken by mutable reference.
+    BorrowedMut
+}
+
+impl fmt::Display for ParamMode {
+    fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
+        out.write_str(match self {
+            Self::Owned => "owned",
+            Self::Borrowed => "borrowed",
+            Self::BorrowedMut => "borrowed-mut"
+        })
+    }
+}
+
 /// Behavioral facts of one function or method.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFacts {
@@ -78,7 +114,14 @@ pub struct FunctionFacts {
     /// Error types the signature can return (`Result<_, E>` → `E`).
     pub error_types: Vec<String>,
     /// Side-effect categories observed, deduplicated and sorted.
-    pub effects:     Vec<Effect>
+    pub effects:     Vec<Effect>,
+    /// Ownership profile of each parameter, in declaration order.
+    pub params:      Vec<ParamFacts>,
+    /// `.clone()` / `.to_owned()` / `.to_string()` call sites observed.
+    pub clones:      u32,
+    /// Heap allocation sites observed (`Box::new`, `Vec::new`, `vec![]`,
+    /// `String::from`, `format!`).
+    pub allocations: u32
 }
 
 /// Extracts behavioral facts for every function in `sources`; files that do
@@ -147,6 +190,7 @@ fn function_facts(
     block: &syn::Block
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
+    let params = param_facts(signature, impl_type);
     let mut collector = FactCollector {
         facts:       FunctionFacts {
             function,
@@ -159,7 +203,10 @@ fn function_facts(
             writes: Vec::new(),
             constructs: Vec::new(),
             error_types: Vec::new(),
-            effects: Vec::new()
+            effects: Vec::new(),
+            params,
+            clones: 0,
+            allocations: 0
         },
         param_types: parameter_types(signature, impl_type)
     };
@@ -177,6 +224,57 @@ fn function_facts(
     collector.facts.effects.sort();
     collector.facts.effects.dedup();
     collector.facts
+}
+
+/// Builds the ownership profile of every parameter, `self` included.
+fn param_facts(signature: &syn::Signature, impl_type: Option<&str>) -> Vec<ParamFacts> {
+    let mut params = Vec::new();
+    for input in &signature.inputs {
+        match input {
+            syn::FnArg::Receiver(receiver) => {
+                let Some(impl_type) = impl_type else {
+                    continue;
+                };
+                let mode = if receiver.reference.is_none() {
+                    ParamMode::Owned
+                } else if receiver.mutability.is_some() {
+                    ParamMode::BorrowedMut
+                } else {
+                    ParamMode::Borrowed
+                };
+                params.push(ParamFacts {
+                    name: "self".to_owned(),
+                    type_name: impl_type.to_owned(),
+                    mode,
+                    uses: 0,
+                    field_reads: 0
+                });
+            }
+            syn::FnArg::Typed(argument) => {
+                let syn::Pat::Ident(pattern) = argument.pat.as_ref() else {
+                    continue;
+                };
+                let Some(type_name) = type_last_segment(&argument.ty) else {
+                    continue;
+                };
+                let mode = match argument.ty.as_ref() {
+                    syn::Type::Reference(reference) if reference.mutability.is_some() => {
+                        ParamMode::BorrowedMut
+                    }
+                    syn::Type::Reference(_) => ParamMode::Borrowed,
+                    _ => ParamMode::Owned
+                };
+                params.push(ParamFacts {
+                    name: pattern.ident.to_string(),
+                    type_name,
+                    mode,
+                    uses: 0,
+                    field_reads: 0
+                });
+            }
+        }
+    }
+    params
 }
 
 /// Maps parameter names to the last segment of their declared type;
@@ -293,12 +391,35 @@ impl FactCollector {
         Some(format!("{owner}.{name}"))
     }
 
-    /// Records the outermost field of an assignment target as a write.
+    /// Records the outermost field of an assignment target as a write and
+    /// counts the base parameter's use so a written-through parameter never
+    /// looks read-only.
     fn record_write_target(&mut self, target: &syn::Expr) {
-        if let syn::Expr::Field(field) = target
-            && let Some(key) = self.field_key(field)
+        if let syn::Expr::Field(field) = target {
+            if let Some(key) = self.field_key(field) {
+                self.facts.writes.push(key);
+            }
+            if let syn::Expr::Path(path) = field.base.as_ref()
+                && let Some(ident) = path.path.get_ident()
+            {
+                self.bump_param(&ident.to_string(), false);
+            }
+        }
+    }
+
+    /// Counts one use of the parameter named `name`; `field_read` marks a
+    /// use that is only a field read.
+    fn bump_param(&mut self, name: &str, field_read: bool) {
+        if let Some(param) = self
+            .facts
+            .params
+            .iter_mut()
+            .find(|param| param.name == name)
         {
-            self.facts.writes.push(key);
+            param.uses += 1;
+            if field_read {
+                param.field_reads += 1;
+            }
         }
     }
 
@@ -413,15 +534,25 @@ impl<'ast> Visit<'ast> for FactCollector {
         if let Some(key) = self.field_key(field) {
             self.facts.reads.push(key);
         }
+        if let syn::Expr::Path(path) = field.base.as_ref()
+            && let Some(ident) = path.path.get_ident()
+        {
+            self.bump_param(&ident.to_string(), true);
+            return;
+        }
         syn::visit::visit_expr_field(self, field);
     }
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        if MUTATING_METHODS.contains(&call.method.to_string().as_str())
+        let method = call.method.to_string();
+        if MUTATING_METHODS.contains(&method.as_str())
             && let syn::Expr::Field(field) = call.receiver.as_ref()
             && let Some(key) = self.field_key(field)
         {
             self.facts.writes.push(key);
+        }
+        if method == "clone" || method == "to_owned" || method == "to_string" {
+            self.facts.clones += 1;
         }
         syn::visit::visit_expr_method_call(self, call);
     }
@@ -447,17 +578,32 @@ impl<'ast> Visit<'ast> for FactCollector {
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
         if path.path.segments.len() >= 2 {
             self.record_path_effect(&path.path);
+            let first = path.path.segments[0].ident.to_string();
+            let last = path.path.segments.last().map(|s| s.ident.to_string());
+            if matches!(
+                (first.as_str(), last.as_deref()),
+                (
+                    "Box" | "Vec" | "String" | "Rc" | "Arc",
+                    Some("new" | "from" | "with_capacity")
+                )
+            ) {
+                self.facts.allocations += 1;
+            }
+        } else if let Some(ident) = path.path.get_ident() {
+            self.bump_param(&ident.to_string(), false);
         }
         syn::visit::visit_expr_path(self, path);
     }
 
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
-        if invocation
-            .path
-            .get_ident()
-            .is_some_and(|ident| CONSOLE_MACROS.contains(&ident.to_string().as_str()))
-        {
-            self.facts.effects.push(Effect::ConsoleIo);
+        if let Some(ident) = invocation.path.get_ident() {
+            let name = ident.to_string();
+            if CONSOLE_MACROS.contains(&name.as_str()) {
+                self.facts.effects.push(Effect::ConsoleIo);
+            }
+            if name == "vec" || name == "format" {
+                self.facts.allocations += 1;
+            }
         }
         syn::visit::visit_macro(self, invocation);
     }
@@ -579,6 +725,55 @@ mod tests {
         assert_eq!(named(&all, "literal").writes, vec!["Wallet.balance"]);
         assert_eq!(named(&all, "constructed").writes, vec!["Wallet.balance"]);
         assert_eq!(named(&all, "opaque").writes, vec!["?.balance"]);
+    }
+
+    #[test]
+    fn param_modes_and_use_shapes_are_profiled() {
+        let all = facts(
+            "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { report.total \
+             }\nfn consume(report: Report) -> Report { report }\nfn update(report: &mut Report) \
+             { report.total = 0; }"
+        );
+        let summarize = &named(&all, "summarize").params[0];
+        assert_eq!(summarize.mode, super::ParamMode::Owned);
+        assert_eq!((summarize.uses, summarize.field_reads), (1, 1));
+        let consume = &named(&all, "consume").params[0];
+        assert_eq!((consume.uses, consume.field_reads), (1, 0));
+        let update = &named(&all, "update").params[0];
+        assert_eq!(update.mode, super::ParamMode::BorrowedMut);
+        assert_eq!((update.uses, update.field_reads), (1, 0));
+    }
+
+    #[test]
+    fn self_receiver_modes_are_profiled() {
+        let all = facts(
+            "struct W;\nimpl W {\n    fn by_ref(&self) {}\n    fn by_mut(&mut self) {}\n    fn \
+             by_value(self) {}\n}"
+        );
+        assert_eq!(
+            named(&all, "W::by_ref").params[0].mode,
+            super::ParamMode::Borrowed
+        );
+        assert_eq!(
+            named(&all, "W::by_mut").params[0].mode,
+            super::ParamMode::BorrowedMut
+        );
+        assert_eq!(
+            named(&all, "W::by_value").params[0].mode,
+            super::ParamMode::Owned
+        );
+    }
+
+    #[test]
+    fn clones_and_allocations_are_counted() {
+        let all = facts(
+            "fn busy(input: &str) -> String {\n    let copy = input.to_owned();\n    let boxed = \
+             Box::new(1u8);\n    let list = vec![1, 2];\n    let text = format!(\"x\", copy, \
+             list, boxed);\n    text.clone()\n}"
+        );
+        let busy = named(&all, "busy");
+        assert_eq!(busy.clones, 2);
+        assert_eq!(busy.allocations, 3);
     }
 
     #[test]

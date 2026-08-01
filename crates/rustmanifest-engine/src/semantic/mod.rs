@@ -26,7 +26,7 @@ use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 pub use self::{
-    behavior::{Effect, FunctionFacts, behavior},
+    behavior::{Effect, FunctionFacts, ParamFacts, ParamMode, behavior},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     expansion::{ExpansionReport, expansion},
     graph::{

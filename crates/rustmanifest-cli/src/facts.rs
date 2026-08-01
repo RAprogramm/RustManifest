@@ -85,7 +85,16 @@ fn json_object(entry: &FunctionFacts, sources: &[Source]) -> serde_json::Value {
         "writes": entry.writes,
         "constructs": entry.constructs,
         "error-types": entry.error_types,
-        "effects": entry.effects.iter().map(ToString::to_string).collect::<Vec<_>>()
+        "effects": entry.effects.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        "params": entry.params.iter().map(|param| serde_json::json!({
+            "name": param.name,
+            "type": param.type_name,
+            "mode": param.mode.to_string(),
+            "uses": param.uses,
+            "field-reads": param.field_reads
+        })).collect::<Vec<_>>(),
+        "clones": entry.clones,
+        "allocations": entry.allocations
     })
 }
 
