@@ -15,6 +15,7 @@ mod behavior;
 mod composition;
 mod coverage;
 mod expansion;
+mod features;
 mod field_group;
 mod graph;
 mod invariant;
@@ -31,6 +32,7 @@ pub use self::{
     behavior::{Effect, FunctionFacts, ParamFacts, ParamMode, behavior},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     expansion::{ExpansionReport, expansion},
+    features::{Feature, features},
     graph::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },

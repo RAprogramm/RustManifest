@@ -33,7 +33,12 @@ pub struct FactsArgs {
     /// Only print functions with at least one write, effect, or error
     /// type — skip pure readers and empty bodies.
     #[arg(long)]
-    pub active: bool
+    pub active: bool,
+
+    /// Additionally print each function's binarized feature vector — the
+    /// fixed-order named binary features the learning layer trains on.
+    #[arg(long)]
+    pub features: bool
 }
 
 /// Runs the `facts` subcommand: discovers files, extracts behavioral
@@ -62,7 +67,7 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
     let rendered = serde_json::to_string_pretty(
         &selected
             .iter()
-            .map(|entry| json_object(entry, &sources))
+            .map(|entry| json_object(entry, &sources, args.features))
             .collect::<Vec<_>>()
     )
     .context("serializing facts")?;
@@ -73,12 +78,17 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
     Ok(ExitCode::from(EXIT_CLEAN))
 }
 
-/// Renders one function's facts as a JSON object.
-fn json_object(entry: &FunctionFacts, sources: &[Source]) -> serde_json::Value {
+/// Renders one function's facts as a JSON object, with the binarized
+/// feature vector appended when requested.
+fn json_object(
+    entry: &FunctionFacts,
+    sources: &[Source],
+    with_features: bool
+) -> serde_json::Value {
     let file = sources
         .get(entry.source)
         .map_or_else(String::new, |source| source.path().display().to_string());
-    serde_json::json!({
+    let mut object = serde_json::json!({
         "function": entry.function,
         "file": file,
         "reads": entry.reads,
@@ -95,7 +105,22 @@ fn json_object(entry: &FunctionFacts, sources: &[Source]) -> serde_json::Value {
         })).collect::<Vec<_>>(),
         "clones": entry.clones,
         "allocations": entry.allocations
-    })
+    });
+    if with_features && let serde_json::Value::Object(fields) = &mut object {
+        fields.insert(
+            "features".to_owned(),
+            rustmanifest_engine::features(entry)
+                .iter()
+                .map(|feature| {
+                    serde_json::json!({
+                        "name": feature.name,
+                        "active": feature.active
+                    })
+                })
+                .collect()
+        );
+    }
+    object
 }
 
 #[cfg(test)]
@@ -121,11 +146,31 @@ mod tests {
                 .to_owned()
         )];
         let facts = behavior(&sources);
-        let object = json_object(&facts[0], &sources);
+        let object = json_object(&facts[0], &sources, false);
         assert_eq!(object["function"], "Wallet::credit");
         assert_eq!(object["file"], "src/lib.rs");
         assert_eq!(object["writes"][0], "Wallet.balance");
         assert_eq!(object["error-types"][0], "String");
         assert_eq!(object["effects"][0], "console");
+        assert!(object["features"].is_null());
+    }
+
+    #[test]
+    fn features_flag_appends_the_binarized_vector() {
+        let sources = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "struct Wallet { balance: i64 }\nimpl Wallet { fn credit(&mut self, amount: i64) -> \
+             Result<(), String> { self.balance += amount; Ok(()) } }"
+                .to_owned()
+        )];
+        let facts = behavior(&sources);
+        let object = json_object(&facts[0], &sources, true);
+        let features = object["features"].as_array().unwrap();
+        assert!(!features.is_empty());
+        let returns_result = features
+            .iter()
+            .find(|entry| entry["name"] == "returns-result")
+            .unwrap();
+        assert_eq!(returns_result["active"], true);
     }
 }
