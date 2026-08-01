@@ -358,3 +358,39 @@ gate: derivation is admitted when it reproduces them.
   derivation program pauses here by design — the next leverage is the
   phase-4 SCIP layer, which serves both this gate and the resolver's
   missing quarter from §9.
+
+## 11. Phase-4 SCIP accuracy layer shipped (2026-08-02)
+
+The extractor decision from §9 is implemented: the engine consumes a
+`rust-analyzer scip` index as an opt-in overlay on the call graph.
+
+- **Contract**: the layer is purely additive — overlay callee names
+  resolve through the same unique-match tables as syntactic
+  candidates, an edge the candidates already produced is not
+  recounted, and a separate counter states exactly what the index
+  added, so every edge's provenance stays distinguishable. The engine
+  never runs the indexer itself; the index file is an input
+  (`--scip` on `facts` and `coverage`), keeping the fast default
+  untouched and the accuracy upgrade a deliberate choice.
+- **Dependency decision**: the official protobuf bindings pull a
+  second major version of an error-handling crate into the tree,
+  tripping both the duplicate-version ban and the cargo lint wall.
+  Instead of weakening either gate, the layer reads the wire format
+  directly — a ~200-line decoder for the four fields the engine
+  consumes (documents, paths, occurrence ranges/symbols/roles),
+  skipping unknown fields by wire type. Field numbers were validated
+  empirically against a live rust-analyzer index, not assumed.
+- **Measured lift**: on the engine's own workspace the overlay adds
+  290 edges on top of 1279 syntactic ones (+22.7% workspace edges);
+  on masterror it adds 718 on top of 2479 (+29.0%). Transitive
+  effects close over the enriched graph, so the lift propagates to
+  effect knowledge wherever the index is supplied. Eval baseline
+  byte-stable (layer off by default), REUSE and the full lint wall
+  green.
+- **Inherited limits, stated at the API**: the index reflects one cfg
+  universe (the §9 all-features lesson is now a doc requirement on
+  the flag), and operator desugarings are excluded by the same
+  function-symbol filter that admits real calls. Attribution uses
+  smallest-enclosing-definition ranges; nested items inside bodies
+  attribute to the innermost function, same as the ground-truth
+  harness measured at 96.9% agreement.
