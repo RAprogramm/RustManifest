@@ -28,6 +28,7 @@ mod module_graph;
 mod module_overview;
 mod ownership;
 mod role;
+mod std_knowledge;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
 use tracing::trace;

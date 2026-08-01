@@ -24,6 +24,7 @@
       "files": 98,
       "rust-lines": 34326,
       "findings": {
+        "RM-MEM-001": 2,
         "RM-STRUCT-002": 9,
         "RM-STRUCT-003": 21,
         "RM-STRUCT-004": 6,

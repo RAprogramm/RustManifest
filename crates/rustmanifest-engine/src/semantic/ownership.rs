@@ -16,7 +16,7 @@
 
 use rustmanifest_schema::TraceStep;
 
-use super::{TypeGraph, behavior::ParamMode, insight::Insight};
+use super::{TypeGraph, behavior::ParamMode, insight::Insight, std_knowledge::is_copy_type};
 use crate::source::Source;
 
 /// Reports owned parameters that could be shared borrows, one insight per
@@ -91,12 +91,6 @@ fn is_non_copy_workspace_type(graph: &TypeGraph, type_name: &str) -> bool {
         && !graph.traits_implemented(type_name).contains(&"Copy")
 }
 
-/// Scalar built-in types that are always `Copy`.
-const COPY_BUILTINS: [&str; 17] = [
-    "bool", "char", "f32", "f64", "i128", "i16", "i32", "i64", "i8", "isize", "u128", "u16",
-    "u32", "u64", "u8", "usize", "str"
-];
-
 /// Returns whether every field of `owner` read in `reads` has a provably
 /// `Copy` type — a field read of a non-`Copy` type may be a move out.
 fn read_fields_are_copy(graph: &TypeGraph, reads: &[String], owner: &str) -> bool {
@@ -111,7 +105,7 @@ fn read_fields_are_copy(graph: &TypeGraph, reads: &[String], owner: &str) -> boo
                 .iter()
                 .find(|field| field.name == field_name)
                 .is_some_and(|field| {
-                    COPY_BUILTINS.contains(&field.type_name.as_str())
+                    is_copy_type(&field.type_name)
                         || graph
                             .type_named(&field.type_name)
                             .is_some_and(|target| target.derives.iter().any(|name| name == "Copy"))

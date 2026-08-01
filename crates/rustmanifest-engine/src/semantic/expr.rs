@@ -9,21 +9,7 @@
 //! mutate or consume their receiver. Those answers live here once, so a
 //! new check reuses them instead of restating them.
 
-/// Mutating methods that count as a write to the place they are called on.
-pub(super) const MUTATING_METHODS: [&str; 12] = [
-    "borrow_mut",
-    "clear",
-    "get_mut",
-    "insert",
-    "lock",
-    "push",
-    "remove",
-    "replace",
-    "set",
-    "store",
-    "take",
-    "write"
-];
+pub(super) use super::std_knowledge::{MUTATING_METHODS, consuming_method};
 
 /// Renders a place expression (`root`, `root.field`, `self.field.inner`)
 /// or returns `None` for anything that is not a plain place.
@@ -65,11 +51,6 @@ pub(super) fn binding_ident(pattern: &syn::Pat) -> Option<&syn::Ident> {
         syn::Pat::Type(typed) => binding_ident(&typed.pat),
         _ => None
     }
-}
-
-/// Returns whether `method` consumes its receiver.
-pub(super) fn consuming_method(method: &str) -> bool {
-    method.starts_with("into") || method == "leak"
 }
 
 /// Returns whether `op` is a compound assignment operator.
