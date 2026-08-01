@@ -20,6 +20,7 @@ pub mod ast;
 pub mod cache;
 pub mod error;
 pub mod orchestrator;
+pub mod overview;
 pub mod pattern;
 pub mod pragma;
 pub mod semantic;
