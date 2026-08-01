@@ -2,7 +2,7 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-08-01):** Phases 1C, 1D, 2, and 2S shipped. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, and the first reasoning rule `RM-MEM-001` (borrowable-params). The stdio MCP server ships five tools and nine bundled methodology resources.
+**Current status (2026-08-01):** Phases 1C, 1D, 2, and 2S shipped. The MCP server additionally exposes the knowledge surface — `project_overview`, `function_facts`, `learn_conventions` — so agents read the same project understanding the CLI prints. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, and the first reasoning rule `RM-MEM-001` (borrowable-params). The stdio MCP server ships five tools and nine bundled methodology resources.
 
 **Next:** Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, resolved-name extractor, tsetlin-rs ranking, MIR refiner).
 
