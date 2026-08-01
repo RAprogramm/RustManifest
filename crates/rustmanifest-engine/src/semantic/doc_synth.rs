@@ -12,7 +12,7 @@
 //! `unsafe`. Same facts, same draft — no model anywhere.
 
 use super::{
-    behavior::{Effect, FunctionFacts},
+    behavior::{Effect, FunctionFacts, ParamMode},
     graph::TypeGraph,
     role::{Role, role}
 };
@@ -25,6 +25,25 @@ use super::{
 #[must_use]
 pub fn doc_draft(fact: &FunctionFacts, graph: &TypeGraph) -> String {
     let mut lines: Vec<String> = vec![summary(fact, graph)];
+    let arguments: Vec<String> = fact
+        .params
+        .iter()
+        .filter(|param| param.name != "self")
+        .map(|param| {
+            let mode = match param.mode {
+                ParamMode::Owned => "taken by value",
+                ParamMode::Borrowed => "borrowed",
+                ParamMode::BorrowedMut => "mutably borrowed"
+            };
+            format!("* `{}` — `{}`, {mode}.", param.name, param.type_name)
+        })
+        .collect();
+    if !arguments.is_empty() {
+        lines.push(String::new());
+        lines.push("# Arguments".to_owned());
+        lines.push(String::new());
+        lines.extend(arguments);
+    }
     if !fact.error_types.is_empty() {
         lines.push(String::new());
         lines.push("# Errors".to_owned());
@@ -183,6 +202,16 @@ mod tests {
         assert!(rendered.contains("/// # Errors"));
         assert!(rendered.contains("[`ConfigError`]"));
         assert!(rendered.contains("/// # Panics"));
+    }
+
+    #[test]
+    fn arguments_come_from_ownership_modes() {
+        let text = "struct Ledger { total: u64 }\nfn post(ledger: &mut Ledger, amount: u64) { \
+                    ledger.total += amount; }";
+        let rendered = draft(text, "post");
+        assert!(rendered.contains("/// # Arguments"));
+        assert!(rendered.contains("* `ledger` — `Ledger`, mutably borrowed."));
+        assert!(rendered.contains("* `amount` — `u64`, taken by value."));
     }
 
     #[test]
