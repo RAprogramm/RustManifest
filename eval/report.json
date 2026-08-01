@@ -1,0 +1,167 @@
+{
+  "engine-version": "0.0.0",
+  "repos": [
+    {
+      "name": "aura-api",
+      "pinned-rev": "b2717618842dfc1f9528fc7e5ee04f95238eb114",
+      "actual-rev": "b2717618842dfc1f9528fc7e5ee04f95238eb114",
+      "files": 259,
+      "rust-lines": 47266,
+      "findings": {
+        "RM-QUAL-003": 4,
+        "RM-SEC-001": 2,
+        "RM-STRUCT-001": 2,
+        "RM-STRUCT-002": 36,
+        "RM-STRUCT-003": 107,
+        "RM-STRUCT-004": 4,
+        "RM-STRUCT-005": 4,
+        "RM-STRUCT-006": 1,
+        "RM-STRUCT-008": 33,
+        "RM-STRUCT-010": 74,
+        "RM-STRUCT-011": 38
+      }
+    },
+    {
+      "name": "entity-derive",
+      "pinned-rev": "1142243afa97f27435d67d5e3b5ab65f2b389576",
+      "actual-rev": "1142243afa97f27435d67d5e3b5ab65f2b389576",
+      "files": 230,
+      "rust-lines": 45406,
+      "findings": {
+        "RM-SEC-002": 20,
+        "RM-STRUCT-001": 7,
+        "RM-STRUCT-002": 7,
+        "RM-STRUCT-003": 42,
+        "RM-STRUCT-004": 6,
+        "RM-STRUCT-006": 3,
+        "RM-STRUCT-008": 1,
+        "RM-STRUCT-010": 40,
+        "RM-STRUCT-011": 2
+      }
+    },
+    {
+      "name": "fork-hyper",
+      "pinned-rev": "173bc339264f3f85b4468cacb4ec50cacdd9da96",
+      "actual-rev": "173bc339264f3f85b4468cacb4ec50cacdd9da96",
+      "files": 98,
+      "rust-lines": 34326,
+      "findings": {
+        "RM-MEM-001": 2,
+        "RM-STRUCT-002": 9,
+        "RM-STRUCT-003": 21,
+        "RM-STRUCT-004": 6,
+        "RM-STRUCT-005": 1,
+        "RM-STRUCT-006": 3,
+        "RM-STRUCT-007": 23,
+        "RM-STRUCT-008": 11,
+        "RM-STRUCT-010": 10,
+        "RM-STRUCT-011": 6
+      }
+    },
+    {
+      "name": "hydebar",
+      "pinned-rev": "1774c8decf370b9c3475ebae714b981f34ceebc5",
+      "actual-rev": "1774c8decf370b9c3475ebae714b981f34ceebc5",
+      "files": 318,
+      "rust-lines": 70288,
+      "findings": {
+        "RM-QUAL-001": 2,
+        "RM-STRUCT-001": 6,
+        "RM-STRUCT-002": 54,
+        "RM-STRUCT-003": 57,
+        "RM-STRUCT-004": 23,
+        "RM-STRUCT-005": 14,
+        "RM-STRUCT-006": 7,
+        "RM-STRUCT-007": 14,
+        "RM-STRUCT-008": 39,
+        "RM-STRUCT-010": 28,
+        "RM-STRUCT-011": 23
+      }
+    },
+    {
+      "name": "masterror",
+      "pinned-rev": "51294e354d95710612699345c18bd590b7b3d909",
+      "actual-rev": "51294e354d95710612699345c18bd590b7b3d909",
+      "files": 169,
+      "rust-lines": 40749,
+      "findings": {
+        "RM-SEC-001": 2,
+        "RM-STRUCT-002": 9,
+        "RM-STRUCT-003": 12,
+        "RM-STRUCT-004": 9,
+        "RM-STRUCT-005": 1,
+        "RM-STRUCT-006": 2,
+        "RM-STRUCT-007": 5,
+        "RM-STRUCT-008": 1,
+        "RM-STRUCT-010": 14,
+        "RM-STRUCT-011": 10
+      }
+    },
+    {
+      "name": "ratma-studio-api",
+      "pinned-rev": "84c9587e421359ac8daa43acbbca4fc05383fb6a",
+      "actual-rev": "84c9587e421359ac8daa43acbbca4fc05383fb6a",
+      "files": 463,
+      "rust-lines": 39921,
+      "findings": {
+        "RM-MEM-001": 1,
+        "RM-QUAL-003": 1,
+        "RM-SEC-001": 1,
+        "RM-SEC-002": 3,
+        "RM-STRUCT-001": 1,
+        "RM-STRUCT-002": 55,
+        "RM-STRUCT-003": 172,
+        "RM-STRUCT-004": 5,
+        "RM-STRUCT-005": 1,
+        "RM-STRUCT-006": 1,
+        "RM-STRUCT-008": 19,
+        "RM-STRUCT-010": 107,
+        "RM-STRUCT-011": 1
+      }
+    }
+  ],
+  "timings": {
+    "aura-api": {
+      "p95-under-1k-ms": 5.36803,
+      "files-under-1k": 254,
+      "max-file-ms": 14.717338999999999,
+      "semantic-ms": 2848.7876,
+      "total-ms": 3322.131935
+    },
+    "entity-derive": {
+      "p95-under-1k-ms": 5.981783,
+      "files-under-1k": 227,
+      "max-file-ms": 30.050671,
+      "semantic-ms": 2026.640327,
+      "total-ms": 2444.778534
+    },
+    "fork-hyper": {
+      "p95-under-1k-ms": 9.552153,
+      "files-under-1k": 93,
+      "max-file-ms": 50.432173,
+      "semantic-ms": 1963.981449,
+      "total-ms": 2364.312015
+    },
+    "hydebar": {
+      "p95-under-1k-ms": 5.807418,
+      "files-under-1k": 311,
+      "max-file-ms": 63.864386999999994,
+      "semantic-ms": 5368.3973639999995,
+      "total-ms": 6217.609731
+    },
+    "masterror": {
+      "p95-under-1k-ms": 8.816644,
+      "files-under-1k": 164,
+      "max-file-ms": 19.266312,
+      "semantic-ms": 2326.556706,
+      "total-ms": 2808.806319
+    },
+    "ratma-studio-api": {
+      "p95-under-1k-ms": 3.1834010000000004,
+      "files-under-1k": 462,
+      "max-file-ms": 22.2134,
+      "semantic-ms": 2488.135783,
+      "total-ms": 2902.571889
+    }
+  }
+}

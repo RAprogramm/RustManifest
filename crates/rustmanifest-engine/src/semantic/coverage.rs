@@ -89,11 +89,11 @@ pub struct Coverage {
     pub call_candidates_total:      u64,
     /// Call candidates that resolved to exactly one workspace function.
     pub call_candidates_resolved:   u64,
-    /// Unmatched call candidates whose owner names no workspace type or
-    /// module — attributable to external code.
+    /// Unmatched call candidates provably outside the workspace: the
+    /// owner or called name matches nothing the workspace defines.
     pub call_candidates_external:   u64,
-    /// Unmatched call candidates whose receiver type never resolved —
-    /// the engine's own understanding gap.
+    /// Unmatched call candidates a typed receiver would settle
+    /// in-workspace — the engine's own understanding gap.
     pub call_candidates_unknown:    u64
 }
 

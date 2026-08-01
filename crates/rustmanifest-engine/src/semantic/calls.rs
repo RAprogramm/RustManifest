@@ -65,11 +65,13 @@ pub struct CallGraph {
     resolved:         u64,
     /// Candidates that were ambiguous or named no known function.
     unresolved:       u64,
-    /// Unmatched candidates whose owner names no workspace type or
-    /// module — attributable to external code, honestly out of scope.
+    /// Unmatched candidates provably outside the workspace: the owner
+    /// names no workspace type or module, or no workspace function
+    /// carries the called name at all — external by elimination.
     external:         u64,
-    /// Unmatched `?::method` candidates — the receiver's type never
-    /// resolved, the engine's own understanding gap.
+    /// Unmatched `?::method` candidates whose method name the workspace
+    /// does define — a typed receiver would settle them, so they are the
+    /// engine's own understanding gap.
     unknown_receiver: u64
 }
 
@@ -93,14 +95,13 @@ impl CallGraph {
         self.unresolved
     }
 
-    /// Unmatched candidates attributable to external code: the owner
-    /// names no workspace type or module.
+    /// Unmatched candidates provably attributable to external code.
     #[must_use]
     pub const fn external(&self) -> u64 {
         self.external
     }
 
-    /// Unmatched candidates whose receiver type never resolved.
+    /// Unmatched candidates a typed receiver would settle in-workspace.
     #[must_use]
     pub const fn unknown_receiver(&self) -> u64 {
         self.unknown_receiver
@@ -162,11 +163,18 @@ pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -
                 }
                 _ => {
                     unresolved += 1;
-                    if candidate.starts_with("?::") {
-                        unknown_receiver += 1;
-                    } else if candidate.rsplit_once("::").is_some_and(|(owner, _)| {
-                        !workspace_owners.contains(owner) && !module_segments.contains(owner)
-                    }) {
+                    if let Some(method) = candidate.strip_prefix("?::") {
+                        if by_method.contains_key(method) {
+                            unknown_receiver += 1;
+                        } else {
+                            external += 1;
+                        }
+                    } else if candidate.rsplit_once("::").map_or_else(
+                        || !by_bare_free.contains_key(candidate.as_str()),
+                        |(owner, _)| {
+                            !workspace_owners.contains(owner) && !module_segments.contains(owner)
+                        }
+                    ) {
                         external += 1;
                     }
                 }
@@ -266,14 +274,15 @@ mod tests {
     #[test]
     fn unmatched_candidates_split_into_external_and_unknown_receiver() {
         let all = facts(
-            "fn go() { let text = String::from(\"x\"); opaque().push(text); }\nstruct Own;\nimpl \
-             Own { fn seen() {} }\nfn miss() { Own::gone(); }"
+            "fn go() { let text = String::from(\"x\"); opaque().push(text); opaque().ping(); \
+             }\nstruct A;\nimpl A { fn ping(&self) {} }\nstruct B;\nimpl B { fn ping(&self) {} \
+             }\nfn miss() { A::gone(); }"
         );
         let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert_eq!(graph.resolved(), 0);
-        assert_eq!(graph.external(), 1);
+        assert_eq!(graph.external(), 3);
         assert_eq!(graph.unknown_receiver(), 1);
-        assert_eq!(graph.unresolved(), 4);
+        assert_eq!(graph.unresolved(), 5);
     }
 
     #[test]
