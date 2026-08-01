@@ -15,7 +15,7 @@
 use std::path::PathBuf;
 
 use rustmanifest_schema::{Applicability, Fix, Range};
-use syn::{spanned::Spanned, visit::Visit};
+use syn::visit::Visit;
 
 use crate::source::Source;
 

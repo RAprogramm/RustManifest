@@ -1,419 +1,278 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RustManifest — исследование по ходу разработки</title>
+<title>rustmanifest — технический отчёт</title>
 <style>
-:root {
-  --ground: #F7F3EC;
-  --panel: #FFFDF9;
-  --ink: #2A241E;
-  --muted: #7A6F63;
-  --line: #E4DCD0;
-  --oxide: #B34A1F;
-  --amber: #9A6E0F;
-  --moss: #55713F;
-  --err: #A0341F;
-  --code-bg: #221D18;
-  --code-ink: #E8DFD2;
+:root,:root[data-theme="light"]{--paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;--oxide:#B2492C;--deep:#8C3520;--ok:#4a6b3f;--blk:#8C3520;--plan:#6E6353}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;--oxide:#D96A47;--deep:#E88B6C;--ok:#8fae7f;--blk:#E08573;--plan:#9A8E7C}}
+:root[data-theme="dark"]{--paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;--oxide:#D96A47;--deep:#E88B6C;--ok:#8fae7f;--blk:#E08573;--plan:#9A8E7C}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font:1rem/1.65 Charter,"Bitstream Charter","Sitka Text",Cambria,Georgia,serif;hanging-punctuation:first last}
+.mono,.caps,.rid,.badge,thead th,#themebtn,footer{font-family:ui-monospace,"Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+.wrap{max-width:72rem;margin:0 auto;padding:0 1.5rem}
+.grid{display:grid;grid-template-columns:240px 1fr;gap:4rem}
+main{max-width:70ch;min-width:0}
+#bar{position:fixed;top:0;left:0;height:2px;width:0;background:var(--oxide);z-index:9}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding-top:2rem}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.25rem 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(2rem,4vw,2.5rem);font-weight:650;line-height:1.15;margin:.5rem 0}
+h1 .ox{color:var(--oxide)}
+.meta-line{font-size:.8125rem;color:var(--muted)}
+.abstract{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:1.25rem 0;margin-top:1.5rem}
+.abstract p{font-size:1.125rem;line-height:1.65;max-width:72ch}
+.abstract .num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums}
+nav.toc{position:sticky;top:2rem;align-self:start;font-size:.8125rem}
+nav.toc ol{list-style:none;margin:.5rem 0 1.5rem}
+nav.toc a{display:block;color:var(--muted);padding:.2rem 0 .2rem .75rem;border-left:2px solid transparent}
+nav.toc .n{font-variant-numeric:tabular-nums;margin-right:.4rem;font-size:.75rem}
+nav.toc a.on{color:var(--ink);border-left-color:var(--oxide)}
+.docmeta{font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:.75rem;line-height:1.9}
+section{margin-top:3rem;border-top:1px solid var(--line);padding-top:1.5rem;scroll-margin-top:3.5rem}
+main section:first-child{margin-top:2rem;border-top:none;padding-top:0}
+.shead{display:flex;align-items:baseline;gap:.6rem}
+.shead .sn{color:var(--oxide);font-size:.9375rem;font-variant-numeric:tabular-nums}
+.shead h2{font-size:1.125rem;font-weight:600;flex:1}
+.shead .anchor{opacity:0;font-size:.875rem}
+.shead:hover .anchor{opacity:1}
+h3.rub{font-size:1.375rem;font-weight:650}
+p{margin-top:.75rem;max-width:72ch}
+ul.f{margin:.75rem 0 0 1.1rem}
+ul.f li{margin-top:.35rem}
+.rid{font-size:.8125rem;background:var(--paper2);border-radius:2px;padding:.05em .3em;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6875rem;letter-spacing:.05em;text-transform:uppercase;border:1px solid;border-radius:2px;padding:.15em .5em;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.badge{border-color:color-mix(in srgb,currentColor 25%,transparent);background:color-mix(in srgb,currentColor 8%,transparent)}
+.tbl{overflow-x:auto;margin-top:1rem}
+@media (min-width:1200px){.brk{width:920px;margin-left:calc((70ch - 920px)/2)}}
+table{border-collapse:collapse;width:100%;font-size:.875rem;min-width:34rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);padding-top:.4rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:400;text-align:left;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:.4rem .75rem .4rem 0}
+tbody td{padding:.45rem .75rem .45rem 0;vertical-align:top}
+tbody tr:last-child td{border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td.mono{font-size:.8125rem}
+dl.pr{margin-top:1rem}
+dl.pr div{margin-top:.6rem}
+dl.pr dt{display:inline;font-weight:600}
+dl.pr dd{display:inline;margin:0}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+.grid{display:block}
+nav.toc{position:sticky;top:0;background:color-mix(in srgb,var(--paper) 95%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);height:44px;display:flex;align-items:center;overflow-x:auto;white-space:nowrap;z-index:8;margin:0 -1.5rem;padding:0 1.5rem}
+nav.toc .rub-t,nav.toc .docmeta{display:none}
+nav.toc ol{display:flex;gap:1rem;margin:0}
+nav.toc a{border-left:none;border-bottom:2px solid transparent;padding:.5rem 0}
+nav.toc a.on{border-bottom-color:var(--oxide)}
+nav.toc .full{display:none}
+section{scroll-margin-top:56px}
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ground: #171412;
-    --panel: #201B17;
-    --ink: #E8DFD2;
-    --muted: #9C8F80;
-    --line: #362E27;
-    --oxide: #D96A35;
-    --amber: #C9962E;
-    --moss: #7E9C64;
-    --err: #C75B42;
-    --code-bg: #12100E;
-    --code-ink: #DED4C4;
-  }
+@media (min-width:961px){nav.toc .short{display:none}}
+@media print{
+nav.toc,#bar,#themebtn{display:none}
+table,dl.pr{break-inside:avoid}
+body{font-size:10.5pt}
+a{color:inherit}
 }
-:root[data-theme="dark"] {
-  --ground: #171412; --panel: #201B17; --ink: #E8DFD2; --muted: #9C8F80;
-  --line: #362E27; --oxide: #D96A35; --amber: #C9962E; --moss: #7E9C64;
-  --err: #C75B42; --code-bg: #12100E; --code-ink: #DED4C4;
-}
-:root[data-theme="light"] {
-  --ground: #F7F3EC; --panel: #FFFDF9; --ink: #2A241E; --muted: #7A6F63;
-  --line: #E4DCD0; --oxide: #B34A1F; --amber: #9A6E0F; --moss: #55713F;
-  --err: #A0341F; --code-bg: #221D18; --code-ink: #E8DFD2;
-}
-* { box-sizing: border-box; margin: 0; }
-body {
-  background: var(--ground);
-  color: var(--ink);
-  font: 16px/1.55 system-ui, "Segoe UI", sans-serif;
-  padding: 40px 20px 80px;
-}
-main { max-width: 980px; margin: 0 auto; display: grid; gap: 36px; }
-.mono { font-family: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, monospace; }
-header h1 {
-  font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
-  font-size: 1.7rem; letter-spacing: -0.02em; text-wrap: balance;
-}
-header h1 .accent { color: var(--oxide); }
-header p { color: var(--muted); margin-top: 6px; max-width: 62ch; }
-.eyebrow {
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em;
-  color: var(--oxide); margin-bottom: 10px;
-}
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.tile {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 14px 16px;
-}
-.tile .num {
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums;
-  color: var(--oxide);
-}
-.tile .lbl { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
-section .panel {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 20px 22px; overflow-x: auto;
-}
-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-th {
-  text-align: left; font-size: 0.72rem; text-transform: uppercase;
-  letter-spacing: 0.1em; color: var(--muted); font-weight: 600;
-  padding: 6px 14px 8px 0; border-bottom: 1px solid var(--line);
-}
-td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-tr:last-child td { border-bottom: none; }
-td.num { text-align: right; font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
-.bar { height: 6px; border-radius: 3px; background: var(--line); min-width: 120px; overflow: hidden; }
-.bar i { display: block; height: 100%; background: var(--oxide); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.chip {
-  font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem;
-  border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
-  color: var(--muted); white-space: nowrap;
-}
-.chip b { color: var(--ink); font-weight: 600; }
-.term {
-  background: var(--code-bg); color: var(--code-ink);
-  border-radius: 6px; padding: 18px 20px; overflow-x: auto;
-  font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
-  font-size: 0.82rem; line-height: 1.65; white-space: pre;
-}
-.term .w { color: #E0A93E; }
-.term .p { color: #8FB573; }
-.term .d { color: #8A7E70; }
-.term .u { color: #6FA7C7; }
-.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-.tier {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 16px 18px; border-top: 3px solid var(--oxide);
-}
-.tier h3 { font-size: 0.95rem; margin-bottom: 6px; }
-.tier p { font-size: 0.85rem; color: var(--muted); }
-.tier .ids { margin-top: 10px; }
-.journal { display: grid; gap: 14px; }
-.stage {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 18px 20px;
-}
-.stage h3 { font-size: 0.98rem; margin-bottom: 2px; }
-.stage h3 .no {
-  font-family: ui-monospace, Menlo, monospace; font-weight: 600;
-  color: var(--oxide); margin-right: 8px; font-variant-numeric: tabular-nums;
-}
-.stage .step { margin-top: 12px; font-size: 0.9rem; }
-.stage .step .k {
-  display: block; font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.13em;
-  margin-bottom: 2px;
-}
-.k.problem { color: var(--err); }
-.k.reason { color: var(--amber); }
-.k.built { color: var(--moss); }
-.k.check { color: var(--oxide); }
-.prelude { font-size: 0.9rem; color: var(--muted); max-width: 74ch; }
-footer { color: var(--muted); font-size: 0.8rem; text-align: center; }
 </style>
 </head>
 <body>
+<div id="bar" aria-hidden="true"></div>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Технический отчёт · 2026-08 · draft</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">свет/тьма</button>
+</div>
+<h1>rustmanifest <span class="ox">::</span> методология как код</h1>
+<p class="meta-line mono">RAprogramm/RustManifest · rust 1.95.0 · edition 2024</p>
+<div class="abstract">
+<p class="caps">Аннотация</p>
+<p>rustmanifest — детерминированный движок понимания Rust-кода: методология проекта исполняется как правила, ни одной модели в контуре анализа. Три яруса извлечения фактов — regex, AST, семантика воркспейса — питают пакет из <span class="num">21</span> правила; каждая находка несёт полную трассу вывода, одинаковый вход даёт байт-в-байт одинаковый выход. На корпусе из четырёх репозиториев (<span class="num">190 769</span> строк) консервативные ворота дали <span class="num">0</span> ложных срабатываний у всех разобранных правил; recall не измерен — точность прежде охвата. Обучаемый слой на машине Цетлина прошёл ворота допуска: macro-F1 <span class="num">0.9955</span> против <span class="num">0.8224</span> у логрегрессии на идентичных признаках. Межфайловые авто-правки безопасны под доказуемыми воротами; слои архитектуры выведены из графа вызовов.</p>
+</div>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps rub-t">Содержание</p>
+<ol>
+<li><a href="#s01"><span class="n mono">§01</span><span class="full">Постановка проблемы</span><span class="short">Проблема</span></a></li>
+<li><a href="#s02"><span class="n mono">§02</span><span class="full">Контекст и пробелы</span><span class="short">Контекст</span></a></li>
+<li><a href="#s03"><span class="n mono">§03</span><span class="full">Гипотезы и вердикты</span><span class="short">Гипотезы</span></a></li>
+<li><a href="#s04"><span class="n mono">§04</span><span class="full">Метод</span><span class="short">Метод</span></a></li>
+<li><a href="#s05"><span class="n mono">§05</span><span class="full">Эксперименты</span><span class="short">Эксперименты</span></a></li>
+<li><a href="#s06"><span class="n mono">§06</span><span class="full">Границы</span><span class="short">Границы</span></a></li>
+<li><a href="#s07"><span class="n mono">§07</span><span class="full">Программа исследования</span><span class="short">Программа</span></a></li>
+<li><a href="#princ"><span class="n mono">·</span><span class="full">Принципы</span><span class="short">Принципы</span></a></li>
+<li><a href="#tiers"><span class="n mono">·</span><span class="full">Ярусы</span><span class="short">Ярусы</span></a></li>
+<li><a href="#status"><span class="n mono">·</span><span class="full">Статус</span><span class="short">Статус</span></a></li>
+</ol>
+<div class="docmeta mono">2026-08-01 · main<br>правил: 21 · тестов: 413<br>корпус: 190 769 строк</div>
+</nav>
+
 <main>
-  <header>
-    <div class="eyebrow">исследовательский журнал · 1 августа 2026 · локально, без публикации · этапов: 11</div>
-    <h1>rustmanifest <span class="accent">::</span> методология как код</h1>
-    <p>Детерминированный движок ревью Rust-кода: стайлгайд STRUCTURE.md исполняется как правила, понимание строится из фактов и логического вывода, ни одной модели в контуре понимания. Ниже — журнал исследования по ходу разработки: каждая ступень записана как проблема → рассуждение → решение → проверка. Все цифры — из реальных прогонов по закреплённым ревизиям.</p>
-  </header>
+<section id="s01" aria-labelledby="h01">
+<div class="shead"><span class="sn mono">§01</span><h2 id="h01">Постановка проблемы</h2><a class="anchor" href="#s01" aria-hidden="true">§</a></div>
+<p>Можно ли исполнять стайлгайд проекта как код — детерминированно, без модели в контуре понимания? Требования: одинаковый вход — байт-в-байт одинаковый выход; каждая находка несёт полную трассу вывода. Код — единственная исполняемая истина: имя функции — обещание (<span class="rid">get_</span>/<span class="rid">is_</span> обещают наблюдение), doc-комментарий — обещание длиннее; тело лгать не может. Противоречие обещания и наблюдения всегда решается правкой обещания (<span class="rid">RM-QUAL-001</span> — обманчивое имя, <span class="rid">RM-QUAL-002</span> — обманчивый rustdoc). Методология исполняется как правила, а не читается как проза; тот же движок — ворота и для человека, и для агента через MCP.</p>
+</section>
 
-  <section>
-    <div class="eyebrow">Сводка на конец дня</div>
-    <div class="tiles">
-      <div class="tile"><div class="num">19+1</div><div class="lbl">правил в пакете + RM-META-001</div></div>
-      <div class="tile"><div class="num">3</div><div class="lbl">яруса: regex → AST → семантика</div></div>
-      <div class="tile"><div class="num">413</div><div class="lbl">тестов, все зелёные</div></div>
-      <div class="tile"><div class="num">8</div><div class="lbl">MCP-инструментов</div></div>
-      <div class="tile"><div class="num">40–60<span style="font-size:0.9rem"> мс</span></div><div class="lbl">p95 на файл (debug)</div></div>
-      <div class="tile"><div class="num">53</div><div class="lbl">локальных коммита за 1 августа</div></div>
-    </div>
-  </section>
+<section id="s02" aria-labelledby="h02">
+<div class="shead"><span class="sn mono">§02</span><h2 id="h02">Контекст и пробелы (июль 2026)</h2><a class="anchor" href="#s02" aria-hidden="true">§</a></div>
+<p>Занято: clippy — 700+ линтов, но per-crate, без воркспейса; dylint требует нестабильного <span class="rid">rustc_*</span> API; ast-grep и semgrep — чистый синтаксис; Miri, Kani, Creusot — верификация, не извлечение фактов. CodeQL — Rust GA с октября 2025, главный референс схемы фактов, но проприетарен и не cargo-native. <span class="rid">ra_ap_*</span> нестабилен, <span class="rid">rustc_public</span> — nightly-only. LLM-ревьюеры недетерминированы; связка «статика находит — LLM объясняет» — уже стандарт отрасли (ZeroFalse: F1 0.91–0.95), не дифференциатор. Пустые ниши:</p>
+<ul class="f">
+<li>архитектурные инварианты уровня воркспейса — ArchUnit для Rust отсутствует;</li>
+<li>машинно-проверяемый манифест правил, единая база фактов, трасса вывода находки — детерминированные ворота для LLM-патчей;</li>
+<li>машина Цетлина на исходном коде — публикаций не нашлось.</li>
+</ul>
+</section>
 
-  <section>
-    <div class="eyebrow">Журнал — хронология одного дня</div>
-    <p class="prelude" style="margin-bottom:14px">Исходная позиция утра: граф типов с поглощением derive-развёрток, граф модулей с поиском циклов, поведенческие факты каждой функции (чтения, записи, конструирования, типы ошибок, эффекты), пользовательские инварианты, факты владения и первое правило-рассуждение RM-MEM-001 — owned-параметр не-Copy типа, из которого только читают поля, обязан быть заимствованием. Дальше — ступени этого дня.</p>
-    <div class="journal">
+<section id="s03" aria-labelledby="h03">
+<div class="shead"><span class="sn mono">§03</span><h2 id="h03">Гипотезы и вердикты</h2><a class="anchor" href="#s03" aria-hidden="true">§</a></div>
+<p>Пять гипотез проверены экспериментально; отрицательные исходы промежуточных вариантов записаны как данные наравне с положительными.</p>
+<div class="tbl brk"><table>
+<caption>Табл. 1. Гипотезы и вердикты; все числа — из реальных прогонов по закреплённым ревизиям.</caption>
+<thead><tr><th>№</th><th>Гипотеза</th><th>Проверка</th><th>Вердикт</th></tr></thead>
+<tbody>
+<tr><td class="mono">H1</td><td>Формульность rustdoc допускает детерминированный синтез без модели</td><td>шаблоны с фактами в слотах: резюме, # Errors, # Panics, # Safety, # Arguments; ссылки [Type::field] через граф типов; грамматика гарантирована конструкцией</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H2</td><td>Машина Цетлина восстанавливает правила и бьёт логрегрессию</td><td>8327 функций, 37 признаков: macro-F1 0.9955 против 0.8224, отрыв +17.3 п.п. при воротах ≥5 п.п.; оговорка — метки эвристические</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H3</td><td>Консервативные ворота дают 0 ложных срабатываний</td><td>6 правил на корпусе 190 769 строк — 0 ложных; recall неизвестен</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H4</td><td>Межфайловые авто-правки безопасны под доказуемыми воротами</td><td>6 сквозных тестов «нашёл → починил → доказал тишину»; первый вариант опровергнут — дефект адресации чужих файлов, исправлен</td><td><span class="badge b-ok">подтверждена</span></td></tr>
+<tr><td class="mono">H5</td><td>Слои архитектуры выводимы из графа вызовов</td><td>8 уровней на самом движке; артефакт завышения глубин исправлен (SCC-first); взаимные узлы помечаются «запутаны», не ранжируются</td><td><span class="badge b-wip">частично</span></td></tr>
+</tbody>
+</table></div>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">01</span>Владение в циклах — RM-MEM-002 и RM-MEM-003</h3>
-        <div class="step"><span class="k problem">Проблема</span>RM-MEM-001 покрыл сигнатуры, но главные потери памяти живут в циклах: клон значения, не меняющегося между итерациями, и контейнер, аллоцируемый заново каждый проход и не переживающий итерацию.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>clippy владеет <span class="mono">redundant_clone</span> и <span class="mono">needless_pass_by_value</span> на MIR — дублировать запрещено принципом пакета. Ценность движка в другом: контекст воркспейса плюс трасса вывода. Потолок точности синтаксического яруса задокументирован честно: поток владения аппроксимируется формой использования, настоящий dataflow — это будущий MIR-уточнитель.</div>
-        <div class="step"><span class="k built">Решение</span>RM-MEM-002 — read-only клон инвариантного места выносится перед цикл. RM-MEM-003 — свежая аллокация каждую итерацию без выхода из неё выносится наружу и чистится за проход. Copy-ность типов берётся из графа типов, включая поглощённые derive-развёртки.</div>
-        <div class="step"><span class="k check">Проверка</span>Прогон по корпусу в 190 тысяч строк: 0 ложных срабатываний. Оба правила приняты в пакет.</div>
-      </div>
+<section id="s04" aria-labelledby="h04">
+<div class="shead"><span class="sn mono">§04</span><h2 id="h04">Метод</h2><a class="anchor" href="#s04" aria-hidden="true">§</a></div>
+<p>Конвейер по схеме CodeQL/Glean/Kythe: тупой тотальный экстрактор → типизированная база фактов → декларативный вывод; аналитика — производные отношения, не примитивы. Правило — силлогизм: таксономия (данные, не мнение) даёт класс обещания, факты тела дают наблюдение, противоречие — находка с полной трассой; каждое уточнение точности — снова данные, не костыль. Детерминизм байт-в-байт всюду, включая обучаемый слой: фиксированный seed, чистая булева оценка клауз; клаузы описывают код и никогда не порождают находок. Clippy не дублируется: наличие секций rustdoc — <span class="rid">missing_errors_doc</span>, истинность — наша; <span class="rid">redundant_clone</span> на MIR — делегирование.</p>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">02</span>Бинаризатор признаков и ворота допуска для обучаемого слоя</h3>
-        <div class="step"><span class="k problem">Проблема</span>Хочется, чтобы движок выучивал конвенции конкретного проекта, но чёрный ящик запрещён: каждое утверждение обязано объясняться. Нужен обучаемый слой, чьи выводы читаются как правила.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Машина Цетлина — клаузы суть булевы правила, модель целиком выгружается как проверяемый список; опубликованных работ «машина Цетлина на исходном коде» не нашлось — незанятая ниша. Но интеграция только через ворота: обойти логистическую регрессию на идентичных признаках минимум на 5 п.п. F1, иначе слой не строится.</div>
-        <div class="step"><span class="k built">Решение</span>Бинаризатор над базой фактов: 37 именованных бинарных признаков на функцию — булевы предикаты плюс термометр-кодирование счётчиков. Детерминированные эвристики ролей (io / mutator / constructor / accessor / pure / unknown) как стартовая разметка. Эксперимент вне репозитория: 8327 функций из четырёх репо корпуса, детерминированное разбиение 80/20, фиксированный seed.</div>
-        <div class="step"><span class="k check">Проверка</span>Машина Цетлина: точность 0.9988, macro-F1 0.9955; логрегрессия: 0.9640 и 0.8224. Отрыв +17.3 п.п. macro-F1 — ворота пройдены (док RESEARCH-2026-07, §8). Извлечённые клаузы для роли io — буквально исходное правило: <span class="mono">IF effect-fs</span>, <span class="mono">IF effect-net</span>, <span class="mono">IF effect-process</span>. Честная оговорка записана: метки выведены эвристикой из той же базы фактов, так что это замер выразимости, а не открытия. Команда <span class="mono">learn</span> выгружает клаузы как читаемый список; клаузы описывают код и никогда не порождают находок.</div>
-      </div>
+<section id="s05" aria-labelledby="h05">
+<div class="shead"><span class="sn mono">§05</span><h2 id="h05">Эксперименты</h2><a class="anchor" href="#s05" aria-hidden="true">§</a></div>
+<p>Корпус — четыре репозитория с закреплёнными ревизиями, базлайн — 552 находки. Отрицательные результаты — полноправные данные: каждый класс шума разобран вручную и закрыт как данные правила, не как костыль.</p>
+<div class="tbl brk"><table>
+<caption>Табл. 2. Корпус оценки (eval/baseline.json); «макс. правило» — наибольший вклад в находки.</caption>
+<thead><tr><th>Репозиторий</th><th class="r">Файлов</th><th class="r">Строк</th><th class="r">Находок</th><th>Макс. правило</th></tr></thead>
+<tbody>
+<tr><td class="mono">hydebar</td><td class="r">318</td><td class="r">70 288</td><td class="r">267</td><td class="mono">RM-STRUCT-003 · 57</td></tr>
+<tr><td class="mono">entity-derive</td><td class="r">230</td><td class="r">45 406</td><td class="r">128</td><td class="mono">RM-STRUCT-003 · 42</td></tr>
+<tr><td class="mono">masterror</td><td class="r">169</td><td class="r">40 749</td><td class="r">65</td><td class="mono">RM-STRUCT-010 · 14</td></tr>
+<tr><td class="mono">fork-hyper</td><td class="r">98</td><td class="r">34 326</td><td class="r">92</td><td class="mono">RM-STRUCT-007 · 23</td></tr>
+<tr><td>итого</td><td class="r">815</td><td class="r">190 769</td><td class="r">552</td><td></td></tr>
+</tbody>
+</table></div>
+<div class="tbl brk"><table>
+<caption>Табл. 3. Точность правил с классификацией причин шума; «недоказуемо» всегда означает молчание, не находку.</caption>
+<thead><tr><th>Правило</th><th class="r">Сырых</th><th class="r">Наст.</th><th class="r">Ложных</th><th>Классы шума, закрытые как данные</th></tr></thead>
+<tbody>
+<tr><td class="mono">RM-QUAL-001</td><td class="r">13</td><td class="r">2</td><td class="r">0</td><td>чтение окружения/файлов/сети — наблюдение (обещание ломают лишь печать и запуск процессов); _mut снимает обещание; тесты и trait-impl исключены; неразрешённый получатель отфильтрован</td></tr>
+<tr><td class="mono">RM-QUAL-003</td><td class="r">21</td><td class="r">—</td><td class="r">0</td><td>все 17 hyper — объявления mod в макрообёртках: недоказуемо, молчание; остальное закрыто поддержкой #[path = "…"]-монтирования</td></tr>
+<tr><td class="mono">RM-QUAL-004</td><td class="r">160</td><td class="r">—</td><td class="r">0</td><td>три круга ручного ревью: колбэки-значения; вызовы в токенах format!/select!; строки serde(default = "…"); dbus-interface impl; проза doc-комментариев — не упоминание</td></tr>
+<tr><td class="mono">RM-MEM-002/003</td><td class="r">—</td><td class="r">—</td><td class="r">0</td><td>ложных нет с первого прогона; Copy-ность — из графа типов с поглощёнными derive-развёртками</td></tr>
+<tr><td class="mono">RM-MEM-001</td><td class="r">—</td><td class="r">+2</td><td class="r">0</td><td>база знаний std как decl-таблицы дала 2 настоящих находки на стороннем коде fork-hyper</td></tr>
+</tbody>
+</table></div>
+<p>Ворота обучаемого яруса (2026-08-01): 8327 функций, 37 бинарных признаков, детерминированный сплит 80/20, фиксированный seed. Машина Цетлина (<span class="rid">tsetlin-rs</span> v0.3.4, 200 клауз): accuracy 0.9988, macro-F1 0.9955; логрегрессия: 0.9640 и 0.8224. Клаузы роли io — буквально исходное правило, по одному эффекту на клаузу. Оговорка: метки выведены из той же базы фактов — замер выразимости, не открытия. Dogfood: первый прогон overview нашёл цикл модулей в самом движке — распутан тем же днём; граф вызовов — 867 рёбер, замыкание эффектов: 147 эффектных функций против 85 прямых; слои — 8 уровней, фундамент — ровно модули данных, одна настоящая запутанность.</p>
+<div class="tbl brk"><table>
+<caption>Табл. 4. Самозамер понимания — живые прогоны; «учтено» — импорт разрешён в воркспейсе или отнесён к объявленной зависимости.</caption>
+<thead><tr><th>Репозиторий</th><th class="r">Распарсено</th><th class="r">Достижимо</th><th class="r">Импортов учтено</th></tr></thead>
+<tbody>
+<tr><td class="mono">aura-api</td><td class="r">259/259</td><td class="r">84.2 %</td><td class="r">2224/2384 · 93.3 %</td></tr>
+<tr><td class="mono">masterror</td><td class="r">169/169</td><td class="r">58.6 %</td><td class="r">1128/1228 · 91.9 %</td></tr>
+<tr><td class="mono">sea_battle</td><td class="r">24/24</td><td class="r">95.8 %</td><td class="r">133/156 · 85.3 %</td></tr>
+</tbody>
+</table></div>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">03</span>Команда overview — и цикл модулей в собственном коде</h3>
-        <div class="step"><span class="k problem">Проблема</span>Знание движка расползлось по командам: находки в <span class="mono">check</span>, факты в <span class="mono">facts</span>, диаграммы в <span class="mono">graph</span>. Единого ответа «что программа знает о проекте» не было.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Отчёт обязан собираться из тех же фактов, что и находки, — второй источник истины недопустим. Значит, overview — это рендер существующей базы фактов, а не новый анализ.</div>
-        <div class="step"><span class="k built">Решение</span><span class="mono">rustmanifest overview</span>: размер и понимание, модули, центральные типы, роли, границы внешнего мира, самое спорное состояние (у каких полей больше всего писателей), выученные конвенции — одним отчётом.</div>
-        <div class="step"><span class="k check">Проверка</span>Первый же прогон по собственному воркспейсу выдал CYCLE WARNING: цикл модулей в семантическом ярусе самого движка. Цикл распутан тем же днём, следом — серия разбиений разросшихся файлов на подмодули: loops, извлечение поведения, граф типов, граф модулей, оркестратор, CLI. Инструмент прошёлся по себе и заставил себя же измениться.</div>
-      </div>
+<section id="s06" aria-labelledby="h06">
+<div class="shead"><span class="sn mono">§06</span><h2 id="h06">Границы и открытые вопросы</h2><a class="anchor" href="#s06" aria-hidden="true">§</a></div>
+<ul class="f">
+<li>Синтаксический потолок: поток владения аппроксимируется формой использования, не borrow-check; настоящий dataflow — будущий MIR-уточнитель.</li>
+<li>Макросы — зона недоказуемости: объявления в макрообёртках дают молчание, не находку.</li>
+<li>Recall не измерен: размеченной полноты нет, только точность на корпусе.</li>
+<li>Консервативное разрешение вызовов: ребро — только при единственном совпадении; ложное ребро хуже отсутствующего.</li>
+</ul>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">04</span>Поверхность знаний по MCP</h3>
-        <div class="step"><span class="k problem">Проблема</span>Агент-клиент, делающий ревью через MCP, видел находки, но не видел понимание проекта — то, что CLI уже печатает.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>MCP-сервер — тот же движок по stdio, а не параллельная логика: клиент обязан читать ровно то же знание, что и человек в терминале.</div>
-        <div class="step"><span class="k built">Решение</span>Три новых инструмента — <span class="mono">project_overview</span>, <span class="mono">function_facts</span>, <span class="mono">learn_conventions</span> — итого восемь инструментов и девять документов методологии.</div>
-        <div class="step"><span class="k check">Проверка</span>Conformance-набор гоняет живой бинарь по stdio в CI; отдельный тест фиксирует ровно восемь инструментов в роутере.</div>
-      </div>
+<section id="s07" aria-labelledby="h07">
+<div class="shead"><span class="sn mono">§07</span><h2 id="h07">Программа исследования</h2><a class="anchor" href="#s07" aria-hidden="true">§</a></div>
+<div class="tbl brk"><table>
+<caption>Табл. 5. Программа дальше; «заблокировано» — внешняя зависимость, не дефект.</caption>
+<thead><tr><th>Направление</th><th>Механизм</th><th>Статус</th></tr></thead>
+<tbody>
+<tr><td>Переименования с отпечатками поведения</td><td>rename-операция в слое правок</td><td><span class="badge b-wip">в работе</span></td></tr>
+<tr><td>Семантический экстрактор (фаза 4)</td><td><span class="rid">ra_ap_hir</span>: разрешённые имена и типы, точность write-set до семантической; pinned-версия, бюджет на churn</td><td><span class="badge b-plan">спроектировано</span></td></tr>
+<tr><td>MIR-уточнитель (фаза 6)</td><td><span class="rid">rustc_public</span> — настоящий dataflow; ждёт выхода на crates.io</td><td><span class="badge b-blk">заблокировано</span></td></tr>
+<tr><td>Discovery-прогон обучаемого яруса</td><td>реальные метки accept/suppress из живого использования; до этого выученные правила не поставляются</td><td><span class="badge b-blk">заблокировано</span></td></tr>
+<tr><td>Datalog-вывод; фаза 3</td><td>Ascent, когда объём фактов оправдает; HTTP/OAuth, делегирование clippy</td><td><span class="badge b-plan">спроектировано</span></td></tr>
+</tbody>
+</table></div>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">05</span>Граф вызовов и транзитивные эффекты</h3>
-        <div class="step"><span class="k problem">Проблема</span>Эффекты были фактами функции, но не программы: функция, зовущая пишущую в файл, считалась чистой. Запрет «в этом домене нет fs» обходился одним уровнем косвенности.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Разрешение вызовов на синтаксическом ярусе обязано быть консервативным: ребро — только при единственном совпадении, неоднозначность честно считается неразрешённой. Ложное ребро хуже отсутствующего — оно рождает ложную находку, а точность здесь прежде охвата.</div>
-        <div class="step"><span class="k built">Решение</span>Граф вызовов воркспейса: свободные, ассоциированные и методные вызовы с выводом типа получателя; множества эффектов замыкаются по графу до неподвижной точки. Запреты инвариантов проверяются транзитивно, и в трассе находки — вся цепочка вызовов до стока.</div>
-        <div class="step"><span class="k check">Проверка</span>На собственном воркспейсе на момент коммита: 867 разрешённых рёбер; эффектных функций 147 против 85 с прямыми эффектами — транзитивное замыкание почти удвоило видимую границу с внешним миром.</div>
-      </div>
+<section id="princ" aria-labelledby="hpr">
+<h3 class="rub" id="hpr">Принципы</h3>
+<dl class="pr">
+<div><dt>Детерминизм</dt><dd> — одинаковый вход — байт-в-байт одинаковый выход; трасса вывода на каждой находке; фиксированный seed даже в обучаемом слое.</dd></div>
+<div><dt>Код — единственный источник истины</dt><dd> — имя может лгать, документация может лгать, тело — нет; противоречие всегда решается правкой обещания.</dd></div>
+<div><dt>Точность прежде охвата</dt><dd> — каждое правило до пакета разбирается на корпусе 190 тысяч строк; два настоящих срабатывания лучше тринадцати сырых.</dd></div>
+<div><dt>Инструмент ловит себя</dt><dd> — цикл модулей в собственном движке найден первым прогоном overview и распутан тем же днём, по собственным правилам.</dd></div>
+</dl>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">06</span>База знаний std как данные</h3>
-        <div class="step"><span class="k problem">Проблема</span>RM-MEM-001 должен знать Copy-ность типа и семантику вызываемых методов. Для собственных типов это даёт граф типов с поглощёнными развёртками; для std движок не знал ничего.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Семантика std стабильна — значит, это данные, а не код: таблица Copy-типов, мутирующих и потребляющих методов, которую можно ревьюить как обычный список.</div>
-        <div class="step"><span class="k built">Решение</span>Модуль знаний std: Copy-типы, мутирующие и потребляющие методы — decl-таблицами, подключёнными к правилам владения.</div>
-        <div class="step"><span class="k check">Проверка</span>+2 настоящих находки RM-MEM-001 на fork-hyper — стороннем HTTP-коде, не своём; зафиксированы в базлайне корпуса.</div>
-      </div>
+<section id="tiers" aria-labelledby="hti">
+<h3 class="rub" id="hti">Ярусы</h3>
+<div class="tbl"><table>
+<caption>Табл. 6. Три яруса анализа; в пакете 21 правило.</caption>
+<thead><tr><th>Ярус</th><th>Механизм</th><th class="r">Правил</th><th>Статус</th></tr></thead>
+<tbody>
+<tr><td>1 — паттерны</td><td>regex по тексту: креды, SQL- и command-injection</td><td class="r">3</td><td><span class="badge b-ok">реализовано</span></td></tr>
+<tr><td>2 — AST</td><td>syn-разбор каждого файла: разделы методологии</td><td class="r">9</td><td><span class="badge b-ok">реализовано</span></td></tr>
+<tr><td>3 — семантика воркспейса</td><td>графы типов, модулей, вызовов; факты поведения и владения; правила-силлогизмы</td><td class="r">9</td><td><span class="badge b-ok">реализовано</span></td></tr>
+</tbody>
+</table></div>
+</section>
 
-      <div class="stage">
-        <h3><span class="no">07</span>RM-QUAL-001 — когда имя лжёт</h3>
-        <div class="step"><span class="k problem">Проблема</span>Имя функции — обещание: <span class="mono">get_</span>/<span class="mono">is_</span> обещают наблюдение. Если тело пишет состояние или печатает, читатель обманут. Ни regex, ни одиночный AST этого не докажут — нужны поведенческие факты тела.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Правило — силлогизм: таксономия глаголов (данные, не мнение) даёт класс обещания; факты тела дают наблюдение; противоречие — находка с полной трассой вывода. Первый прогон дал 13 сырых срабатываний — точность прежде охвата, разбирается каждое.</div>
-        <div class="step"><span class="k built">Решение</span>Каждое уточнение — снова данные: чтение окружения, файлов и сети не ломает обещание чтения (это наблюдение, обещание ломают только печать и запуск процессов); суффикс <span class="mono">_mut</span> снимает обещание явно; тестовые функции и trait-impl исключены; недоказанные записи через неразрешённый получатель («?.») отфильтрованы.</div>
-        <div class="step"><span class="k check">Проверка</span>Из 13 сырых — 2 настоящих, 0 ложных: обе на hydebar, зафиксированы в базлайне. Правило принято в пакет.</div>
-      </div>
-
-      <div class="stage">
-        <h3><span class="no">08</span>Документация как факты — экстрактор, синтез, RM-QUAL-002</h3>
-        <div class="step"><span class="k problem">Проблема</span>Doc-комментарий — то же обещание, что имя, только длиннее, и его никто не сверяет с телом. Обратная сторона: писать честный rustdoc руками дорого, а генератор с моделью внутри нарушил бы принцип детерминизма.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Разделение труда без дублирования: наличие секций — работа clippy (<span class="mono">missing_errors_doc</span>), истинность — наша. Синтез — детерминированный: рукописные английские шаблоны с фактами в слотах, грамматика гарантирована конструкцией; модель может полировать готовый черновик снаружи, и её текст — предложение, никогда не факт.</div>
-        <div class="step"><span class="k built">Решение</span>Экстрактор doc-фактов: глагол резюме, секции <span class="mono"># Errors</span> / <span class="mono"># Panics</span> / <span class="mono"># Safety</span>, идентификаторы в бэктиках. Детерминированный синтез rustdoc из фактов тела: резюме, <span class="mono"># Errors</span> из типов ошибок, <span class="mono"># Panics</span> из мест паники, <span class="mono"># Safety</span> из unsafe-эффекта, <span class="mono"># Arguments</span> из режимов владения параметров; упоминания полей — настоящие ссылки <span class="mono">[Type::field]</span> через граф типов. И правило RM-QUAL-002: резюме «Returns…» над телом, которое доказуемо пишет состояние.</div>
-        <div class="step"><span class="k check">Проверка</span>Проходы точности до включения: недоказанные записи «?.» исключены; builder-конвенция <span class="mono">with_*</span> исключена — запись собственного поля с возвратом значения и есть документированный контракт; тестовые функции и trait-impl исключены. Вердикт правила всегда один: код — источник истины, правится документация.</div>
-      </div>
-
-      <div class="stage">
-        <h3><span class="no">09</span>Слой авто-правок — находки чинят себя</h3>
-        <div class="step"><span class="k problem">Проблема</span>Находка без исправления — половина работы: clippy давно предлагает машинно-применимые правки, а межфайловые (сменить сигнатуру и всех вызывающих) не умеет никто из синтаксических инструментов.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>У каждой находки уже есть байтовые диапазоны и разобранное дерево; добавить правку — значит добавить к находке замену с уровнем применимости и адресом файла. Ключ к межфайловости — граф вызовов: правка сигнатуры знает всех вызывающих. Ворота жёсткие: приватность (все вызывающие в воркспейсе), уникальность имени, ни одной ссылки на функцию как на значение — иначе правки нет вовсе.</div>
-        <div class="step"><span class="k built">Решение</span>Схема правки: диапазон + замена + применимость + файл. Флаг <span class="mono">--fix</span>: применяет только машинно-применимые, с конца файла к началу, и перегоняет анализ заново — вывод отражает исправленный код. Производители: удалить мёртвую прагму; вынести инвариантный клон и одноразовый буфер из цикла с точными отступами; заимствовать параметр с переписыванием каждого вызова <span class="mono">f(x)</span> → <span class="mono">f(&amp;x)</span> в любых файлах.</div>
-        <div class="step"><span class="k check">Проверка</span>Шесть сквозных тестов цикла «нашёл → починил → доказал тишину», включая вызывающего в соседнем файле. По пути вскрыт и закрыт собственный дефект: правки чужих файлов ложились бы по смещениям в файл находки — теперь у правки собственный адрес.</div>
-      </div>
-
-      <div class="stage">
-        <h3><span class="no">10</span>Осиротевшие файлы и мёртвый код — два разных диагноза</h3>
-        <div class="step"><span class="k problem">Проблема</span>Кейс из практики: человек написал модуль, забыл <span class="mono">mod</span> — и не понимает, почему компилятор не видит хэндлеры. Назвать такой код «мёртвым» — ложь: он потерян, не мёртв.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Граф модулей уже знает недостижимые файлы. Сирота — когда существует правдоподобный родитель (именованный файл каталога — современный стиль первым, mod.rs — наследием последним) и он не объявляет модуль. Мёртвое — только внутри подключённых файлов, и приговор требует полного отсутствия упоминаний: вызовы, колбэки, импорты, токены макросов, строки атрибутов вроде <span class="mono">serde(default = "...")</span>; проза doc-комментариев не считается. Объявления внутри макрообёрток недоказуемы — молчание.</div>
-        <div class="step"><span class="k built">Решение</span>RM-QUAL-003 с файло-адресной правкой «вот строка <span class="mono">mod имя;</span>, вот куда» (решение о монтировании — человеку); RM-QUAL-004 с трассой «файл подключён — значит это мёртвое, а не потерянное». Попутно резолвер выучил <span class="mono">#[path = "..."]</span>-монтирование модулей.</div>
-        <div class="step"><span class="k check">Проверка</span>Сироты: 21 сырое → 0 ложных (все 17 hyper — объявления в макрообёртках, «недоказуемо» сработало). Мёртвые: 160 сырых → 0 ложных за три круга ручного ревью выборок; каждый круг закрывал настоящий класс промаха — колбэки, вызовы в <span class="mono">format!</span>/<span class="mono">select!</span>, serde-строки, dbus-impl с атрибутом.</div>
-      </div>
-
-      <div class="stage">
-        <h3><span class="no">11</span>Вывод слоёв — кто на ком стоит</h3>
-        <div class="step"><span class="k problem">Проблема</span>«Вокруг чего всё построено» — вопрос об архитектуре, а не о типах: какие модули — фундамент, какие — верх, и где взаимные зависимости, которые нельзя ранжировать.</div>
-        <div class="step"><span class="k reason">Рассуждение</span>Модуль зависит от модуля, когда любая его функция вызывает туда. Глубина — длиннейшая ациклическая цепочка вниз; взаимно вызывающиеся модули стратифицировать нельзя — честнее пометить «запутаны», чем приписать произвольный ранг. Первая версия завышала глубины через запутанные узлы — исправлено: сначала находим запутанных, глубина считается только по чистой части.</div>
-        <div class="step"><span class="k built">Решение</span>Вывод слоёв в движке и секция «Inferred layers» в отчёте-обзоре: фундамент — глубина 0, выше — этажи, отдельно — запутанные пары.</div>
-        <div class="step"><span class="k check">Проверка</span>На самом движке: 8 уровней, фундамент — ровно модули данных (типы фактов, знание std, источники), вершина — отчёт-обзор; помечена одна настоящая запутанность (граф типов ↔ его поглощение расширений). Картина совпала с задуманной архитектурой — слои выведены, не нарисованы.</div>
-      </div>
-
-    </div>
-  </section>
-
-  <section>
-    <div class="eyebrow">Сквозные темы исследования</div>
-    <div class="tiers">
-      <div class="tier">
-        <h3>Точность прежде охвата</h3>
-        <p>Каждое правило до включения в пакет разбирается на корпусе в 190 тысяч строк. Два настоящих срабатывания лучше тринадцати сырых; каждое исключение записывается как данные, а не как костыль.</p>
-      </div>
-      <div class="tier">
-        <h3>Инструмент ловит себя</h3>
-        <p>Первый прогон overview нашёл цикл модулей в семантическом ярусе самого движка. Цикл распутан, разросшиеся файлы разбиты на подмодули — по собственным же правилам.</p>
-      </div>
-      <div class="tier">
-        <h3>Код — единственный источник истины</h3>
-        <p>Имя может лгать (RM-QUAL-001), документация может лгать (RM-QUAL-002) — тело не может. Противоречие обещания и наблюдения всегда решается правкой обещания.</p>
-      </div>
-      <div class="tier">
-        <h3>Детерминизм как принцип</h3>
-        <p>Одинаковый вход — байт-в-байт одинаковый выход. Трасса вывода на каждой находке, фиксированный seed даже в обучаемом слое, синтез доков без модели в контуре.</p>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="eyebrow">Корпус — прогон по закреплённым ревизиям</div>
-    <div class="panel">
-      <table>
-        <thead>
-          <tr><th>Репозиторий</th><th>Файлов</th><th>Строк</th><th>Находок</th><th>Плотность</th><th style="min-width:130px">Находок / 10k строк</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="mono">hydebar</span>
-              <div class="chips"><span class="chip"><b>57</b> размер структур</span><span class="chip"><b>54</b> get_-префиксы</span><span class="chip"><b>39</b> констант вне типов</span><span class="chip"><b>2</b> обманчивых имени</span></div>
-            </td>
-            <td class="num">318</td><td class="num">70 288</td><td class="num">267</td><td class="num">38.0</td>
-            <td><div class="bar"><i style="width:100%"></i></div></td>
-          </tr>
-          <tr>
-            <td><span class="mono">entity-derive</span>
-              <div class="chips"><span class="chip"><b>42</b> размер структур</span><span class="chip"><b>40</b> повторы полей</span><span class="chip"><b>20</b> SQL-паттерны</span></div>
-            </td>
-            <td class="num">230</td><td class="num">45 406</td><td class="num">128</td><td class="num">28.2</td>
-            <td><div class="bar"><i style="width:74%"></i></div></td>
-          </tr>
-          <tr>
-            <td><span class="mono">fork-hyper</span>
-              <div class="chips"><span class="chip"><b>23</b> set_-мутаторы</span><span class="chip"><b>21</b> размер структур</span><span class="chip"><b>2</b> владение (RM-MEM-001)</span></div>
-            </td>
-            <td class="num">98</td><td class="num">34 326</td><td class="num">92</td><td class="num">26.8</td>
-            <td><div class="bar"><i style="width:71%"></i></div></td>
-          </tr>
-          <tr>
-            <td><span class="mono">masterror</span>
-              <div class="chips"><span class="chip"><b>14</b> повторы полей</span><span class="chip"><b>12</b> размер структур</span><span class="chip"><b>2</b> хардкод-секреты</span></div>
-            </td>
-            <td class="num">169</td><td class="num">40 749</td><td class="num">65</td><td class="num">16.0</td>
-            <td><div class="bar"><i style="width:42%"></i></div></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section>
-    <div class="eyebrow">Сколько кода программа понимает — самозамер, живые прогоны</div>
-    <div class="panel">
-      <table>
-        <thead>
-          <tr><th>Репозиторий</th><th>Распарсено</th><th>Достижимо из корней</th><th>Импортов учтено</th><th>Зона незнания</th><th style="min-width:130px">Учтено</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><span class="mono">aura-api</span></td>
-            <td class="num">259/259 · 100%</td><td class="num">218 · 84.2%</td>
-            <td class="num">2224 из 2384 · 93.3%</td><td class="num">160</td>
-            <td><div class="bar"><i style="width:93%"></i></div></td>
-          </tr>
-          <tr>
-            <td><span class="mono">masterror</span></td>
-            <td class="num">169/169 · 100%</td><td class="num">99 · 58.6%</td>
-            <td class="num">1128 из 1228 · 91.9%</td><td class="num">100</td>
-            <td><div class="bar"><i style="width:92%"></i></div></td>
-          </tr>
-          <tr>
-            <td><span class="mono">sea_battle</span></td>
-            <td class="num">24/24 · 100%</td><td class="num">23 · 95.8%</td>
-            <td class="num">133 из 156 · 85.3%</td><td class="num">23</td>
-            <td><div class="bar"><i style="width:85%"></i></div></td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="margin-top:12px; font-size:0.85rem; color:var(--muted)">«Учтено» = импорт разрешён внутри воркспейса или отнесён к зависимости, объявленной в Cargo.toml. «Зона незнания» — честный остаток: в основном цепочки реэкспортов.</p>
-    </div>
-  </section>
-
-  <section>
-    <div class="eyebrow">Expand-режим — derive больше не слепое пятно</div>
-    <div class="term">$ rustmanifest coverage --expand sea_battle
-<span class="d">…</span>
-crates expanded     3/3       via rustc -Zunpretty=expanded   skipped 0
-<span class="w">derived impls       454</span>       of 562 impls total   (previously invisible, now measured)
-derived traits                Deserialize 91, Visitor 90, Clone 79, Debug 72,
-                              Serialize 45, PartialEq 12, StructuralPartialEq 12,
-                              Default 8 <span class="d">(+5 more)</span></div>
-    <p style="margin-top:10px; font-size:0.85rem; color:var(--muted)">24 derive на поверхности кода порождают 454 impl — 81% реализаций крейта. Раньше движок их не видел вовсе; теперь каждый крейт разворачивается через nightly-развёртку и замеряется. Неразвернувшийся крейт честно помечается пропущенным.</p>
-  </section>
-
-  <section>
-    <div class="eyebrow">Как выглядит находка — sea_battle, живой вывод</div>
-    <div class="term"><span class="w">warning</span> RM-STRUCT-003  Structure size: struct `Tournament` declares 8 fields (limit 4);
-        split suggestion: extract {entry_fee, id, max_players, prize_pool,
-        rake_bps, status, title} into a shared component (also declared
-        by `TournamentView`); group the rest {created_at} by responsibility
-  <span class="d">→ entities/src/lib.rs:3937..3947</span>
-  <span class="p">= extract into a shared component; also declared by `TournamentView`</span>
-  <span class="p">= group by responsibility: {created_at}</span>
-  <span class="u">↳ rustmanifest://methodology/structure#structure-size</span></div>
-  </section>
-
-  <section>
-    <div class="eyebrow">Три яруса анализа</div>
-    <div class="tiers">
-      <div class="tier">
-        <h3>Ярус 1 — паттерны</h3>
-        <p>Regex по тексту: захардкоженные креды, SQL- и command-injection.</p>
-        <div class="chips ids"><span class="chip">SEC-001…003</span></div>
-      </div>
-      <div class="tier">
-        <h3>Ярус 2 — AST</h3>
-        <p>syn-разбор каждого файла: все 9 разделов STRUCTURE.md — именование, размеры, конструкторы, иммутабельность, константы, фейки.</p>
-        <div class="chips ids"><span class="chip">STRUCT-001…009</span></div>
-      </div>
-      <div class="tier">
-        <h3>Ярус 3 — семантика воркспейса</h3>
-        <p>Графы типов, модулей и вызовов; факты поведения и владения; инварианты с транзитивной проверкой; правила-силлогизмы поверх фактов.</p>
-        <div class="chips ids"><span class="chip">STRUCT-010, 011</span><span class="chip">MEM-001…003</span><span class="chip">QUAL-001, 002</span><span class="chip">INV-*</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="eyebrow">Поверхности</div>
-    <div class="panel">
-      <table>
-        <tbody>
-          <tr><td class="mono">check</td><td>TTY / JSON / SARIF 2.1.0, коды выхода 0/1/2, кеш по контент-хешу, <span class="mono">--delegate-clippy</span></td></tr>
-          <tr><td class="mono">explain</td><td>правило + выдержка из твоей методологии</td></tr>
-          <tr><td class="mono">graph</td><td>диаграммы модулей и агрегации типов: Mermaid / DOT</td></tr>
-          <tr><td class="mono">coverage</td><td>самозамер понимания, <span class="mono">--expand</span> — учёт derive через nightly-развёртку</td></tr>
-          <tr><td class="mono">facts</td><td>поведенческие факты каждой функции в JSON; <span class="mono">--features</span> — бинаризованные векторы для обучаемого слоя</td></tr>
-          <tr><td class="mono">learn</td><td>клаузы конвенций по ролям, детерминированное обучение с фиксированным seed; вывод — читаемый список правил</td></tr>
-          <tr><td class="mono">overview</td><td>всё знание о проекте одним отчётом: модули, типы, роли, границы внешнего мира, спорное состояние</td></tr>
-          <tr><td class="mono">MCP</td><td>8 инструментов + 9 документов методологии по stdio; conformance-тесты гоняют живой бинарь</td></tr>
-          <tr><td class="mono">eval</td><td>корпус из 4 репо, базлайн находок, регрессионный гейт, перф-бюджет p95 &lt; 100 мс</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <footer>Собрано из eval/baseline.json, docs/RESEARCH-2026-07-behavioral-tier.md и живых прогонов · всё локально, origin нетронут</footer>
+<section id="status" aria-labelledby="hst">
+<h3 class="rub" id="hst">Статус</h3>
+<p class="mono" style="font-size:.8125rem">21 правило · 413 тестов зелёные · p95 40–60 мс/файл (debug) · перф-бюджет корпуса p95 &lt; 100 мс · 8 MCP-инструментов · 65 коммитов за 2026-08-01</p>
+</section>
 </main>
+</div>
+
+<footer>сборка 2026-08-01 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a></footer>
+</div>
+<script>
+(function(){
+var r=document.documentElement,b=document.getElementById("themebtn");
+try{var s=localStorage.getItem("rm-theme");if(s)r.setAttribute("data-theme",s)}catch(e){}
+b.addEventListener("click",function(){
+var d=r.getAttribute("data-theme")==="dark"||(!r.getAttribute("data-theme")&&matchMedia("(prefers-color-scheme: dark)").matches);
+var n=d?"light":"dark";
+r.setAttribute("data-theme",n);
+try{localStorage.setItem("rm-theme",n)}catch(e){}
+});
+var bar=document.getElementById("bar");
+addEventListener("scroll",function(){
+var h=document.documentElement,m=h.scrollHeight-h.clientHeight;
+bar.style.width=(m>0?100*h.scrollTop/m:0)+"%";
+},{passive:true});
+var L={},cur=null;
+document.querySelectorAll("nav.toc a").forEach(function(a){L[a.getAttribute("href").slice(1)]=a});
+var io=new IntersectionObserver(function(es){
+es.forEach(function(e){if(e.isIntersecting){
+if(cur)cur.classList.remove("on");
+cur=L[e.target.id];if(cur)cur.classList.add("on");
+}});
+},{rootMargin:"-15% 0px -70% 0px"});
+document.querySelectorAll("main section").forEach(function(s){io.observe(s)});
+})();
+</script>
 </body>
 </html>
