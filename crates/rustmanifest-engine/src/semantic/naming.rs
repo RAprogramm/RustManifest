@@ -40,7 +40,12 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
         let Some(verb) = read_promise(&fact) else {
             continue;
         };
-        let writes: Vec<&str> = fact.writes.iter().map(String::as_str).collect();
+        let writes: Vec<&str> = fact
+            .writes
+            .iter()
+            .filter(|write| !write.starts_with("?."))
+            .map(String::as_str)
+            .collect();
         let effects: Vec<String> = fact
             .effects
             .iter()

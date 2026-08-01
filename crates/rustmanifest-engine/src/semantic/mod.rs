@@ -16,6 +16,7 @@ mod calls;
 mod composition;
 mod coverage;
 mod doc_synth;
+mod doc_truth;
 mod docs;
 mod expansion;
 mod expr;
@@ -75,7 +76,10 @@ enum Check {
     LoopAllocation,
     /// `deceptive-name` — read-named functions that write state or touch
     /// the outside world.
-    DeceptiveName
+    DeceptiveName,
+    /// `deceptive-doc` — doc summaries claiming a read over a mutating
+    /// body.
+    DeceptiveDoc
 }
 
 impl Check {
@@ -89,6 +93,7 @@ impl Check {
             "loop-invariant-clone" => Some(Self::LoopInvariantClone),
             "loop-allocation" => Some(Self::LoopAllocation),
             "deceptive-name" => Some(Self::DeceptiveName),
+            "deceptive-doc" => Some(Self::DeceptiveDoc),
             _ => None
         }
     }
@@ -102,7 +107,8 @@ impl Check {
             Self::BorrowableParams => ownership::insights(sources, graph),
             Self::LoopInvariantClone => loops::clone_insights(sources),
             Self::LoopAllocation => loops::allocation_insights(sources),
-            Self::DeceptiveName => naming::insights(sources)
+            Self::DeceptiveName => naming::insights(sources),
+            Self::DeceptiveDoc => doc_truth::insights(sources)
         }
     }
 }

@@ -36,28 +36,31 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
         if !READ_CLAIM_VERBS.contains(&verb) {
             continue;
         }
-        let Some(fact) = behaviors
-            .iter()
-            .find(|fact| fact.function == doc.function)
-        else {
+        let Some(fact) = behaviors.iter().find(|fact| fact.function == doc.function) else {
             continue;
         };
-        if fact.trait_impl || fact.test {
+        if fact.trait_impl || fact.test || builder_convention(&doc.function) {
             continue;
         }
+        let writes: Vec<&str> = fact
+            .writes
+            .iter()
+            .filter(|write| !write.starts_with("?."))
+            .map(String::as_str)
+            .collect();
         let effects: Vec<String> = fact
             .effects
             .iter()
             .filter(|effect| LIE_EFFECTS.contains(effect))
             .map(ToString::to_string)
             .collect();
-        if fact.writes.is_empty() && effects.is_empty() {
+        if writes.is_empty() && effects.is_empty() {
             continue;
         }
-        let observed = if fact.writes.is_empty() {
+        let observed = if writes.is_empty() {
             format!("performs effects [{}]", effects.join(", "))
         } else {
-            format!("writes [{}]", fact.writes.join(", "))
+            format!("writes [{}]", writes.join(", "))
         };
         let detail = format!(
             "doc of `{}` claims a read (summary starts with `{verb}`) but the body {observed}; \
@@ -82,6 +85,16 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
         found.push(Insight::new(doc.source, doc.range, detail, trace));
     }
     found
+}
+
+/// Returns whether the bare name follows the consuming-builder
+/// convention (`with_*`), where writing an own field and returning the
+/// value is exactly the documented read-like contract.
+fn builder_convention(function: &str) -> bool {
+    function
+        .rsplit("::")
+        .next()
+        .is_some_and(|name| name.starts_with("with_"))
 }
 
 #[cfg(test)]
@@ -129,6 +142,18 @@ mod tests {
             found(
                 "struct Counter { hits: u64 }\nimpl Counter {\n    /// Increments the \
                  counter.\n    fn bump(&mut self) { self.hits += 1; }\n}"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn with_builders_are_exempt() {
+        assert_eq!(
+            found(
+                "struct Theme { size: u32 }\nimpl Theme {\n    /// Returns the theme with the \
+                 size applied.\n    fn with_size(mut self, size: u32) -> Self { self.size = \
+                 size; self }\n}"
             ),
             0
         );
