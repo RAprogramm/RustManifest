@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RustManifest — состояние движка</title>
+<style>
+:root {
+  --ground: #F7F3EC;
+  --panel: #FFFDF9;
+  --ink: #2A241E;
+  --muted: #7A6F63;
+  --line: #E4DCD0;
+  --oxide: #B34A1F;
+  --amber: #9A6E0F;
+  --moss: #55713F;
+  --err: #A0341F;
+  --code-bg: #221D18;
+  --code-ink: #E8DFD2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #171412;
+    --panel: #201B17;
+    --ink: #E8DFD2;
+    --muted: #9C8F80;
+    --line: #362E27;
+    --oxide: #D96A35;
+    --amber: #C9962E;
+    --moss: #7E9C64;
+    --err: #C75B42;
+    --code-bg: #12100E;
+    --code-ink: #DED4C4;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #171412; --panel: #201B17; --ink: #E8DFD2; --muted: #9C8F80;
+  --line: #362E27; --oxide: #D96A35; --amber: #C9962E; --moss: #7E9C64;
+  --err: #C75B42; --code-bg: #12100E; --code-ink: #DED4C4;
+}
+:root[data-theme="light"] {
+  --ground: #F7F3EC; --panel: #FFFDF9; --ink: #2A241E; --muted: #7A6F63;
+  --line: #E4DCD0; --oxide: #B34A1F; --amber: #9A6E0F; --moss: #55713F;
+  --err: #A0341F; --code-bg: #221D18; --code-ink: #E8DFD2;
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font: 16px/1.55 system-ui, "Segoe UI", sans-serif;
+  padding: 40px 20px 80px;
+}
+main { max-width: 980px; margin: 0 auto; display: grid; gap: 36px; }
+.mono { font-family: ui-monospace, "JetBrains Mono", "Cascadia Code", Menlo, monospace; }
+header h1 {
+  font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+  font-size: 1.7rem; letter-spacing: -0.02em; text-wrap: balance;
+}
+header h1 .accent { color: var(--oxide); }
+header p { color: var(--muted); margin-top: 6px; max-width: 62ch; }
+.eyebrow {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--oxide); margin-bottom: 10px;
+}
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 14px 16px;
+}
+.tile .num {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--oxide);
+}
+.tile .lbl { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+section .panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 20px 22px; overflow-x: auto;
+}
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th {
+  text-align: left; font-size: 0.72rem; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted); font-weight: 600;
+  padding: 6px 14px 8px 0; border-bottom: 1px solid var(--line);
+}
+td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+.bar { height: 6px; border-radius: 3px; background: var(--line); min-width: 120px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--oxide); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip {
+  font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem;
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
+  color: var(--muted); white-space: nowrap;
+}
+.chip b { color: var(--ink); font-weight: 600; }
+.term {
+  background: var(--code-bg); color: var(--code-ink);
+  border-radius: 6px; padding: 18px 20px; overflow-x: auto;
+  font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+  font-size: 0.82rem; line-height: 1.65; white-space: pre;
+}
+.term .w { color: #E0A93E; }
+.term .p { color: #8FB573; }
+.term .d { color: #8A7E70; }
+.term .u { color: #6FA7C7; }
+.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.tier {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 16px 18px; border-top: 3px solid var(--oxide);
+}
+.tier h3 { font-size: 0.95rem; margin-bottom: 6px; }
+.tier p { font-size: 0.85rem; color: var(--muted); }
+.tier .ids { margin-top: 10px; }
+footer { color: var(--muted); font-size: 0.8rem; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">локальная сборка · 1 августа 2026 · без публикации</div>
+    <h1>rustmanifest <span class="accent">::</span> методология как код</h1>
+    <p>Твой стайлгайд STRUCTURE.md исполняется движком: три яруса анализа, объяснимые находки с трассой вывода, MCP-оракул для агентов. Все цифры ниже — из реальных прогонов по закреплённым ревизиям.</p>
+  </header>
+
+  <section>
+    <div class="eyebrow">Сводка</div>
+    <div class="tiles">
+      <div class="tile"><div class="num">18+1</div><div class="lbl">правил в пакете + RM-META-001</div></div>
+      <div class="tile"><div class="num">3</div><div class="lbl">яруса: regex → AST → граф+вызовы</div></div>
+      <div class="tile"><div class="num">290+</div><div class="lbl">тестов, все зелёные</div></div>
+      <div class="tile"><div class="num">8</div><div class="lbl">MCP-инструментов</div></div>
+      <div class="tile"><div class="num">40–60<span style="font-size:0.9rem"> мс</span></div><div class="lbl">p95 на файл (debug)</div></div>
+      <div class="tile"><div class="num">38</div><div class="lbl">локальных коммитов за 1 августа</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Новое за 1 августа — движок стал глубже</div>
+    <div class="panel">
+      <table>
+        <tbody>
+          <tr><td><span class="mono">Граф вызовов</span></td><td>кто кого вызывает: свободные, ассоциированные и методные вызовы через выведенные типы получателей; эффекты распространяются транзитивно — функция, зовущая пишущую в файл, сама помечена fs. На своём коде: 867 рёбер, эффектных функций 147 вместо 85</td></tr>
+          <tr><td><span class="mono">Транзитивные инварианты</span></td><td>запрет «в домене нет fs» ловит обходные нарушения; в трейсе — вся цепочка вызовов до стока</td></tr>
+          <tr><td><span class="mono">RM-MEM-002/003</span></td><td>клон инварианта в цикле; свежая аллокация каждую итерацию без выхода из неё — 0 ложных на корпусе</td></tr>
+          <tr><td><span class="mono">RM-QUAL-001</span></td><td>имя лжёт: get_*/is_* пишет состояние или печатает — 2 настоящих на hydebar, 0 ложных</td></tr>
+          <tr><td><span class="mono">RM-QUAL-002</span></td><td>док лжёт: «Returns…» над мутирующим телом; учтены builder-конвенция with_* и недоказанные записи</td></tr>
+          <tr><td><span class="mono">Синтез доков из кода</span></td><td>детерминированный rustdoc из фактов тела: резюме, # Arguments из режимов владения, # Errors, # Panics, # Safety; поля — настоящие ссылки [Type::field] через граф типов. Без модели</td></tr>
+          <tr><td><span class="mono">База знаний std</span></td><td>Copy-типы, мутирующие и потребляющие методы — как данные; +2 настоящих находки владения на hyper</td></tr>
+          <tr><td><span class="mono">Обучаемый слой</span></td><td>tsetlin-клаузы по ролям, ворота пройдены: +17 п.п. macro-F1 против логрегрессии; команды learn и overview, знания отданы и через MCP</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Корпус — прогон по закреплённым ревизиям</div>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr><th>Репозиторий</th><th>Файлов</th><th>Строк</th><th>Находок</th><th>Плотность</th><th style="min-width:130px">Находок / 10k строк</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">hydebar</span>
+              <div class="chips"><span class="chip"><b>57</b> размер структур</span><span class="chip"><b>54</b> get_-префиксы</span><span class="chip"><b>39</b> констант вне типов</span><span class="chip"><b>8</b> циклов модулей</span></div>
+            </td>
+            <td class="num">318</td><td class="num">70 288</td><td class="num">265</td><td class="num">37.7</td>
+            <td><div class="bar"><i style="width:100%"></i></div></td>
+          </tr>
+          <tr>
+            <td><span class="mono">entity-derive</span>
+              <div class="chips"><span class="chip"><b>42</b> размер структур</span><span class="chip"><b>40</b> повторы полей</span><span class="chip"><b>20</b> SQL-паттерны</span></div>
+            </td>
+            <td class="num">230</td><td class="num">45 406</td><td class="num">128</td><td class="num">28.2</td>
+            <td><div class="bar"><i style="width:78%"></i></div></td>
+          </tr>
+          <tr>
+            <td><span class="mono">fork-hyper</span>
+              <div class="chips"><span class="chip"><b>23</b> set_-мутаторы</span><span class="chip"><b>21</b> размер структур</span><span class="chip"><b>4</b> цикла модулей</span></div>
+            </td>
+            <td class="num">98</td><td class="num">34 326</td><td class="num">92</td><td class="num">26.8</td>
+            <td><div class="bar"><i style="width:72%"></i></div></td>
+          </tr>
+          <tr>
+            <td><span class="mono">masterror</span>
+              <div class="chips"><span class="chip"><b>14</b> повторы полей</span><span class="chip"><b>12</b> размер структур</span><span class="chip"><b>4</b> цикла модулей</span></div>
+            </td>
+            <td class="num">169</td><td class="num">40 749</td><td class="num">65</td><td class="num">16.0</td>
+            <td><div class="bar"><i style="width:41%"></i></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Сколько кода программа понимает — самозамер, живые прогоны</div>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr><th>Репозиторий</th><th>Распарсено</th><th>Достижимо из корней</th><th>Импортов учтено</th><th>Зона незнания</th><th style="min-width:130px">Учтено</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">aura-api</span></td>
+            <td class="num">259/259 · 100%</td><td class="num">218 · 84.2%</td>
+            <td class="num">2224 из 2384 · 93.3%</td><td class="num">160</td>
+            <td><div class="bar"><i style="width:93%"></i></div></td>
+          </tr>
+          <tr>
+            <td><span class="mono">masterror</span></td>
+            <td class="num">169/169 · 100%</td><td class="num">99 · 58.6%</td>
+            <td class="num">1128 из 1228 · 91.9%</td><td class="num">100</td>
+            <td><div class="bar"><i style="width:92%"></i></div></td>
+          </tr>
+          <tr>
+            <td><span class="mono">sea_battle</span></td>
+            <td class="num">24/24 · 100%</td><td class="num">23 · 95.8%</td>
+            <td class="num">133 из 156 · 85.3%</td><td class="num">23</td>
+            <td><div class="bar"><i style="width:85%"></i></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px; font-size:0.85rem; color:var(--muted)">«Учтено» = импорт разрешён внутри воркспейса или отнесён к зависимости, объявленной в Cargo.toml. «Зона незнания» — честный остаток: в основном цепочки реэкспортов.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Expand-режим — derive больше не слепое пятно</div>
+    <div class="term">$ rustmanifest coverage --expand sea_battle
+<span class="d">…</span>
+crates expanded     3/3       via rustc -Zunpretty=expanded   skipped 0
+<span class="w">derived impls       454</span>       of 562 impls total   (previously invisible, now measured)
+derived traits                Deserialize 91, Visitor 90, Clone 79, Debug 72,
+                              Serialize 45, PartialEq 12, StructuralPartialEq 12,
+                              Default 8 <span class="d">(+5 more)</span></div>
+    <p style="margin-top:10px; font-size:0.85rem; color:var(--muted)">24 derive на поверхности кода порождают 454 impl — 81% реализаций крейта. Раньше движок их не видел вовсе; теперь каждый крейт разворачивается через nightly-развёртку и замеряется. Неразвернувшийся крейт честно помечается пропущенным.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Как выглядит находка — sea_battle, живой вывод</div>
+    <div class="term"><span class="w">warning</span> RM-STRUCT-003  Structure size: struct `Tournament` declares 8 fields (limit 4);
+        split suggestion: extract {entry_fee, id, max_players, prize_pool,
+        rake_bps, status, title} into a shared component (also declared
+        by `TournamentView`); group the rest {created_at} by responsibility
+  <span class="d">→ entities/src/lib.rs:3937..3947</span>
+  <span class="p">= extract into a shared component; also declared by `TournamentView`</span>
+  <span class="p">= group by responsibility: {created_at}</span>
+  <span class="u">↳ rustmanifest://methodology/structure#structure-size</span></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Три яруса анализа</div>
+    <div class="tiers">
+      <div class="tier">
+        <h3>Ярус 1 — паттерны</h3>
+        <p>Regex по тексту: захардкоженные креды, SQL- и command-injection.</p>
+        <div class="chips ids"><span class="chip">SEC-001…003</span></div>
+      </div>
+      <div class="tier">
+        <h3>Ярус 2 — AST</h3>
+        <p>syn-разбор каждого файла: все 9 разделов STRUCTURE.md — именование, размеры, конструкторы, иммутабельность, константы, фейки.</p>
+        <div class="chips ids"><span class="chip">STRUCT-001…009</span></div>
+      </div>
+      <div class="tier">
+        <h3>Ярус 3 — граф воркспейса</h3>
+        <p>Связи между файлами: кто какие поля дублирует (совет «вынеси компонент»), циклы зависимостей модулей.</p>
+        <div class="chips ids"><span class="chip">STRUCT-010, 011</span><span class="chip">+ план разбиения в 003</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Поверхности</div>
+    <div class="panel">
+      <table>
+        <tbody>
+          <tr><td class="mono">check</td><td>TTY / JSON / SARIF 2.1.0, коды выхода 0/1/2, кеш по контент-хешу, <span class="mono">--delegate-clippy</span></td></tr>
+          <tr><td class="mono">explain</td><td>правило + выдержка из твоей методологии</td></tr>
+          <tr><td class="mono">graph</td><td>диаграммы модулей и агрегации типов: Mermaid / DOT</td></tr>
+          <tr><td class="mono">coverage</td><td>самозамер понимания, <span class="mono">--expand</span> — учёт derive через nightly-развёртку</td></tr>
+          <tr><td class="mono">MCP</td><td>5 инструментов + 9 документов методологии по stdio; conformance-тесты гоняют живой бинарь</td></tr>
+          <tr><td class="mono">eval</td><td>корпус из 4 репо, базлайн находок, регрессионный гейт, перф-бюджет p95 &lt; 100 мс</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Сгенерировано из eval/baseline.json и живых прогонов · всё локально, origin нетронут</footer>
+</main>
+</body>
+</html>
