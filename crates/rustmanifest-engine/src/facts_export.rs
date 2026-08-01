@@ -9,7 +9,7 @@
 //! of truth. The binarized feature vector is appended on request.
 
 use crate::{
-    semantic::{FunctionFacts, call_graph, features, role, transitive_effects},
+    semantic::{FunctionFacts, ScipEdges, call_graph_with, features, role, transitive_effects},
     source::Source
 };
 
@@ -18,16 +18,25 @@ use crate::{
 /// The canonical shape shared by the CLI and the MCP server, including
 /// per-function transitive effects closed over the resolved call graph.
 /// `filter` narrows by substring of the qualified name; `active` keeps
-/// only functions with a write, effect, or error type.
+/// only functions with a write, effect, or error type. A SCIP index in
+/// `scip` overlays name-resolved call edges onto the graph before the
+/// effect closure, so transitive effects flow over edges the syntactic
+/// resolver missed.
 #[must_use]
 pub fn facts_json(
     sources: &[Source],
     filter: Option<&str>,
     active: bool,
-    with_features: bool
+    with_features: bool,
+    scip: Option<&ScipEdges>
 ) -> serde_json::Value {
     let facts = crate::semantic::behavior(sources);
-    let graph = call_graph(&facts, &crate::semantic::resolution_context(sources));
+    let overlay = scip.map(|edges| edges.candidates(&facts, sources));
+    let graph = call_graph_with(
+        &facts,
+        &crate::semantic::resolution_context(sources),
+        overlay.as_deref()
+    );
     let transitive = transitive_effects(&facts, &graph);
     let selected: Vec<serde_json::Value> = facts
         .iter()

@@ -38,7 +38,12 @@ pub struct FactsArgs {
     /// Additionally print each function's binarized feature vector — the
     /// fixed-order named binary features the learning layer trains on.
     #[arg(long)]
-    pub features: bool
+    pub features: bool,
+
+    /// SCIP index file (`rust-analyzer scip .`) overlaying name-resolved
+    /// call edges onto the graph before the transitive-effect closure.
+    #[arg(long, value_name = "INDEX")]
+    pub scip: Option<PathBuf>
 }
 
 /// Runs the `facts` subcommand: discovers files, extracts behavioral
@@ -49,11 +54,18 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
+    let scip = args
+        .scip
+        .as_deref()
+        .map(rustmanifest_engine::ScipEdges::from_file)
+        .transpose()
+        .context("loading SCIP index")?;
     let rendered = serde_json::to_string_pretty(&rustmanifest_engine::facts_export::facts_json(
         &sources,
         args.filter.as_deref(),
         args.active,
-        args.features
+        args.features,
+        scip.as_ref()
     ))
     .context("serializing facts")?;
     let stdout = std::io::stdout();

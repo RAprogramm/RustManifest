@@ -35,7 +35,12 @@ pub struct CoverageArgs {
     /// List every unresolved `use` target with its occurrence count — the
     /// inspectable form of the report's "unresolved" bucket.
     #[arg(long)]
-    pub unresolved: bool
+    pub unresolved: bool,
+
+    /// SCIP index file (`rust-analyzer scip .`) overlaying name-resolved
+    /// call edges; the report counts what the index added separately.
+    #[arg(long, value_name = "INDEX")]
+    pub scip: Option<PathBuf>
 }
 
 /// Runs the `coverage` subcommand: discovers files, reads sources within
@@ -47,7 +52,14 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let declared = declared_dependencies(&args.paths);
-    let report = coverage_with(&sources, &declared);
+    let report = match args.scip.as_deref() {
+        Some(index) => {
+            let edges =
+                rustmanifest_engine::ScipEdges::from_file(index).context("loading SCIP index")?;
+            rustmanifest_engine::coverage_indexed(&sources, &declared, &edges)
+        }
+        None => coverage_with(&sources, &declared)
+    };
     let mut lines = report_lines(&report);
     if args.unresolved {
         lines.extend(unresolved_lines(&rustmanifest_engine::unresolved_targets(
@@ -224,12 +236,17 @@ fn report_lines(report: &Coverage) -> Vec<String> {
             &format!(
                 "resolved in-workspace {calls_resolved}  {call_rate:.1}%   external \
                  {calls_external}   unknown receiver {calls_unknown}   accounted \
-                 {call_accounted:.1}%",
+                 {call_accounted:.1}%{scip_tail}",
                 calls_resolved = report.call_candidates_resolved,
                 call_rate = report.call_resolution_rate(),
                 calls_external = report.call_candidates_external,
                 calls_unknown = report.call_candidates_unknown,
-                call_accounted = report.call_accounted_rate()
+                call_accounted = report.call_accounted_rate(),
+                scip_tail = if report.call_candidates_scip == 0 {
+                    String::new()
+                } else {
+                    format!("   scip edges +{}", report.call_candidates_scip)
+                }
             )
         ),
         line(
@@ -285,7 +302,8 @@ mod tests {
             call_candidates_total:      5000,
             call_candidates_resolved:   1066,
             call_candidates_external:   3600,
-            call_candidates_unknown:    200
+            call_candidates_unknown:    200,
+            call_candidates_scip:       0
         };
         let lines = report_lines(&report);
         assert_eq!(lines.len(), 7);
@@ -324,6 +342,18 @@ mod tests {
     fn empty_report_renders_zero_rates() {
         let lines = report_lines(&Coverage::default());
         assert_eq!(lines[0], "files parsed        0/0       0.0%");
+    }
+
+    #[test]
+    fn scip_edges_appear_only_when_an_index_added_some() {
+        let report = Coverage {
+            call_candidates_total: 10,
+            call_candidates_resolved: 4,
+            call_candidates_scip: 3,
+            ..Coverage::default()
+        };
+        let lines = report_lines(&report);
+        assert!(lines[5].ends_with("accounted 40.0%   scip edges +3"));
     }
 
     fn summary(traits: &[(&str, u64)]) -> ExpandSummary {

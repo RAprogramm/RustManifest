@@ -43,7 +43,9 @@ pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn facts(target: &Path, filter: Option<&str>) -> Result<serde_json::Value, EngineError> {
     let sources = sources_for(target)?;
-    Ok(facts_export::facts_json(&sources, filter, false, false))
+    Ok(facts_export::facts_json(
+        &sources, filter, false, false, None
+    ))
 }
 
 /// One learned convention clause on the wire.

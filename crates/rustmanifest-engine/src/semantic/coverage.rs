@@ -94,7 +94,10 @@ pub struct Coverage {
     pub call_candidates_external:   u64,
     /// Unmatched call candidates a typed receiver would settle
     /// in-workspace — the engine's own understanding gap.
-    pub call_candidates_unknown:    u64
+    pub call_candidates_unknown:    u64,
+    /// Call edges added by a SCIP index overlay beyond the syntactic
+    /// candidates; zero when no index was supplied.
+    pub call_candidates_scip:       u64
 }
 
 impl Coverage {
@@ -181,6 +184,27 @@ pub fn coverage(sources: &[Source]) -> Coverage {
 /// as sightings.
 #[must_use]
 pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> Coverage {
+    measure(sources, external_crates, None)
+}
+
+/// Measures `sources` like [`coverage_with`] with a SCIP index overlay:
+/// call edges the index resolves beyond the syntactic candidates are
+/// counted separately, so the report states what the index added.
+#[must_use]
+pub fn coverage_indexed(
+    sources: &[Source],
+    external_crates: &BTreeSet<String>,
+    edges: &super::scip::ScipEdges
+) -> Coverage {
+    measure(sources, external_crates, Some(edges))
+}
+
+/// Shared measurement behind [`coverage_with`] and [`coverage_indexed`].
+fn measure(
+    sources: &[Source],
+    external_crates: &BTreeSet<String>,
+    scip: Option<&super::scip::ScipEdges>
+) -> Coverage {
     let mut files_parsed = 0u64;
     let mut derives_seen = 0u64;
     let mut item_macros_seen = 0u64;
@@ -223,7 +247,12 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         }
     }
     let facts = super::behavior::behavior(sources);
-    let graph = super::calls::call_graph(&facts, &super::calls::resolution_context(sources));
+    let overlay = scip.map(|edges| edges.candidates(&facts, sources));
+    let graph = super::calls::call_graph_with(
+        &facts,
+        &super::calls::resolution_context(sources),
+        overlay.as_deref()
+    );
     let types = TypeGraph::from_sources(sources);
     let fields_captured = types
         .types()
@@ -264,7 +293,8 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         call_candidates_total: graph.resolved() + graph.unresolved(),
         call_candidates_resolved: graph.resolved(),
         call_candidates_external: graph.external(),
-        call_candidates_unknown: graph.unknown_receiver()
+        call_candidates_unknown: graph.unknown_receiver(),
+        call_candidates_scip: graph.scip_resolved()
     }
 }
 

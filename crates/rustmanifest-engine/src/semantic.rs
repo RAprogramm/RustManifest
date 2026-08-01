@@ -41,6 +41,7 @@ mod ownership;
 mod rename_detect;
 mod rename_op;
 mod role;
+mod scip;
 mod std_knowledge;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
@@ -49,8 +50,11 @@ use tracing::trace;
 use self::insight::Insight;
 pub use self::{
     behavior::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode, behavior},
-    calls::{CallGraph, ResolutionContext, call_graph, resolution_context, resolution_segments, transitive_effects},
-    coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
+    calls::{
+        CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
+        resolution_segments, transitive_effects
+    },
+    coverage::{Coverage, coverage, coverage_indexed, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
     expansion::{ExpansionReport, expansion},
@@ -65,7 +69,8 @@ pub use self::{
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,
-    role::{Role, role}
+    role::{Role, role},
+    scip::{ScipEdges, ScipError}
 };
 use crate::{error::EngineError, pragma, source::Source};
 

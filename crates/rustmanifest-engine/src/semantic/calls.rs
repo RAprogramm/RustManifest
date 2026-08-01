@@ -121,7 +121,10 @@ pub struct CallGraph {
     /// Unmatched `?::method` candidates whose method name the workspace
     /// does define — a typed receiver would settle them, so they are the
     /// engine's own understanding gap.
-    unknown_receiver: u64
+    unknown_receiver: u64,
+    /// Edges added by the SCIP overlay that the syntactic candidates
+    /// alone had not produced — resolution owed to the index.
+    scip_resolved:    u64
 }
 
 impl CallGraph {
@@ -155,6 +158,12 @@ impl CallGraph {
     pub const fn unknown_receiver(&self) -> u64 {
         self.unknown_receiver
     }
+
+    /// Edges the SCIP overlay added beyond the syntactic candidates.
+    #[must_use]
+    pub const fn scip_resolved(&self) -> u64 {
+        self.scip_resolved
+    }
 }
 
 /// Builds the call graph of `facts` by resolving every call candidate.
@@ -167,17 +176,24 @@ impl CallGraph {
 /// of dynamic dispatch.
 #[must_use]
 pub fn call_graph(facts: &[FunctionFacts], context: &ResolutionContext) -> CallGraph {
+    call_graph_with(facts, context, None)
+}
+
+/// Builds the call graph with an optional SCIP overlay.
+///
+/// The overlay holds per-fact callee names read from a name-resolved
+/// index, applied after the syntactic candidates. Overlay names resolve
+/// through the same unique-match tables; an edge the candidates already
+/// produced is not recounted, so [`CallGraph::scip_resolved`] states
+/// exactly what the index added.
+#[must_use]
+pub fn call_graph_with(
+    facts: &[FunctionFacts],
+    context: &ResolutionContext,
+    overlay: Option<&[Vec<String>]>
+) -> CallGraph {
     let module_segments = &context.segments;
-    let mut by_qualified: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    let mut by_bare_free: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    let mut by_method: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (index, fact) in facts.iter().enumerate() {
-        by_qualified.entry(&fact.function).or_default().push(index);
-        match fact.function.rsplit_once("::") {
-            None => by_bare_free.entry(&fact.function).or_default().push(index),
-            Some((_, method)) => by_method.entry(method).or_default().push(index)
-        }
-    }
+    let (by_qualified, by_bare_free, by_method) = name_tables(facts);
     let workspace_owners: BTreeSet<&str> = facts
         .iter()
         .filter_map(|fact| fact.function.rsplit_once("::"))
@@ -258,13 +274,72 @@ pub fn call_graph(facts: &[FunctionFacts], context: &ResolutionContext) -> CallG
         }
         edges[index].sort_unstable();
     }
+    let scip_resolved = overlay.map_or(0, |overlay| {
+        apply_overlay(&mut edges, overlay, &by_qualified, &by_bare_free)
+    });
     CallGraph {
         edges,
         resolved,
         unresolved,
         external,
-        unknown_receiver
+        unknown_receiver,
+        scip_resolved
     }
+}
+
+/// Resolution tables of one fact slice: qualified names, bare free
+/// functions, and method names, each to the fact indices carrying them.
+type NameTables<'facts> = (
+    BTreeMap<&'facts str, Vec<usize>>,
+    BTreeMap<&'facts str, Vec<usize>>,
+    BTreeMap<&'facts str, Vec<usize>>
+);
+
+/// Builds the resolution tables the candidate loop and the overlay
+/// share.
+fn name_tables(facts: &[FunctionFacts]) -> NameTables<'_> {
+    let mut by_qualified: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    let mut by_bare_free: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    let mut by_method: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (index, fact) in facts.iter().enumerate() {
+        by_qualified.entry(&fact.function).or_default().push(index);
+        match fact.function.rsplit_once("::") {
+            None => by_bare_free.entry(&fact.function).or_default().push(index),
+            Some((_, method)) => by_method.entry(method).or_default().push(index)
+        }
+    }
+    (by_qualified, by_bare_free, by_method)
+}
+
+/// Applies overlay callee names onto the edge lists, resolving each
+/// through the unique-match tables, and returns how many edges the
+/// overlay added beyond the ones already present.
+fn apply_overlay(
+    edges: &mut [Vec<usize>],
+    overlay: &[Vec<String>],
+    by_qualified: &BTreeMap<&str, Vec<usize>>,
+    by_bare_free: &BTreeMap<&str, Vec<usize>>
+) -> u64 {
+    let mut added = 0u64;
+    for (index, callees) in overlay.iter().enumerate().take(edges.len()) {
+        for callee in callees {
+            let matches = callee
+                .rsplit_once("::")
+                .map_or_else(
+                    || by_bare_free.get(callee.as_str()),
+                    |_| by_qualified.get(callee.as_str())
+                )
+                .filter(|indices| indices.len() == 1);
+            if let Some(indices) = matches
+                && !edges[index].contains(&indices[0])
+            {
+                edges[index].push(indices[0]);
+                added += 1;
+            }
+        }
+        edges[index].sort_unstable();
+    }
+    added
 }
 
 /// Closes per-function effect sets over the call graph to a fixpoint.
@@ -333,6 +408,32 @@ mod tests {
         let facts = behavior(&sources);
         let graph = call_graph(&facts, &super::resolution_context(&sources));
         (facts, graph)
+    }
+
+    #[test]
+    fn scip_overlay_adds_only_edges_the_candidates_missed() {
+        let sources = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "struct Wallet;\nimpl Wallet { fn credit(&self) {} }\nfn helper() {}\nfn caller() { \
+             helper(); }"
+                .to_owned()
+        )];
+        let all = behavior(&sources);
+        let context = super::resolution_context(&sources);
+        let caller = index_of(&all, "caller");
+        let mut overlay = vec![Vec::new(); all.len()];
+        overlay[caller] = vec![
+            "Wallet::credit".to_owned(),
+            "helper".to_owned(),
+            "External::call".to_owned(),
+        ];
+        let graph = super::call_graph_with(&all, &context, Some(&overlay));
+        let callees = graph.callees(caller);
+        assert!(callees.contains(&index_of(&all, "Wallet::credit")));
+        assert!(callees.contains(&index_of(&all, "helper")));
+        assert_eq!(graph.scip_resolved(), 1);
+        let plain = call_graph(&all, &context);
+        assert_eq!(plain.scip_resolved(), 0);
     }
 
     #[test]
