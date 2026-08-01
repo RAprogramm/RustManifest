@@ -223,7 +223,7 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
         }
     }
     let facts = super::behavior::behavior(sources);
-    let graph = super::calls::call_graph(&facts, &super::calls::resolution_segments(sources));
+    let graph = super::calls::call_graph(&facts, &super::calls::resolution_context(sources));
     let types = TypeGraph::from_sources(sources);
     let fields_captured = types
         .types()

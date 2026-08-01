@@ -38,7 +38,7 @@ pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Fin
     }
     let facts = behavior(sources);
     let overview = module_overview(sources);
-    let graph = call_graph(&facts, &super::calls::resolution_segments(sources));
+    let graph = call_graph(&facts, &super::calls::resolution_context(sources));
     let transitive = transitive_effects(&facts, &graph);
     let module_of = |source: usize| -> String {
         sources

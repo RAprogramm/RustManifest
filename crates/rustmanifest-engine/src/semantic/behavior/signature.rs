@@ -115,9 +115,9 @@ pub(super) fn element_type(ty: &syn::Type) -> Option<String> {
     }
 }
 
-/// Last segment of a concrete element type, seeing through the std
-/// smart pointers; trait objects yield nothing — a boxed `dyn` element
-/// has no one concrete type to resolve against.
+/// Last segment of an element type, seeing through the std smart
+/// pointers; a boxed trait object renders as its trait, resolved later
+/// as dispatch over the trait's implementors.
 fn concrete_element(ty: &syn::Type) -> Option<String> {
     if let syn::Type::Path(path) = ty
         && let Some(segment) = path.path.segments.last()
@@ -133,9 +133,6 @@ fn concrete_element(ty: &syn::Type) -> Option<String> {
                 None
             }
         });
-    }
-    if matches!(ty, syn::Type::TraitObject(_)) {
-        return None;
     }
     type_last_segment(ty)
 }
@@ -155,7 +152,9 @@ pub(super) fn parameter_elements(signature: &syn::Signature) -> BTreeMap<String,
     elements
 }
 
-/// Renders the last path segment of a type, looking through references.
+/// Renders the last path segment of a type, looking through references;
+/// a trait object renders as its first trait bound, so calls through it
+/// resolve as dispatch over the trait's implementors.
 pub(super) fn type_last_segment(ty: &syn::Type) -> Option<String> {
     match ty {
         syn::Type::Path(path) => path
@@ -164,6 +163,17 @@ pub(super) fn type_last_segment(ty: &syn::Type) -> Option<String> {
             .last()
             .map(|segment| segment.ident.to_string()),
         syn::Type::Reference(reference) => type_last_segment(&reference.elem),
+        syn::Type::TraitObject(object) => object.bounds.iter().find_map(|bound| {
+            if let syn::TypeParamBound::Trait(trait_bound) = bound {
+                trait_bound
+                    .path
+                    .segments
+                    .last()
+                    .map(|segment| segment.ident.to_string())
+            } else {
+                None
+            }
+        }),
         _ => None
     }
 }

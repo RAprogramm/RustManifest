@@ -19,9 +19,58 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     behavior::{Effect, FunctionFacts},
+    expr::impl_type_name,
     module_overview::module_overview
 };
 use crate::source::Source;
+
+/// Everything call resolution knows about the workspace beyond the
+/// facts themselves.
+#[derive(Debug, Default)]
+pub struct ResolutionContext {
+    /// Module and crate qualifiers, from [`resolution_segments`].
+    pub segments:    BTreeSet<String>,
+    /// Trait name to the sorted types implementing it, for dynamic
+    /// dispatch: a call through `dyn Trait` produces an edge to every
+    /// implementor's method.
+    pub trait_impls: BTreeMap<String, Vec<String>>
+}
+
+/// Builds the full resolution context over `sources`.
+#[must_use]
+pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
+    let mut trait_impls: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for source in sources {
+        let Ok(file) = syn::parse_file(source.text()) else {
+            continue;
+        };
+        let mut items = Vec::new();
+        crate::ast::flattened(&file.items, &mut items);
+        for item in items {
+            let syn::Item::Impl(block) = item else {
+                continue;
+            };
+            let (Some((_, path, _)), Some(implementor)) = (&block.trait_, impl_type_name(block))
+            else {
+                continue;
+            };
+            let Some(trait_name) = path.segments.last().map(|s| s.ident.to_string()) else {
+                continue;
+            };
+            let implementors = trait_impls.entry(trait_name).or_default();
+            if !implementors.contains(&implementor) {
+                implementors.push(implementor);
+            }
+        }
+    }
+    for implementors in trait_impls.values_mut() {
+        implementors.sort_unstable();
+    }
+    ResolutionContext {
+        segments: resolution_segments(sources),
+        trait_impls
+    }
+}
 
 /// Builds the qualifier set for call resolution over `sources`.
 ///
@@ -110,12 +159,15 @@ impl CallGraph {
 
 /// Builds the call graph of `facts` by resolving every call candidate.
 ///
-/// `module_segments` lists the last path segments of workspace modules;
-/// a qualified candidate whose qualifier names such a module falls back
-/// to a unique free function by bare name (`crate::io::persist()` →
-/// `persist`). An empty set disables the fallback.
+/// `context.segments` lists module and crate qualifiers; a qualified
+/// candidate whose qualifier names one falls back to a unique bare free
+/// function (`crate::io::persist()` → `persist`). A candidate whose
+/// owner names a trait in `context.trait_impls` produces a dispatch
+/// edge to every implementor's method — the honest over-approximation
+/// of dynamic dispatch.
 #[must_use]
-pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -> CallGraph {
+pub fn call_graph(facts: &[FunctionFacts], context: &ResolutionContext) -> CallGraph {
+    let module_segments = &context.segments;
     let mut by_qualified: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut by_bare_free: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut by_method: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
@@ -162,6 +214,28 @@ pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -
                     }
                 }
                 _ => {
+                    let dispatched = candidate.rsplit_once("::").is_some_and(|(owner, method)| {
+                        let Some(implementors) = context.trait_impls.get(owner) else {
+                            return false;
+                        };
+                        let mut hit = false;
+                        for implementor in implementors {
+                            let qualified = format!("{implementor}::{method}");
+                            if let Some(indices) = by_qualified.get(qualified.as_str())
+                                && indices.len() == 1
+                            {
+                                if !edges[index].contains(&indices[0]) {
+                                    edges[index].push(indices[0]);
+                                }
+                                hit = true;
+                            }
+                        }
+                        hit
+                    });
+                    if dispatched {
+                        resolved += 1;
+                        continue;
+                    }
                     unresolved += 1;
                     if let Some(method) = candidate.strip_prefix("?::") {
                         if by_method.contains_key(method) {
@@ -172,7 +246,9 @@ pub fn call_graph(facts: &[FunctionFacts], module_segments: &BTreeSet<String>) -
                     } else if candidate.rsplit_once("::").map_or_else(
                         || !by_bare_free.contains_key(candidate.as_str()),
                         |(owner, _)| {
-                            !workspace_owners.contains(owner) && !module_segments.contains(owner)
+                            !workspace_owners.contains(owner)
+                                && !module_segments.contains(owner)
+                                && !context.trait_impls.contains_key(owner)
                         }
                     ) {
                         external += 1;
@@ -247,10 +323,47 @@ mod tests {
         all.iter().position(|fact| fact.function == name).unwrap()
     }
 
+    fn context_graph(
+        text: &str
+    ) -> (
+        Vec<crate::semantic::behavior::FunctionFacts>,
+        super::CallGraph
+    ) {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let facts = behavior(&sources);
+        let graph = call_graph(&facts, &super::resolution_context(&sources));
+        (facts, graph)
+    }
+
+    #[test]
+    fn trait_object_calls_dispatch_to_every_implementor() {
+        let (all, graph) = context_graph(
+            "trait Analyzer { fn analyze(&self); }\nstruct A;\nimpl Analyzer for A { fn \
+             analyze(&self) {} }\nstruct B;\nimpl Analyzer for B { fn analyze(&self) {} \
+             }\nstruct Hub { analyzers: Vec<Box<dyn Analyzer>> }\nimpl Hub { fn run(&self) { \
+             for analyzer in &self.analyzers { analyzer.analyze(); } } }"
+        );
+        let callees = graph.callees(index_of(&all, "Hub::run"));
+        assert!(callees.contains(&index_of(&all, "A::analyze")));
+        assert!(callees.contains(&index_of(&all, "B::analyze")));
+    }
+
+    #[test]
+    fn dyn_reference_parameters_dispatch_too() {
+        let (all, graph) = context_graph(
+            "trait Sink { fn write(&self); }\nstruct File;\nimpl Sink for File { fn write(&self) \
+             {} }\nstruct Net;\nimpl Sink for Net { fn write(&self) {} }\nfn drain(sink: &dyn \
+             Sink) { sink.write(); }"
+        );
+        let callees = graph.callees(index_of(&all, "drain"));
+        assert!(callees.contains(&index_of(&all, "File::write")));
+        assert!(callees.contains(&index_of(&all, "Net::write")));
+    }
+
     #[test]
     fn free_function_calls_resolve_by_bare_name() {
         let all = facts("fn helper() {}\nfn caller() { helper(); }");
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "caller")),
             &[index_of(&all, "helper")]
@@ -264,7 +377,7 @@ mod tests {
             "struct Engine;\nimpl Engine { fn start(&self) {} }\nstruct Car { engine: Engine \
              }\nimpl Car { fn drive(&self) { self.engine.start(); } }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "Car::drive")),
             &[index_of(&all, "Engine::start")]
@@ -277,7 +390,7 @@ mod tests {
             "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
              }\nfn go(items: &[S]) { for item in items { item.ping(); } }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "go")),
             &[index_of(&all, "S::ping")]
@@ -290,7 +403,7 @@ mod tests {
             "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
              }\nfn go(items: Vec<S>) { items.iter().for_each(|item| item.ping()); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "go")),
             &[index_of(&all, "S::ping")]
@@ -303,7 +416,7 @@ mod tests {
             "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
              }\nfn go(items: &[S]) { items[0].ping(); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "go")),
             &[index_of(&all, "S::ping")]
@@ -317,7 +430,7 @@ mod tests {
              }\nstruct Holder { items: Vec<S> }\nimpl Holder { fn go(&self) { for item in \
              &self.items { item.ping(); } } }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "Holder::go")),
             &[index_of(&all, "S::ping")]
@@ -330,7 +443,7 @@ mod tests {
             "struct S;\nimpl S { fn path(&self) {} }\nstruct T;\nimpl T { fn path(&self) {} \
              }\nfn go() { let dir = TempDir::new().unwrap(); dir.path(); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(graph.unknown_receiver(), 0);
         assert_eq!(graph.external(), 3);
     }
@@ -342,7 +455,7 @@ mod tests {
              render(&self) {} }\nstruct Q;\nimpl Q { fn render(&self) {} }\nfn go() { let out = \
              R::new().with_color(); out.render(); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert!(
             graph
                 .callees(index_of(&all, "go"))
@@ -357,7 +470,7 @@ mod tests {
              }\nfn go(items: &[S]) { for (index, item) in items.iter().enumerate() { \
              item.ping(); } }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert!(
             graph
                 .callees(index_of(&all, "go"))
@@ -371,7 +484,7 @@ mod tests {
             "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
              }\nfn go(items: &[S]) -> Option<()> { items.get(0)?.ping(); Some(()) }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert!(
             graph
                 .callees(index_of(&all, "go"))
@@ -385,7 +498,7 @@ mod tests {
             "struct S;\nimpl S { fn path(&self) {} }\nstruct T;\nimpl T { fn path(&self) {} \
              }\nfn go() { let dir = tempfile::tempdir().unwrap(); dir.path(); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(graph.unknown_receiver(), 0);
     }
 
@@ -396,7 +509,7 @@ mod tests {
              }\nstruct A;\nimpl A { fn ping(&self) {} }\nstruct B;\nimpl B { fn ping(&self) {} \
              }\nfn miss() { A::gone(); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(graph.resolved(), 0);
         assert_eq!(graph.external(), 3);
         assert_eq!(graph.unknown_receiver(), 1);
@@ -407,7 +520,7 @@ mod tests {
     fn associated_calls_resolve_by_qualified_name() {
         let all =
             facts("struct Board;\nimpl Board { fn reset() {} }\nfn wipe() { Board::reset(); }");
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "wipe")),
             &[index_of(&all, "Board::reset")]
@@ -420,7 +533,7 @@ mod tests {
             "struct Wallet { balance: i64 }\nimpl Wallet { fn balance(&self) -> i64 { \
              self.balance } }\nfn audit(wallet: &Wallet) -> i64 { wallet.balance() }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "audit")),
             &[index_of(&all, "Wallet::balance")]
@@ -433,7 +546,7 @@ mod tests {
             "struct A;\nimpl A { fn go(&self) {} }\nstruct B;\nimpl B { fn go(&self) {} }\nfn \
              run(x: u32) { x.go(); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert!(graph.callees(index_of(&all, "run")).is_empty());
         assert_eq!(graph.unresolved(), 1);
     }
@@ -444,7 +557,7 @@ mod tests {
             "fn log(text: &str) { println!(\"{text}\"); }\nfn middle(text: &str) { log(text); \
              }\nfn top(text: &str) { middle(text); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         let effects = transitive_effects(&all, &graph);
         assert_eq!(effects[index_of(&all, "top")], vec![Effect::ConsoleIo]);
         assert_eq!(effects[index_of(&all, "middle")], vec![Effect::ConsoleIo]);
@@ -456,7 +569,7 @@ mod tests {
             "fn ping(n: u32) { if n > 0 { pong(n - 1); } }\nfn pong(n: u32) { println!(\"{n}\"); \
              ping(n); }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         let effects = transitive_effects(&all, &graph);
         assert_eq!(effects[index_of(&all, "ping")], vec![Effect::ConsoleIo]);
     }
@@ -464,14 +577,13 @@ mod tests {
     #[test]
     fn external_calls_are_honestly_unresolved() {
         let all = facts("fn read() -> String { std::fs::read_to_string(\"x\").unwrap() }");
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(graph.resolved(), 0);
         assert!(graph.unresolved() > 0);
     }
 
     #[test]
     fn cross_crate_calls_resolve_through_crate_names() {
-        use crate::semantic::calls::resolution_segments;
         let sources = [
             Source::new(
                 PathBuf::from("crates/rusty-core/src/lib.rs"),
@@ -483,7 +595,7 @@ mod tests {
             )
         ];
         let all = crate::semantic::behavior(&sources);
-        let graph = call_graph(&all, &resolution_segments(&sources));
+        let graph = call_graph(&all, &super::resolution_context(&sources));
         assert_eq!(
             graph.callees(index_of(&all, "run")),
             &[index_of(&all, "helper")]
@@ -498,7 +610,7 @@ mod tests {
              audit() -> i64 { let w = make_wallet(); w.balance() }\nfn peek() -> i64 { \
              make_wallet().balance() }"
         );
-        let graph = call_graph(&all, &std::collections::BTreeSet::new());
+        let graph = call_graph(&all, &super::ResolutionContext::default());
         let target = index_of(&all, "Wallet::balance");
         assert!(graph.callees(index_of(&all, "audit")).contains(&target));
         assert!(graph.callees(index_of(&all, "peek")).contains(&target));

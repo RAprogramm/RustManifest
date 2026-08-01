@@ -33,7 +33,7 @@ pub struct ModuleLayer {
 pub fn layers(sources: &[Source]) -> Vec<ModuleLayer> {
     let facts = behavior(sources);
     let overview = module_overview(sources);
-    let graph = call_graph(&facts, &super::calls::resolution_segments(sources));
+    let graph = call_graph(&facts, &super::calls::resolution_context(sources));
     let module_of: Vec<String> = facts
         .iter()
         .map(|fact| {

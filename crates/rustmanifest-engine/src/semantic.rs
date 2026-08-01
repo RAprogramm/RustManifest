@@ -47,7 +47,7 @@ use tracing::trace;
 use self::insight::Insight;
 pub use self::{
     behavior::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode, behavior},
-    calls::{CallGraph, call_graph, resolution_segments, transitive_effects},
+    calls::{CallGraph, ResolutionContext, call_graph, resolution_context, resolution_segments, transitive_effects},
     coverage::{Coverage, coverage, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},

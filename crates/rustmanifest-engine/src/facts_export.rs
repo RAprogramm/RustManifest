@@ -27,7 +27,7 @@ pub fn facts_json(
     with_features: bool
 ) -> serde_json::Value {
     let facts = crate::semantic::behavior(sources);
-    let graph = call_graph(&facts, &crate::semantic::resolution_segments(sources));
+    let graph = call_graph(&facts, &crate::semantic::resolution_context(sources));
     let transitive = transitive_effects(&facts, &graph);
     let selected: Vec<serde_json::Value> = facts
         .iter()
