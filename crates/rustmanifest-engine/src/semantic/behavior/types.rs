@@ -106,6 +106,8 @@ pub struct FunctionFacts {
     pub trait_impl:  bool,
     /// Whether the function carries a `#[test]`-family attribute.
     pub test:        bool,
+    /// Whether the function is declared `pub` (any `pub(...)` form).
+    pub public:      bool,
     /// Call candidates observed in the body, normalized: `name` for a
     /// free-function call, `Type::method` for associated and resolved
     /// method calls, `?::method` when the receiver's type is unknown.

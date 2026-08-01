@@ -51,9 +51,12 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                     facts.push(function_facts(
                         index,
                         function.sig.ident.to_string(),
-                        None,
-                        false,
-                        is_test(&function.attrs),
+                        &ItemContext {
+                            impl_type:  None,
+                            trait_impl: false,
+                            test:       is_test(&function.attrs),
+                            public:     !matches!(function.vis, syn::Visibility::Inherited)
+                        },
                         &function.sig,
                         &function.block
                     ));
@@ -70,9 +73,12 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         facts.push(function_facts(
                             index,
                             format!("{type_name}::{}", method.sig.ident),
-                            Some(&type_name),
-                            trait_impl,
-                            is_test(&method.attrs),
+                            &ItemContext {
+                                impl_type: Some(&type_name),
+                                trait_impl,
+                                test: is_test(&method.attrs),
+                                public: !matches!(method.vis, syn::Visibility::Inherited)
+                            },
                             &method.sig,
                             &method.block
                         ));
@@ -96,18 +102,28 @@ fn is_test(attrs: &[syn::Attribute]) -> bool {
     })
 }
 
+/// Declaration context of one item: where it sits and what it declares.
+struct ItemContext<'name> {
+    /// Impl self type for methods, `None` for free functions.
+    impl_type:  Option<&'name str>,
+    /// Whether the item belongs to a trait impl.
+    trait_impl: bool,
+    /// Whether the item carries a `#[test]`-family attribute.
+    test:       bool,
+    /// Whether the item is declared `pub` in any form.
+    public:     bool
+}
+
 /// Extracts the facts of one function body against its signature.
 fn function_facts(
     source: usize,
     function: String,
-    impl_type: Option<&str>,
-    trait_impl: bool,
-    test: bool,
+    context: &ItemContext<'_>,
     signature: &syn::Signature,
     block: &syn::Block
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
-    let params = param_facts(signature, impl_type);
+    let params = param_facts(signature, context.impl_type);
     let mut collector = FactCollector {
         facts:       FunctionFacts {
             function,
@@ -122,13 +138,14 @@ fn function_facts(
             error_types: Vec::new(),
             effects: Vec::new(),
             params,
-            trait_impl,
-            test,
+            trait_impl: context.trait_impl,
+            test: context.test,
+            public: context.public,
             calls: Vec::new(),
             clones: 0,
             allocations: 0
         },
-        param_types: parameter_types(signature, impl_type)
+        param_types: parameter_types(signature, context.impl_type)
     };
     if signature.unsafety.is_some() {
         collector.facts.effects.push(Effect::Unsafe);
