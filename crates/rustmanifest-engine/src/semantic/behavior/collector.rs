@@ -519,7 +519,9 @@ impl<'ast> Visit<'ast> for FactCollector {
         }
         match self.expr_type(&call.receiver) {
             Some(owner) => {
-                if let Some(effect) = knowledge::method_effect(&owner, &method) {
+                if let Some(effect) = knowledge::method_effect(&owner, &method)
+                    .or_else(|| crate::semantic::std_knowledge::method_effect(&owner, &method))
+                {
                     self.facts.effects.push(effect);
                 }
                 self.record_call(Some(&owner), &method);
