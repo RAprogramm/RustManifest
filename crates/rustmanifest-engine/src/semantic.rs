@@ -27,6 +27,7 @@ mod field_group;
 mod graph;
 mod insight;
 mod invariant;
+mod layers;
 mod loops;
 mod module_cycle;
 mod module_graph;
@@ -53,6 +54,7 @@ pub use self::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
     invariant::check_invariants,
+    layers::{ModuleLayer, layers},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     role::{Role, role}
 };

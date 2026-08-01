@@ -57,6 +57,7 @@ pub fn overview_markdown(sources: &[Source], top: usize, conventions: &[Conventi
     role_section(&mut out, &facts);
     boundary_section(&mut out, &facts, top);
     state_section(&mut out, &facts, top);
+    layer_section(&mut out, sources, top);
     convention_section(&mut out, conventions, top);
     out.push_str("\nFindings are a separate concern: run `rustmanifest check` for them.\n");
     out
@@ -256,6 +257,43 @@ fn state_section(out: &mut String, facts: &[FunctionFacts], top: usize) {
     }
     truncation_note(out, ranked.len(), top);
     out.push('\n');
+}
+
+/// Prints the inferred module stratification.
+fn layer_section(out: &mut String, sources: &[Source], top: usize) {
+    push(out, "## Inferred layers\n\n");
+    let all = crate::semantic::layers(sources);
+    let mut by_depth: BTreeMap<u32, Vec<&str>> = BTreeMap::new();
+    let mut entangled: Vec<&str> = Vec::new();
+    for layer in &all {
+        match layer.depth {
+            Some(depth) => by_depth.entry(depth).or_default().push(&layer.module),
+            None => entangled.push(&layer.module)
+        }
+    }
+    if by_depth.is_empty() && entangled.is_empty() {
+        push(out, "- no module owns any function\n\n");
+        return;
+    }
+    for (depth, modules) in by_depth.iter().rev() {
+        let shown: Vec<&str> = modules.iter().copied().take(top).collect();
+        let label = if *depth == 0 { " (foundation)" } else { "" };
+        push(
+            out,
+            &format!("- depth {depth}{label}: {}", shown.join(", "))
+        );
+        if modules.len() > top {
+            push(out, &format!(" ... and {} more", modules.len() - top));
+        }
+        push(out, "\n");
+    }
+    if !entangled.is_empty() {
+        push(
+            out,
+            &format!("- entangled (mutual calls): {}\n", entangled.join(", "))
+        );
+    }
+    push(out, "\n");
 }
 
 /// Prints the conventions the learning layer extracted.
