@@ -264,10 +264,18 @@ fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize> {
         }
     }
     let mut applied = 0usize;
+    let mut renames: Vec<(&Path, &Path)> = Vec::new();
     let mut files: Vec<&Path> = per_file.keys().copied().collect();
     files.sort_unstable();
     for path in files {
         let mut edits = per_file.remove(path).unwrap_or_default();
+        edits.retain(|edit| {
+            if let Some(target) = edit.rename_to.as_deref() {
+                renames.push((path, target));
+                return false;
+            }
+            true
+        });
         edits.sort_by_key(|edit| std::cmp::Reverse(edit.range.start));
         edits.dedup_by(|a, b| a.range == b.range && a.replacement == b.replacement);
         let mut text = std::fs::read_to_string(path)
@@ -287,6 +295,21 @@ fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize> {
             std::fs::write(path, text)
                 .with_context(|| format!("writing fixed {}", path.display()))?;
         }
+    }
+    renames.sort_unstable();
+    renames.dedup();
+    for (from, to) in renames {
+        if to.exists() {
+            warn!(from = %from.display(), to = %to.display(), "rename target exists; skipped");
+            continue;
+        }
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating {}", parent.display()))?;
+        }
+        std::fs::rename(from, to)
+            .with_context(|| format!("renaming {} to {}", from.display(), to.display()))?;
+        applied += 1;
     }
     Ok(applied)
 }

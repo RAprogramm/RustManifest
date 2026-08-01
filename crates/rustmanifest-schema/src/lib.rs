@@ -112,6 +112,11 @@ pub struct Fix {
     /// File the fix applies to; `None` means the finding's own file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file:          Option<PathBuf>,
+    /// When set, the fix is a file operation: rename the target file to
+    /// this path. `range` must be empty and `replacement` unused. Byte
+    /// edits of one applier run happen before renames, on the old paths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rename_to:     Option<PathBuf>,
     /// Byte range in the target file that the replacement covers.
     pub range:         Range,
     /// Replacement text for the range.

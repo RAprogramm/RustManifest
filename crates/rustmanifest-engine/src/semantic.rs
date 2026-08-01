@@ -24,6 +24,7 @@ mod expansion;
 mod expr;
 mod features;
 mod field_group;
+mod fingerprint;
 mod graph;
 mod insight;
 mod invariant;
@@ -50,6 +51,7 @@ pub use self::{
     docs::{DocFacts, doc_facts},
     expansion::{ExpansionReport, expansion},
     features::{Feature, features},
+    fingerprint::behavior_fingerprint,
     graph::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },

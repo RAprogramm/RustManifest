@@ -89,6 +89,7 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
         ];
         let fixes = vec![Fix {
             file:          Some(parent_path),
+            rename_to:     None,
             range:         Range {
                 start: insert_at,
                 end:   insert_at

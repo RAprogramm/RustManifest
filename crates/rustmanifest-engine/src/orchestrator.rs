@@ -247,6 +247,7 @@ impl Orchestrator {
                 }],
                 fixes: vec![Fix {
                     file:          None,
+                    rename_to:     None,
                     range:         line_range(text, unused.line_index),
                     replacement:   String::new(),
                     applicability: Applicability::MachineApplicable

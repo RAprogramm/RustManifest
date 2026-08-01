@@ -157,6 +157,7 @@ fn insertion(at: usize, text: &str, file: Option<PathBuf>) -> Fix {
     let offset = u32::try_from(at).unwrap_or(u32::MAX);
     Fix {
         file,
+        rename_to: None,
         range: Range {
             start: offset,
             end:   offset

@@ -82,6 +82,13 @@
           "description": "Byte range in the target file that the replacement covers.",
           "$ref": "#/$defs/Range"
         },
+        "rename-to": {
+          "description": "When set, the fix is a file operation: rename the target file to\nthis path. `range` must be empty and `replacement` unused. Byte\nedits of one applier run happen before renames, on the old paths.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "replacement": {
           "description": "Replacement text for the range.",
           "type": "string"
