@@ -8,10 +8,8 @@
 //! render through this projection, so the wire shape has a single source
 //! of truth. The binarized feature vector is appended on request.
 
-use std::collections::BTreeSet;
-
 use crate::{
-    semantic::{FunctionFacts, call_graph, features, module_overview, role, transitive_effects},
+    semantic::{FunctionFacts, call_graph, features, role, transitive_effects},
     source::Source
 };
 
