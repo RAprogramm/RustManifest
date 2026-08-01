@@ -11,12 +11,13 @@
 //! can be derived over them later.
 //!
 //! Extraction is syntactic and deliberately conservative, with documented
-//! limits: field owners resolve only through typed receivers (`self` and
-//! typed parameters), so an unresolvable owner is recorded as `?`; interior
-//! mutability is recognized through a fixed list of mutating methods on
-//! field expressions; macro bodies other than known console macros are
-//! opaque; `unsafe` and FFI mark the function rather than being traced
-//! through.
+//! limits: field owners resolve through typed receivers — `self`, typed
+//! parameters, and `let` bindings whose type is written or evident from a
+//! struct literal or `Type::new`/`Type::default` call — so an
+//! unresolvable owner is recorded as `?`; interior mutability is
+//! recognized through a fixed list of mutating methods on field
+//! expressions; macro bodies other than known console macros are opaque;
+//! `unsafe` and FFI mark the function rather than being traced through.
 
 use std::{collections::BTreeMap, fmt};
 
@@ -331,7 +332,59 @@ impl FactCollector {
     }
 }
 
+/// Infers the type name of a `let` initializer: a struct literal or a
+/// `Type::new(..)` / `Type::default()` constructor call.
+fn initializer_type(expression: &syn::Expr) -> Option<String> {
+    match expression {
+        syn::Expr::Struct(literal) => literal
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string()),
+        syn::Expr::Call(call) => {
+            let syn::Expr::Path(path) = call.func.as_ref() else {
+                return None;
+            };
+            let segments = &path.path.segments;
+            if segments.len() < 2 {
+                return None;
+            }
+            let method = segments.last()?.ident.to_string();
+            if method != "new" && method != "default" {
+                return None;
+            }
+            Some(segments[segments.len() - 2].ident.to_string())
+        }
+        syn::Expr::Reference(reference) => initializer_type(&reference.expr),
+        _ => None
+    }
+}
+
 impl<'ast> Visit<'ast> for FactCollector {
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        let name = match &local.pat {
+            syn::Pat::Ident(pattern) => Some(pattern.ident.to_string()),
+            syn::Pat::Type(typed) => {
+                if let syn::Pat::Ident(pattern) = typed.pat.as_ref() {
+                    if let Some(type_name) = type_last_segment(&typed.ty) {
+                        self.param_types
+                            .insert(pattern.ident.to_string(), type_name);
+                    }
+                    Some(pattern.ident.to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None
+        };
+        if let (Some(name), Some(init)) = (name, &local.init)
+            && let Some(type_name) = initializer_type(&init.expr)
+        {
+            self.param_types.insert(name, type_name);
+        }
+        syn::visit::visit_local(self, local);
+    }
+
     fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
         self.record_write_target(&assignment.left);
         self.visit_expr(&assignment.right);
@@ -511,6 +564,21 @@ mod tests {
     fn unsafe_fn_signature_is_an_unsafe_effect() {
         let all = facts("unsafe fn raw() {}");
         assert_eq!(named(&all, "raw").effects, vec![Effect::Unsafe]);
+    }
+
+    #[test]
+    fn let_bindings_resolve_owners_by_annotation_literal_and_constructor() {
+        let all = facts(
+            "struct Wallet { balance: i64 }\nimpl Wallet { fn new() -> Self { Self { balance: 0 \
+             } } }\nfn annotated() { let wallet: Wallet = make(); wallet.balance = 1; }\nfn \
+             literal() { let wallet = Wallet { balance: 0 }; wallet.balance = 2; }\nfn \
+             constructed() { let wallet = Wallet::new(); wallet.balance = 3; }\nfn opaque() { \
+             let wallet = make(); wallet.balance = 4; }"
+        );
+        assert_eq!(named(&all, "annotated").writes, vec!["Wallet.balance"]);
+        assert_eq!(named(&all, "literal").writes, vec!["Wallet.balance"]);
+        assert_eq!(named(&all, "constructed").writes, vec!["Wallet.balance"]);
+        assert_eq!(named(&all, "opaque").writes, vec!["?.balance"]);
     }
 
     #[test]
