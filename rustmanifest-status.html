@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RustManifest — состояние движка</title>
+<title>RustManifest — исследование по ходу разработки</title>
 <style>
 :root {
   --ground: #F7F3EC;
@@ -114,44 +114,141 @@ td.num { text-align: right; font-family: ui-monospace, Menlo, monospace; white-s
 .tier h3 { font-size: 0.95rem; margin-bottom: 6px; }
 .tier p { font-size: 0.85rem; color: var(--muted); }
 .tier .ids { margin-top: 10px; }
+.journal { display: grid; gap: 14px; }
+.stage {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 18px 20px;
+}
+.stage h3 { font-size: 0.98rem; margin-bottom: 2px; }
+.stage h3 .no {
+  font-family: ui-monospace, Menlo, monospace; font-weight: 600;
+  color: var(--oxide); margin-right: 8px; font-variant-numeric: tabular-nums;
+}
+.stage .step { margin-top: 12px; font-size: 0.9rem; }
+.stage .step .k {
+  display: block; font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.13em;
+  margin-bottom: 2px;
+}
+.k.problem { color: var(--err); }
+.k.reason { color: var(--amber); }
+.k.built { color: var(--moss); }
+.k.check { color: var(--oxide); }
+.prelude { font-size: 0.9rem; color: var(--muted); max-width: 74ch; }
 footer { color: var(--muted); font-size: 0.8rem; text-align: center; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <div class="eyebrow">локальная сборка · 1 августа 2026 · без публикации</div>
+    <div class="eyebrow">исследовательский журнал · 1 августа 2026 · локально, без публикации</div>
     <h1>rustmanifest <span class="accent">::</span> методология как код</h1>
-    <p>Твой стайлгайд STRUCTURE.md исполняется движком: три яруса анализа, объяснимые находки с трассой вывода, MCP-оракул для агентов. Все цифры ниже — из реальных прогонов по закреплённым ревизиям.</p>
+    <p>Детерминированный движок ревью Rust-кода: стайлгайд STRUCTURE.md исполняется как правила, понимание строится из фактов и логического вывода, ни одной модели в контуре понимания. Ниже — журнал исследования по ходу разработки: каждая ступень записана как проблема → рассуждение → решение → проверка. Все цифры — из реальных прогонов по закреплённым ревизиям.</p>
   </header>
 
   <section>
-    <div class="eyebrow">Сводка</div>
+    <div class="eyebrow">Сводка на конец дня</div>
     <div class="tiles">
-      <div class="tile"><div class="num">18+1</div><div class="lbl">правил в пакете + RM-META-001</div></div>
-      <div class="tile"><div class="num">3</div><div class="lbl">яруса: regex → AST → граф+вызовы</div></div>
-      <div class="tile"><div class="num">290+</div><div class="lbl">тестов, все зелёные</div></div>
+      <div class="tile"><div class="num">19+1</div><div class="lbl">правил в пакете + RM-META-001</div></div>
+      <div class="tile"><div class="num">3</div><div class="lbl">яруса: regex → AST → семантика</div></div>
+      <div class="tile"><div class="num">413</div><div class="lbl">тестов, все зелёные</div></div>
       <div class="tile"><div class="num">8</div><div class="lbl">MCP-инструментов</div></div>
       <div class="tile"><div class="num">40–60<span style="font-size:0.9rem"> мс</span></div><div class="lbl">p95 на файл (debug)</div></div>
-      <div class="tile"><div class="num">38</div><div class="lbl">локальных коммитов за 1 августа</div></div>
+      <div class="tile"><div class="num">53</div><div class="lbl">локальных коммита за 1 августа</div></div>
     </div>
   </section>
 
   <section>
-    <div class="eyebrow">Новое за 1 августа — движок стал глубже</div>
-    <div class="panel">
-      <table>
-        <tbody>
-          <tr><td><span class="mono">Граф вызовов</span></td><td>кто кого вызывает: свободные, ассоциированные и методные вызовы через выведенные типы получателей; эффекты распространяются транзитивно — функция, зовущая пишущую в файл, сама помечена fs. На своём коде: 867 рёбер, эффектных функций 147 вместо 85</td></tr>
-          <tr><td><span class="mono">Транзитивные инварианты</span></td><td>запрет «в домене нет fs» ловит обходные нарушения; в трейсе — вся цепочка вызовов до стока</td></tr>
-          <tr><td><span class="mono">RM-MEM-002/003</span></td><td>клон инварианта в цикле; свежая аллокация каждую итерацию без выхода из неё — 0 ложных на корпусе</td></tr>
-          <tr><td><span class="mono">RM-QUAL-001</span></td><td>имя лжёт: get_*/is_* пишет состояние или печатает — 2 настоящих на hydebar, 0 ложных</td></tr>
-          <tr><td><span class="mono">RM-QUAL-002</span></td><td>док лжёт: «Returns…» над мутирующим телом; учтены builder-конвенция with_* и недоказанные записи</td></tr>
-          <tr><td><span class="mono">Синтез доков из кода</span></td><td>детерминированный rustdoc из фактов тела: резюме, # Arguments из режимов владения, # Errors, # Panics, # Safety; поля — настоящие ссылки [Type::field] через граф типов. Без модели</td></tr>
-          <tr><td><span class="mono">База знаний std</span></td><td>Copy-типы, мутирующие и потребляющие методы — как данные; +2 настоящих находки владения на hyper</td></tr>
-          <tr><td><span class="mono">Обучаемый слой</span></td><td>tsetlin-клаузы по ролям, ворота пройдены: +17 п.п. macro-F1 против логрегрессии; команды learn и overview, знания отданы и через MCP</td></tr>
-        </tbody>
-      </table>
+    <div class="eyebrow">Журнал — хронология одного дня</div>
+    <p class="prelude" style="margin-bottom:14px">Исходная позиция утра: граф типов с поглощением derive-развёрток, граф модулей с поиском циклов, поведенческие факты каждой функции (чтения, записи, конструирования, типы ошибок, эффекты), пользовательские инварианты, факты владения и первое правило-рассуждение RM-MEM-001 — owned-параметр не-Copy типа, из которого только читают поля, обязан быть заимствованием. Дальше — ступени этого дня.</p>
+    <div class="journal">
+
+      <div class="stage">
+        <h3><span class="no">01</span>Владение в циклах — RM-MEM-002 и RM-MEM-003</h3>
+        <div class="step"><span class="k problem">Проблема</span>RM-MEM-001 покрыл сигнатуры, но главные потери памяти живут в циклах: клон значения, не меняющегося между итерациями, и контейнер, аллоцируемый заново каждый проход и не переживающий итерацию.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>clippy владеет <span class="mono">redundant_clone</span> и <span class="mono">needless_pass_by_value</span> на MIR — дублировать запрещено принципом пакета. Ценность движка в другом: контекст воркспейса плюс трасса вывода. Потолок точности синтаксического яруса задокументирован честно: поток владения аппроксимируется формой использования, настоящий dataflow — это будущий MIR-уточнитель.</div>
+        <div class="step"><span class="k built">Решение</span>RM-MEM-002 — read-only клон инвариантного места выносится перед цикл. RM-MEM-003 — свежая аллокация каждую итерацию без выхода из неё выносится наружу и чистится за проход. Copy-ность типов берётся из графа типов, включая поглощённые derive-развёртки.</div>
+        <div class="step"><span class="k check">Проверка</span>Прогон по корпусу в 190 тысяч строк: 0 ложных срабатываний. Оба правила приняты в пакет.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">02</span>Бинаризатор признаков и ворота допуска для обучаемого слоя</h3>
+        <div class="step"><span class="k problem">Проблема</span>Хочется, чтобы движок выучивал конвенции конкретного проекта, но чёрный ящик запрещён: каждое утверждение обязано объясняться. Нужен обучаемый слой, чьи выводы читаются как правила.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>Машина Цетлина — клаузы суть булевы правила, модель целиком выгружается как проверяемый список; опубликованных работ «машина Цетлина на исходном коде» не нашлось — незанятая ниша. Но интеграция только через ворота: обойти логистическую регрессию на идентичных признаках минимум на 5 п.п. F1, иначе слой не строится.</div>
+        <div class="step"><span class="k built">Решение</span>Бинаризатор над базой фактов: 37 именованных бинарных признаков на функцию — булевы предикаты плюс термометр-кодирование счётчиков. Детерминированные эвристики ролей (io / mutator / constructor / accessor / pure / unknown) как стартовая разметка. Эксперимент вне репозитория: 8327 функций из четырёх репо корпуса, детерминированное разбиение 80/20, фиксированный seed.</div>
+        <div class="step"><span class="k check">Проверка</span>Машина Цетлина: точность 0.9988, macro-F1 0.9955; логрегрессия: 0.9640 и 0.8224. Отрыв +17.3 п.п. macro-F1 — ворота пройдены (док RESEARCH-2026-07, §8). Извлечённые клаузы для роли io — буквально исходное правило: <span class="mono">IF effect-fs</span>, <span class="mono">IF effect-net</span>, <span class="mono">IF effect-process</span>. Честная оговорка записана: метки выведены эвристикой из той же базы фактов, так что это замер выразимости, а не открытия. Команда <span class="mono">learn</span> выгружает клаузы как читаемый список; клаузы описывают код и никогда не порождают находок.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">03</span>Команда overview — и цикл модулей в собственном коде</h3>
+        <div class="step"><span class="k problem">Проблема</span>Знание движка расползлось по командам: находки в <span class="mono">check</span>, факты в <span class="mono">facts</span>, диаграммы в <span class="mono">graph</span>. Единого ответа «что программа знает о проекте» не было.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>Отчёт обязан собираться из тех же фактов, что и находки, — второй источник истины недопустим. Значит, overview — это рендер существующей базы фактов, а не новый анализ.</div>
+        <div class="step"><span class="k built">Решение</span><span class="mono">rustmanifest overview</span>: размер и понимание, модули, центральные типы, роли, границы внешнего мира, самое спорное состояние (у каких полей больше всего писателей), выученные конвенции — одним отчётом.</div>
+        <div class="step"><span class="k check">Проверка</span>Первый же прогон по собственному воркспейсу выдал CYCLE WARNING: цикл модулей в семантическом ярусе самого движка. Цикл распутан тем же днём, следом — серия разбиений разросшихся файлов на подмодули: loops, извлечение поведения, граф типов, граф модулей, оркестратор, CLI. Инструмент прошёлся по себе и заставил себя же измениться.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">04</span>Поверхность знаний по MCP</h3>
+        <div class="step"><span class="k problem">Проблема</span>Агент-клиент, делающий ревью через MCP, видел находки, но не видел понимание проекта — то, что CLI уже печатает.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>MCP-сервер — тот же движок по stdio, а не параллельная логика: клиент обязан читать ровно то же знание, что и человек в терминале.</div>
+        <div class="step"><span class="k built">Решение</span>Три новых инструмента — <span class="mono">project_overview</span>, <span class="mono">function_facts</span>, <span class="mono">learn_conventions</span> — итого восемь инструментов и девять документов методологии.</div>
+        <div class="step"><span class="k check">Проверка</span>Conformance-набор гоняет живой бинарь по stdio в CI; отдельный тест фиксирует ровно восемь инструментов в роутере.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">05</span>Граф вызовов и транзитивные эффекты</h3>
+        <div class="step"><span class="k problem">Проблема</span>Эффекты были фактами функции, но не программы: функция, зовущая пишущую в файл, считалась чистой. Запрет «в этом домене нет fs» обходился одним уровнем косвенности.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>Разрешение вызовов на синтаксическом ярусе обязано быть консервативным: ребро — только при единственном совпадении, неоднозначность честно считается неразрешённой. Ложное ребро хуже отсутствующего — оно рождает ложную находку, а точность здесь прежде охвата.</div>
+        <div class="step"><span class="k built">Решение</span>Граф вызовов воркспейса: свободные, ассоциированные и методные вызовы с выводом типа получателя; множества эффектов замыкаются по графу до неподвижной точки. Запреты инвариантов проверяются транзитивно, и в трассе находки — вся цепочка вызовов до стока.</div>
+        <div class="step"><span class="k check">Проверка</span>На собственном воркспейсе на момент коммита: 867 разрешённых рёбер; эффектных функций 147 против 85 с прямыми эффектами — транзитивное замыкание почти удвоило видимую границу с внешним миром.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">06</span>База знаний std как данные</h3>
+        <div class="step"><span class="k problem">Проблема</span>RM-MEM-001 должен знать Copy-ность типа и семантику вызываемых методов. Для собственных типов это даёт граф типов с поглощёнными развёртками; для std движок не знал ничего.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>Семантика std стабильна — значит, это данные, а не код: таблица Copy-типов, мутирующих и потребляющих методов, которую можно ревьюить как обычный список.</div>
+        <div class="step"><span class="k built">Решение</span>Модуль знаний std: Copy-типы, мутирующие и потребляющие методы — decl-таблицами, подключёнными к правилам владения.</div>
+        <div class="step"><span class="k check">Проверка</span>+2 настоящих находки RM-MEM-001 на fork-hyper — стороннем HTTP-коде, не своём; зафиксированы в базлайне корпуса.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">07</span>RM-QUAL-001 — когда имя лжёт</h3>
+        <div class="step"><span class="k problem">Проблема</span>Имя функции — обещание: <span class="mono">get_</span>/<span class="mono">is_</span> обещают наблюдение. Если тело пишет состояние или печатает, читатель обманут. Ни regex, ни одиночный AST этого не докажут — нужны поведенческие факты тела.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>Правило — силлогизм: таксономия глаголов (данные, не мнение) даёт класс обещания; факты тела дают наблюдение; противоречие — находка с полной трассой вывода. Первый прогон дал 13 сырых срабатываний — точность прежде охвата, разбирается каждое.</div>
+        <div class="step"><span class="k built">Решение</span>Каждое уточнение — снова данные: чтение окружения, файлов и сети не ломает обещание чтения (это наблюдение, обещание ломают только печать и запуск процессов); суффикс <span class="mono">_mut</span> снимает обещание явно; тестовые функции и trait-impl исключены; недоказанные записи через неразрешённый получатель («?.») отфильтрованы.</div>
+        <div class="step"><span class="k check">Проверка</span>Из 13 сырых — 2 настоящих, 0 ложных: обе на hydebar, зафиксированы в базлайне. Правило принято в пакет.</div>
+      </div>
+
+      <div class="stage">
+        <h3><span class="no">08</span>Документация как факты — экстрактор, синтез, RM-QUAL-002</h3>
+        <div class="step"><span class="k problem">Проблема</span>Doc-комментарий — то же обещание, что имя, только длиннее, и его никто не сверяет с телом. Обратная сторона: писать честный rustdoc руками дорого, а генератор с моделью внутри нарушил бы принцип детерминизма.</div>
+        <div class="step"><span class="k reason">Рассуждение</span>Разделение труда без дублирования: наличие секций — работа clippy (<span class="mono">missing_errors_doc</span>), истинность — наша. Синтез — детерминированный: рукописные английские шаблоны с фактами в слотах, грамматика гарантирована конструкцией; модель может полировать готовый черновик снаружи, и её текст — предложение, никогда не факт.</div>
+        <div class="step"><span class="k built">Решение</span>Экстрактор doc-фактов: глагол резюме, секции <span class="mono"># Errors</span> / <span class="mono"># Panics</span> / <span class="mono"># Safety</span>, идентификаторы в бэктиках. Детерминированный синтез rustdoc из фактов тела: резюме, <span class="mono"># Errors</span> из типов ошибок, <span class="mono"># Panics</span> из мест паники, <span class="mono"># Safety</span> из unsafe-эффекта, <span class="mono"># Arguments</span> из режимов владения параметров; упоминания полей — настоящие ссылки <span class="mono">[Type::field]</span> через граф типов. И правило RM-QUAL-002: резюме «Returns…» над телом, которое доказуемо пишет состояние.</div>
+        <div class="step"><span class="k check">Проверка</span>Проходы точности до включения: недоказанные записи «?.» исключены; builder-конвенция <span class="mono">with_*</span> исключена — запись собственного поля с возвратом значения и есть документированный контракт; тестовые функции и trait-impl исключены. Вердикт правила всегда один: код — источник истины, правится документация.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Сквозные темы исследования</div>
+    <div class="tiers">
+      <div class="tier">
+        <h3>Точность прежде охвата</h3>
+        <p>Каждое правило до включения в пакет разбирается на корпусе в 190 тысяч строк. Два настоящих срабатывания лучше тринадцати сырых; каждое исключение записывается как данные, а не как костыль.</p>
+      </div>
+      <div class="tier">
+        <h3>Инструмент ловит себя</h3>
+        <p>Первый прогон overview нашёл цикл модулей в семантическом ярусе самого движка. Цикл распутан, разросшиеся файлы разбиты на подмодули — по собственным же правилам.</p>
+      </div>
+      <div class="tier">
+        <h3>Код — единственный источник истины</h3>
+        <p>Имя может лгать (RM-QUAL-001), документация может лгать (RM-QUAL-002) — тело не может. Противоречие обещания и наблюдения всегда решается правкой обещания.</p>
+      </div>
+      <div class="tier">
+        <h3>Детерминизм как принцип</h3>
+        <p>Одинаковый вход — байт-в-байт одинаковый выход. Трасса вывода на каждой находке, фиксированный seed даже в обучаемом слое, синтез доков без модели в контуре.</p>
+      </div>
     </div>
   </section>
 
@@ -165,9 +262,9 @@ footer { color: var(--muted); font-size: 0.8rem; text-align: center; }
         <tbody>
           <tr>
             <td><span class="mono">hydebar</span>
-              <div class="chips"><span class="chip"><b>57</b> размер структур</span><span class="chip"><b>54</b> get_-префиксы</span><span class="chip"><b>39</b> констант вне типов</span><span class="chip"><b>8</b> циклов модулей</span></div>
+              <div class="chips"><span class="chip"><b>57</b> размер структур</span><span class="chip"><b>54</b> get_-префиксы</span><span class="chip"><b>39</b> констант вне типов</span><span class="chip"><b>2</b> обманчивых имени</span></div>
             </td>
-            <td class="num">318</td><td class="num">70 288</td><td class="num">265</td><td class="num">37.7</td>
+            <td class="num">318</td><td class="num">70 288</td><td class="num">267</td><td class="num">38.0</td>
             <td><div class="bar"><i style="width:100%"></i></div></td>
           </tr>
           <tr>
@@ -175,21 +272,21 @@ footer { color: var(--muted); font-size: 0.8rem; text-align: center; }
               <div class="chips"><span class="chip"><b>42</b> размер структур</span><span class="chip"><b>40</b> повторы полей</span><span class="chip"><b>20</b> SQL-паттерны</span></div>
             </td>
             <td class="num">230</td><td class="num">45 406</td><td class="num">128</td><td class="num">28.2</td>
-            <td><div class="bar"><i style="width:78%"></i></div></td>
+            <td><div class="bar"><i style="width:74%"></i></div></td>
           </tr>
           <tr>
             <td><span class="mono">fork-hyper</span>
-              <div class="chips"><span class="chip"><b>23</b> set_-мутаторы</span><span class="chip"><b>21</b> размер структур</span><span class="chip"><b>4</b> цикла модулей</span></div>
+              <div class="chips"><span class="chip"><b>23</b> set_-мутаторы</span><span class="chip"><b>21</b> размер структур</span><span class="chip"><b>2</b> владение (RM-MEM-001)</span></div>
             </td>
             <td class="num">98</td><td class="num">34 326</td><td class="num">92</td><td class="num">26.8</td>
-            <td><div class="bar"><i style="width:72%"></i></div></td>
+            <td><div class="bar"><i style="width:71%"></i></div></td>
           </tr>
           <tr>
             <td><span class="mono">masterror</span>
-              <div class="chips"><span class="chip"><b>14</b> повторы полей</span><span class="chip"><b>12</b> размер структур</span><span class="chip"><b>4</b> цикла модулей</span></div>
+              <div class="chips"><span class="chip"><b>14</b> повторы полей</span><span class="chip"><b>12</b> размер структур</span><span class="chip"><b>2</b> хардкод-секреты</span></div>
             </td>
             <td class="num">169</td><td class="num">40 749</td><td class="num">65</td><td class="num">16.0</td>
-            <td><div class="bar"><i style="width:41%"></i></div></td>
+            <td><div class="bar"><i style="width:42%"></i></div></td>
           </tr>
         </tbody>
       </table>
@@ -266,9 +363,9 @@ derived traits                Deserialize 91, Visitor 90, Clone 79, Debug 72,
         <div class="chips ids"><span class="chip">STRUCT-001…009</span></div>
       </div>
       <div class="tier">
-        <h3>Ярус 3 — граф воркспейса</h3>
-        <p>Связи между файлами: кто какие поля дублирует (совет «вынеси компонент»), циклы зависимостей модулей.</p>
-        <div class="chips ids"><span class="chip">STRUCT-010, 011</span><span class="chip">+ план разбиения в 003</span></div>
+        <h3>Ярус 3 — семантика воркспейса</h3>
+        <p>Графы типов, модулей и вызовов; факты поведения и владения; инварианты с транзитивной проверкой; правила-силлогизмы поверх фактов.</p>
+        <div class="chips ids"><span class="chip">STRUCT-010, 011</span><span class="chip">MEM-001…003</span><span class="chip">QUAL-001, 002</span><span class="chip">INV-*</span></div>
       </div>
     </div>
   </section>
@@ -282,14 +379,17 @@ derived traits                Deserialize 91, Visitor 90, Clone 79, Debug 72,
           <tr><td class="mono">explain</td><td>правило + выдержка из твоей методологии</td></tr>
           <tr><td class="mono">graph</td><td>диаграммы модулей и агрегации типов: Mermaid / DOT</td></tr>
           <tr><td class="mono">coverage</td><td>самозамер понимания, <span class="mono">--expand</span> — учёт derive через nightly-развёртку</td></tr>
-          <tr><td class="mono">MCP</td><td>5 инструментов + 9 документов методологии по stdio; conformance-тесты гоняют живой бинарь</td></tr>
+          <tr><td class="mono">facts</td><td>поведенческие факты каждой функции в JSON; <span class="mono">--features</span> — бинаризованные векторы для обучаемого слоя</td></tr>
+          <tr><td class="mono">learn</td><td>клаузы конвенций по ролям, детерминированное обучение с фиксированным seed; вывод — читаемый список правил</td></tr>
+          <tr><td class="mono">overview</td><td>всё знание о проекте одним отчётом: модули, типы, роли, границы внешнего мира, спорное состояние</td></tr>
+          <tr><td class="mono">MCP</td><td>8 инструментов + 9 документов методологии по stdio; conformance-тесты гоняют живой бинарь</td></tr>
           <tr><td class="mono">eval</td><td>корпус из 4 репо, базлайн находок, регрессионный гейт, перф-бюджет p95 &lt; 100 мс</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
-  <footer>Сгенерировано из eval/baseline.json и живых прогонов · всё локально, origin нетронут</footer>
+  <footer>Собрано из eval/baseline.json, docs/RESEARCH-2026-07-behavioral-tier.md и живых прогонов · всё локально, origin нетронут</footer>
 </main>
 </body>
 </html>
