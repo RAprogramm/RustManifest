@@ -27,8 +27,12 @@ confidence-threshold = 0.92
 multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
-skip = []
-skip-tree = []
+skip = [
+    { crate = "syn@2", reason = "async-trait and tokio-macros moved to syn 3 while the wider proc-macro ecosystem is still on syn 2; both are needed until the migration completes" },
+]
+skip-tree = [
+    { crate = "getrandom@0.3", reason = "rand_core 0.9 (via tsetlin-rs) pins getrandom 0.3 while tempfile is on 0.4; the subtree drags duplicate r-efi and wasi shims" },
+]
 
 [sources]
 unknown-registry = "deny"
