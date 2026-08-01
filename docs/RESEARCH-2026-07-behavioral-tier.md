@@ -316,3 +316,16 @@ gate: derivation is admitted when it reproduces them.
   then trait-default attribution, then the std-method/libc axiom
   floor. Derived tables are additive only — a pack row always wins
   over silence, derivation fills where no pack exists.
+- **Repair 1 shipped same day** (`use`-resolved effect classification):
+  the file's imports become a name → full-path table (glob imports
+  skipped, conflicting imports dropped, file-level granularity as a
+  documented approximation), and the sink classifier expands a path's
+  first segment through it before matching — a bare `remove_dir_all`
+  imported from `std::fs` now classifies, including single-segment
+  calls the classifier previously never saw. Gate reruns at **11/33,
+  still 0 contradictions** (`TempDir::close`, `UdpSocket::connect`,
+  `UdpSocket::send_to` flipped — the rows predicted by the taxonomy).
+  Workspace side: fork-hyper functions with a known effect 263 → 295
+  with the eval baseline byte-stable, so the gain is pure fact
+  coverage, not finding drift. Remaining misses sit in causes 2–4 as
+  predicted; none moved without their repair.
