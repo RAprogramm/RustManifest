@@ -48,8 +48,15 @@ const ITERATOR_ADAPTERS: [&str; 18] = [
 
 /// Iterator constructors and element accessors that keep the
 /// collection's element type.
-const ITERATOR_SOURCES: [&str; 7] =
-    ["drain", "first", "get", "into_iter", "iter", "iter_mut", "last"];
+const ITERATOR_SOURCES: [&str; 7] = [
+    "drain",
+    "first",
+    "get",
+    "into_iter",
+    "iter",
+    "iter_mut",
+    "last"
+];
 
 /// Syntax visitor accumulating facts from one function body.
 pub(super) struct FactCollector {
@@ -65,6 +72,8 @@ pub(super) struct FactCollector {
     pub(super) field_types: BTreeMap<String, String>,
     /// `Type.field` keys of collection-typed fields to element types.
     pub(super) field_elems: BTreeMap<String, String>,
+    /// Imported names of the enclosing file to their full `use` paths.
+    pub(super) imports:     BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
     pub(super) fresh:       BTreeSet<String>
 }
@@ -191,9 +200,7 @@ impl FactCollector {
             }
             return;
         }
-        if let (Some(name), Some(element)) =
-            (binding_name(pattern), self.element_of(iterable))
-        {
+        if let (Some(name), Some(element)) = (binding_name(pattern), self.element_of(iterable)) {
             self.param_types.insert(name, element);
         }
     }
@@ -213,10 +220,7 @@ impl FactCollector {
                 if segments.len() >= 2 {
                     let written = segments[segments.len() - 2].ident.to_string();
                     let owner = if written == "Self" {
-                        self.param_types
-                            .get("self")
-                            .cloned()
-                            .unwrap_or(written)
+                        self.param_types.get("self").cloned().unwrap_or(written)
                     } else {
                         written
                     };
@@ -262,9 +266,7 @@ impl FactCollector {
                 .and_then(|key| self.fn_returns.get(&key))
                 .and_then(|returned| returned.success.clone())
                 .or_else(|| self.optional_element(&tried.expr)),
-            syn::Expr::MethodCall(call)
-                if call.method == "unwrap" || call.method == "expect" =>
-            {
+            syn::Expr::MethodCall(call) if call.method == "unwrap" || call.method == "expect" => {
                 if let Some(key) = self.call_key(&call.receiver) {
                     return self
                         .fn_returns
@@ -282,9 +284,7 @@ impl FactCollector {
                 self.fn_returns
                     .get(&format!("{owner}::{method}"))
                     .map(|returned| returned.plain.clone())
-                    .or_else(|| {
-                        knowledge::method_return(&owner, &method).map(str::to_owned)
-                    })
+                    .or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
             }
             syn::Expr::Call(call) => {
                 if let Some(key) = self.call_key(expression) {
@@ -310,13 +310,30 @@ impl FactCollector {
         }
     }
 
-    /// Classifies a call path against the effect sink patterns.
+    /// Renders a path as segment names, the first segment substituted
+    /// with its full `use` path when the file imported it — so a bare
+    /// `remove_dir_all` imported from `std::fs` classifies as a
+    /// filesystem sink.
+    fn expanded_segments(&self, path: &syn::Path) -> Vec<String> {
+        let mut segments: Vec<String> = Vec::new();
+        for (position, segment) in path.segments.iter().enumerate() {
+            let name = segment.ident.to_string();
+            if position == 0 {
+                match self.imports.get(&name) {
+                    Some(full) => segments.extend(full.split("::").map(str::to_owned)),
+                    None => segments.push(name)
+                }
+            } else {
+                segments.push(name);
+            }
+        }
+        segments
+    }
+
+    /// Classifies a call path against the effect sink patterns, seen
+    /// through the file's imports.
     fn record_path_effect(&mut self, path: &syn::Path) {
-        let segments: Vec<String> = path
-            .segments
-            .iter()
-            .map(|segment| segment.ident.to_string())
-            .collect();
+        let segments = self.expanded_segments(path);
         let joined = segments.join("::");
         let effect = if joined.contains("fs::") || segments.first().is_some_and(|s| s == "File") {
             Some(Effect::FileSystem)
@@ -422,8 +439,7 @@ impl<'ast> Visit<'ast> for FactCollector {
                             .insert(pattern.ident.to_string(), type_name);
                     }
                     if let Some(element) = element_type(&typed.ty) {
-                        self.elem_types
-                            .insert(pattern.ident.to_string(), element);
+                        self.elem_types.insert(pattern.ident.to_string(), element);
                     }
                     Some(pattern.ident.to_string())
                 } else {
@@ -546,7 +562,11 @@ impl<'ast> Visit<'ast> for FactCollector {
                 self.facts.allocations += 1;
             }
         } else if let Some(ident) = path.path.get_ident() {
-            self.bump_param(&ident.to_string(), false);
+            let name = ident.to_string();
+            if self.imports.contains_key(&name) {
+                self.record_path_effect(&path.path);
+            }
+            self.bump_param(&name, false);
         }
         syn::visit::visit_expr_path(self, path);
     }

@@ -54,7 +54,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
         };
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
-        for item in items {
+        let imports = use_imports(&items);
+        for item in &items {
             match item {
                 syn::Item::Fn(function) => {
                     facts.push(function_facts(
@@ -71,7 +72,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         },
                         &function.sig,
                         &function.block,
-                        &tables
+                        &tables,
+                        &imports
                     ));
                 }
                 syn::Item::Impl(block) => {
@@ -98,7 +100,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             },
                             &method.sig,
                             &method.block,
-                            &tables
+                            &tables,
+                            &imports
                         ));
                     }
                 }
@@ -107,6 +110,64 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
         }
     }
     facts
+}
+
+/// Maps every name a file imports to its full `use` path, across all
+/// modules of the file — file-level granularity is a documented
+/// approximation. Glob imports stay out; a name imported twice with
+/// different targets is dropped so expansion never guesses.
+fn use_imports(items: &[&syn::Item]) -> std::collections::BTreeMap<String, String> {
+    let mut table: std::collections::BTreeMap<String, Option<String>> =
+        std::collections::BTreeMap::new();
+    for item in items {
+        if let syn::Item::Use(declaration) = item {
+            collect_use_tree(&declaration.tree, &mut Vec::new(), &mut table);
+        }
+    }
+    settled(table)
+}
+
+/// Walks one `use` tree, recording every imported leaf under its bound
+/// name with the full path it resolves to.
+fn collect_use_tree(
+    tree: &syn::UseTree,
+    prefix: &mut Vec<String>,
+    table: &mut std::collections::BTreeMap<String, Option<String>>
+) {
+    match tree {
+        syn::UseTree::Path(path) => {
+            prefix.push(path.ident.to_string());
+            collect_use_tree(&path.tree, prefix, table);
+            prefix.pop();
+        }
+        syn::UseTree::Name(name) => {
+            let leaf = name.ident.to_string();
+            let full = if leaf == "self" {
+                prefix.join("::")
+            } else {
+                let mut segments = prefix.clone();
+                segments.push(leaf.clone());
+                segments.join("::")
+            };
+            let key = if leaf == "self" {
+                prefix.last().cloned().unwrap_or(leaf)
+            } else {
+                leaf
+            };
+            note_unique(table, key, full);
+        }
+        syn::UseTree::Rename(renamed) => {
+            let mut segments = prefix.clone();
+            segments.push(renamed.ident.to_string());
+            note_unique(table, renamed.rename.to_string(), segments.join("::"));
+        }
+        syn::UseTree::Group(group) => {
+            for entry in &group.items {
+                collect_use_tree(entry, prefix, table);
+            }
+        }
+        syn::UseTree::Glob(_) => {}
+    }
 }
 
 /// Returns whether any attribute's last path segment is `test`, covering
@@ -233,7 +294,12 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Return
         for item in items {
             match item {
                 syn::Item::Fn(function) => {
-                    record_return(&mut table, function.sig.ident.to_string(), None, &function.sig);
+                    record_return(
+                        &mut table,
+                        function.sig.ident.to_string(),
+                        None,
+                        &function.sig
+                    );
                 }
                 syn::Item::Impl(block) => {
                     let Some(owner) = impl_type_name(block) else {
@@ -370,7 +436,8 @@ fn function_facts(
     context: &ItemContext<'_>,
     signature: &syn::Signature,
     block: &syn::Block,
-    tables: &TypeTables
+    tables: &TypeTables,
+    imports: &std::collections::BTreeMap<String, String>
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let params = param_facts(signature, context.impl_type);
@@ -399,6 +466,7 @@ fn function_facts(
         fn_returns:  tables.returns.clone(),
         field_types: tables.fields.clone(),
         field_elems: tables.field_elems.clone(),
+        imports:     imports.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
     if signature.unsafety.is_some() {
@@ -514,6 +582,38 @@ mod tests {
         assert_eq!(named(&all, "run").effects, vec![Effect::Process]);
         assert_eq!(named(&all, "home").effects, vec![Effect::Environment]);
         assert_eq!(named(&all, "shout").effects, vec![Effect::ConsoleIo]);
+    }
+
+    #[test]
+    fn imported_names_classify_through_their_use_paths() {
+        let all = facts(
+            "use std::fs::remove_dir_all;\nuse std::fs::write as write_file;\nuse \
+             std::{env, fs::{self, File}};\nfn wipe() { remove_dir_all(\"x\").ok(); }\nfn \
+             dump() { write_file(\"x\", \"y\").ok(); }\nfn open() { File::open(\"x\").ok(); \
+             }\nfn module() { fs::read(\"x\").ok(); }\nfn who() { env::var(\"USER\").ok(); }"
+        );
+        assert_eq!(named(&all, "wipe").effects, vec![Effect::FileSystem]);
+        assert_eq!(named(&all, "dump").effects, vec![Effect::FileSystem]);
+        assert_eq!(named(&all, "open").effects, vec![Effect::FileSystem]);
+        assert_eq!(named(&all, "module").effects, vec![Effect::FileSystem]);
+        assert_eq!(named(&all, "who").effects, vec![Effect::Environment]);
+    }
+
+    #[test]
+    fn conflicting_imports_expand_to_nothing() {
+        let all = facts(
+            "mod a { use std::fs::remove_dir_all; }\nmod b { use crate::cleanup::remove_dir_all; \
+             }\nfn wipe() { remove_dir_all(\"x\").ok(); }"
+        );
+        assert!(named(&all, "wipe").effects.is_empty());
+    }
+
+    #[test]
+    fn workspace_imports_stay_silent() {
+        let all = facts(
+            "use crate::storage::remove_dir_all;\nfn wipe() { remove_dir_all(\"x\").ok(); }"
+        );
+        assert!(named(&all, "wipe").effects.is_empty());
     }
 
     #[test]
