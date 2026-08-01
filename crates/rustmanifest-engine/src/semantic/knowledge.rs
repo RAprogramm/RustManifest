@@ -14,6 +14,7 @@
 
 mod reqwest;
 mod tempfile;
+mod tokio;
 
 use super::behavior::Effect;
 
@@ -37,7 +38,7 @@ pub(super) struct CrateKnowledge {
 }
 
 /// Every registered pack.
-const PACKS: [&CrateKnowledge; 2] = [&reqwest::PACK, &tempfile::PACK];
+const PACKS: [&CrateKnowledge; 3] = [&reqwest::PACK, &tempfile::PACK, &tokio::PACK];
 
 /// Looks up the type produced by a known external constructor call.
 pub(super) fn constructor_type(name: &str) -> Option<&'static str> {
@@ -131,6 +132,9 @@ mod tests {
         assert_eq!(method_return("Client", "get"), Some("RequestBuilder"));
         assert_eq!(method_return("RequestBuilder", "send"), Some("Response"));
         assert_eq!(method_return("TempDir", "path"), None);
+        assert_eq!(method_return("Command", "arg"), Some("Command"));
+        assert_eq!(method_return("Command", "spawn"), Some("Child"));
+        assert_eq!(method_return("Child", "wait"), Some("ExitStatus"));
     }
 
     #[test]
@@ -142,11 +146,22 @@ mod tests {
         assert_eq!(method_effect("Client", "get"), None);
         assert_eq!(method_effect("TempDir", "path"), None);
         assert_eq!(method_effect("TempDir", "close"), Some(Effect::FileSystem));
+        assert_eq!(
+            method_effect("TcpListener", "accept"),
+            Some(Effect::Network)
+        );
+        assert_eq!(
+            method_effect("TcpStream", "write_all"),
+            Some(Effect::Network)
+        );
+        assert_eq!(method_effect("Command", "output"), Some(Effect::Process));
+        assert_eq!(method_effect("Command", "arg"), None);
     }
 
     #[test]
     fn crate_roots_carry_their_one_shot_effect() {
         assert_eq!(crate_effect("reqwest"), Some(Effect::Network));
         assert_eq!(crate_effect("serde"), None);
+        assert_eq!(crate_effect("tokio"), None);
     }
 }
