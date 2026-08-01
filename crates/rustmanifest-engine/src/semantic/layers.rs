@@ -33,13 +33,7 @@ pub struct ModuleLayer {
 pub fn layers(sources: &[Source]) -> Vec<ModuleLayer> {
     let facts = behavior(sources);
     let overview = module_overview(sources);
-    let module_segments: BTreeSet<String> = overview
-        .modules()
-        .iter()
-        .filter_map(|module| module.path.rsplit("::").next())
-        .map(ToOwned::to_owned)
-        .collect();
-    let graph = call_graph(&facts, &module_segments);
+    let graph = call_graph(&facts, &super::calls::resolution_segments(sources));
     let module_of: Vec<String> = facts
         .iter()
         .map(|fact| {

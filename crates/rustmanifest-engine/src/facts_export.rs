@@ -29,13 +29,7 @@ pub fn facts_json(
     with_features: bool
 ) -> serde_json::Value {
     let facts = crate::semantic::behavior(sources);
-    let module_segments: BTreeSet<String> = module_overview(sources)
-        .modules()
-        .iter()
-        .filter_map(|module| module.path.rsplit("::").next())
-        .map(ToOwned::to_owned)
-        .collect();
-    let graph = call_graph(&facts, &module_segments);
+    let graph = call_graph(&facts, &crate::semantic::resolution_segments(sources));
     let transitive = transitive_effects(&facts, &graph);
     let selected: Vec<serde_json::Value> = facts
         .iter()

@@ -17,7 +17,44 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::behavior::{Effect, FunctionFacts};
+use super::{
+    behavior::{Effect, FunctionFacts},
+    module_overview::module_overview
+};
+use crate::source::Source;
+
+/// Builds the qualifier set for call resolution over `sources`.
+///
+/// The set holds the last segment of every module path plus the name of
+/// every workspace crate, derived from the `<crate>/src/` path
+/// convention with `-` normalized to `_`. A candidate qualified by any
+/// of these resolves like a module qualifier — to a unique bare free
+/// function.
+#[must_use]
+pub fn resolution_segments(sources: &[Source]) -> BTreeSet<String> {
+    let mut segments: BTreeSet<String> = module_overview(sources)
+        .modules()
+        .iter()
+        .filter_map(|module| module.path.rsplit("::").next())
+        .map(ToOwned::to_owned)
+        .collect();
+    for source in sources {
+        let mut components = source.path().components().peekable();
+        let mut previous: Option<String> = None;
+        while let Some(component) = components.next() {
+            let name = component.as_os_str().to_string_lossy();
+            if name == "src"
+                && components.peek().is_some()
+                && let Some(krate) = previous.take()
+            {
+                segments.insert(krate.replace('-', "_"));
+                break;
+            }
+            previous = Some(name.into_owned());
+        }
+    }
+    segments
+}
 
 /// Resolved workspace call graph over one behavioral fact slice.
 #[derive(Debug)]
@@ -240,5 +277,26 @@ mod tests {
         let graph = call_graph(&all, &std::collections::BTreeSet::new());
         assert_eq!(graph.resolved(), 0);
         assert!(graph.unresolved() > 0);
+    }
+
+    #[test]
+    fn cross_crate_calls_resolve_through_crate_names() {
+        use crate::semantic::calls::resolution_segments;
+        let sources = [
+            Source::new(
+                PathBuf::from("crates/rusty-core/src/lib.rs"),
+                "pub fn helper() { println!(\"x\"); }".to_owned()
+            ),
+            Source::new(
+                PathBuf::from("crates/rusty-app/src/lib.rs"),
+                "pub fn run() { rusty_core::helper(); }".to_owned()
+            )
+        ];
+        let all = crate::semantic::behavior(&sources);
+        let graph = call_graph(&all, &resolution_segments(&sources));
+        assert_eq!(
+            graph.callees(index_of(&all, "run")),
+            &[index_of(&all, "helper")]
+        );
     }
 }

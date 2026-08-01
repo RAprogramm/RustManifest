@@ -38,13 +38,7 @@ pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Fin
     }
     let facts = behavior(sources);
     let overview = module_overview(sources);
-    let module_segments: std::collections::BTreeSet<String> = overview
-        .modules()
-        .iter()
-        .filter_map(|module| module.path.rsplit("::").next())
-        .map(ToOwned::to_owned)
-        .collect();
-    let graph = call_graph(&facts, &module_segments);
+    let graph = call_graph(&facts, &super::calls::resolution_segments(sources));
     let transitive = transitive_effects(&facts, &graph);
     let module_of = |source: usize| -> String {
         sources
