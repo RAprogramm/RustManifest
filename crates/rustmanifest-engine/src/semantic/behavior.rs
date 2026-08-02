@@ -475,14 +475,12 @@ fn field_tables(sources: &[Source]) -> (Scoped<String>, Scoped<String>, Scoped<S
             let syn::Item::Struct(definition) = item else {
                 continue;
             };
-            let syn::Fields::Named(named) = &definition.fields else {
-                continue;
-            };
-            for field in &named.named {
-                let Some(name) = field.ident.as_ref() else {
-                    continue;
-                };
-                let key = format!("{}.{name}", definition.ident);
+            for (position, field) in definition.fields.iter().enumerate() {
+                let member = field
+                    .ident
+                    .as_ref()
+                    .map_or_else(|| position.to_string(), ToString::to_string);
+                let key = format!("{}.{member}", definition.ident);
                 if let Some(type_name) = type_last_segment(&field.ty) {
                     plain.note(key.clone(), index, type_name);
                 }
@@ -906,6 +904,23 @@ mod tests {
         assert_eq!(from.constructs, vec!["AppError"]);
         assert_eq!(from.params[0].type_name, "DbError");
         assert!(all.iter().all(|f| f.function != "Plain::from"));
+    }
+
+    #[test]
+    fn tuple_fields_type_their_receivers() {
+        let all = facts(
+            "struct Wire(TcpStream);\nimpl Wire { fn pump(&self) { self.0.read(&mut []).ok(); } \
+             }\nstruct Layer(Wrapper<TcpStream>);\nimpl Layer { fn go(&self) { \
+             self.0.do_io(|s| { s.read(&mut []).ok(); }); } }"
+        );
+        assert_eq!(named(&all, "Wire::pump").effects, vec![Effect::Network]);
+        assert_eq!(named(&all, "Layer::go").effects, vec![Effect::Network]);
+    }
+
+    #[test]
+    fn tuple_field_reads_stay_out_of_the_fact_channel() {
+        let all = facts("fn poke(pair: (u8, u8)) -> u8 { pair.0 }");
+        assert!(named(&all, "poke").reads.is_empty());
     }
 
     #[test]

@@ -248,11 +248,9 @@ impl FactCollector {
                 .and_then(|ident| self.local_wraps.get(&ident.to_string()))
                 .cloned(),
             syn::Expr::Field(field) => {
-                let syn::Member::Named(name) = &field.member else {
-                    return None;
-                };
                 let owner = self.expr_type(&field.base)?;
-                self.wrap(&format!("{owner}.{name}")).cloned()
+                self.wrap(&format!("{owner}.{}", member_name(&field.member)))
+                    .cloned()
             }
             syn::Expr::MethodCall(call) if call.method == "clone" => {
                 self.wrapped_of(&call.receiver)
@@ -269,13 +267,7 @@ impl FactCollector {
     /// combinator passing something other than the wrapped value would
     /// make it; single-generic wrappers keep that surface small.
     fn bind_wrapped_closure(&mut self, call: &syn::ExprMethodCall) {
-        let syn::Expr::Field(field) = call.receiver.as_ref() else {
-            return;
-        };
-        let Some(inner) = self
-            .field_key(field)
-            .and_then(|key| self.wrap(&key).cloned())
-        else {
+        let Some(inner) = self.wrapped_of(&call.receiver) else {
             return;
         };
         for argument in &call.args {
@@ -330,11 +322,8 @@ impl FactCollector {
                 .and_then(|ident| self.param_types.get(&ident.to_string()))
                 .map(|name| self.bounds.get(name).unwrap_or(name).clone()),
             syn::Expr::Field(field) => {
-                let syn::Member::Named(name) = &field.member else {
-                    return None;
-                };
                 let owner = self.expr_type(&field.base)?;
-                self.field(&format!("{owner}.{name}"))
+                self.field(&format!("{owner}.{}", member_name(&field.member)))
                     .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
             }
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
@@ -495,6 +484,17 @@ fn strip_ref_deref(expression: &syn::Expr) -> &syn::Expr {
             strip_ref_deref(&unary.expr)
         }
         _ => expression
+    }
+}
+
+/// Table key of a field member: the written name, or the position for
+/// the unnamed fields of a tuple struct — the shape newtype wrappers
+/// carry their payload in. Used by the typing channel only; the
+/// read/write fact channel keeps naming its members as written.
+fn member_name(member: &syn::Member) -> String {
+    match member {
+        syn::Member::Named(name) => name.to_string(),
+        syn::Member::Unnamed(index) => index.index.to_string()
     }
 }
 
