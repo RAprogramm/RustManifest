@@ -455,3 +455,21 @@ The extractor decision from §9 is implemented: the engine consumes a
   defaults (expansion thread), five tokio wrappers of other shapes
   (readiness futures, `try_io`), the rest imp-module chains and the
   reqwest-hyper crate boundary. Eval baseline byte-stable throughout.
+- **Two boundary probes closed the day.** The joint
+  reqwest+hyper+hyper-util+tokio+mio+socket2 run (7140 functions,
+  seconds) did not light `RequestBuilder::send`, and the break is now
+  a single call: `Client::execute_request` reaches its transport as
+  `?::call` — a tower `Service` invoked through a generic receiver.
+  Service-trait dispatch joins the wall list alongside macro
+  expansion; no amount of joint analysis crosses it syntactically.
+  The expansion probe went the other way: tokio expanded via nightly
+  `rustc -Zunpretty=expanded` on a scratch copy (3.8 MB stream, one
+  cfg universe) and fed to the extractor restored every missing
+  endpoint — all four `NO FUNCTION` rows now exist as
+  `AsyncReadExt`/`AsyncWriteExt` facts, `read_exact` already carrying
+  a transitive `unsafe`. Their network effect still waits on two
+  known steps: generic `poll` bodies hold the sink, and the gate keys
+  by concrete type, so ext-trait facts need blanket-impl reasoning
+  to reach `TcpStream::write_all`. The derivation program's remaining
+  walls are therefore three, all named: blanket-impl bridging,
+  generic-body sinks, and service-trait dispatch.
