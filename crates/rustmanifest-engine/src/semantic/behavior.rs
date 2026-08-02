@@ -46,7 +46,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
         returns: return_types(sources),
         fields,
         field_elems,
-        field_wraps
+        field_wraps,
+        crates: crate_ids(sources)
     };
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
@@ -332,15 +333,17 @@ struct ItemContext<'name> {
 
 /// Workspace typing tables shared by every function's fact extraction.
 struct TypeTables {
-    /// Uniquely named functions to their return types.
-    returns:     std::collections::BTreeMap<String, Returned>,
-    /// `Type.field` keys of uniquely named structs to field type names.
-    fields:      std::collections::BTreeMap<String, String>,
-    /// `Type.field` keys of collection-typed fields to element types.
-    field_elems: std::collections::BTreeMap<String, String>,
+    /// Function names to their return types, scoped by source.
+    returns:     Scoped<Returned>,
+    /// `Type.field` keys to field type names, scoped by source.
+    fields:      Scoped<String>,
+    /// `Type.field` keys of collection fields to element types.
+    field_elems: Scoped<String>,
     /// `Type.field` keys of single-generic wrapper fields to the
     /// wrapped inner type.
-    field_wraps: std::collections::BTreeMap<String, String>
+    field_wraps: Scoped<String>,
+    /// Crate identity of every source, for crate-proximity resolution.
+    crates:      Vec<String>
 }
 
 /// Records `value` under `key`, dropping the key on conflicting
@@ -370,24 +373,99 @@ fn settled(
         .collect()
 }
 
+/// Typing table keeping every observation with its source file, so a
+/// colliding short key resolves by the consumer's proximity — the same
+/// file first, then the same crate — instead of being dropped. A
+/// collision proximity cannot settle stays unresolved, never guessed.
+#[derive(Debug, Clone)]
+pub(super) struct Scoped<V> {
+    /// Observations per short key, each with its source index.
+    entries: std::collections::BTreeMap<String, Vec<(usize, V)>>
+}
+
+impl<V> Default for Scoped<V> {
+    fn default() -> Self {
+        Self {
+            entries: std::collections::BTreeMap::new()
+        }
+    }
+}
+
+impl<V: Clone + PartialEq> Scoped<V> {
+    /// Records one observation of `key` from `source`.
+    fn note(&mut self, key: String, source: usize, value: V) {
+        let observations = self.entries.entry(key).or_default();
+        if !observations
+            .iter()
+            .any(|(seen, known)| *seen == source && *known == value)
+        {
+            observations.push((source, value));
+        }
+    }
+
+    /// Resolves `key` for a consumer in `source`: a unique observation
+    /// wins outright; among colliding ones, a single distinct value
+    /// from the consumer's file wins, then a single distinct value
+    /// from the consumer's crate.
+    pub(super) fn resolve(&self, key: &str, source: usize, crates: &[String]) -> Option<&V> {
+        let observations = self.entries.get(key)?;
+        if let [(_, only)] = observations.as_slice() {
+            return Some(only);
+        }
+        single_value(observations.iter().filter(|(origin, _)| *origin == source)).or_else(|| {
+            let own = crates.get(source)?;
+            single_value(
+                observations
+                    .iter()
+                    .filter(|(origin, _)| crates.get(*origin).is_some_and(|theirs| theirs == own))
+            )
+        })
+    }
+}
+
+/// The single distinct value among the observations, if exactly one.
+fn single_value<'observations, V: PartialEq>(
+    observations: impl Iterator<Item = &'observations (usize, V)>
+) -> Option<&'observations V> {
+    let mut found: Option<&V> = None;
+    for (_, value) in observations {
+        match found {
+            None => found = Some(value),
+            Some(seen) if seen == value => {}
+            Some(_) => return None
+        }
+    }
+    found
+}
+
+/// Crate identity of every source, from the path component preceding
+/// its `src` directory.
+fn crate_ids(sources: &[Source]) -> Vec<String> {
+    sources
+        .iter()
+        .map(|source| {
+            let path = source.path().to_string_lossy().replace('\\', "/");
+            let components: Vec<&str> = path.split('/').filter(|c| !c.is_empty()).collect();
+            components
+                .iter()
+                .position(|component| *component == "src")
+                .and_then(|position| position.checked_sub(1))
+                .and_then(|index| components.get(index))
+                .map(|name| (*name).to_owned())
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
 /// Maps every named field of a uniquely named struct — keyed
 /// `Type.field` — to its type's last segment, every collection-typed
 /// field to its element type, and every single-generic wrapper field
 /// to its wrapped inner type.
-fn field_tables(
-    sources: &[Source]
-) -> (
-    std::collections::BTreeMap<String, String>,
-    std::collections::BTreeMap<String, String>,
-    std::collections::BTreeMap<String, String>
-) {
-    let mut plain: std::collections::BTreeMap<String, Option<String>> =
-        std::collections::BTreeMap::new();
-    let mut elems: std::collections::BTreeMap<String, Option<String>> =
-        std::collections::BTreeMap::new();
-    let mut wraps: std::collections::BTreeMap<String, Option<String>> =
-        std::collections::BTreeMap::new();
-    for source in sources {
+fn field_tables(sources: &[Source]) -> (Scoped<String>, Scoped<String>, Scoped<String>) {
+    let mut plain = Scoped::default();
+    let mut elems = Scoped::default();
+    let mut wraps = Scoped::default();
+    for (index, source) in sources.iter().enumerate() {
         let Ok(file) = syn::parse_file(source.text()) else {
             continue;
         };
@@ -406,18 +484,18 @@ fn field_tables(
                 };
                 let key = format!("{}.{name}", definition.ident);
                 if let Some(type_name) = type_last_segment(&field.ty) {
-                    note_unique(&mut plain, key.clone(), type_name);
+                    plain.note(key.clone(), index, type_name);
                 }
                 if let Some(element) = element_type(&field.ty) {
-                    note_unique(&mut elems, key.clone(), element);
+                    elems.note(key.clone(), index, element);
                 }
                 if let Some(inner) = wrapped_type(&field.ty) {
-                    note_unique(&mut wraps, key, inner);
+                    wraps.note(key, index, inner);
                 }
             }
         }
     }
-    (settled(plain), settled(elems), settled(wraps))
+    (plain, elems, wraps)
 }
 
 /// Return type of one workspace function as the typing table sees it.
@@ -435,10 +513,9 @@ pub(super) struct Returned {
 /// function keyed `Type::name` — to its return type; keys with
 /// conflicting returns map to nothing, so typing through this table
 /// never guesses.
-fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Returned> {
-    let mut table: std::collections::BTreeMap<String, Option<Returned>> =
-        std::collections::BTreeMap::new();
-    for source in sources {
+fn return_types(sources: &[Source]) -> Scoped<Returned> {
+    let mut table = Scoped::default();
+    for (index, source) in sources.iter().enumerate() {
         let Ok(file) = syn::parse_file(source.text()) else {
             continue;
         };
@@ -450,6 +527,7 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Return
                     record_return(
                         &mut table,
                         function.sig.ident.to_string(),
+                        index,
                         None,
                         &function.sig
                     );
@@ -463,6 +541,7 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Return
                             record_return(
                                 &mut table,
                                 format!("{owner}::{}", method.sig.ident),
+                                index,
                                 Some(&owner),
                                 &method.sig
                             );
@@ -478,6 +557,7 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Return
                             record_return(
                                 &mut table,
                                 format!("{owner}::{}", method.sig.ident),
+                                index,
                                 Some(&owner),
                                 &method.sig
                             );
@@ -489,30 +569,20 @@ fn return_types(sources: &[Source]) -> std::collections::BTreeMap<String, Return
         }
     }
     table
-        .into_iter()
-        .filter_map(|(name, returned)| returned.map(|r| (name, r)))
-        .collect()
 }
 
-/// Records one function's return under `key`, dropping the key on
-/// conflicting observations.
+/// Records one function's return under `key` with its source.
 fn record_return(
-    table: &mut std::collections::BTreeMap<String, Option<Returned>>,
+    table: &mut Scoped<Returned>,
     key: String,
+    source: usize,
     owner: Option<&str>,
     signature: &syn::Signature
 ) {
     let Some(returned) = returned_of(signature, owner) else {
         return;
     };
-    table
-        .entry(key)
-        .and_modify(|known| {
-            if known.as_ref() != Some(&returned) {
-                *known = None;
-            }
-        })
-        .or_insert(Some(returned));
+    table.note(key, source, returned);
 }
 
 /// Reads a signature's plain return type and, for `Result`/`Option`
@@ -645,6 +715,8 @@ fn function_facts(
         field_types: tables.fields.clone(),
         field_elems: tables.field_elems.clone(),
         field_wraps: tables.field_wraps.clone(),
+        crates:      tables.crates.clone(),
+        src:         source,
         bounds:      context.bounds.clone(),
         local_wraps: std::collections::BTreeMap::new(),
         imports:     imports.clone(),
@@ -834,6 +906,35 @@ mod tests {
         assert_eq!(from.constructs, vec!["AppError"]);
         assert_eq!(from.params[0].type_name, "DbError");
         assert!(all.iter().all(|f| f.function != "Plain::from"));
+    }
+
+    #[test]
+    fn colliding_type_names_resolve_by_consumer_proximity() {
+        let sources = vec![
+            Source::new(
+                PathBuf::from("app/src/net.rs"),
+                "pub struct Client { inner: TcpStream }\nimpl Client { pub fn go(&self) { \
+                 self.inner.read(&mut []).ok(); } }"
+                    .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("app/src/disk.rs"),
+                "pub struct Client { inner: File }\nimpl Client { pub fn go(&self) { \
+                 self.inner.read(&mut []).ok(); } }"
+                    .to_owned()
+            ),
+        ];
+        let all = behavior(&sources);
+        let net = all
+            .iter()
+            .find(|f| f.function == "Client::go" && f.source == 0)
+            .unwrap();
+        let disk = all
+            .iter()
+            .find(|f| f.function == "Client::go" && f.source == 1)
+            .unwrap();
+        assert_eq!(net.effects, vec![Effect::Network]);
+        assert_eq!(disk.effects, vec![Effect::FileSystem]);
     }
 
     #[test]

@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use syn::visit::Visit;
 
 use super::{
-    Returned,
+    Returned, Scoped,
     signature::{element_type, type_last_segment},
     types::{Effect, FunctionFacts}
 };
@@ -66,14 +66,18 @@ pub(super) struct FactCollector {
     pub(super) param_types: BTreeMap<String, String>,
     /// Binding name to collection element type, from the signature.
     pub(super) elem_types:  BTreeMap<String, String>,
-    /// Uniquely named workspace functions to their return types.
-    pub(super) fn_returns:  BTreeMap<String, Returned>,
-    /// `Type.field` keys of workspace structs to field type names.
-    pub(super) field_types: BTreeMap<String, String>,
-    /// `Type.field` keys of collection-typed fields to element types.
-    pub(super) field_elems: BTreeMap<String, String>,
+    /// Workspace functions to their return types, scoped by source.
+    pub(super) fn_returns:  Scoped<Returned>,
+    /// `Type.field` keys to field type names, scoped by source.
+    pub(super) field_types: Scoped<String>,
+    /// `Type.field` keys of collection fields to element types.
+    pub(super) field_elems: Scoped<String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
-    pub(super) field_wraps: BTreeMap<String, String>,
+    pub(super) field_wraps: Scoped<String>,
+    /// Crate identity of every source, for crate-proximity resolution.
+    pub(super) crates:      Vec<String>,
+    /// Source index of the function under analysis.
+    pub(super) src:         usize,
     /// Enclosing impl block's generic parameters to their first trait
     /// bound, so a generic-typed field resolves as its bound.
     pub(super) bounds:      BTreeMap<String, String>,
@@ -87,6 +91,26 @@ pub(super) struct FactCollector {
 }
 
 impl FactCollector {
+    /// Resolves a return-table key for this function's scope.
+    fn ret(&self, key: &str) -> Option<&Returned> {
+        self.fn_returns.resolve(key, self.src, &self.crates)
+    }
+
+    /// Resolves a field-type key for this function's scope.
+    fn field(&self, key: &str) -> Option<&String> {
+        self.field_types.resolve(key, self.src, &self.crates)
+    }
+
+    /// Resolves a field element-type key for this function's scope.
+    fn elem(&self, key: &str) -> Option<&String> {
+        self.field_elems.resolve(key, self.src, &self.crates)
+    }
+
+    /// Resolves a wrapper inner-type key for this function's scope.
+    fn wrap(&self, key: &str) -> Option<&String> {
+        self.field_wraps.resolve(key, self.src, &self.crates)
+    }
+
     /// Renders a field expression as `Owner.field` when the base is a
     /// typed parameter or `self`, or `?.field` otherwise.
     fn field_key(&self, field: &syn::ExprField) -> Option<String> {
@@ -168,7 +192,7 @@ impl FactCollector {
                 .cloned(),
             syn::Expr::Field(field) => self
                 .field_key(field)
-                .and_then(|key| self.field_elems.get(&key))
+                .and_then(|key| self.elem(&key))
                 .cloned(),
             syn::Expr::MethodCall(call)
                 if ITERATOR_SOURCES.contains(&call.method.to_string().as_str()) =>
@@ -228,7 +252,7 @@ impl FactCollector {
                     return None;
                 };
                 let owner = self.expr_type(&field.base)?;
-                self.field_wraps.get(&format!("{owner}.{name}")).cloned()
+                self.wrap(&format!("{owner}.{name}")).cloned()
             }
             syn::Expr::MethodCall(call) if call.method == "clone" => {
                 self.wrapped_of(&call.receiver)
@@ -250,7 +274,7 @@ impl FactCollector {
         };
         let Some(inner) = self
             .field_key(field)
-            .and_then(|key| self.field_wraps.get(&key).cloned())
+            .and_then(|key| self.wrap(&key).cloned())
         else {
             return;
         };
@@ -285,11 +309,11 @@ impl FactCollector {
                         written
                     };
                     let qualified = format!("{owner}::{name}");
-                    if self.fn_returns.contains_key(&qualified) {
+                    if self.ret(&qualified).is_some() {
                         return Some(qualified);
                     }
                 }
-                self.fn_returns.contains_key(&name).then_some(name)
+                self.ret(&name).is_some().then_some(name)
             }
             _ => None
         }
@@ -310,8 +334,7 @@ impl FactCollector {
                     return None;
                 };
                 let owner = self.expr_type(&field.base)?;
-                self.field_types
-                    .get(&format!("{owner}.{name}"))
+                self.field(&format!("{owner}.{name}"))
                     .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
             }
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
@@ -328,15 +351,12 @@ impl FactCollector {
         match expression {
             syn::Expr::Try(tried) => self
                 .call_key(&tried.expr)
-                .and_then(|key| self.fn_returns.get(&key))
+                .and_then(|key| self.ret(&key))
                 .and_then(|returned| returned.success.clone())
                 .or_else(|| self.optional_element(&tried.expr)),
             syn::Expr::MethodCall(call) if call.method == "unwrap" || call.method == "expect" => {
                 if let Some(key) = self.call_key(&call.receiver) {
-                    return self
-                        .fn_returns
-                        .get(&key)
-                        .and_then(|returned| returned.success.clone());
+                    return self.ret(&key).and_then(|returned| returned.success.clone());
                 }
                 self.optional_element(&call.receiver)
                     .or_else(|| initializer_type(&call.receiver))
@@ -350,8 +370,7 @@ impl FactCollector {
                     return Some(owner);
                 }
                 let declared = self
-                    .fn_returns
-                    .get(&format!("{owner}::{method}"))
+                    .ret(&format!("{owner}::{method}"))
                     .map(|returned| returned.plain.clone());
                 if knowledge::PROJECTION_METHODS.contains(&method.as_str())
                     && declared
@@ -367,10 +386,7 @@ impl FactCollector {
                     return self.expr_type(inner);
                 }
                 if let Some(key) = self.call_key(expression) {
-                    return self
-                        .fn_returns
-                        .get(&key)
-                        .map(|returned| returned.plain.clone());
+                    return self.ret(&key).map(|returned| returned.plain.clone());
                 }
                 let syn::Expr::Path(path) = call.func.as_ref() else {
                     return None;
@@ -384,7 +400,7 @@ impl FactCollector {
             }
             _ => self
                 .call_key(expression)
-                .and_then(|key| self.fn_returns.get(&key))
+                .and_then(|key| self.ret(&key))
                 .map(|returned| returned.plain.clone())
         }
     }
@@ -671,7 +687,7 @@ impl<'ast> Visit<'ast> for FactCollector {
     fn visit_expr_try(&mut self, tried: &'ast syn::ExprTry) {
         if let [enclosing] = self.facts.error_types.clone().as_slice()
             && let Some(key) = self.call_key(&tried.expr)
-            && let Some(callee_error) = self.fn_returns.get(&key).and_then(|r| r.error.clone())
+            && let Some(callee_error) = self.ret(&key).and_then(|r| r.error.clone())
             && callee_error != *enclosing
         {
             self.record_call(Some(enclosing), "from");
@@ -681,9 +697,7 @@ impl<'ast> Visit<'ast> for FactCollector {
 
     fn visit_expr_await(&mut self, awaited: &'ast syn::ExprAwait) {
         if let Some(future_type) = self.called_return(&awaited.base)
-            && self
-                .fn_returns
-                .contains_key(&format!("{future_type}::poll"))
+            && self.ret(&format!("{future_type}::poll")).is_some()
         {
             self.record_call(Some(&future_type), "poll");
         }
