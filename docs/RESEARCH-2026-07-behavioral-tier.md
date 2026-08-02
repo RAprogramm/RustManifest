@@ -628,3 +628,32 @@ implemented rather than left as a caveat:
 - Pinned by a test: a ban fires through a two-implementor trait where
   only one implementor dials out, and the trace admits the
   possibility. Eval byte-stable, 357 unit tests green.
+
+## 16. The service-dispatch wall, pushed to a second face of an old one (2026-08-02)
+
+The last named wall — tower service dispatch — was attacked with four
+receiver-typing mechanisms, each general on its own:
+
+- nested field chains type recursively (`self.inner.hyper` resolves
+  through each hop instead of dying at the first);
+- `clone` is type-identity for typing (std semantics: it returns
+  `Self`);
+- `Box`/`Rc`/`Arc` are deref-transparent for *receiver* typing, while
+  ownership advice keeps the written type — the split matters, and
+  the eval gate proved it: transparency leaking into parameter facts
+  produced three false borrow-advice findings on hydebar before the
+  written-type/receiver-type separation restored the baseline
+  byte-for-byte. First drift of the day, caught by the gate, root
+  cause was the advice channel, not the typing;
+- a `call` on a wrapper whose wrapped service type is known dispatches
+  to that service's own `call` — the tower layering semantics as one
+  knowledge constant, unit-proven end to end.
+
+On the corpus the mechanisms moved the general numbers (fork-hyper:
+resolved in-workspace 2137 → 2191, unknown receivers 557 → 506). On
+reqwest itself the chain still stops, and the reason is measured, not
+guessed: the crate defines `Client` three times — async, blocking,
+wasm — so `Client.inner` collides in the unique-name field table and
+drops, exactly the §11 granularity wall showing a second face at the
+field level. Module-qualified keys remain the one unlock both walls
+share; 359 unit tests green, eval byte-stable after the split.
