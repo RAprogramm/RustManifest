@@ -4,22 +4,22 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/rustmanifest-schema",
-    "crates/rustmanifest-rules-core",
-    "crates/rustmanifest-engine",
-    "crates/rustmanifest-config",
-    "crates/rustmanifest-report",
-    "crates/rustmanifest-mcp",
-    "crates/rustmanifest-lsp",
-    "crates/rustmanifest-cli",
-    "crates/rustmanifest-eval",
-    "crates/rustmanifest-learn",
+  "crates/rustmanifest-schema",
+  "crates/rustmanifest-rules-core",
+  "crates/rustmanifest-engine",
+  "crates/rustmanifest-config",
+  "crates/rustmanifest-report",
+  "crates/rustmanifest-mcp",
+  "crates/rustmanifest-lsp",
+  "crates/rustmanifest-cli",
+  "crates/rustmanifest-eval",
+  "crates/rustmanifest-learn",
 ]
 
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.97"
 license = "MIT"
 repository = "https://github.com/RAprogramm/RustManifest"
 homepage = "https://github.com/RAprogramm/RustManifest"
@@ -45,7 +45,7 @@ toml = "1"
 rayon = "1"
 ignore = "0.4"
 quote = "1"
-syn = { version = "2", features = ["full", "visit"] }
+syn = { version = "3", features = ["full", "visit"] }
 tsetlin-rs = "0.3"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 globset = "0.4"
