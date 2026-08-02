@@ -656,4 +656,4 @@ guessed: the crate defines `Client` three times — async, blocking,
 wasm — so `Client.inner` collides in the unique-name field table and
 drops, exactly the §11 granularity wall showing a second face at the
 field level. Module-qualified keys remain the one unlock both walls
-share; 359 unit tests green, eval byte-stable after the split.
+share; 358 unit tests green, eval byte-stable after the split.
