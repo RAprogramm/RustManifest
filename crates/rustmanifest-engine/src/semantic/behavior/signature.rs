@@ -66,6 +66,7 @@ pub(super) fn parameter_types(
     signature: &syn::Signature,
     impl_type: Option<&str>
 ) -> BTreeMap<String, String> {
+    let bounds = generic_bounds(signature);
     let mut types = BTreeMap::new();
     for input in &signature.inputs {
         match input {
@@ -78,12 +79,61 @@ pub(super) fn parameter_types(
                 if let (syn::Pat::Ident(pattern), Some(type_name)) =
                     (argument.pat.as_ref(), type_last_segment(&argument.ty))
                 {
-                    types.insert(pattern.ident.to_string(), type_name);
+                    let resolved = bounds.get(&type_name).cloned().unwrap_or(type_name);
+                    types.insert(pattern.ident.to_string(), resolved);
                 }
             }
         }
     }
     types
+}
+
+/// Maps each generic type parameter of the signature to its first trait
+/// bound — the same rule trait objects already follow, so a call on a
+/// generic parameter resolves as dispatch over the bound's
+/// implementors. Inline bounds and `where` clauses both count; a
+/// parameter with no trait bound stays unmapped.
+fn generic_bounds(signature: &syn::Signature) -> BTreeMap<String, String> {
+    let mut bounds = BTreeMap::new();
+    for parameter in &signature.generics.params {
+        if let syn::GenericParam::Type(type_param) = parameter
+            && let Some(bound) = first_trait_bound(&type_param.bounds)
+        {
+            bounds.insert(type_param.ident.to_string(), bound);
+        }
+    }
+    if let Some(clause) = &signature.generics.where_clause {
+        for predicate in &clause.predicates {
+            if let syn::WherePredicate::Type(typed) = predicate
+                && let syn::Type::Path(path) = &typed.bounded_ty
+                && let Some(name) = path.path.get_ident().map(ToString::to_string)
+                && let Some(bound) = first_trait_bound(&typed.bounds)
+            {
+                bounds.entry(name).or_insert(bound);
+            }
+        }
+    }
+    bounds
+}
+
+/// Last segment of the first trait bound in a bound list, `?Sized` and
+/// lifetimes skipped.
+fn first_trait_bound(
+    bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::Token![+]>
+) -> Option<String> {
+    bounds.iter().find_map(|bound| {
+        if let syn::TypeParamBound::Trait(trait_bound) = bound
+            && matches!(trait_bound.modifier, syn::TraitBoundModifier::None)
+        {
+            trait_bound
+                .path
+                .segments
+                .last()
+                .map(|segment| segment.ident.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// Renders the element type of a collection: slices, arrays, and the

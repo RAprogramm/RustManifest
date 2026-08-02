@@ -33,13 +33,22 @@ pub struct ResolutionContext {
     /// Trait name to the sorted types implementing it, for dynamic
     /// dispatch: a call through `dyn Trait` produces an edge to every
     /// implementor's method.
-    pub trait_impls: BTreeMap<String, Vec<String>>
+    pub trait_impls: BTreeMap<String, Vec<String>>,
+    /// Default-bodied method name to the extension traits declaring it,
+    /// each with its first supertrait — the `trait Ext: Base` pattern
+    /// whose blanket impl grants `Ext` to every `Base` implementor.
+    pub ext_traits:  BTreeMap<String, Vec<(String, String)>>,
+    /// Trait name to its first supertrait, so dispatch on an extension
+    /// trait's receiver falls through to the supertrait's implementors.
+    pub supertraits: BTreeMap<String, String>
 }
 
 /// Builds the full resolution context over `sources`.
 #[must_use]
 pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
     let mut trait_impls: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut ext_traits: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    let mut supertraits: BTreeMap<String, String> = BTreeMap::new();
     for source in sources {
         let Ok(file) = syn::parse_file(source.text()) else {
             continue;
@@ -47,29 +56,74 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
         for item in items {
-            let syn::Item::Impl(block) = item else {
-                continue;
-            };
-            let (Some((_, path, _)), Some(implementor)) = (&block.trait_, impl_type_name(block))
-            else {
-                continue;
-            };
-            let Some(trait_name) = path.segments.last().map(|s| s.ident.to_string()) else {
-                continue;
-            };
-            let implementors = trait_impls.entry(trait_name).or_default();
-            if !implementors.contains(&implementor) {
-                implementors.push(implementor);
+            match item {
+                syn::Item::Impl(block) => {
+                    let (Some((_, path, _)), Some(implementor)) =
+                        (&block.trait_, impl_type_name(block))
+                    else {
+                        continue;
+                    };
+                    let Some(trait_name) = path.segments.last().map(|s| s.ident.to_string())
+                    else {
+                        continue;
+                    };
+                    let implementors = trait_impls.entry(trait_name).or_default();
+                    if !implementors.contains(&implementor) {
+                        implementors.push(implementor);
+                    }
+                }
+                syn::Item::Trait(definition) => {
+                    let Some(base) = first_supertrait(definition) else {
+                        continue;
+                    };
+                    let ext = definition.ident.to_string();
+                    supertraits
+                        .entry(ext.clone())
+                        .or_insert_with(|| base.clone());
+                    for trait_item in &definition.items {
+                        if let syn::TraitItem::Fn(method) = trait_item
+                            && method.default.is_some()
+                        {
+                            let entry = (ext.clone(), base.clone());
+                            let entries =
+                                ext_traits.entry(method.sig.ident.to_string()).or_default();
+                            if !entries.contains(&entry) {
+                                entries.push(entry);
+                            }
+                        }
+                    }
+                }
+                _ => {}
             }
         }
     }
     for implementors in trait_impls.values_mut() {
         implementors.sort_unstable();
     }
+    for entries in ext_traits.values_mut() {
+        entries.sort_unstable();
+    }
     ResolutionContext {
         segments: resolution_segments(sources),
-        trait_impls
+        trait_impls,
+        ext_traits,
+        supertraits
     }
+}
+
+/// Last segment of a trait definition's first supertrait bound.
+fn first_supertrait(definition: &syn::ItemTrait) -> Option<String> {
+    definition.supertraits.iter().find_map(|bound| {
+        if let syn::TypeParamBound::Trait(trait_bound) = bound {
+            trait_bound
+                .path
+                .segments
+                .last()
+                .map(|segment| segment.ident.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// Builds the qualifier set for call resolution over `sources`.
@@ -229,25 +283,15 @@ pub fn call_graph_with(
                     }
                 }
                 _ => {
-                    let dispatched = candidate.rsplit_once("::").is_some_and(|(owner, method)| {
-                        let Some(implementors) = context.trait_impls.get(owner) else {
-                            return false;
-                        };
-                        let mut hit = false;
-                        for implementor in implementors {
-                            let qualified = format!("{implementor}::{method}");
-                            if let Some(indices) = by_qualified.get(qualified.as_str())
-                                && indices.len() == 1
-                            {
-                                if !edges[index].contains(&indices[0]) {
-                                    edges[index].push(indices[0]);
-                                }
-                                hit = true;
+                    let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(o, m)| {
+                        dispatch_targets(o, m, context, &by_qualified)
+                    });
+                    if !targets.is_empty() {
+                        for target in targets {
+                            if !edges[index].contains(&target) {
+                                edges[index].push(target);
                             }
                         }
-                        hit
-                    });
-                    if dispatched {
                         resolved += 1;
                         continue;
                     }
@@ -282,6 +326,82 @@ pub fn call_graph_with(
         unknown_receiver,
         scip_resolved
     }
+}
+
+/// Resolves an unmatched `Owner::method` candidate through the trait
+/// machinery: dynamic dispatch over the owner's implementors when the
+/// owner names a trait — falling through extension traits to their
+/// supertrait's implementors — or the unique extension-trait default
+/// granting `method` to a concrete owner.
+fn dispatch_targets(
+    owner: &str,
+    method: &str,
+    context: &ResolutionContext,
+    by_qualified: &BTreeMap<&str, Vec<usize>>
+) -> Vec<usize> {
+    let implementors = implementors_of(owner, context);
+    if let Some(implementors) = implementors {
+        let mut targets = Vec::new();
+        for implementor in implementors {
+            let qualified = format!("{implementor}::{method}");
+            if let Some([only]) = by_qualified.get(qualified.as_str()).map(Vec::as_slice) {
+                targets.push(*only);
+            }
+        }
+        if !targets.is_empty() {
+            return targets;
+        }
+    }
+    ext_target(owner, method, context, by_qualified)
+        .map(|target| vec![target])
+        .unwrap_or_default()
+}
+
+/// Implementors of a trait, seen through the extension-trait pattern:
+/// a trait with no direct impls falls through its supertrait chain,
+/// bounded so a cycle cannot loop.
+fn implementors_of<'context>(
+    owner: &str,
+    context: &'context ResolutionContext
+) -> Option<&'context Vec<String>> {
+    let mut current = owner;
+    for _ in 0..4 {
+        if let Some(implementors) = context.trait_impls.get(current) {
+            return Some(implementors);
+        }
+        current = context.supertraits.get(current)?;
+    }
+    None
+}
+
+/// Resolves an unmatched `Owner::method` candidate to the unique
+/// extension-trait default that grants `method` to `Owner`: the owner
+/// must implement the extension's supertrait, and the extension's
+/// default must exist as exactly one fact. More than one granting
+/// extension is ambiguity, and ambiguity stays unresolved.
+fn ext_target(
+    owner: &str,
+    method: &str,
+    context: &ResolutionContext,
+    by_qualified: &BTreeMap<&str, Vec<usize>>
+) -> Option<usize> {
+    let entries = context.ext_traits.get(method)?;
+    let mut targets = entries.iter().filter_map(|(ext, base)| {
+        let grants = context
+            .trait_impls
+            .get(base)
+            .is_some_and(|implementors| implementors.iter().any(|name| name == owner));
+        if !grants {
+            return None;
+        }
+        let qualified = format!("{ext}::{method}");
+        match by_qualified.get(qualified.as_str()).map(Vec::as_slice) {
+            Some([only]) => Some(*only),
+            _ => None
+        }
+    });
+    let first = targets.next()?;
+    targets.next().is_none().then_some(first)
 }
 
 /// Resolution tables of one fact slice: qualified names, bare free
@@ -390,6 +510,32 @@ mod tests {
         let facts = behavior(&sources);
         let graph = call_graph(&facts, &super::resolution_context(&sources));
         (facts, graph)
+    }
+
+    #[test]
+    fn generic_bound_parameters_dispatch_over_implementors() {
+        let (all, graph) = context_graph(
+            "trait Sink { fn write(&self); }\nstruct Disk;\nimpl Sink for Disk { fn write(&self) \
+             {} }\nstruct Wire;\nimpl Sink for Wire { fn write(&self) {} }\nfn drain<S: \
+             Sink>(sink: S) { sink.write(); }"
+        );
+        let callees = graph.callees(index_of(&all, "drain"));
+        assert!(callees.contains(&index_of(&all, "Disk::write")));
+        assert!(callees.contains(&index_of(&all, "Wire::write")));
+    }
+
+    #[test]
+    fn ext_trait_defaults_dispatch_through_the_supertrait_bound() {
+        let (all, graph) = context_graph(
+            "trait Base { fn poll(&self); }\nstruct Conn;\nimpl Base for Conn { fn poll(&self) { \
+             std::net::TcpStream::connect(\"h\").ok(); } }\npub trait Ext: Base {\n    fn \
+             write_all(&self) { self.poll(); }\n}\nstruct Plain;\nfn go(conn: Conn, other: \
+             Plain) { conn.write_all(); other.write_all(); }"
+        );
+        let callees = graph.callees(index_of(&all, "go"));
+        assert!(callees.contains(&index_of(&all, "Ext::write_all")));
+        let effects = super::transitive_effects(&all, &graph);
+        assert!(effects[index_of(&all, "go")].contains(&Effect::Network));
     }
 
     #[test]
