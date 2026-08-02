@@ -527,3 +527,33 @@ The extractor decision from §9 is implemented: the engine consumes a
   over-approximation: every implementor's effects join, so a `poll`
   can inherit `process` from a child-pipe implementor it never
   touches at runtime. Eval byte-stable, 350 unit tests green.
+
+## 12. Error-conversion edges: `?` semantics and the thiserror tenant (2026-08-02)
+
+The second tenant of the macro-knowledge thread, straight from the §4
+plan's `returns_error` ambition. Two pieces landed together:
+
+- **Implicit conversions at `?` sites** are std semantics, not
+  thiserror's: when the tried call's declared error type differs from
+  the enclosing function's, the operator calls `From::from`. The
+  return-type table now carries the error type alongside the success
+  type, and such a site records an `Error::from` candidate — only
+  when both types are known and differ, so plain same-type
+  propagation stays silent.
+- **The derive's generated impls exist as facts.** `#[derive(Error)]`
+  with a `#[from]` field guarantees `impl From<Source> for Owner`;
+  the extractor now synthesizes that function's fact — constructs
+  the owner, consumes the source — for enum variants and structs
+  alike, gated on the `Error` derive being named and the parse being
+  clean.
+- **Measured honestly, the gain is structural, not numeric yet.**
+  Precision held exactly (97.4% strict on masterror, 100% on
+  aura-api — the new candidates created zero false resolutions);
+  recall moved +0.2pp on masterror and stayed flat elsewhere, because
+  the corpus's `?` sites overwhelmingly try *external* calls whose
+  error types the syntactic tier cannot declare. The synthesized
+  facts are already load-bearing as overlay targets: SCIP edges land
+  on them (aura-api +472 edges in its first indexed run, masterror
+  +778), and workspace-internal error towers — the
+  "Wallet.balance"-class invariant substrate — now carry conversion
+  edges without any index. 352 unit tests green, eval byte-stable.
