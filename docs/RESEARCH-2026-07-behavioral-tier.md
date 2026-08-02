@@ -509,3 +509,21 @@ The extractor decision from §9 is implemented: the engine consumes a
   macro-semantic knowledge — the same expansion-knowledge thread as
   thiserror derives — not another typing rule. Gate holds at 18/33
   with 0 contradictions.
+- **Projection transparency shipped — the chain closed end to end.**
+  The knowledge is two constants: the projection method names and the
+  view type names the macro fixes for every expansion; a projection
+  call on a typed receiver types as the receiver when the declared
+  return either names a view or is invisible (the generated `fn
+  project` lives inside a `const _` block the item walk does not
+  enter, so an unknown return is itself the macro's signature). With
+  that one link, the full derived chain carries effects with no hand
+  pack in the loop: a consumer's `stream.write_all(b"x").await` walks
+  ext-dispatch into the expanded default, the await edge into the
+  future's `poll`, the projection into the generic field, the bound
+  into `AsyncWrite::poll_write`, and dispatch into implementors —
+  `ReadExact::poll` now carries transitive `net`, the consumer
+  carries it too, and the expanded universe rose 1477 → 1494
+  effect-carrying functions. The cost is the documented dispatch
+  over-approximation: every implementor's effects join, so a `poll`
+  can inherit `process` from a child-pipe implementor it never
+  touches at runtime. Eval byte-stable, 350 unit tests green.
