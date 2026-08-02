@@ -492,3 +492,20 @@ The extractor decision from §9 is implemented: the engine consumes a
   generic-typed field. Impl-level bound propagation into field typing
   is the sharpened next step; eval stayed byte-stable and 347 unit
   tests are green throughout.
+- **The sharpened step shipped — and the chain stopped one link from
+  the end.** Three typing mechanisms landed together: impl-block
+  generic bounds now map into field and binding typing inside the
+  block's methods (`impl<W: AsyncWrite> ... { self.writer }` types the
+  field as the bound); `Pin::new(&mut *value)` is transparent for
+  receiver typing; and awaiting an expression whose future type is
+  known records a `poll` candidate on that future, guarded to types
+  that actually declare one. Unit-proven end to end (349 green), +39
+  effect-carrying functions in the expanded tokio universe
+  (1438 → 1477), eval byte-stable. The write-family gate rows still
+  read dark for exactly one remaining reason, now isolated to a
+  single name: pin-project-lite expands every future's projection to
+  a struct called `Projection`, so the unique-name field table drops
+  all of them and `me.writer` unresolves. Projection transparency is
+  macro-semantic knowledge — the same expansion-knowledge thread as
+  thiserror derives — not another typing rule. Gate holds at 18/33
+  with 0 contradictions.
