@@ -623,6 +623,17 @@ impl<'ast> Visit<'ast> for FactCollector {
         syn::visit::visit_expr_unsafe(self, block);
     }
 
+    fn visit_expr_try(&mut self, tried: &'ast syn::ExprTry) {
+        if let [enclosing] = self.facts.error_types.clone().as_slice()
+            && let Some(key) = self.call_key(&tried.expr)
+            && let Some(callee_error) = self.fn_returns.get(&key).and_then(|r| r.error.clone())
+            && callee_error != *enclosing
+        {
+            self.record_call(Some(enclosing), "from");
+        }
+        syn::visit::visit_expr_try(self, tried);
+    }
+
     fn visit_expr_await(&mut self, awaited: &'ast syn::ExprAwait) {
         if let Some(future_type) = self.called_return(&awaited.base)
             && self

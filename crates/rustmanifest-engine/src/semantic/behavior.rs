@@ -109,31 +109,11 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         ));
                     }
                 }
+                syn::Item::Enum(_) | syn::Item::Struct(_) => {
+                    facts.extend(error_conversions(item, index));
+                }
                 syn::Item::Trait(definition) => {
-                    let trait_name = definition.ident.to_string();
-                    let public = matches!(definition.vis, syn::Visibility::Public(_));
-                    let trait_bounds = signature::generics_bounds(&definition.generics);
-                    for trait_item in &definition.items {
-                        let syn::TraitItem::Fn(method) = trait_item else {
-                            continue;
-                        };
-                        let Some(block) = &method.default else {
-                            continue;
-                        };
-                        facts.push(function_facts(
-                            index,
-                            format!("{trait_name}::{}", method.sig.ident),
-                            &ItemContext {
-                                impl_type: Some(&trait_name),
-                                flags:     item_flags(true, &method.attrs, public, false),
-                                bounds:    trait_bounds.clone()
-                            },
-                            &method.sig,
-                            block,
-                            &tables,
-                            &imports
-                        ));
-                    }
+                    facts.extend(trait_default_facts(definition, index, &tables, &imports));
                 }
                 _ => {}
             }
@@ -197,6 +177,133 @@ fn collect_use_tree(
             }
         }
         syn::UseTree::Glob(_) => {}
+    }
+}
+
+/// Returns whether a `#[derive(...)]` list names the `Error` derive —
+/// the thiserror pattern whose `#[from]` fields generate `From` impls.
+fn derives_error(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| {
+        if !attr.path().is_ident("derive") {
+            return false;
+        }
+        let mut named = false;
+        let parsed = attr.parse_nested_meta(|meta| {
+            if meta
+                .path
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "Error")
+            {
+                named = true;
+            }
+            Ok(())
+        });
+        parsed.is_ok() && named
+    })
+}
+
+/// Returns whether a field carries the `#[from]` attribute.
+fn from_attributed(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("from"))
+}
+
+/// Facts of a trait definition's default-bodied methods, qualified by
+/// the trait's own name.
+fn trait_default_facts(
+    definition: &syn::ItemTrait,
+    index: usize,
+    tables: &TypeTables,
+    imports: &std::collections::BTreeMap<String, String>
+) -> Vec<FunctionFacts> {
+    let trait_name = definition.ident.to_string();
+    let public = matches!(definition.vis, syn::Visibility::Public(_));
+    let trait_bounds = signature::generics_bounds(&definition.generics);
+    let mut facts = Vec::new();
+    for trait_item in &definition.items {
+        let syn::TraitItem::Fn(method) = trait_item else {
+            continue;
+        };
+        let Some(block) = &method.default else {
+            continue;
+        };
+        facts.push(function_facts(
+            index,
+            format!("{trait_name}::{}", method.sig.ident),
+            &ItemContext {
+                impl_type: Some(&trait_name),
+                flags:     item_flags(true, &method.attrs, public, false),
+                bounds:    trait_bounds.clone()
+            },
+            &method.sig,
+            block,
+            tables,
+            imports
+        ));
+    }
+    facts
+}
+
+/// Synthesized `From` conversion facts of one item: the `Error` derive
+/// guarantees `impl From<Source> for Owner` for every `#[from]` field.
+fn error_conversions(item: &syn::Item, index: usize) -> Vec<FunctionFacts> {
+    let mut facts = Vec::new();
+    match item {
+        syn::Item::Enum(definition) if derives_error(&definition.attrs) => {
+            let owner = definition.ident.to_string();
+            for variant in &definition.variants {
+                for field in &variant.fields {
+                    if from_attributed(&field.attrs)
+                        && let Some(source_type) = type_last_segment(&field.ty)
+                    {
+                        facts.push(conversion_fact(index, &owner, source_type));
+                    }
+                }
+            }
+        }
+        syn::Item::Struct(definition) if derives_error(&definition.attrs) => {
+            let owner = definition.ident.to_string();
+            for field in &definition.fields {
+                if from_attributed(&field.attrs)
+                    && let Some(source_type) = type_last_segment(&field.ty)
+                {
+                    facts.push(conversion_fact(index, &owner, source_type));
+                }
+            }
+        }
+        _ => {}
+    }
+    facts
+}
+
+/// Synthesizes the fact of a derive-generated `From` conversion: the
+/// `Error` derive guarantees `impl From<Source> for Owner` for every
+/// `#[from]` field, so the generated function exists with exactly this
+/// shape even though no syntax carries its body.
+fn conversion_fact(source: usize, owner: &str, source_type: String) -> FunctionFacts {
+    FunctionFacts {
+        function: format!("{owner}::from"),
+        source,
+        range: Range {
+            start: 0, end: 0
+        },
+        reads: Vec::new(),
+        writes: Vec::new(),
+        builds: Vec::new(),
+        constructs: vec![owner.to_owned()],
+        error_types: Vec::new(),
+        effects: Vec::new(),
+        params: vec![ParamFacts {
+            name:        "source".to_owned(),
+            type_name:   source_type,
+            mode:        ParamMode::Owned,
+            uses:        1,
+            field_reads: 0
+        }],
+        flags: FunctionFlags::from_bits(FunctionFlags::TRAIT_IMPL | FunctionFlags::PUBLIC),
+        calls: Vec::new(),
+        clones: 0,
+        allocations: 0
     }
 }
 
@@ -319,7 +426,9 @@ pub(super) struct Returned {
     /// Last segment of the written return type, `Self` resolved.
     pub(super) plain:   String,
     /// Success type inside a `Result`/`Option` return, `Self` resolved.
-    pub(super) success: Option<String>
+    pub(super) success: Option<String>,
+    /// Error type inside a `Result` return, `Self` resolved.
+    pub(super) error:   Option<String>
 }
 
 /// Maps every uniquely named free function — and every associated
@@ -418,28 +527,38 @@ fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Option<Return
     let segment = path.path.segments.last()?;
     let plain = resolve_self(segment.ident.to_string(), owner);
     let success = if segment.ident == "Result" || segment.ident == "Option" {
-        first_type_argument(segment).map(|name| resolve_self(name, owner))
+        type_argument(segment, 0).map(|name| resolve_self(name, owner))
+    } else {
+        None
+    };
+    let error = if segment.ident == "Result" {
+        type_argument(segment, 1).map(|name| resolve_self(name, owner))
     } else {
         None
     };
     Some(Returned {
         plain,
-        success
+        success,
+        error
     })
 }
 
-/// Last segment of the first angle-bracketed type argument.
-fn first_type_argument(segment: &syn::PathSegment) -> Option<String> {
+/// Last segment of the `position`-th angle-bracketed type argument.
+fn type_argument(segment: &syn::PathSegment, position: usize) -> Option<String> {
     let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return None;
     };
-    arguments.args.iter().find_map(|argument| {
-        if let syn::GenericArgument::Type(syn::Type::Path(path)) = argument {
-            path.path.segments.last().map(|s| s.ident.to_string())
-        } else {
-            None
-        }
-    })
+    arguments
+        .args
+        .iter()
+        .filter_map(|argument| {
+            if let syn::GenericArgument::Type(syn::Type::Path(path)) = argument {
+                path.path.segments.last().map(|s| s.ident.to_string())
+            } else {
+                None
+            }
+        })
+        .nth(position)
 }
 
 /// Substitutes `Self` with the impl owner when one is known.
@@ -683,6 +802,37 @@ mod tests {
         assert!(poll.calls.contains(&"AsyncWrite::poll_write".to_owned()));
         let drive = named(&all, "drive");
         assert!(drive.calls.contains(&"WriteAll::poll".to_owned()));
+    }
+
+    #[test]
+    fn try_sites_record_the_implicit_conversion() {
+        let all = facts(
+            "struct AppError;\nstruct DbError;\nfn load() -> Result<u8, DbError> { Ok(0) }\nfn \
+             handle() -> Result<u8, AppError> { let v = load()?; Ok(v) }\nfn same() -> \
+             Result<u8, DbError> { let v = load()?; Ok(v) }"
+        );
+        assert!(
+            named(&all, "handle")
+                .calls
+                .contains(&"AppError::from".to_owned())
+        );
+        assert!(
+            !named(&all, "same")
+                .calls
+                .contains(&"DbError::from".to_owned())
+        );
+    }
+
+    #[test]
+    fn error_derives_synthesize_their_from_conversions() {
+        let all = facts(
+            "#[derive(Debug, Error)]\nenum AppError {\n    #[error(\"db\")]\n    Db(#[from] \
+             DbError)\n}\nstruct DbError;\n#[derive(Clone)]\nenum Plain { A(#[from] u8) }"
+        );
+        let from = named(&all, "AppError::from");
+        assert_eq!(from.constructs, vec!["AppError"]);
+        assert_eq!(from.params[0].type_name, "DbError");
+        assert!(all.iter().all(|f| f.function != "Plain::from"));
     }
 
     #[test]
