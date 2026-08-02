@@ -779,6 +779,89 @@ mod tests {
     }
 
     #[test]
+    fn an_effect_ban_fires_through_an_edge_only_the_index_resolves() {
+        use std::path::PathBuf;
+
+        use rustmanifest_schema::Invariant;
+
+        use crate::{
+            semantic::invariant::{check_invariants, check_invariants_with},
+            source::Source
+        };
+        let sources = [
+            Source::new(
+                PathBuf::from("src/lib.rs"),
+                "mod domain;\nmod net;".to_owned()
+            ),
+            Source::new(
+                PathBuf::from("src/net.rs"),
+                "pub fn dial() { std::net::TcpStream::connect(\"h\").ok(); }".to_owned()
+            ),
+            Source::new(
+                PathBuf::from("src/domain.rs"),
+                "pub fn drive() { dispatch!(dial()); }".to_owned()
+            )
+        ];
+        let ban = Invariant {
+            id:              Some("NO-NET".to_owned()),
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          Some("net".to_owned()),
+            deny_in:         vec!["crate::domain".to_owned()],
+            call_deny_from:  None,
+            call_deny_to:    None,
+            severity:        None
+        };
+        assert!(
+            check_invariants(&sources, std::slice::from_ref(&ban)).is_empty(),
+            "the macro-wrapped call is invisible to the syntactic resolver"
+        );
+
+        let mut document = Vec::new();
+        put_field(&mut document, 1, b"src/domain.rs");
+        put_field(
+            &mut document,
+            2,
+            &occurrence(
+                "rust-analyzer cargo demo 0.1.0 domain/drive().",
+                &[0, 7, 12],
+                super::DEFINITION_ROLE,
+                &[0, 0, 0, 36]
+            )
+        );
+        put_field(
+            &mut document,
+            2,
+            &occurrence(
+                "rust-analyzer cargo demo 0.1.0 net/dial().",
+                &[0, 26, 30],
+                0,
+                &[]
+            )
+        );
+        let mut bytes = Vec::new();
+        put_field(&mut bytes, 2, &document);
+        let edges = ScipEdges::from_documents(&wire::documents(&bytes).unwrap());
+
+        let findings = check_invariants_with(&sources, &[ban], Some(&edges));
+        assert_eq!(findings.len(), 1);
+        assert!(
+            findings[0]
+                .message
+                .contains("`drive` transitively performs `net`")
+        );
+        let step = findings[0]
+            .trace
+            .iter()
+            .find(|step| step.fact.contains("calls fn `dial`"))
+            .expect("the index-owed edge is in the trace");
+        assert_eq!(
+            step.reason,
+            "name-resolved call edge, read from the SCIP index"
+        );
+    }
+
+    #[test]
     fn malformed_bytes_decode_to_nothing() {
         assert!(wire::documents(&[0x12]).is_none());
         assert!(wire::documents(&[]).is_some_and(|documents| documents.is_empty()));

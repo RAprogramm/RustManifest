@@ -15,30 +15,59 @@
 //! not its own body. The trace then carries the resolved call chain from
 //! the violating function down to the function that performs the effect
 //! directly.
+//!
+//! The chain is as wide as the call graph handed to the check. With a
+//! SCIP index supplied, [`check_invariants_with`] enforces the same
+//! invariants over the name-resolved graph, so a ban also fires through
+//! calls only the index resolves — macro-generated bodies, trait
+//! dispatch, receivers the syntactic tier cannot type. Every trace step
+//! names the provenance of the edge it walks, so an index-owed
+//! derivation is never presented as a syntactic one.
 
 use rustmanifest_schema::{Finding, Invariant, Location, Severity, TraceStep};
 
 use super::{
     behavior::{FunctionFacts, behavior},
-    calls::{CallGraph, call_graph, transitive_effects},
-    module_overview::module_overview
+    calls::{CallGraph, call_graph_with, transitive_effects},
+    module_overview::module_overview,
+    scip::ScipEdges
 };
 use crate::{pragma, source::Source};
 
-/// Checks every invariant over `sources`, honoring pragma suppression in
-/// the file each finding anchors to.
+/// Checks every invariant over `sources` using the syntactic call graph.
 ///
 /// Findings carry the invariant's `id` as their rule id, or a positional
 /// `RM-INV-NNN` when the entry declares none; severity defaults to
 /// [`Severity::Error`].
 #[must_use]
 pub fn check_invariants(sources: &[Source], invariants: &[Invariant]) -> Vec<Finding> {
+    check_invariants_with(sources, invariants, None)
+}
+
+/// Checks every invariant over `sources`, optionally over the call graph
+/// a SCIP index resolves, honoring pragma suppression in the file each
+/// finding anchors to.
+///
+/// The overlay is purely additive: it can only widen the reachability a
+/// ban is judged against, never suppress a finding the syntactic graph
+/// already produced. Passing `None` is exactly [`check_invariants`].
+#[must_use]
+pub fn check_invariants_with(
+    sources: &[Source],
+    invariants: &[Invariant],
+    scip: Option<&ScipEdges>
+) -> Vec<Finding> {
     if invariants.is_empty() {
         return Vec::new();
     }
     let facts = behavior(sources);
     let overview = module_overview(sources);
-    let graph = call_graph(&facts, &super::calls::resolution_context(sources));
+    let overlay = scip.map(|edges| edges.candidates(&facts, sources));
+    let graph = call_graph_with(
+        &facts,
+        &super::calls::resolution_context(sources),
+        overlay.as_deref()
+    );
     let transitive = transitive_effects(&facts, &graph);
     let module_of = |source: usize| -> String {
         sources
@@ -177,11 +206,7 @@ fn effect_violation(
     } else {
         let chain = effect_chain(facts, graph, fact_index, effect);
         for window in chain.windows(2) {
-            let reason = if graph.possibilistic(window[0], window[1]) {
-                "dispatch edge over several implementors — the effect is possible, not certain"
-            } else {
-                "resolved call edge"
-            };
+            let reason = edge_reason(graph, window[0], window[1]);
             trace.push(TraceStep {
                 fact:   format!(
                     "fn `{}` calls fn `{}`",
@@ -221,6 +246,21 @@ fn effect_violation(
     Some((detail, trace))
 }
 
+/// States how one traversed call edge was established, so a derivation
+/// never claims more certainty than its weakest hop: dispatch over
+/// several implementors admits possibility, an edge only the SCIP index
+/// resolved names the index as its source, and everything else is the
+/// syntactic resolver's unique match.
+fn edge_reason(graph: &CallGraph, from: usize, to: usize) -> &'static str {
+    if graph.possibilistic(from, to) {
+        "dispatch edge over several implementors — the effect is possible, not certain"
+    } else if graph.indexed(from, to) {
+        "name-resolved call edge, read from the SCIP index"
+    } else {
+        "resolved call edge"
+    }
+}
+
 /// Checks the layer constraint of one invariant: functions under
 /// `call-deny-from` must not reach functions under `call-deny-to`.
 fn call_violation(
@@ -251,7 +291,7 @@ fn call_violation(
                 "fn `{}` calls fn `{}`",
                 facts[window[0]].function, facts[window[1]].function
             ),
-            reason: "resolved call edge".to_owned()
+            reason: edge_reason(graph, window[0], window[1]).to_owned()
         });
     }
     trace.push(TraceStep {

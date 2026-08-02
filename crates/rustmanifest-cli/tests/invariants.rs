@@ -69,6 +69,151 @@ fn invariant_violation_is_reported_and_fails_the_run() {
         ));
 }
 
+/// Encodes one base-128 varint, the only integer shape SCIP uses.
+fn put_varint(out: &mut Vec<u8>, mut value: u64) {
+    loop {
+        let byte = u8::try_from(value & 0x7f).unwrap();
+        value >>= 7;
+        if value == 0 {
+            out.push(byte);
+            break;
+        }
+        out.push(byte | 0x80);
+    }
+}
+
+/// Appends one length-delimited protobuf field.
+fn put_field(out: &mut Vec<u8>, field: u64, payload: &[u8]) {
+    put_varint(out, (field << 3) | 2);
+    put_varint(out, payload.len() as u64);
+    out.extend_from_slice(payload);
+}
+
+/// Encodes one SCIP occurrence: packed range, symbol, roles, enclosing
+/// range.
+fn occurrence(symbol: &str, range: &[i32], definition: bool, enclosing: &[i32]) -> Vec<u8> {
+    let packed = |values: &[i32]| {
+        let mut out = Vec::new();
+        for value in values {
+            put_varint(&mut out, u64::from(u32::try_from(*value).unwrap()));
+        }
+        out
+    };
+    let mut out = Vec::new();
+    put_field(&mut out, 1, &packed(range));
+    put_field(&mut out, 2, symbol.as_bytes());
+    if definition {
+        put_varint(&mut out, 3 << 3);
+        put_varint(&mut out, 1);
+    }
+    if !enclosing.is_empty() {
+        put_field(&mut out, 7, &packed(enclosing));
+    }
+    out
+}
+
+/// A tree whose only path from the denied module to the network effect
+/// runs through a macro-wrapped call, plus a SCIP index that resolves it.
+fn tree_with_indexed_effect() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    fs::write(dir.path().join("src/lib.rs"), "mod domain;\nmod net;\n").unwrap();
+    fs::write(
+        dir.path().join("src/net.rs"),
+        "pub fn dial() { std::net::TcpStream::connect(\"h\").ok(); }\n"
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("src/domain.rs"),
+        "pub fn drive() { dispatch!(dial()); }\n"
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("rustmanifest.toml"),
+        "[[invariants]]\nid = \"NO-NET\"\neffect = \"net\"\ndeny-in = [\"crate::domain\"]\n"
+    )
+    .unwrap();
+    let mut document = Vec::new();
+    put_field(&mut document, 1, b"src/domain.rs");
+    put_field(
+        &mut document,
+        2,
+        &occurrence(
+            "rust-analyzer cargo demo 0.1.0 domain/drive().",
+            &[0, 7, 12],
+            true,
+            &[0, 0, 0, 36]
+        )
+    );
+    put_field(
+        &mut document,
+        2,
+        &occurrence(
+            "rust-analyzer cargo demo 0.1.0 net/dial().",
+            &[0, 26, 30],
+            false,
+            &[]
+        )
+    );
+    let mut index = Vec::new();
+    put_field(&mut index, 2, &document);
+    fs::write(dir.path().join("index.scip"), index).unwrap();
+    dir
+}
+
+#[test]
+fn an_effect_ban_stays_silent_without_the_index() {
+    let tree = tree_with_indexed_effect();
+    let output = rustmanifest()
+        .arg("check")
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("--format")
+        .arg("json")
+        .arg(tree.path())
+        .output()
+        .unwrap();
+    assert!(!String::from_utf8(output.stdout).unwrap().contains("NO-NET"));
+}
+
+#[test]
+fn the_index_widens_the_graph_the_ban_is_judged_against() {
+    let tree = tree_with_indexed_effect();
+    rustmanifest()
+        .arg("check")
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("--scip")
+        .arg(tree.path().join("index.scip"))
+        .arg("--format")
+        .arg("json")
+        .arg(tree.path())
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("NO-NET"))
+        .stdout(predicate::str::contains(
+            "`drive` transitively performs `net`"
+        ))
+        .stdout(predicate::str::contains(
+            "name-resolved call edge, read from the SCIP index"
+        ));
+}
+
+#[test]
+fn a_missing_index_fails_the_run_with_context() {
+    let tree = tree_with_indexed_effect();
+    rustmanifest()
+        .arg("check")
+        .arg("--config")
+        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("--scip")
+        .arg(tree.path().join("absent.scip"))
+        .arg(tree.path())
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("loading SCIP index"));
+}
+
 #[test]
 fn allowed_writer_produces_no_invariant_finding() {
     let tree = tree_with_invariant();

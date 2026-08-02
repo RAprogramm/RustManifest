@@ -177,8 +177,9 @@ pub struct CallGraph {
     /// engine's own understanding gap.
     unknown_receiver: u64,
     /// Edges added by the SCIP overlay that the syntactic candidates
-    /// alone had not produced — resolution owed to the index.
-    scip_resolved:    u64,
+    /// alone had not produced — resolution owed to the index, kept as
+    /// pairs so every consumer can state an edge's provenance.
+    indexed:          BTreeSet<(usize, usize)>,
     /// Edges born from dispatch over several implementors — the callee
     /// is one possibility among siblings, not a certainty.
     possibilistic:    BTreeSet<(usize, usize)>
@@ -218,8 +219,15 @@ impl CallGraph {
 
     /// Edges the SCIP overlay added beyond the syntactic candidates.
     #[must_use]
-    pub const fn scip_resolved(&self) -> u64 {
-        self.scip_resolved
+    pub fn scip_resolved(&self) -> u64 {
+        u64::try_from(self.indexed.len()).unwrap_or(u64::MAX)
+    }
+
+    /// Returns whether the edge exists only because the SCIP index
+    /// resolved it — the syntactic candidates alone did not produce it.
+    #[must_use]
+    pub fn indexed(&self, from: usize, to: usize) -> bool {
+        self.indexed.contains(&(from, to))
     }
 
     /// Returns whether the edge came from dispatch over several
@@ -332,14 +340,14 @@ pub fn call_graph_with(
         }
         edges[index].sort_unstable();
     }
-    let scip_resolved = overlay.map_or(0, |overlay| apply_overlay(&mut edges, overlay));
+    let indexed = overlay.map_or_else(BTreeSet::new, |overlay| apply_overlay(&mut edges, overlay));
     CallGraph {
         edges,
         resolved,
         unresolved,
         external,
         unknown_receiver,
-        scip_resolved,
+        indexed,
         possibilistic
     }
 }
@@ -444,15 +452,17 @@ fn name_tables(facts: &[FunctionFacts]) -> NameTables<'_> {
     (by_qualified, by_bare_free, by_method)
 }
 
-/// Applies overlay callee indices onto the edge lists and returns how
-/// many edges the overlay added beyond the ones already present.
-fn apply_overlay(edges: &mut [Vec<usize>], overlay: &[Vec<usize>]) -> u64 {
-    let mut added = 0u64;
+/// Applies overlay callee indices onto the edge lists and returns the
+/// edges the overlay added beyond the ones already present, as
+/// `(caller, callee)` pairs — the provenance record a consumer reads to
+/// tell an index-resolved edge from a syntactic one.
+fn apply_overlay(edges: &mut [Vec<usize>], overlay: &[Vec<usize>]) -> BTreeSet<(usize, usize)> {
+    let mut added = BTreeSet::new();
     for (index, callees) in overlay.iter().enumerate().take(edges.len()) {
         for &callee in callees {
             if !edges[index].contains(&callee) {
                 edges[index].push(callee);
-                added += 1;
+                added.insert((index, callee));
             }
         }
         edges[index].sort_unstable();
@@ -572,8 +582,14 @@ mod tests {
         assert!(callees.contains(&index_of(&all, "Wallet::credit")));
         assert!(callees.contains(&index_of(&all, "helper")));
         assert_eq!(graph.scip_resolved(), 1);
+        assert!(graph.indexed(caller, index_of(&all, "Wallet::credit")));
+        assert!(
+            !graph.indexed(caller, index_of(&all, "helper")),
+            "an edge the candidates already produced keeps its syntactic provenance"
+        );
         let plain = call_graph(&all, &context);
         assert_eq!(plain.scip_resolved(), 0);
+        assert!(!plain.indexed(caller, index_of(&all, "Wallet::credit")));
     }
 
     #[test]

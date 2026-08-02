@@ -82,7 +82,21 @@ pub struct CheckArgs {
     /// the analysis so the output reflects the corrected sources. Only
     /// fixes proven safe are applied; everything else stays a suggestion.
     #[arg(long)]
-    pub fix: bool
+    pub fix: bool,
+
+    /// SCIP index file (`rust-analyzer scip .`) whose name-resolved call
+    /// edges widen the graph declared invariants are checked against, so
+    /// a ban also fires through calls the syntactic resolver cannot bind
+    /// — macro-generated bodies, trait dispatch, untyped receivers. Every
+    /// trace step names the provenance of the edge it walks.
+    ///
+    /// The index must be built over the same cfg universe as the analyzed
+    /// code (`rust-analyzer` indexes active code only; feature-gated
+    /// bodies need the features on) and covers workspace code only, so
+    /// edges into dependencies stay outside it. The overlay is additive:
+    /// it can only add findings, never remove one.
+    #[arg(long, value_name = "INDEX")]
+    pub scip: Option<PathBuf>
 }
 
 /// Output format options.
@@ -233,9 +247,16 @@ fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>, Effective
         .context("orchestrator run failed")?;
     findings.extend(semantic_findings(&semantic, &files, args.max_file_size));
     if !effective.invariants().is_empty() {
-        findings.extend(rustmanifest_engine::check_invariants(
+        let scip = args
+            .scip
+            .as_deref()
+            .map(rustmanifest_engine::ScipEdges::from_file)
+            .transpose()
+            .context("loading SCIP index")?;
+        findings.extend(rustmanifest_engine::check_invariants_with(
             &read_sources(&files, args.max_file_size),
-            effective.invariants()
+            effective.invariants(),
+            scip.as_ref()
         ));
     }
     if args.delegate_clippy {

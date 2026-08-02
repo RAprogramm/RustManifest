@@ -63,7 +63,7 @@ pub use self::{
     graph::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
-    invariant::check_invariants,
+    invariant::{check_invariants, check_invariants_with},
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
