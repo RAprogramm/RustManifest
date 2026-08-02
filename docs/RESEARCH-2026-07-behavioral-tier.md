@@ -473,3 +473,22 @@ The extractor decision from §9 is implemented: the engine consumes a
   to reach `TcpStream::write_all`. The derivation program's remaining
   walls are therefore three, all named: blanket-impl bridging,
   generic-body sinks, and service-trait dispatch.
+- **Two dispatch mechanisms shipped against the first two walls; gate
+  unmoved at 18/33, and the wall sharpened.** Generic function
+  parameters now type as their first trait bound (inline or `where`) —
+  the rule trait objects always followed — so a call on a generic
+  parameter dispatches over the bound's implementors. Extension-trait
+  defaults joined resolution from both sides: an unmatched
+  `Type::method` reaches the unique `trait Ext: Base` default whose
+  supertrait the type implements, and dispatch on an ext-trait
+  receiver falls through the supertrait chain to real implementors.
+  Both mechanisms are unit-proven end to end — the test's network
+  effect crosses an ext default into a concrete impl and back to the
+  caller. The gate rows still did not move because tokio's remaining
+  chains break one level deeper than either mechanism reaches: the
+  future types carry their bounds on the *impl block*, not the method
+  signature (`impl<W: AsyncWrite> Future for WriteAll<'_, W>`), and
+  the receiver arrives through a `Pin` projection of a
+  generic-typed field. Impl-level bound propagation into field typing
+  is the sharpened next step; eval stayed byte-stable and 347 unit
+  tests are green throughout.
