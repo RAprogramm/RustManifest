@@ -9,6 +9,13 @@
 //! GitHub code scanning and other CI integrations), and [`tty::TtyRenderer`]
 //! for human-readable terminal output with optional color.
 
+#![allow(
+    clippy::multiple_crate_versions,
+    reason = "the workspace graph carries both syn majors: clap, async-trait, and tokio-macros \
+              moved to syn 3 while darling, tracing-attributes, futures-macro, and \
+              zerocopy-derive are still on syn 2 — not deduplicable from this crate"
+)]
+
 pub mod error;
 pub mod json;
 pub mod sarif;

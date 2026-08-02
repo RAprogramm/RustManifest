@@ -9,6 +9,13 @@
 //! Schemas can be exported deterministically and committed under
 //! `schemas/`, gated by CI against drift.
 
+#![allow(
+    clippy::multiple_crate_versions,
+    reason = "the workspace graph carries both syn majors: clap, async-trait, and tokio-macros \
+              moved to syn 3 while darling, tracing-attributes, futures-macro, and \
+              zerocopy-derive are still on syn 2 — not deduplicable from this crate"
+)]
+
 use std::path::PathBuf;
 
 use schemars::JsonSchema;

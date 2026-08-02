@@ -720,7 +720,7 @@ fn function_facts(
         imports:     imports.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
-    if signature.unsafety.is_some() {
+    if matches!(signature.safety, syn::Safety::Unsafe(_)) {
         collector.facts.effects.push(Effect::Unsafe);
     }
     collector.facts.error_types = error_types(signature);

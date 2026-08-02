@@ -18,12 +18,10 @@ pub(super) fn param_facts(signature: &syn::Signature, impl_type: Option<&str>) -
                 let Some(impl_type) = impl_type else {
                     continue;
                 };
-                let mode = if receiver.reference.is_none() {
-                    ParamMode::Owned
-                } else if receiver.mutability.is_some() {
-                    ParamMode::BorrowedMut
-                } else {
-                    ParamMode::Borrowed
+                let mode = match receiver.kind {
+                    syn::ReceiverKind::Reference(_, _, Some(_)) => ParamMode::BorrowedMut,
+                    syn::ReceiverKind::Reference(..) => ParamMode::Borrowed,
+                    _ => ParamMode::Owned
                 };
                 params.push(ParamFacts {
                     name: "self".to_owned(),
@@ -129,7 +127,7 @@ fn first_trait_bound(
 ) -> Option<String> {
     bounds.iter().find_map(|bound| {
         if let syn::TypeParamBound::Trait(trait_bound) = bound
-            && matches!(trait_bound.modifier, syn::TraitBoundModifier::None)
+            && trait_bound.maybe.is_none()
         {
             trait_bound
                 .path

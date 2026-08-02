@@ -58,7 +58,7 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
         for item in items {
             match item {
                 syn::Item::Impl(block) => {
-                    let (Some((_, path, _)), Some(implementor)) =
+                    let (Some((path, _)), Some(implementor)) =
                         (&block.trait_, impl_type_name(block))
                     else {
                         continue;

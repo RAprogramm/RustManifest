@@ -52,7 +52,7 @@ fn report(sig: &syn::Signature, found: &mut Vec<Occurrence>) {
     let Some(receiver) = sig.receiver() else {
         return;
     };
-    if receiver.reference.is_none() || receiver.mutability.is_none() {
+    if !matches!(receiver.kind, syn::ReceiverKind::Reference(_, _, Some(_))) {
         return;
     }
     found.push(Occurrence::new(

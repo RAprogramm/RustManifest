@@ -78,7 +78,7 @@ impl<'ast> Visit<'ast> for ExpansionCounter {
             .any(|attribute| attribute.path().is_ident("automatically_derived"));
         if derived {
             self.report.derived_impls += 1;
-            if let Some((_, path, _)) = &item.trait_
+            if let Some((path, _)) = &item.trait_
                 && let Some(segment) = path.segments.last()
             {
                 *self

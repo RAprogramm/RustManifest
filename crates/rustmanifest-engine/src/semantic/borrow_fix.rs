@@ -110,7 +110,8 @@ impl Scan<'_> {
         for (position, input) in signature.inputs.iter().enumerate() {
             match input {
                 syn::FnArg::Receiver(receiver)
-                    if self.param == "self" && receiver.reference.is_none() =>
+                    if self.param == "self"
+                        && !matches!(receiver.kind, syn::ReceiverKind::Reference(..)) =>
                 {
                     let bytes = receiver.span().byte_range();
                     self.signature_edit = Some(insertion(bytes.start, "&", None));

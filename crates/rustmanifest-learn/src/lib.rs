@@ -13,6 +13,13 @@
 //! seed, so identical sources always yield identical clauses. Learned
 //! clauses describe the codebase; they are not a source of findings.
 
+#![allow(
+    clippy::multiple_crate_versions,
+    reason = "the workspace graph carries both syn majors: clap, async-trait, and tokio-macros \
+              moved to syn 3 while darling, tracing-attributes, futures-macro, and \
+              zerocopy-derive are still on syn 2 — not deduplicable from this crate"
+)]
+
 use rustmanifest_engine::{Source, behavior, features, role};
 use tsetlin_rs::TsetlinMachine;
 

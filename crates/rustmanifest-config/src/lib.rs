@@ -8,6 +8,13 @@
 //! and exposes the combined result as [`Effective`], which answers the two
 //! questions the engine needs per rule: does it run, and with what severity.
 
+#![allow(
+    clippy::multiple_crate_versions,
+    reason = "the workspace graph carries both syn majors: clap, async-trait, and tokio-macros \
+              moved to syn 3 while darling, tracing-attributes, futures-macro, and \
+              zerocopy-derive are still on syn 2 — not deduplicable from this crate"
+)]
+
 use std::{
     io,
     path::{Path, PathBuf},
