@@ -77,6 +77,9 @@ pub(super) struct FactCollector {
     /// Enclosing impl block's generic parameters to their first trait
     /// bound, so a generic-typed field resolves as its bound.
     pub(super) bounds:      BTreeMap<String, String>,
+    /// Let bindings holding a wrapper value with a known wrapped inner
+    /// type, cloned or borrowed off a wrapper field.
+    pub(super) local_wraps: BTreeMap<String, String>,
     /// Imported names of the enclosing file to their full `use` paths.
     pub(super) imports:     BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
@@ -210,6 +213,30 @@ impl FactCollector {
         }
     }
 
+    /// Wrapped inner type of a wrapper expression: a field with a
+    /// recorded single-generic inner, a binding that inherited one, or
+    /// a `clone` of either — references and derefs stripped.
+    fn wrapped_of(&self, expression: &syn::Expr) -> Option<String> {
+        match strip_ref_deref(expression) {
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .and_then(|ident| self.local_wraps.get(&ident.to_string()))
+                .cloned(),
+            syn::Expr::Field(field) => {
+                let syn::Member::Named(name) = &field.member else {
+                    return None;
+                };
+                let owner = self.expr_type(&field.base)?;
+                self.field_wraps.get(&format!("{owner}.{name}")).cloned()
+            }
+            syn::Expr::MethodCall(call) if call.method == "clone" => {
+                self.wrapped_of(&call.receiver)
+            }
+            _ => None
+        }
+    }
+
     /// Types the parameter of a single-parameter closure argument with
     /// the receiver field's wrapped inner type — the `do_io(|inner|
     /// inner.read(buf))` shape, where the wrapper hands its wrapped
@@ -278,10 +305,15 @@ impl FactCollector {
                 .get_ident()
                 .and_then(|ident| self.param_types.get(&ident.to_string()))
                 .map(|name| self.bounds.get(name).unwrap_or(name).clone()),
-            syn::Expr::Field(field) => self
-                .field_key(field)
-                .and_then(|key| self.field_types.get(&key))
-                .map(|name| self.bounds.get(name).unwrap_or(name).clone()),
+            syn::Expr::Field(field) => {
+                let syn::Member::Named(name) = &field.member else {
+                    return None;
+                };
+                let owner = self.expr_type(&field.base)?;
+                self.field_types
+                    .get(&format!("{owner}.{name}"))
+                    .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
+            }
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
             other => self.called_return(other)
         }
@@ -314,6 +346,9 @@ impl FactCollector {
             syn::Expr::MethodCall(call) => {
                 let owner = self.expr_type(&call.receiver)?;
                 let method = call.method.to_string();
+                if method == "clone" {
+                    return Some(owner);
+                }
                 let declared = self
                     .fn_returns
                     .get(&format!("{owner}::{method}"))
@@ -520,6 +555,11 @@ impl<'ast> Visit<'ast> for FactCollector {
             }
             _ => None
         };
+        if let (Some(name), init) = (name.clone(), &local.init)
+            && let Some(inner) = init.as_ref().and_then(|init| self.wrapped_of(&init.expr))
+        {
+            self.local_wraps.insert(name, inner);
+        }
         if let (Some(name), init) = (name, &local.init) {
             let constructed = init.as_ref().and_then(|init| {
                 initializer_type(&init.expr).or_else(|| self.called_return(&init.expr))
@@ -590,6 +630,11 @@ impl<'ast> Visit<'ast> for FactCollector {
             }
         } else {
             self.bind_wrapped_closure(call);
+        }
+        if method == knowledge::SERVICE_CALL
+            && let Some(inner) = self.wrapped_of(&call.receiver)
+        {
+            self.record_call(Some(&inner), &method);
         }
         match self.expr_type(&call.receiver) {
             Some(owner) => {

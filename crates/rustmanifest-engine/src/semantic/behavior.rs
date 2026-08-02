@@ -646,6 +646,7 @@ fn function_facts(
         field_elems: tables.field_elems.clone(),
         field_wraps: tables.field_wraps.clone(),
         bounds:      context.bounds.clone(),
+        local_wraps: std::collections::BTreeMap::new(),
         imports:     imports.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
@@ -833,6 +834,30 @@ mod tests {
         assert_eq!(from.constructs, vec!["AppError"]);
         assert_eq!(from.params[0].type_name, "DbError");
         assert!(all.iter().all(|f| f.function != "Plain::from"));
+    }
+
+    #[test]
+    fn service_calls_dispatch_to_the_wrapped_service() {
+        let all = facts(
+            "struct Layered<S> { inner: S }\nstruct HyperService;\nimpl HyperService { fn \
+             call(&self) { std::net::TcpStream::connect(\"h\").ok(); } }\nstruct Client { \
+             hyper: Layered<HyperService> }\nimpl Client { fn execute(&self) { let svc = \
+             self.hyper.clone(); svc.call(); } }"
+        );
+        assert!(
+            named(&all, "Client::execute")
+                .calls
+                .contains(&"HyperService::call".to_owned())
+        );
+    }
+
+    #[test]
+    fn nested_field_chains_type_recursively() {
+        let all = facts(
+            "struct App { db: Db }\nstruct Db { conn: TcpStream }\nimpl App { fn ping(&self) { \
+             self.db.conn.read(&mut []).ok(); } }"
+        );
+        assert_eq!(named(&all, "App::ping").effects, vec![Effect::Network]);
     }
 
     #[test]

@@ -78,6 +78,11 @@ pub(super) const PROJECTION_METHODS: [&str; 2] = ["project", "project_ref"];
 /// macro itself for every expansion.
 pub(super) const PROJECTION_VIEWS: [&str; 2] = ["Projection", "ProjectionRef"];
 
+/// The `tower` service entry point: layering wrappers preserve it, so
+/// `call` on a wrapper whose wrapped service type is known dispatches
+/// to that service's own `call`.
+pub(super) const SERVICE_CALL: &str = "call";
+
 /// SQL-carrying macro names of the `sqlx` crate.
 const SQL_MACROS: [&str; 6] = [
     "query",
