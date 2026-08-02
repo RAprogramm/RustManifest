@@ -31,7 +31,7 @@ use self::{
     collector::FactCollector,
     signature::{
         element_type, error_types, param_facts, parameter_elements, parameter_types,
-        type_last_segment
+        type_last_segment, wrapped_type
     }
 };
 use super::expr::impl_type_name;
@@ -41,11 +41,12 @@ use crate::source::Source;
 /// not parse as Rust contribute no facts.
 #[must_use]
 pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
-    let (fields, field_elems) = field_tables(sources);
+    let (fields, field_elems, field_wraps) = field_tables(sources);
     let tables = TypeTables {
         returns: return_types(sources),
         fields,
-        field_elems
+        field_elems,
+        field_wraps
     };
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
@@ -220,7 +221,10 @@ struct TypeTables {
     /// `Type.field` keys of uniquely named structs to field type names.
     fields:      std::collections::BTreeMap<String, String>,
     /// `Type.field` keys of collection-typed fields to element types.
-    field_elems: std::collections::BTreeMap<String, String>
+    field_elems: std::collections::BTreeMap<String, String>,
+    /// `Type.field` keys of single-generic wrapper fields to the
+    /// wrapped inner type.
+    field_wraps: std::collections::BTreeMap<String, String>
 }
 
 /// Records `value` under `key`, dropping the key on conflicting
@@ -251,17 +255,21 @@ fn settled(
 }
 
 /// Maps every named field of a uniquely named struct — keyed
-/// `Type.field` — to its type's last segment, and every
-/// collection-typed field to its element type.
+/// `Type.field` — to its type's last segment, every collection-typed
+/// field to its element type, and every single-generic wrapper field
+/// to its wrapped inner type.
 fn field_tables(
     sources: &[Source]
 ) -> (
+    std::collections::BTreeMap<String, String>,
     std::collections::BTreeMap<String, String>,
     std::collections::BTreeMap<String, String>
 ) {
     let mut plain: std::collections::BTreeMap<String, Option<String>> =
         std::collections::BTreeMap::new();
     let mut elems: std::collections::BTreeMap<String, Option<String>> =
+        std::collections::BTreeMap::new();
+    let mut wraps: std::collections::BTreeMap<String, Option<String>> =
         std::collections::BTreeMap::new();
     for source in sources {
         let Ok(file) = syn::parse_file(source.text()) else {
@@ -285,12 +293,15 @@ fn field_tables(
                     note_unique(&mut plain, key.clone(), type_name);
                 }
                 if let Some(element) = element_type(&field.ty) {
-                    note_unique(&mut elems, key, element);
+                    note_unique(&mut elems, key.clone(), element);
+                }
+                if let Some(inner) = wrapped_type(&field.ty) {
+                    note_unique(&mut wraps, key, inner);
                 }
             }
         }
     }
-    (settled(plain), settled(elems))
+    (settled(plain), settled(elems), settled(wraps))
 }
 
 /// Return type of one workspace function as the typing table sees it.
@@ -505,6 +516,7 @@ fn function_facts(
         fn_returns:  tables.returns.clone(),
         field_types: tables.fields.clone(),
         field_elems: tables.field_elems.clone(),
+        field_wraps: tables.field_wraps.clone(),
         imports:     imports.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
@@ -647,6 +659,18 @@ mod tests {
         assert_eq!(named(&all, "open").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "module").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "who").effects, vec![Effect::Environment]);
+    }
+
+    #[test]
+    fn wrapped_closure_parameters_type_through_the_field_inner() {
+        let all = facts(
+            "struct Src { inner: IoSource<TcpStream> }\nimpl Src { fn pump(&self) { \
+             self.inner.do_io(|stream| { stream.read(&mut []).ok(); }); } }\nstruct Two { \
+             pair: Both<TcpStream, File> }\nimpl Two { fn poke(&self) { \
+             self.pair.do_io(|value| { value.read(&mut []).ok(); }); } }"
+        );
+        assert_eq!(named(&all, "Src::pump").effects, vec![Effect::Network]);
+        assert!(named(&all, "Two::poke").effects.is_empty());
     }
 
     #[test]

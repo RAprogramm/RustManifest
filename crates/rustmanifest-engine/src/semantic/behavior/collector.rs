@@ -72,6 +72,8 @@ pub(super) struct FactCollector {
     pub(super) field_types: BTreeMap<String, String>,
     /// `Type.field` keys of collection-typed fields to element types.
     pub(super) field_elems: BTreeMap<String, String>,
+    /// `Type.field` keys of wrapper fields to their wrapped inner type.
+    pub(super) field_wraps: BTreeMap<String, String>,
     /// Imported names of the enclosing file to their full `use` paths.
     pub(super) imports:     BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
@@ -202,6 +204,34 @@ impl FactCollector {
         }
         if let (Some(name), Some(element)) = (binding_name(pattern), self.element_of(iterable)) {
             self.param_types.insert(name, element);
+        }
+    }
+
+    /// Types the parameter of a single-parameter closure argument with
+    /// the receiver field's wrapped inner type — the `do_io(|inner|
+    /// inner.read(buf))` shape, where the wrapper hands its wrapped
+    /// value to the closure. The same class of approximation as the
+    /// iterator-adapter element binding, and wrong the same way a
+    /// combinator passing something other than the wrapped value would
+    /// make it; single-generic wrappers keep that surface small.
+    fn bind_wrapped_closure(&mut self, call: &syn::ExprMethodCall) {
+        let syn::Expr::Field(field) = call.receiver.as_ref() else {
+            return;
+        };
+        let Some(inner) = self
+            .field_key(field)
+            .and_then(|key| self.field_wraps.get(&key).cloned())
+        else {
+            return;
+        };
+        for argument in &call.args {
+            if let syn::Expr::Closure(closure) = argument
+                && closure.inputs.len() == 1
+                && let Some(pattern) = closure.inputs.first()
+                && let Some(name) = binding_name(pattern)
+            {
+                self.param_types.insert(name, inner.clone());
+            }
         }
     }
 
@@ -516,6 +546,8 @@ impl<'ast> Visit<'ast> for FactCollector {
                     self.bind_element(pattern, &call.receiver);
                 }
             }
+        } else {
+            self.bind_wrapped_closure(call);
         }
         match self.expr_type(&call.receiver) {
             Some(owner) => {

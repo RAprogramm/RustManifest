@@ -152,6 +152,33 @@ pub(super) fn parameter_elements(signature: &syn::Signature) -> BTreeMap<String,
     elements
 }
 
+/// Inner type of a single-generic wrapper like `IoSource<TcpStream>`,
+/// seen through references: the one angle-bracketed type argument's
+/// last segment. Types with zero or several type arguments yield
+/// nothing — with more than one candidate the inner type would be a
+/// guess.
+pub(super) fn wrapped_type(ty: &syn::Type) -> Option<String> {
+    match ty {
+        syn::Type::Reference(reference) => wrapped_type(&reference.elem),
+        syn::Type::Path(path) => {
+            let segment = path.path.segments.last()?;
+            let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+            let mut inners = arguments.args.iter().filter_map(|argument| {
+                if let syn::GenericArgument::Type(inner) = argument {
+                    type_last_segment(inner)
+                } else {
+                    None
+                }
+            });
+            let only = inners.next()?;
+            inners.next().is_none().then_some(only)
+        }
+        _ => None
+    }
+}
+
 /// Renders the last path segment of a type, looking through references;
 /// a trait object renders as its first trait bound, so calls through it
 /// resolve as dispatch over the trait's implementors.
