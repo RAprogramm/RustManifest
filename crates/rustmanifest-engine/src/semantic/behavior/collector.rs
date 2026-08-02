@@ -74,6 +74,9 @@ pub(super) struct FactCollector {
     pub(super) field_elems: BTreeMap<String, String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
     pub(super) field_wraps: BTreeMap<String, String>,
+    /// Enclosing impl block's generic parameters to their first trait
+    /// bound, so a generic-typed field resolves as its bound.
+    pub(super) bounds:      BTreeMap<String, String>,
     /// Imported names of the enclosing file to their full `use` paths.
     pub(super) imports:     BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
@@ -274,11 +277,11 @@ impl FactCollector {
                 .path
                 .get_ident()
                 .and_then(|ident| self.param_types.get(&ident.to_string()))
-                .cloned(),
+                .map(|name| self.bounds.get(name).unwrap_or(name).clone()),
             syn::Expr::Field(field) => self
                 .field_key(field)
                 .and_then(|key| self.field_types.get(&key))
-                .cloned(),
+                .map(|name| self.bounds.get(name).unwrap_or(name).clone()),
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
             other => self.called_return(other)
         }
@@ -317,6 +320,9 @@ impl FactCollector {
                     .or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
             }
             syn::Expr::Call(call) => {
+                if let Some(inner) = pinned_inner(call) {
+                    return self.expr_type(inner);
+                }
                 if let Some(key) = self.call_key(expression) {
                     return self
                         .fn_returns
@@ -402,6 +408,34 @@ impl FactCollector {
             Some(owner) => format!("{owner}::{callee}")
         };
         self.facts.calls.push(candidate);
+    }
+}
+
+/// Inner expression of a `Pin::new(&mut *value)` call: `Pin` is a
+/// transparent pointer for receiver typing, so the pinned value's type
+/// is the wrapped expression's type, references and derefs stripped.
+fn pinned_inner(call: &syn::ExprCall) -> Option<&syn::Expr> {
+    let syn::Expr::Path(path) = call.func.as_ref() else {
+        return None;
+    };
+    let segments = &path.path.segments;
+    if segments.len() < 2
+        || segments[segments.len() - 1].ident != "new"
+        || segments[segments.len() - 2].ident != "Pin"
+    {
+        return None;
+    }
+    call.args.first().map(strip_ref_deref)
+}
+
+/// Strips leading references and dereferences off an expression.
+fn strip_ref_deref(expression: &syn::Expr) -> &syn::Expr {
+    match expression {
+        syn::Expr::Reference(reference) => strip_ref_deref(&reference.expr),
+        syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+            strip_ref_deref(&unary.expr)
+        }
+        _ => expression
     }
 }
 
@@ -579,6 +613,17 @@ impl<'ast> Visit<'ast> for FactCollector {
     fn visit_expr_unsafe(&mut self, block: &'ast syn::ExprUnsafe) {
         self.facts.effects.push(Effect::Unsafe);
         syn::visit::visit_expr_unsafe(self, block);
+    }
+
+    fn visit_expr_await(&mut self, awaited: &'ast syn::ExprAwait) {
+        if let Some(future_type) = self.called_return(&awaited.base)
+            && self
+                .fn_returns
+                .contains_key(&format!("{future_type}::poll"))
+        {
+            self.record_call(Some(&future_type), "poll");
+        }
+        syn::visit::visit_expr_await(self, awaited);
     }
 
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {

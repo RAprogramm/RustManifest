@@ -69,7 +69,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                                 &function.attrs,
                                 matches!(function.vis, syn::Visibility::Public(_)),
                                 false
-                            )
+                            ),
+                            bounds:    std::collections::BTreeMap::new()
                         },
                         &function.sig,
                         &function.block,
@@ -83,6 +84,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                     };
                     let trait_impl = block.trait_.is_some();
                     let impl_attributed = is_attributed(&block.attrs);
+                    let impl_bounds = signature::generics_bounds(&block.generics);
                     for impl_item in &block.items {
                         let syn::ImplItem::Fn(method) = impl_item else {
                             continue;
@@ -97,7 +99,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                                     &method.attrs,
                                     matches!(method.vis, syn::Visibility::Public(_)),
                                     impl_attributed
-                                )
+                                ),
+                                bounds:    impl_bounds.clone()
                             },
                             &method.sig,
                             &method.block,
@@ -109,6 +112,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                 syn::Item::Trait(definition) => {
                     let trait_name = definition.ident.to_string();
                     let public = matches!(definition.vis, syn::Visibility::Public(_));
+                    let trait_bounds = signature::generics_bounds(&definition.generics);
                     for trait_item in &definition.items {
                         let syn::TraitItem::Fn(method) = trait_item else {
                             continue;
@@ -121,7 +125,8 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             format!("{trait_name}::{}", method.sig.ident),
                             &ItemContext {
                                 impl_type: Some(&trait_name),
-                                flags:     item_flags(true, &method.attrs, public, false)
+                                flags:     item_flags(true, &method.attrs, public, false),
+                                bounds:    trait_bounds.clone()
                             },
                             &method.sig,
                             block,
@@ -211,7 +216,11 @@ struct ItemContext<'name> {
     /// Impl self type for methods, `None` for free functions.
     impl_type: Option<&'name str>,
     /// Declaration flags of the item.
-    flags:     FunctionFlags
+    flags:     FunctionFlags,
+    /// Impl-block generic parameters to their first trait bound, so a
+    /// generic-typed field resolves as its bound inside the block's
+    /// methods.
+    bounds:    std::collections::BTreeMap<String, String>
 }
 
 /// Workspace typing tables shared by every function's fact extraction.
@@ -517,6 +526,7 @@ fn function_facts(
         field_types: tables.fields.clone(),
         field_elems: tables.field_elems.clone(),
         field_wraps: tables.field_wraps.clone(),
+        bounds:      context.bounds.clone(),
         imports:     imports.clone(),
         fresh:       std::collections::BTreeSet::new()
     };
@@ -659,6 +669,28 @@ mod tests {
         assert_eq!(named(&all, "open").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "module").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "who").effects, vec![Effect::Environment]);
+    }
+
+    #[test]
+    fn impl_bounds_type_generic_fields_and_awaits_reach_poll() {
+        let all = facts(
+            "struct WriteAll<W> { writer: W }\nimpl<W: AsyncWrite> Future for WriteAll<W> {\n    \
+             fn poll(&mut self) -> u8 { self.writer.poll_write(); 0 }\n}\nstruct Done;\nimpl \
+             Done { fn write_all(&self) -> WriteAll<Done> { WriteAll { writer: Done } } }\nasync \
+             fn drive(done: Done) { done.write_all().await; }"
+        );
+        let poll = named(&all, "WriteAll::poll");
+        assert!(poll.calls.contains(&"AsyncWrite::poll_write".to_owned()));
+        let drive = named(&all, "drive");
+        assert!(drive.calls.contains(&"WriteAll::poll".to_owned()));
+    }
+
+    #[test]
+    fn pinned_receivers_type_through_the_inner_expression() {
+        let all = facts(
+            "fn pump(stream: &mut TcpStream) { Pin::new(&mut *stream).read(&mut []).ok(); }"
+        );
+        assert_eq!(named(&all, "pump").effects, vec![Effect::Network]);
     }
 
     #[test]

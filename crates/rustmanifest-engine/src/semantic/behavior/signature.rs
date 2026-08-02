@@ -94,15 +94,21 @@ pub(super) fn parameter_types(
 /// implementors. Inline bounds and `where` clauses both count; a
 /// parameter with no trait bound stays unmapped.
 fn generic_bounds(signature: &syn::Signature) -> BTreeMap<String, String> {
+    generics_bounds(&signature.generics)
+}
+
+/// Maps the type parameters of any generics list — a signature's or an
+/// impl block's — to their first trait bound.
+pub(super) fn generics_bounds(generics: &syn::Generics) -> BTreeMap<String, String> {
     let mut bounds = BTreeMap::new();
-    for parameter in &signature.generics.params {
+    for parameter in &generics.params {
         if let syn::GenericParam::Type(type_param) = parameter
             && let Some(bound) = first_trait_bound(&type_param.bounds)
         {
             bounds.insert(type_param.ident.to_string(), bound);
         }
     }
-    if let Some(clause) = &signature.generics.where_clause {
+    if let Some(clause) = &generics.where_clause {
         for predicate in &clause.predicates {
             if let syn::WherePredicate::Type(typed) = predicate
                 && let syn::Type::Path(path) = &typed.bounded_ty
