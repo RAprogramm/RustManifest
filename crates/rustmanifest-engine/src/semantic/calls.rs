@@ -178,7 +178,10 @@ pub struct CallGraph {
     unknown_receiver: u64,
     /// Edges added by the SCIP overlay that the syntactic candidates
     /// alone had not produced — resolution owed to the index.
-    scip_resolved:    u64
+    scip_resolved:    u64,
+    /// Edges born from dispatch over several implementors — the callee
+    /// is one possibility among siblings, not a certainty.
+    possibilistic:    BTreeSet<(usize, usize)>
 }
 
 impl CallGraph {
@@ -217,6 +220,13 @@ impl CallGraph {
     #[must_use]
     pub const fn scip_resolved(&self) -> u64 {
         self.scip_resolved
+    }
+
+    /// Returns whether the edge came from dispatch over several
+    /// implementors — a possibility, not a certainty.
+    #[must_use]
+    pub fn possibilistic(&self, from: usize, to: usize) -> bool {
+        self.possibilistic.contains(&(from, to))
     }
 }
 
@@ -257,6 +267,7 @@ pub fn call_graph_with(
     let mut unresolved = 0u64;
     let mut external = 0u64;
     let mut unknown_receiver = 0u64;
+    let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
             let matches = candidate.strip_prefix("?::").map_or_else(
@@ -287,7 +298,11 @@ pub fn call_graph_with(
                         dispatch_targets(o, m, context, &by_qualified)
                     });
                     if !targets.is_empty() {
+                        let ambiguous = targets.len() > 1;
                         for target in targets {
+                            if ambiguous {
+                                possibilistic.insert((index, target));
+                            }
                             if !edges[index].contains(&target) {
                                 edges[index].push(target);
                             }
@@ -324,7 +339,8 @@ pub fn call_graph_with(
         unresolved,
         external,
         unknown_receiver,
-        scip_resolved
+        scip_resolved,
+        possibilistic
     }
 }
 

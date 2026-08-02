@@ -177,12 +177,17 @@ fn effect_violation(
     } else {
         let chain = effect_chain(facts, graph, fact_index, effect);
         for window in chain.windows(2) {
+            let reason = if graph.possibilistic(window[0], window[1]) {
+                "dispatch edge over several implementors — the effect is possible, not certain"
+            } else {
+                "resolved call edge"
+            };
             trace.push(TraceStep {
                 fact:   format!(
                     "fn `{}` calls fn `{}`",
                     facts[window[0]].function, facts[window[1]].function
                 ),
-                reason: "resolved call edge".to_owned()
+                reason: reason.to_owned()
             });
         }
         if let Some(&sink) = chain.last() {
@@ -497,6 +502,31 @@ mod tests {
         let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("go"));
+    }
+
+    #[test]
+    fn ambiguous_dispatch_fires_the_ban_and_admits_the_possibility() {
+        let sources = vec![
+            source("src/lib.rs", "mod domain; mod sinks;"),
+            source(
+                "src/sinks.rs",
+                "pub trait Sink { fn flush(&self); }\npub struct Quiet;\nimpl Sink for Quiet { \
+                 fn flush(&self) {} }\npub struct Wire;\nimpl Sink for Wire { fn flush(&self) { \
+                 std::net::TcpStream::connect(\"h\").ok(); } }"
+            ),
+            source(
+                "src/domain.rs",
+                "use crate::sinks::Sink;\npub fn drain(sink: &dyn Sink) { sink.flush(); }"
+            ),
+        ];
+        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        assert_eq!(findings.len(), 1);
+        assert!(
+            findings[0]
+                .trace
+                .iter()
+                .any(|step| step.reason.contains("possible, not certain"))
+        );
     }
 
     #[test]
