@@ -682,3 +682,33 @@ uniqueness drop, no guessed winner.
   coverage. Pinned by a test: two same-named structs in different
   files, each consumer resolves its own (network vs filesystem
   effect). 359 unit tests green.
+
+### Tuple fields, and the channel split as a reusable rule
+
+The next mechanical gap closed the same way the pointer-transparency
+drift taught: unnamed fields of tuple structs and newtypes now enter
+the *typing* tables under positional keys, while the read/write fact
+channel keeps naming members as written — a tuple index is a shape
+detail of the wrapper, not a domain field an invariant would name.
+The split, first forced by a baseline drift, is now the engine's
+standing rule for any typing improvement: typing reaches further,
+facts stay as declared.
+
+Unifying the closure binder onto the same typing path was the second
+half — it had been reading through the fact channel and so could not
+see a wrapper held in a tuple field. Joint universe: 1793 → 1814
+effect-carrying functions; eval byte-stable again, 361 unit tests
+green, two of them pinning both halves (a newtype socket and a
+tuple-held wrapper resolve; a plain tuple read stays out of the
+facts).
+
+The reqwest chain now reaches `LayeredService::call` and
+`HyperService::call` as recorded edges from `execute_request`. It
+stops one hop later, and the shape of that hop is worth stating: the
+service body hands the request to a `hyper_util` client stored behind
+a generic parameter whose bound lives on the impl block of a
+different crate — cross-crate generic instantiation, which no
+receiver-typing rule reaches by construction. That is the honest
+boundary of the syntactic tier on this chain; crossing it is the
+resolved-name layer's job, and the SCIP overlay already carries such
+edges when an index is supplied.
