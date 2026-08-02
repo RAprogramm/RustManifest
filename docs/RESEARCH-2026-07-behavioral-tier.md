@@ -440,3 +440,18 @@ The extractor decision from §9 is implemented: the engine consumes a
   perfect, cannot carry an effect that no endpoint holds. The next
   unlock for the gate is closure-parameter receiver typing, a
   behavior-extractor repair, not a resolution one.
+- **Closure typing shipped same day — the gate's largest single jump:
+  11/33 → 18/33, still 0 contradictions.** Single-generic wrapper
+  fields now record their wrapped inner type, and a single-parameter
+  closure passed to a method on such a field binds its parameter to
+  that inner — the `do_io(|inner| inner.read(buf))` shape. The same
+  class of approximation as the long-standing iterator-adapter
+  element binding, documented as such; a two-generic wrapper stays
+  unbound (the inner would be a guess). With the std method axioms
+  underneath, the effect now originates inside mio's closures and
+  flows up: TCP flush/peek/read/write and the whole UDP family
+  flipped in one move (effect-carrying functions 1495 → 1515). The
+  residual 15 rows decompose cleanly: four macro-wrapped trait
+  defaults (expansion thread), five tokio wrappers of other shapes
+  (readiness futures, `try_io`), the rest imp-module chains and the
+  reqwest-hyper crate boundary. Eval baseline byte-stable throughout.
