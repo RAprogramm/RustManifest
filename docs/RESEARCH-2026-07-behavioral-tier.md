@@ -557,3 +557,31 @@ plan's `returns_error` ambition. Two pieces landed together:
   +778), and workspace-internal error towers — the
   "Wallet.balance"-class invariant substrate — now carry conversion
   edges without any index. 352 unit tests green, eval byte-stable.
+
+## 13. Expansion as a standard analysis mode (2026-08-02)
+
+The scratch pipeline from §10's expansion probe became a supported
+flag: `facts --expand` expands every discovered crate through the
+machinery `coverage --expand` already owned, and a successfully
+expanded crate's stream *replaces* its `src` sources — replacement,
+not addition, because a stream also contains every handwritten item
+and duplicated facts would collapse the unique-match resolver.
+Failures keep plain sources, so the flag degrades per crate, never
+globally.
+
+- **The cfg-universe lesson repeated on the first measure.** On
+  masterror, default-features expansion produced *fewer* facts than
+  plain analysis (987 against 2142) — most of the crate sits behind
+  feature gates, the same blindness the SCIP ground truth showed in
+  §9. Expansion now tries `--all-features` first and falls back to
+  default (1097 after the fix).
+- **The residual gap is the mode's honest definition, not a defect.**
+  The expanded universe is the compiled library: macro-generated
+  functions are visible, `#[cfg(test)]` modules are absent — and
+  masterror's plain count is test-heavy. The flag's help states the
+  trade both ways; which universe answers a question is the caller's
+  choice.
+- Eval byte-stable (flag off by default), lint wall and 353 unit
+  tests green, one new test pinning replacement semantics: expanded
+  stream replaces only its crate's `src`, tests and sibling crates
+  survive.
