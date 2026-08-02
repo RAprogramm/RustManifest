@@ -432,6 +432,73 @@ mod tests {
         assert!(check_invariants(&sources, &[balance_invariant()]).is_empty());
     }
 
+    fn net_ban(module: &str) -> Invariant {
+        Invariant {
+            id:              Some("NO-NET".to_owned()),
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          Some("net".to_owned()),
+            deny_in:         vec![module.to_owned()],
+            call_deny_from:  None,
+            call_deny_to:    None,
+            severity:        None
+        }
+    }
+
+    #[test]
+    fn effect_ban_sees_through_wrapper_closures() {
+        let sources = vec![
+            source("src/lib.rs", "mod domain;"),
+            source(
+                "src/domain.rs",
+                "pub struct Src { inner: IoSource<TcpStream> }\nimpl Src { pub fn pump(&self) { \
+                 self.inner.do_io(|stream| { stream.read(&mut []).ok(); }); } }"
+            ),
+        ];
+        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].message.contains("pump"));
+    }
+
+    #[test]
+    fn effect_ban_sees_through_await_edges() {
+        let sources = vec![
+            source("src/lib.rs", "mod domain; mod jobs;"),
+            source(
+                "src/jobs.rs",
+                "pub struct Job;\npub fn produce() -> Job { Job }\nimpl Job { pub fn poll(&self) \
+                 -> u8 { std::net::TcpStream::connect(\"h\").ok(); 0 } }"
+            ),
+            source(
+                "src/domain.rs",
+                "use crate::jobs::produce;\npub async fn drive() { produce().await; }"
+            ),
+        ];
+        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].message.contains("drive"));
+    }
+
+    #[test]
+    fn effect_ban_sees_through_extension_defaults() {
+        let sources = vec![
+            source("src/lib.rs", "mod domain; mod io;"),
+            source(
+                "src/io.rs",
+                "pub trait Base { fn send(&self); }\npub struct Conn;\nimpl Base for Conn { fn \
+                 send(&self) { std::net::TcpStream::connect(\"h\").ok(); } }\npub trait Ext: \
+                 Base {\n    fn send_all(&self) { self.send(); }\n}"
+            ),
+            source(
+                "src/domain.rs",
+                "use crate::io::Conn;\npub fn go(conn: Conn) { conn.send_all(); }"
+            ),
+        ];
+        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].message.contains("go"));
+    }
+
     #[test]
     fn effect_ban_reports_the_effectful_function() {
         let sources = vec![
