@@ -28,9 +28,10 @@ pub struct ExpandSummary {
     pub crates_expanded: u64,
     /// Counters summed over every expanded crate.
     pub report:          ExpansionReport,
-    /// Expanded stream of each successfully expanded crate, for absorbing
-    /// derived impls into the type graph.
-    pub streams:         Vec<String>
+    /// Crate directory and expanded stream of each successfully
+    /// expanded crate, for absorbing derived impls into the type graph
+    /// or replacing the crate's sources in expanded analysis.
+    pub streams:         Vec<(PathBuf, String)>
 }
 
 /// Expands every crate found under `paths` and aggregates the reports.
@@ -42,7 +43,7 @@ pub fn expand_paths(paths: &[PathBuf]) -> ExpandSummary {
         if let Some((report, stream)) = expand_crate(&dir) {
             summary.crates_expanded += 1;
             summary.report.absorb(&report);
-            summary.streams.push(stream);
+            summary.streams.push((dir, stream));
         }
     }
     summary
@@ -66,13 +67,26 @@ fn manifest_dirs(paths: &[PathBuf]) -> Vec<PathBuf> {
 ///
 /// Library crates expand via `--lib`; binary-only crates via their first
 /// `src/bin` entry or `src/main.rs` binary named after the package.
+/// Expansion tries `--all-features` first so feature-gated code joins
+/// the expanded universe — the same one-cfg-universe lesson the SCIP
+/// layer documents — and falls back to default features for crates
+/// whose feature set does not build all at once.
 fn expand_crate(dir: &Path) -> Option<(ExpansionReport, String)> {
     let target = expand_target(dir)?;
-    let output = Command::new("cargo")
-        .arg("+nightly")
-        .arg("rustc")
-        .arg("--profile=check")
-        .args(&target)
+    let stream =
+        expand_stream(dir, &target, true).or_else(|| expand_stream(dir, &target, false))?;
+    expansion(&stream).map(|report| (report, stream))
+}
+
+/// Runs one expansion attempt, with or without `--all-features`.
+fn expand_stream(dir: &Path, target: &[String], all_features: bool) -> Option<String> {
+    let mut command = Command::new("cargo");
+    command.arg("+nightly").arg("rustc").arg("--profile=check");
+    if all_features {
+        command.arg("--all-features");
+    }
+    let output = command
+        .args(target)
         .arg("--")
         .arg("-Zunpretty=expanded")
         .current_dir(dir)
@@ -81,8 +95,7 @@ fn expand_crate(dir: &Path) -> Option<(ExpansionReport, String)> {
     if !output.status.success() {
         return None;
     }
-    let stream = String::from_utf8(output.stdout).ok()?;
-    expansion(&stream).map(|report| (report, stream))
+    String::from_utf8(output.stdout).ok()
 }
 
 /// Picks the `cargo rustc` target selector for the crate in `dir`.

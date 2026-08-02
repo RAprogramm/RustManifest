@@ -136,7 +136,7 @@ fn integration_line(sources: &[rustmanifest_engine::Source], summary: &ExpandSum
     let mut graph = rustmanifest_engine::TypeGraph::from_sources(sources);
     let mut impls = 0;
     let mut types = 0;
-    for stream in &summary.streams {
+    for (_, stream) in &summary.streams {
         let absorbed = graph.absorb_expansion(stream);
         impls += absorbed.impls;
         types += absorbed.types;
@@ -381,8 +381,10 @@ mod tests {
             "pub struct User { pub id: u64 }".to_owned()
         )];
         let mut summary = summary(&[]);
-        summary.streams =
-            vec!["#[automatically_derived]\nimpl ::core::fmt::Debug for User { }".to_owned()];
+        summary.streams = vec![(
+            std::path::PathBuf::from("."),
+            "#[automatically_derived]\nimpl ::core::fmt::Debug for User { }".to_owned()
+        )];
         assert_eq!(
             super::integration_line(&sources, &summary),
             "graph integration   +1        derived impls absorbed   generated types discovered \
