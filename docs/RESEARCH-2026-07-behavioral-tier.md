@@ -657,3 +657,28 @@ wasm — so `Client.inner` collides in the unique-name field table and
 drops, exactly the §11 granularity wall showing a second face at the
 field level. Module-qualified keys remain the one unlock both walls
 share; 358 unit tests green, eval byte-stable after the split.
+
+### The shared unlock shipped: proximity-scoped typing tables
+
+The granularity fix landed as consumer proximity rather than full
+path qualification: every typing table (field types, elements,
+wrapper inners, function returns) keeps each observation with its
+source file, and a colliding short key resolves for a given consumer
+by preference — a single distinct value from the consumer's own file
+first, then from the consumer's crate, otherwise silence. No global
+uniqueness drop, no guessed winner.
+
+- reqwest's triple `Client` untangled: the async consumer resolves
+  its own file's `Client.inner`, walks the `Arc`, the wrapper field,
+  and the service knowledge, and `execute_request` now carries the
+  edge into the crate's own service `call` fact. The chain's next
+  stop is one hop deeper — a tuple field, and unnamed-field typing
+  is the next mechanical gap.
+- Joint reqwest+hyper+tokio universe: effect-carrying functions
+  1678 → 1793 — collided typing that used to drop silently now
+  resolves crate-locally across the whole set.
+- Corpus: fork-hyper resolved edges 2191 → 2200; eval stayed
+  byte-stable — proximity scoping changed no findings, only fact
+  coverage. Pinned by a test: two same-named structs in different
+  files, each consumer resolves its own (network vs filesystem
+  effect). 359 unit tests green.
