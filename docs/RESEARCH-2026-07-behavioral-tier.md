@@ -585,3 +585,23 @@ globally.
   tests green, one new test pinning replacement semantics: expanded
   stream replaces only its crate's `src`, tests and sibling crates
   survive.
+
+## 14. The day's machinery is load-bearing at the invariant surface (2026-08-02)
+
+The point of every mechanism above is the user-facing promise: a
+declared effect ban must hold no matter how the effect is reached.
+Three integration tests now pin that promise through the day's
+hardest chains, and all three passed on first run — the invariant
+path shares the same fact base and call graph, so every typing and
+dispatch repair propagated for free:
+
+- a `deny-in` network ban catches a function whose network touch
+  hides inside a wrapper's closure (`do_io(|stream| stream.read())`);
+- it catches an `async` function whose only sin is awaiting a future
+  whose `poll` dials out — the await edge carries the ban;
+- it catches a call to an extension-trait default that reaches the
+  effect through the supertrait's implementor.
+
+Each finding names the violating function and carries the derivation
+trace down to the effect performer, unchanged from the §2-era
+contract. Eval byte-stable, 356 unit tests green.
