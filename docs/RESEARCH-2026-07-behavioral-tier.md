@@ -605,3 +605,26 @@ dispatch repair propagated for free:
 Each finding names the violating function and carries the derivation
 trace down to the effect performer, unchanged from the §2-era
 contract. Eval byte-stable, 356 unit tests green.
+
+## 15. The dispatch over-approximation, resolved as trace honesty (2026-08-02)
+
+The open question the invariant surface sharpened — an effect ban can
+fire through a dispatch edge that fans out to several implementors,
+only one of which performs the effect — got its semantics decided and
+implemented rather than left as a caveat:
+
+- **For bans, over-approximation is the sound side.** A `deny-in`
+  invariant asks "can this module possibly reach the effect", and a
+  call through a trait with a network-touching implementor is a
+  possible reach. Suppressing it would trade a false positive for a
+  silent hole; the engine keeps the finding.
+- **The trace must not overclaim.** The call graph now marks every
+  edge born from multi-implementor dispatch, and an invariant trace
+  step traversing one reads "dispatch edge over several implementors
+  — the effect is possible, not certain" instead of "resolved call
+  edge". The finding fires; its derivation states its own modality.
+  Single-implementor dispatch stays a plain resolved edge — with one
+  implementor there is no possibility to admit.
+- Pinned by a test: a ban fires through a two-implementor trait where
+  only one implementor dials out, and the trace admits the
+  possibility. Eval byte-stable, 357 unit tests green.
