@@ -686,6 +686,17 @@ mod tests {
     }
 
     #[test]
+    fn fieldless_projections_type_as_their_receiver() {
+        let all = facts(
+            "struct Sender { sock: TcpStream }\nstruct Projection;\nimpl Sender {\n    fn \
+             project(&mut self) -> Projection { Projection }\n    fn pump(&mut self) { let me = \
+             self.project(); me.sock.read(&mut []).ok(); }\n}\nstruct Real { count: u32 }\nimpl \
+             Real { fn project(&self) -> Real { Real { count: 0 } } }"
+        );
+        assert_eq!(named(&all, "Sender::pump").effects, vec![Effect::Network]);
+    }
+
+    #[test]
     fn pinned_receivers_type_through_the_inner_expression() {
         let all = facts(
             "fn pump(stream: &mut TcpStream) { Pin::new(&mut *stream).read(&mut []).ok(); }"

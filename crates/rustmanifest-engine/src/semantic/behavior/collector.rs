@@ -314,10 +314,18 @@ impl FactCollector {
             syn::Expr::MethodCall(call) => {
                 let owner = self.expr_type(&call.receiver)?;
                 let method = call.method.to_string();
-                self.fn_returns
+                let declared = self
+                    .fn_returns
                     .get(&format!("{owner}::{method}"))
-                    .map(|returned| returned.plain.clone())
-                    .or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
+                    .map(|returned| returned.plain.clone());
+                if knowledge::PROJECTION_METHODS.contains(&method.as_str())
+                    && declared
+                        .as_deref()
+                        .is_none_or(|view| knowledge::PROJECTION_VIEWS.contains(&view))
+                {
+                    return Some(owner);
+                }
+                declared.or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
             }
             syn::Expr::Call(call) => {
                 if let Some(inner) = pinned_inner(call) {
