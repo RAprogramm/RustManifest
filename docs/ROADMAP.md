@@ -4,7 +4,7 @@ Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
 **Current status (2026-08-01):** Phases 1C, 1D, 2, and 2S shipped. The MCP server additionally exposes the knowledge surface — `project_overview`, `function_facts`, `learn_conventions` — so agents read the same project understanding the CLI prints. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, and the first reasoning rule `RM-MEM-001` (borrowable-params). The stdio MCP server ships five tools and nine bundled methodology resources.
 
-**Next:** Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, resolved-name extractor, tsetlin-rs ranking, MIR refiner).
+**Next:** Phase 2M (meaning tier — framework models, external surface, subsystem capabilities; [RFC 0002](./RFCS/0002-meaning-tier-framework-models.md)), then Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner). The resolved-name extractor shipped as an opt-in SCIP overlay reaching `facts`, `coverage`, and `check`.
 
 ---
 
@@ -117,6 +117,29 @@ Executes the plan in [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RES
 - **Role heuristics** (`semantic/role.rs`): deterministic coarse role per function (io / mutator / constructor / accessor / pure / unknown), priority-ordered, surfaced in `rustmanifest facts` — the bootstrap labeling for the learning layer.
 - **Interpretable learning layer** (`rustmanifest-learn`, `rustmanifest learn`): one deterministic Tsetlin machine per role over the binarized features, dumped as an auditable clause list (research doc §5, admitted by the §8 gate result: +17pp macro-F1 over logistic regression). Clauses describe the codebase; they are never a source of findings.
 - Precision ceiling documented: move/borrow flow approximated by use-shape at the syntactic tier; real dataflow lands with the MIR refiner (research plan phase 6).
+
+### Phase 2M — Meaning tier: framework models, external surface, subsystem capabilities ⏳ in progress
+
+Executes [RFC 0002](./RFCS/0002-meaning-tier-framework-models.md). The semantic tier
+answers structure and behavior; this phase answers what the program exposes and what
+each subsystem is for, deterministically and with evidence per row.
+
+- **Framework models as data**: the knowledge-pack shape extended with a crate's
+  registration vocabulary — router constructors, route registrations, HTTP method
+  wrappers, composition methods (`nest` with prefix, `merge` without), extractor
+  types, listener constructors. A construct absent from the model produces no row.
+- **Route recovery** (`semantic/surface.rs`): method, path, handler and byte range
+  per registration; composition resolved through the existing call graph; a
+  composition argument that is not a resolvable provider is reported as unresolved
+  rather than silently dropped; runtime-assembled paths counted as dynamic.
+- **Handler contract**: request body, path and query parameters, shared state and
+  application-defined extractors read from the handler signature; response payload
+  from the return type.
+- **Subsystem capability**: per-module capability with the function and call that
+  proved it, plus the set of subsystems reachable from the entry point.
+- **Acceptance**: precision and recall of the recovered route table against the
+  OpenAPI paths projects declare independently of the router chain, measured on real
+  workspaces in the style of the SCIP ground-truth experiment.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
