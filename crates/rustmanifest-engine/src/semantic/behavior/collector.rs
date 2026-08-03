@@ -86,6 +86,87 @@ const ITERATOR_SOURCES: [&str; 7] = [
     "last"
 ];
 
+/// Macros that end the current path rather than returning to it.
+const DIVERGING_MACROS: [&str; 4] = ["panic", "todo", "unimplemented", "unreachable"];
+
+/// Returns whether a statement is gated by a configuration attribute
+/// this tier does not resolve.
+fn gated(statement: &syn::Stmt) -> bool {
+    let attributes: &[syn::Attribute] = match statement {
+        syn::Stmt::Local(local) => &local.attrs,
+        syn::Stmt::Expr(syn::Expr::Block(block), _) => &block.attrs,
+        syn::Stmt::Macro(invocation) => &invocation.attrs,
+        syn::Stmt::Item(syn::Item::Fn(function)) => &function.attrs,
+        _ => &[]
+    };
+    attributes
+        .iter()
+        .any(|attribute| attribute.path().is_ident("cfg"))
+}
+
+/// Returns whether a statement unconditionally ends the current path, so
+/// everything after it in the same block never runs.
+fn diverges(statement: &syn::Stmt) -> bool {
+    match statement {
+        syn::Stmt::Expr(expression, _) => match expression {
+            syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => true,
+            syn::Expr::Call(call) => process_exit(&call.func),
+            syn::Expr::Macro(invocation) => diverging_macro(&invocation.mac),
+            _ => false
+        },
+        syn::Stmt::Macro(invocation) => diverging_macro(&invocation.mac),
+        _ => false
+    }
+}
+
+/// Returns whether a call expression names the process-ending pair.
+fn process_exit(callee: &syn::Expr) -> bool {
+    let syn::Expr::Path(path) = callee else {
+        return false;
+    };
+    let segments: Vec<String> = path
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect();
+    matches!(segments.last().map(String::as_str), Some("exit" | "abort"))
+        && segments.iter().any(|segment| segment == "process")
+}
+
+/// Returns whether a macro invocation ends the current path.
+fn diverging_macro(invocation: &syn::Macro) -> bool {
+    invocation
+        .path
+        .segments
+        .last()
+        .is_some_and(|segment| DIVERGING_MACROS.contains(&segment.ident.to_string().as_str()))
+}
+
+/// Returns whether a statement may leave the function before the next
+/// one runs: a `?` operator or a conditional `return` inside it.
+fn exits(statement: &syn::Stmt) -> bool {
+    struct Scan {
+        found: bool
+    }
+    impl<'ast> Visit<'ast> for Scan {
+        fn visit_expr_try(&mut self, tried: &'ast syn::ExprTry) {
+            self.found = true;
+            syn::visit::visit_expr_try(self, tried);
+        }
+
+        fn visit_expr_return(&mut self, returned: &'ast syn::ExprReturn) {
+            self.found = true;
+            syn::visit::visit_expr_return(self, returned);
+        }
+    }
+    let mut scan = Scan {
+        found: false
+    };
+    scan.visit_stmt(statement);
+    scan.found
+}
+
 /// Syntax visitor accumulating facts from one function body.
 pub(super) struct FactCollector {
     /// Facts collected so far.
@@ -115,7 +196,13 @@ pub(super) struct FactCollector {
     /// Imported names of the enclosing file to their full `use` paths.
     pub(super) imports:     BTreeMap<String, String>,
     /// Let bindings holding a value provably constructed in this body.
-    pub(super) fresh:       BTreeSet<String>
+    pub(super) fresh:       BTreeSet<String>,
+    /// Constructs currently enclosing the visited node, outermost first.
+    pub(super) guards:      Vec<super::output::Guard>,
+    /// Exits that may leave the function before the visited node.
+    pub(super) prior_exits: u32,
+    /// Whether the visited node follows an unconditional divergence.
+    pub(super) dead:        bool
 }
 
 impl FactCollector {
@@ -472,6 +559,24 @@ impl FactCollector {
         }
     }
 
+    /// Visits `body` with one more enclosing construct on the stack, so
+    /// every write recorded inside it carries that construct.
+    fn under<F: FnOnce(&mut Self)>(&mut self, guard: super::output::Guard, body: F) {
+        self.guards.push(guard);
+        body(self);
+        self.guards.pop();
+    }
+
+    /// Snapshot of everything standing between the current position and
+    /// unconditional execution.
+    fn site_guard(&self) -> super::output::SiteGuard {
+        super::output::SiteGuard {
+            guards:      self.guards.clone(),
+            prior_exits: self.prior_exits,
+            dead:        self.dead
+        }
+    }
+
     /// Records one write to an output stream, in body order.
     ///
     /// The payload is whatever the invocation proves and no more; the
@@ -494,8 +599,17 @@ impl FactCollector {
                 start: u32::try_from(span.start).unwrap_or(u32::MAX),
                 end:   u32::try_from(span.end).unwrap_or(u32::MAX)
             },
-            guard: super::output::SiteGuard::unconditional(),
-            multiplicity: super::output::Multiplicity::Once
+            guard: self.site_guard(),
+            multiplicity: if self.guards.iter().any(|guard| {
+                matches!(
+                    guard,
+                    super::output::Guard::For | super::output::Guard::While
+                )
+            }) {
+                super::output::Multiplicity::Unbounded
+            } else {
+                super::output::Multiplicity::Once
+            }
         });
     }
 
@@ -650,7 +764,75 @@ impl<'ast> Visit<'ast> for FactCollector {
 
     fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
         self.bind_element(&loop_expr.pat, &loop_expr.expr);
-        syn::visit::visit_expr_for_loop(self, loop_expr);
+        self.visit_expr(&loop_expr.expr);
+        self.under(super::output::Guard::For, |collector| {
+            collector.visit_block(&loop_expr.body);
+        });
+    }
+
+    fn visit_expr_while(&mut self, loop_expr: &'ast syn::ExprWhile) {
+        self.visit_expr(&loop_expr.cond);
+        self.under(super::output::Guard::While, |collector| {
+            collector.visit_block(&loop_expr.body);
+        });
+    }
+
+    fn visit_expr_if(&mut self, conditional: &'ast syn::ExprIf) {
+        self.visit_expr(&conditional.cond);
+        self.under(super::output::Guard::If, |collector| {
+            collector.visit_block(&conditional.then_branch);
+        });
+        if let Some((_, otherwise)) = &conditional.else_branch {
+            self.under(super::output::Guard::Else, |collector| {
+                collector.visit_expr(otherwise);
+            });
+        }
+    }
+
+    fn visit_expr_match(&mut self, matched: &'ast syn::ExprMatch) {
+        self.visit_expr(&matched.expr);
+        for arm in &matched.arms {
+            let guard = super::output::Guard::MatchArm {
+                irrefutable: matches!(arm.pat, syn::Pat::Wild(_) | syn::Pat::Ident(_)),
+                guarded:     matches!(arm.pat, syn::Pat::Guard(_))
+            };
+            self.under(guard, |collector| {
+                collector.visit_arm(arm);
+            });
+        }
+    }
+
+    fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
+        self.under(super::output::Guard::Closure, |collector| {
+            syn::visit::visit_expr_closure(collector, closure);
+        });
+    }
+
+    fn visit_item_fn(&mut self, nested: &'ast syn::ItemFn) {
+        self.under(super::output::Guard::NestedItem, |collector| {
+            syn::visit::visit_item_fn(collector, nested);
+        });
+    }
+
+    fn visit_block(&mut self, block: &'ast syn::Block) {
+        let entry_exits = self.prior_exits;
+        let entry_dead = self.dead;
+        for statement in &block.stmts {
+            if gated(statement) {
+                self.under(super::output::Guard::CfgGated, |collector| {
+                    collector.visit_stmt(statement);
+                });
+            } else {
+                self.visit_stmt(statement);
+            }
+            if diverges(statement) {
+                self.dead = true;
+            } else if exits(statement) {
+                self.prior_exits += 1;
+            }
+        }
+        self.dead = entry_dead;
+        self.prior_exits = entry_exits;
     }
 
     fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {

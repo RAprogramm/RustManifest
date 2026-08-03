@@ -557,6 +557,84 @@ mod tests {
         );
     }
 
+    fn writes_of(body: &str) -> Vec<super::OutputWrite> {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(
+            PathBuf::from("src/main.rs"),
+            format!("fn main() {{\n{body}\n}}")
+        )];
+        behavior(&sources)
+            .into_iter()
+            .find(|fact| fact.function == "main")
+            .map(|fact| fact.output_writes)
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn a_write_under_a_branch_is_possible_not_certain() {
+        let branch = writes_of("    if flag { println!(\"hi\"); }");
+        assert_eq!(branch[0].guard.guards, [Guard::If]);
+        assert_eq!(branch[0].guard.local_grade(), Grade::Possible);
+
+        let straight = writes_of("    println!(\"hi\");");
+        assert!(straight[0].guard.guards.is_empty());
+        assert_eq!(straight[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_loop_body_is_possible_and_unbounded_while_a_bare_loop_is_neither() {
+        let counted = writes_of("    for _ in 0..n { println!(\"hi\"); }");
+        assert_eq!(counted[0].guard.guards, [Guard::For]);
+        assert_eq!(counted[0].multiplicity, super::Multiplicity::Unbounded);
+
+        let forever = writes_of("    loop { println!(\"hi\"); }");
+        assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_closure_or_nested_item_body_only_runs_where_it_is_called() {
+        let closure = writes_of("    let shout = || println!(\"hi\");");
+        assert_eq!(closure[0].guard.guards, [Guard::Closure]);
+
+        let nested = writes_of("    fn inner() { println!(\"hi\"); }");
+        assert_eq!(nested[0].guard.guards, [Guard::NestedItem]);
+    }
+
+    #[test]
+    fn an_exit_before_a_write_weakens_it_and_divergence_kills_it() {
+        let after_try = writes_of("    helper()?;\n    println!(\"hi\");");
+        assert_eq!(after_try[0].guard.prior_exits, 1);
+        assert_eq!(after_try[0].guard.local_grade(), Grade::Possible);
+
+        let after_return = writes_of("    return;\n    println!(\"hi\");");
+        assert!(after_return[0].guard.dead);
+        assert_eq!(after_return[0].guard.local_grade(), Grade::Dead);
+
+        let after_panic = writes_of("    panic!(\"stop\");\n    println!(\"hi\");");
+        assert!(after_panic[0].guard.dead);
+    }
+
+    #[test]
+    fn a_configuration_gate_is_never_resolved_only_recorded() {
+        let gated = writes_of("    #[cfg(feature = \"loud\")]\n    println!(\"hi\");");
+        assert_eq!(gated[0].guard.guards, [Guard::CfgGated]);
+        assert_eq!(gated[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn the_guard_stack_unwinds_so_a_later_write_is_not_poisoned() {
+        let writes = writes_of(
+            "    if a { match b { Some(_) => println!(\"deep\"), None => {} } }\n    \
+             println!(\"flat\");"
+        );
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].guard.guards.len(), 2);
+        assert!(writes[1].guard.guards.is_empty());
+    }
+
     #[test]
     fn streams_name_the_channel_they_stand_for() {
         assert_eq!(Stream::Stdout.to_string(), "stdout");

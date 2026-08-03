@@ -727,7 +727,10 @@ fn function_facts(
         bounds:      context.bounds.clone(),
         local_wraps: std::collections::BTreeMap::new(),
         imports:     imports.clone(),
-        fresh:       std::collections::BTreeSet::new()
+        fresh:       std::collections::BTreeSet::new(),
+        guards:      Vec::new(),
+        prior_exits: 0,
+        dead:        false
     };
     if matches!(signature.safety, syn::Safety::Unsafe(_)) {
         collector.facts.effects.push(Effect::Unsafe);
