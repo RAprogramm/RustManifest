@@ -24,6 +24,7 @@ pub mod learn;
 pub mod manifests;
 pub mod meaning;
 pub mod overview;
+pub mod prescribe;
 pub mod report;
 
 use std::{path::PathBuf, process::ExitCode};
@@ -82,6 +83,8 @@ pub enum Command {
     Meaning(meaning::MeaningArgs),
     /// Print everything the engine knows about the project as one report.
     Overview(overview::OverviewArgs),
+    /// Print the code the canonical form asks for, and what it buys.
+    Prescribe(prescribe::PrescribeArgs),
     /// Print everything the engine knows about the program in one pass.
     Report(report::ReportArgs)
 }
@@ -102,6 +105,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Learn(args) => learn::run_learn(&args),
         Command::Meaning(args) => meaning::run_meaning(&args),
         Command::Overview(args) => overview::run_overview(&args),
+        Command::Prescribe(args) => prescribe::run_prescribe(&args),
         Command::Report(args) => report::run_report(&args)
     }
 }

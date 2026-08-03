@@ -56,3 +56,14 @@ pub use semantic::{
     unresolved_targets
 };
 pub use source::Source;
+
+/// Everything the engine derived about the print path of the active
+/// toolchain, each fact carrying the library location that proves it.
+///
+/// Returns an empty list when the toolchain ships no library sources, so
+/// a caller states that nothing was derived rather than filling the gap.
+#[must_use]
+pub fn library_output_facts() -> Vec<semantic::StdFact> {
+    semantic::std_source_root()
+        .map_or_else(Vec::new, |root| semantic::output_knowledge(&root).facts)
+}
