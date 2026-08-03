@@ -172,6 +172,35 @@ impl EntryMeaning {
 }
 
 impl OutputClaim {
+    /// What stands between this claim and certainty, or `None` when
+    /// nothing does.
+    #[must_use]
+    pub fn weakening(&self) -> Option<String> {
+        weakening_of(self)
+    }
+
+    /// The text this claim proves, rendered without ever standing in a
+    /// value it cannot see: holes keep their names, an unreadable
+    /// payload states its reason.
+    #[must_use]
+    pub fn payload_text(&self) -> String {
+        match &self.write.payload {
+            Payload::Empty => "<nothing>".to_owned(),
+            Payload::Literal(text) => format!("{:?}", with_terminator(text, self.write.newline)),
+            Payload::Template(segments) => {
+                let shape: String = segments
+                    .iter()
+                    .map(|segment| match segment {
+                        Segment::Text(text) => text.clone(),
+                        Segment::Hole(hole) => format!("<{}>", hole_name(hole))
+                    })
+                    .collect();
+                format!("{:?}", with_terminator(&shape, self.write.newline))
+            }
+            Payload::Opaque(reason) => format!("<unreadable: {}>", reason_text(*reason))
+        }
+    }
+
     /// The sentence this claim licenses.
     #[must_use]
     pub fn sentence(&self) -> String {
@@ -194,8 +223,10 @@ impl OutputClaim {
         if self.write.multiplicity == Multiplicity::Unbounded {
             sentence.push_str(", once per iteration of the loop around it");
         }
-        if self.execution == Grade::Possible {
-            let _ = write!(sentence, ", weakened by {}", weakening(self));
+        if self.execution == Grade::Possible
+            && let Some(reason) = self.weakening()
+        {
+            let _ = write!(sentence, ", weakened by {reason}");
         }
         let _ = write!(
             sentence,
@@ -207,9 +238,12 @@ impl OutputClaim {
 }
 
 /// Names what stands between a claim and certainty.
-fn weakening(claim: &OutputClaim) -> String {
+fn weakening_of(claim: &OutputClaim) -> Option<String> {
+    if claim.execution == Grade::Certain {
+        return None;
+    }
     if claim.reach != Grade::Certain {
-        return "a call chain that does not certainly reach it".to_owned();
+        return Some("a call chain that does not certainly reach it".to_owned());
     }
     let guards: BTreeSet<&'static str> = claim
         .write
@@ -228,9 +262,28 @@ fn weakening(claim: &OutputClaim) -> String {
         })
         .collect();
     if guards.is_empty() {
-        return "an exit that may leave the function first".to_owned();
+        return Some("an exit that may leave the function first".to_owned());
     }
-    guards.into_iter().collect::<Vec<_>>().join(" and ")
+    Some(guards.into_iter().collect::<Vec<_>>().join(" and "))
+}
+
+/// Appends the line terminator a construct adds, so the rendered text
+/// is what actually reaches the stream.
+fn with_terminator(text: &str, newline: Newline) -> String {
+    match newline {
+        Newline::Appended => format!("{text}\n"),
+        Newline::None => text.to_owned()
+    }
+}
+
+/// Why a payload could not be read, in words.
+const fn reason_text(reason: OpaqueReason) -> &'static str {
+    match reason {
+        OpaqueReason::RuntimeValue => "the written value is computed at runtime",
+        OpaqueReason::NonLiteralFormat => "the format string is not a literal",
+        OpaqueReason::Unparsed => "the arguments did not parse",
+        OpaqueReason::DebugMacro => "the debugging macro embeds its own source position"
+    }
 }
 
 /// Renders a payload without ever claiming an unproven value.
