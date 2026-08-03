@@ -137,39 +137,45 @@ impl FunctionFlags {
 pub struct FunctionFacts {
     /// Qualified name: `Type::method` for impl methods, bare name for free
     /// functions.
-    pub function:    String,
+    pub function:      String,
     /// Index of the source the function was parsed from.
-    pub source:      usize,
+    pub source:        usize,
     /// Byte range of the function's identifier.
-    pub range:       Range,
+    pub range:         Range,
     /// Fields read, as `Owner.field`; `?` owner when the receiver's type
     /// is not resolvable from the signature.
-    pub reads:       Vec<String>,
+    pub reads:         Vec<String>,
     /// Fields written on pre-existing state, same notation as `reads`;
     /// covers plain and compound assignment plus known mutating methods
     /// on a field expression.
-    pub writes:      Vec<String>,
+    pub writes:        Vec<String>,
     /// Fields written on values constructed inside the body — assembly
     /// of a fresh value, invisible to callers as mutation.
-    pub builds:      Vec<String>,
+    pub builds:        Vec<String>,
     /// Types constructed through struct literals.
-    pub constructs:  Vec<String>,
+    pub constructs:    Vec<String>,
     /// Error types the signature can return (`Result<_, E>` → `E`).
-    pub error_types: Vec<String>,
+    pub error_types:   Vec<String>,
     /// Side-effect categories observed, deduplicated and sorted.
-    pub effects:     Vec<Effect>,
+    pub effects:       Vec<Effect>,
     /// Ownership profile of each parameter, in declaration order.
-    pub params:      Vec<ParamFacts>,
+    pub params:        Vec<ParamFacts>,
     /// Declaration flags: trait-impl membership, test marker, external
     /// visibility, extra attributes.
-    pub flags:       FunctionFlags,
+    pub flags:         FunctionFlags,
     /// Call candidates observed in the body, normalized: `name` for a
     /// free-function call, `Type::method` for associated and resolved
     /// method calls, `?::method` when the receiver's type is unknown.
-    pub calls:       Vec<String>,
+    pub calls:         Vec<String>,
     /// `.clone()` / `.to_owned()` / `.to_string()` call sites observed.
-    pub clones:      u32,
+    pub clones:        u32,
     /// Heap allocation sites observed (`Box::new`, `Vec::new`, `vec![]`,
     /// `String::from`, `format!`).
-    pub allocations: u32
+    pub allocations:   u32,
+    /// Write sites to an output stream, in body order.
+    ///
+    /// Unlike [`Self::effects`], this channel is never sorted and never
+    /// deduplicated: two identical writes are two events, and their
+    /// order is part of the fact.
+    pub output_writes: Vec<super::output::OutputWrite>
 }

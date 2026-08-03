@@ -20,19 +20,26 @@
 //! `unsafe` and FFI mark the function rather than being traced through.
 
 mod collector;
+mod output;
 mod signature;
 mod types;
 
 use rustmanifest_schema::Range;
 use syn::visit::Visit;
 
-pub use self::types::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode};
 use self::{
     collector::FactCollector,
     signature::{
         element_type, error_types, param_facts, parameter_elements, parameter_types,
         type_last_segment, wrapped_type
     }
+};
+pub use self::{
+    output::{
+        Grade, Guard, Hole, HoleSource, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason,
+        OutputWrite, Payload, Segment, SiteGuard, Stream
+    },
+    types::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode}
 };
 use super::expr::impl_type_name;
 use crate::source::Source;
@@ -304,7 +311,8 @@ fn conversion_fact(source: usize, owner: &str, source_type: String) -> FunctionF
         flags: FunctionFlags::from_bits(FunctionFlags::TRAIT_IMPL | FunctionFlags::PUBLIC),
         calls: Vec::new(),
         clones: 0,
-        allocations: 0
+        allocations: 0,
+        output_writes: Vec::new()
     }
 }
 
@@ -705,7 +713,8 @@ fn function_facts(
             flags: context.flags,
             calls: Vec::new(),
             clones: 0,
-            allocations: 0
+            allocations: 0,
+            output_writes: Vec::new()
         },
         param_types: parameter_types(signature, context.impl_type),
         elem_types:  parameter_elements(signature),

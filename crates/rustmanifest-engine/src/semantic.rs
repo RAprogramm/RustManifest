@@ -50,7 +50,11 @@ use tracing::trace;
 
 use self::insight::Insight;
 pub use self::{
-    behavior::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode, behavior},
+    behavior::{
+        Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole, HoleSource, Multiplicity,
+        Newline, OUTPUT_SINK_SET, OpaqueReason, OutputWrite, ParamFacts, ParamMode, Payload,
+        Segment, SiteGuard, Stream, behavior
+    },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
         resolution_segments, transitive_effects

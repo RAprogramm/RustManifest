@@ -20,8 +20,36 @@ use crate::semantic::{
     std_knowledge::EXTERNAL_CONSTRUCTORS
 };
 
-/// Console-output macros classified as [`Effect::ConsoleIo`].
-const CONSOLE_MACROS: [&str; 5] = ["dbg", "eprint", "eprintln", "print", "println"];
+/// Print-family macros with the stream each one writes to and whether it
+/// appends a line terminator. Every entry also carries
+/// [`Effect::ConsoleIo`], which stays the coarse summary category.
+const OUTPUT_MACROS: [(&str, super::output::Stream, super::output::Newline); 5] = [
+    (
+        "dbg",
+        super::output::Stream::Stderr,
+        super::output::Newline::Appended
+    ),
+    (
+        "eprint",
+        super::output::Stream::Stderr,
+        super::output::Newline::None
+    ),
+    (
+        "eprintln",
+        super::output::Stream::Stderr,
+        super::output::Newline::Appended
+    ),
+    (
+        "print",
+        super::output::Stream::Stdout,
+        super::output::Newline::None
+    ),
+    (
+        "println",
+        super::output::Stream::Stdout,
+        super::output::Newline::Appended
+    )
+];
 
 /// Iterator and `Option` adapters whose single-parameter closure
 /// receives one element of the adapted collection or option.
@@ -444,6 +472,33 @@ impl FactCollector {
         }
     }
 
+    /// Records one write to an output stream, in body order.
+    ///
+    /// The payload is whatever the invocation proves and no more; the
+    /// byte range of the invocation is kept so a claim can point at the
+    /// construct that produced it.
+    fn record_output(
+        &mut self,
+        invocation: &syn::Macro,
+        stream: super::output::Stream,
+        newline: super::output::Newline,
+        debug_macro: bool
+    ) {
+        use syn::spanned::Spanned;
+        let span = invocation.span().byte_range();
+        self.facts.output_writes.push(super::output::OutputWrite {
+            stream,
+            payload: super::output::macro_payload(invocation, debug_macro),
+            newline,
+            site: rustmanifest_schema::Range {
+                start: u32::try_from(span.start).unwrap_or(u32::MAX),
+                end:   u32::try_from(span.end).unwrap_or(u32::MAX)
+            },
+            guard: super::output::SiteGuard::unconditional(),
+            multiplicity: super::output::Multiplicity::Once
+        });
+    }
+
     /// Records one normalized call candidate, resolving `Self` and typed
     /// receivers through the local type map.
     fn record_call(&mut self, owner: Option<&str>, callee: &str) {
@@ -731,8 +786,12 @@ impl<'ast> Visit<'ast> for FactCollector {
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
         if let Some(segment) = invocation.path.segments.last() {
             let name = segment.ident.to_string();
-            if CONSOLE_MACROS.contains(&name.as_str()) {
+            if let Some((_, stream, newline)) = OUTPUT_MACROS
+                .iter()
+                .find(|(macro_name, _, _)| *macro_name == name)
+            {
                 self.facts.effects.push(Effect::ConsoleIo);
+                self.record_output(invocation, *stream, *newline, name == "dbg");
             }
             if name == "vec" || name == "format" {
                 self.facts.allocations += 1;
