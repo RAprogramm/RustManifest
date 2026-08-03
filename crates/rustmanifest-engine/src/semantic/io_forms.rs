@@ -151,10 +151,11 @@ fn detail(form: &Form, subject: &str, observed: &str) -> String {
     )
 }
 
-/// Assembles the trace: the observed fact, then the library's own source
-/// text at the location the property was derived from.
+/// Assembles the trace: the observed fact, the library's own source text
+/// at the location the property was derived from, and the library's own
+/// sentence about that property when it writes one.
 fn trace(observed: &str, evidence: &str, derived: &StdFact) -> Vec<TraceStep> {
-    vec![
+    let mut steps = vec![
         TraceStep {
             fact:   observed.to_owned(),
             reason: evidence.to_owned()
@@ -168,7 +169,18 @@ fn trace(observed: &str, evidence: &str, derived: &StdFact) -> Vec<TraceStep> {
                 derived.observed
             )
         },
-    ]
+    ];
+    if let Some(quote) = &derived.doc {
+        steps.push(TraceStep {
+            fact:   quote.text.clone(),
+            reason: format!(
+                "{}:{} — the library's own documentation of this property",
+                quote.file.display(),
+                quote.line
+            )
+        });
+    }
+    steps
 }
 
 /// Library knowledge for the active toolchain, derived once per process
