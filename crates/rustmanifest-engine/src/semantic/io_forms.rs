@@ -177,6 +177,46 @@ fn trace(observed: &str, evidence: &str, derived: &StdFact) -> Vec<TraceStep> {
     steps
 }
 
+/// What the write costs in memory, stated as a chain of counted facts.
+///
+/// The payload's bytes are static: proven text lives in the binary and
+/// is neither built nor copied at run time. The stream's buffer is heap,
+/// and its size is the library's own literal. When the payload ends the
+/// line and the stream buffers by line, that buffer is handed to the
+/// operating system on this very write, so it amortizes nothing here —
+/// which is the fact a reader needs to judge whether the buffered path
+/// earns its allocation.
+fn memory_steps(
+    text: &str,
+    write: &crate::semantic::OutputWrite,
+    library: &StdOutputKnowledge
+) -> Vec<TraceStep> {
+    let mut steps = vec![TraceStep {
+        fact:   format!("{} static byte(s)", text.len()),
+        reason: "the proven text lives in the binary, not on the stack or the heap".to_owned()
+    }];
+    let Some(capacity) = library.fact("buffer-capacity") else {
+        return steps;
+    };
+    steps.push(TraceStep {
+        fact:   format!(
+            "{} heap byte(s) on the first write to the stream",
+            capacity.observed
+        ),
+        reason: format!("{}:{}", capacity.file.display(), capacity.line)
+    });
+    let buffered = library.has("line-buffered:stdout") || library.has("line-buffered:stderr");
+    if buffered && write.newline == crate::semantic::Newline::Appended {
+        steps.push(TraceStep {
+            fact:   "the buffer is handed to the operating system on this write".to_owned(),
+            reason: "the payload ends the line and the stream buffers by line, so the buffer \
+                     holds nothing across writes here"
+                .to_owned()
+        });
+    }
+    steps
+}
+
 /// Library knowledge for the active toolchain, derived once per process
 /// and shared by every check, or nothing when the sources are not
 /// installed.
@@ -402,11 +442,15 @@ pub(super) fn literal_format_insights(sources: &[Source]) -> Vec<Insight> {
                     &format!("the written text is fully proven: `{text}`"),
                     1
                 ),
-                trace(
-                    &format!("the written text is fully proven: `{text}`"),
-                    "payload recorded as a literal with no unproven positions",
-                    derived
-                )
+                {
+                    let mut steps = trace(
+                        &format!("the written text is fully proven: `{text}`"),
+                        "payload recorded as a literal with no unproven positions",
+                        derived
+                    );
+                    steps.extend(memory_steps(text, write, library));
+                    steps
+                }
             ));
         }
     }
