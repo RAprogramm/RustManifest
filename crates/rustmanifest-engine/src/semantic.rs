@@ -20,6 +20,7 @@ mod dead;
 mod doc_synth;
 mod doc_truth;
 mod docs;
+mod entry;
 mod expansion;
 mod expr;
 mod features;
@@ -32,6 +33,7 @@ mod knowledge;
 mod layers;
 mod layout;
 mod loops;
+mod meaning;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
@@ -51,9 +53,9 @@ use tracing::trace;
 use self::insight::Insight;
 pub use self::{
     behavior::{
-        Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole, HoleSource, Multiplicity,
-        Newline, OUTPUT_SINK_SET, OpaqueReason, OutputWrite, ParamFacts, ParamMode, Payload,
-        Segment, SiteGuard, Stream, behavior
+        CallSite, Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole, HoleSource,
+        Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OutputWrite, ParamFacts, ParamMode,
+        Payload, Segment, SiteGuard, Stream, behavior
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
@@ -62,6 +64,7 @@ pub use self::{
     coverage::{Coverage, coverage, coverage_indexed, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
+    entry::{EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
     features::{Feature, features},
     fingerprint::behavior_fingerprint,
@@ -71,6 +74,7 @@ pub use self::{
     invariant::{check_invariants, check_invariants_with},
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
+    meaning::{EntryMeaning, OutputClaim, program_meaning},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,

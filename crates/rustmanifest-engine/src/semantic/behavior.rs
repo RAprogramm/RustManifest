@@ -39,7 +39,7 @@ pub use self::{
         Grade, Guard, Hole, HoleSource, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason,
         OutputWrite, Payload, Segment, SiteGuard, Stream
     },
-    types::{Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode}
+    types::{CallSite, Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode}
 };
 use super::expr::impl_type_name;
 use crate::source::Source;
@@ -312,6 +312,7 @@ fn conversion_fact(source: usize, owner: &str, source_type: String) -> FunctionF
         calls: Vec::new(),
         clones: 0,
         allocations: 0,
+        call_sites: Vec::new(),
         output_writes: Vec::new()
     }
 }
@@ -714,6 +715,7 @@ fn function_facts(
             calls: Vec::new(),
             clones: 0,
             allocations: 0,
+            call_sites: Vec::new(),
             output_writes: Vec::new()
         },
         param_types: parameter_types(signature, context.impl_type),

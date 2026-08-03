@@ -22,6 +22,7 @@ pub mod facts;
 pub mod graph;
 pub mod learn;
 pub mod manifests;
+pub mod meaning;
 pub mod overview;
 
 use std::{path::PathBuf, process::ExitCode};
@@ -75,6 +76,9 @@ pub enum Command {
     Graph(GraphArgs),
     /// Learn per-role convention clauses and print them as JSON.
     Learn(learn::LearnArgs),
+
+    /// Print what the program does for an observer outside the process.
+    Meaning(meaning::MeaningArgs),
     /// Print everything the engine knows about the project as one report.
     Overview(overview::OverviewArgs)
 }
@@ -93,6 +97,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Facts(args) => facts::run_facts(&args),
         Command::Graph(args) => graph::run_graph(&args),
         Command::Learn(args) => learn::run_learn(&args),
+        Command::Meaning(args) => meaning::run_meaning(&args),
         Command::Overview(args) => overview::run_overview(&args)
     }
 }

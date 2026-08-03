@@ -624,6 +624,10 @@ impl FactCollector {
             ),
             Some(owner) => format!("{owner}::{callee}")
         };
+        self.facts.call_sites.push(super::types::CallSite {
+            candidate: candidate.clone(),
+            guard:     self.site_guard()
+        });
         self.facts.calls.push(candidate);
     }
 }

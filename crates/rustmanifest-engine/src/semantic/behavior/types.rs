@@ -132,6 +132,16 @@ impl FunctionFlags {
     }
 }
 
+/// One observed call with the constructs standing over it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallSite {
+    /// Normalized call candidate, in the notation of
+    /// [`FunctionFacts::calls`].
+    pub candidate: String,
+    /// What stands between this site and unconditional execution.
+    pub guard:     super::output::SiteGuard
+}
+
 /// Behavioral facts of one function or method.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFacts {
@@ -172,6 +182,13 @@ pub struct FunctionFacts {
     /// Heap allocation sites observed (`Box::new`, `Vec::new`, `vec![]`,
     /// `String::from`, `format!`).
     pub allocations:   u32,
+    /// Call sites in body order, each with what stands over it.
+    ///
+    /// [`Self::calls`] stays the sorted, deduplicated candidate set;
+    /// this channel keeps every occurrence, because two calls of the
+    /// same function — one under a branch, one not — differ in exactly
+    /// the way certainty depends on.
+    pub call_sites:    Vec<CallSite>,
     /// Write sites to an output stream, in body order.
     ///
     /// Unlike [`Self::effects`], this channel is never sorted and never
