@@ -65,6 +65,19 @@ pub fn facts_json(
     serde_json::Value::Array(selected)
 }
 
+/// Renders one recorded write to an output stream, with everything the
+/// analysis proved about it and nothing it did not.
+fn output_json(write: &crate::semantic::OutputWrite) -> serde_json::Value {
+    serde_json::json!({
+        "stream": write.stream.to_string(),
+        "text": write.payload.fully_known(),
+        "certainty": write.guard.local_grade().to_string(),
+        "repeats": write.multiplicity == crate::semantic::Multiplicity::Unbounded,
+        "newline": write.newline == crate::semantic::Newline::Appended,
+        "site": { "start": write.site.start, "end": write.site.end }
+    })
+}
+
 /// Renders one function's facts as a JSON object, with the binarized
 /// feature vector appended when requested.
 #[must_use]
@@ -95,6 +108,7 @@ pub fn fact_json(
         "calls": entry.calls,
         "clones": entry.clones,
         "allocations": entry.allocations,
+        "output-writes": entry.output_writes.iter().map(output_json).collect::<Vec<_>>(),
         "test": entry.flags.test(),
         "role": role(entry).to_string()
     });
