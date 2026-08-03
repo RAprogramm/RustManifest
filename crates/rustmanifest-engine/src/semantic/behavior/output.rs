@@ -991,6 +991,37 @@ mod tests {
     }
 
     #[test]
+    fn a_call_to_a_never_returning_function_kills_what_follows_it() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn dies() -> ! { panic!(\"stop\") }\nfn main() {\n    dies();\n                 println!(\"hi\");\n}"
+                .to_owned()
+        )];
+        let facts = behavior(&sources);
+        let main = facts
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        assert_eq!(main.output_writes.len(), 1);
+        assert_eq!(main.output_writes[0].guard.local_grade(), Grade::Dead);
+
+        let returning = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn helper() -> u8 { 1 }\nfn main() {\n    helper();\n    println!(\"hi\");\n}"
+                .to_owned()
+        )];
+        let plain = behavior(&returning);
+        let entry = plain
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        assert_eq!(entry.output_writes[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
     fn streams_name_the_channel_they_stand_for() {
         assert_eq!(Stream::Stdout.to_string(), "stdout");
         assert_eq!(Stream::Stderr.to_string(), "stderr");

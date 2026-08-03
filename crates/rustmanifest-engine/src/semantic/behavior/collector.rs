@@ -566,7 +566,15 @@ fn expanded_segments(imports: &BTreeMap<String, String>, path: &syn::Path) -> Ve
 /// recognizer in this module about the same call.
 struct FlowScope<'a> {
     /// Imported names of the enclosing file to their full `use` paths.
-    imports: &'a BTreeMap<String, String>
+    imports: &'a BTreeMap<String, String>,
+    /// Workspace functions to their return types, so a call to a
+    /// function whose signature declares the never type is read as the
+    /// divergence it is.
+    returns: &'a Scoped<Returned>,
+    /// Source index of the function under analysis, for scoped lookup.
+    src:     usize,
+    /// Crate identity of every source, for scoped lookup.
+    crates:  &'a [String]
 }
 
 impl FlowScope<'_> {
@@ -580,6 +588,27 @@ impl FlowScope<'_> {
         let segments = expanded_segments(self.imports, &path.path);
         matches!(segments.last().map(String::as_str), Some("exit" | "abort"))
             && segments.iter().any(|segment| segment == "process")
+    }
+
+    /// Whether a called path names a workspace function whose signature
+    /// declares the never type, so the call does not return.
+    fn never_returns(&self, callee: &syn::Expr) -> bool {
+        let syn::Expr::Path(path) = callee else {
+            return false;
+        };
+        let segments = expanded_segments(self.imports, &path.path);
+        let Some(bare) = segments.last() else {
+            return false;
+        };
+        let qualified = if segments.len() >= 2 {
+            format!("{}::{bare}", segments[segments.len() - 2])
+        } else {
+            bare.clone()
+        };
+        [qualified.as_str(), bare.as_str()]
+            .iter()
+            .filter_map(|key| self.returns.resolve(key, self.src, self.crates))
+            .any(|returned| returned.never)
     }
 
     /// What a statement proves about the statement after it. A
@@ -787,7 +816,7 @@ impl FlowScope<'_> {
             syn::Expr::Macro(invocation) => self.macro_flow(&invocation.mac),
             syn::Expr::Call(call) => {
                 let flow = self.children_flow(expression);
-                if self.process_exit(&call.func) {
+                if self.process_exit(&call.func) || self.never_returns(&call.func) {
                     return flow.then(Flow::proving(Completion::Never));
                 }
                 if let syn::Expr::Closure(closure) = unwrapped(&call.func) {
@@ -1223,9 +1252,12 @@ impl FactCollector {
     }
 
     /// The reachability fold read against this function's own file.
-    const fn flow_scope(&self) -> FlowScope<'_> {
+    fn flow_scope(&self) -> FlowScope<'_> {
         FlowScope {
-            imports: &self.imports
+            imports: &self.imports,
+            returns: &self.fn_returns,
+            src:     self.src,
+            crates:  &self.crates
         }
     }
 

@@ -513,7 +513,10 @@ pub(super) struct Returned {
     /// Success type inside a `Result`/`Option` return, `Self` resolved.
     pub(super) success: Option<String>,
     /// Error type inside a `Result` return, `Self` resolved.
-    pub(super) error:   Option<String>
+    pub(super) error:   Option<String>,
+    /// Whether the signature declares the never type, so a call to this
+    /// function does not return to its caller.
+    pub(super) never:   bool
 }
 
 /// Maps every uniquely named free function — and every associated
@@ -598,6 +601,14 @@ fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Option<Return
     let syn::ReturnType::Type(_, ty) = &signature.output else {
         return None;
     };
+    if matches!(ty.as_ref(), syn::Type::Never(_)) {
+        return Some(Returned {
+            plain:   "!".to_owned(),
+            success: None,
+            error:   None,
+            never:   true
+        });
+    }
     let syn::Type::Path(path) = ty.as_ref() else {
         return None;
     };
@@ -616,7 +627,8 @@ fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Option<Return
     Some(Returned {
         plain,
         success,
-        error
+        error,
+        never: false
     })
 }
 
