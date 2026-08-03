@@ -147,7 +147,7 @@ fn support<'a>(
 /// entry, in a fixed shape no check may deviate from.
 fn detail(form: &Form, subject: &str, observed: &str, times: u32) -> String {
     format!(
-        "`{subject}` — {observed}\n    required: {}\n    cost: {times} {}{}",
+        "`{subject}` — {observed}\n    required (methodology): {}\n    cost: {times} {}{}",
         form.canonical,
         form.unit,
         if times == 1 { "" } else { "s" }
@@ -165,22 +165,13 @@ fn trace(observed: &str, evidence: &str, derived: &StdFact) -> Vec<TraceStep> {
         },
         TraceStep {
             fact:   format!("`{}`", derived.snippet),
-            reason: format!(
-                "{}:{} — {}",
-                derived.file.display(),
-                derived.line,
-                derived.observed
-            )
+            reason: format!("{}:{}", derived.file.display(), derived.line)
         },
     ];
     if let Some(quote) = &derived.doc {
         steps.push(TraceStep {
             fact:   quote.text.clone(),
-            reason: format!(
-                "{}:{} — the library's own documentation of this property",
-                quote.file.display(),
-                quote.line
-            )
+            reason: format!("{}:{}", quote.file.display(), quote.line)
         });
     }
     steps
