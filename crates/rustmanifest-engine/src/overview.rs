@@ -219,6 +219,16 @@ fn surface_section(out: &mut String, sources: &[Source], top: usize) {
             recovered.providers
         )
     );
+    if recovered.conditional > 0 {
+        push(
+            out,
+            &format!(
+                "- {} registration(s) standing under a branch, arm, loop or closure — present \
+                 only where that construct runs\n",
+                recovered.conditional
+            )
+        );
+    }
     if recovered.dynamic > 0 {
         push(
             out,
@@ -255,8 +265,15 @@ fn surface_section(out: &mut String, sources: &[Source], top: usize) {
         push(
             out,
             &format!(
-                "- `{} {}` → `{}`{file}\n",
-                route.method, route.path, route.handler
+                "- `{} {}` → `{}`{}{file}\n",
+                route.method,
+                route.path,
+                route.handler,
+                if route.conditional {
+                    " (conditional)"
+                } else {
+                    ""
+                }
             )
         );
     }

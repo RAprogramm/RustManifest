@@ -20,7 +20,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use rustmanifest_schema::Range;
-use syn::{Expr, ImplItem, Item, spanned::Spanned};
+use syn::{Expr, ImplItem, Item, spanned::Spanned, visit::Visit};
 
 use crate::source::Source;
 
@@ -57,37 +57,44 @@ const MODELS: [&FrameworkModel; 1] = [&AXUM];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Route {
     /// HTTP method in upper case.
-    pub method:  String,
+    pub method:      String,
     /// Full path, composed through every enclosing prefix.
-    pub path:    String,
+    pub path:        String,
     /// Handler function as written at the registration.
-    pub handler: String,
+    pub handler:     String,
+    /// Whether the registration stands under a construct that may not
+    /// run — a branch, a match arm, a loop, or a closure — so the route
+    /// exists in some builds or runs only, and is not presented as
+    /// unconditional.
+    pub conditional: bool,
     /// Index of the source the registration lives in.
-    pub source:  usize,
+    pub source:      usize,
     /// Byte range of the registration call.
-    pub range:   Range
+    pub range:       Range
 }
 
 /// The external surface recovered from one source slice.
 #[derive(Debug, Default)]
 pub struct Surface {
     /// Recovered endpoints, sorted by path then method.
-    pub routes:     Vec<Route>,
+    pub routes:      Vec<Route>,
     /// Registrations whose path is not a literal — assembled at runtime
     /// and therefore not recoverable by construction.
-    pub dynamic:    u32,
+    pub dynamic:     u32,
     /// Composition arguments that name no resolvable provider function,
     /// with the composing method that held them.
-    pub unresolved: Vec<String>,
+    pub unresolved:  Vec<String>,
     /// Providers that fold in others, hence not surface roots themselves.
-    pub composed:   usize,
+    pub composed:    usize,
     /// Functions observed to build a router value.
-    pub providers:  usize,
+    pub providers:   usize,
+    /// Registrations standing under a construct that may not run.
+    pub conditional: usize,
     /// Providers that fold each other, leaving no root to expand from.
     /// Their composition order is undetermined, so no path is composed
     /// for them — the same refusal the layer inference makes on mutual
     /// module dependencies.
-    pub entangled:  Vec<String>
+    pub entangled:   Vec<String>
 }
 
 /// Recovers the route table of `sources`.
@@ -163,6 +170,7 @@ pub fn surface(sources: &[Source]) -> Surface {
         ))
     });
     routes.dedup();
+    recovered.conditional = routes.iter().filter(|route| route.conditional).count();
     recovered.routes = routes;
     recovered
 }
@@ -179,6 +187,12 @@ struct Provider {
 
 /// Walks one function body and records what it contributes to the
 /// surface, registering it as a provider when it contributes anything.
+///
+/// Traversal is the syntax visitor's own, so no expression form can be
+/// forgotten: a registration inside a branch, a match arm, a closure or
+/// a macro-free block is reached exactly like one at the top level. A
+/// registration standing under a construct that may not run is recorded
+/// as conditional rather than dropped or presented as certain.
 fn collect(
     function: &str,
     block: &syn::Block,
@@ -187,9 +201,13 @@ fn collect(
     recovered: &mut Surface
 ) {
     let mut provider = Provider::default();
-    for statement in &block.stmts {
-        walk_statement(statement, source, &mut provider, recovered);
-    }
+    let mut walk = Walk {
+        source,
+        conditional: 0,
+        provider: &mut provider,
+        recovered
+    };
+    walk.visit_block(block);
     if provider.routes.is_empty() && provider.folds.is_empty() {
         return;
     }
@@ -198,69 +216,75 @@ fn collect(
     entry.folds.extend(provider.folds);
 }
 
-/// Walks one statement for router chains.
-fn walk_statement(
-    statement: &syn::Stmt,
-    source: usize,
-    provider: &mut Provider,
-    recovered: &mut Surface
-) {
-    match statement {
-        syn::Stmt::Local(local) => {
-            if let Some(init) = &local.init {
-                walk_expression(&init.expr, source, provider, recovered);
-                if let Some((_, diverge)) = &init.diverge {
-                    walk_expression(diverge, source, provider, recovered);
-                }
-            }
-        }
-        syn::Stmt::Expr(expression, _) => {
-            walk_expression(expression, source, provider, recovered);
-        }
-        syn::Stmt::Item(_) | syn::Stmt::Macro(_) => {}
+/// Visitor collecting registrations and compositions from one body.
+struct Walk<'a> {
+    /// Index of the source under analysis.
+    source:      usize,
+    /// Depth of constructs that may not run around the visited node.
+    conditional: u32,
+    /// Provider being filled.
+    provider:    &'a mut Provider,
+    /// Report counters.
+    recovered:   &'a mut Surface
+}
+
+impl Walk<'_> {
+    /// Visits a node with one more construct that may not run around it.
+    fn under<F: FnOnce(&mut Self)>(&mut self, body: F) {
+        self.conditional += 1;
+        body(self);
+        self.conditional -= 1;
     }
 }
 
-/// Walks one expression, recording every registration and composition
-/// found in it or in its receivers.
-fn walk_expression(
-    expression: &Expr,
-    source: usize,
-    provider: &mut Provider,
-    recovered: &mut Surface
-) {
-    match expression {
-        Expr::MethodCall(call) => {
-            let name = call.method.to_string();
-            let model = MODELS.iter().find(|model| model.knows(&name)).copied();
-            if let Some(model) = model {
-                record(model, &name, call, source, provider, recovered);
-            }
-            walk_expression(&call.receiver, source, provider, recovered);
-            for argument in &call.args {
-                walk_expression(argument, source, provider, recovered);
-            }
+impl<'ast> Visit<'ast> for Walk<'_> {
+    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        let name = call.method.to_string();
+        if let Some(model) = MODELS.iter().find(|model| model.knows(&name)).copied() {
+            record(
+                model,
+                &name,
+                call,
+                self.source,
+                self.conditional > 0,
+                self.provider,
+                self.recovered
+            );
         }
-        Expr::Call(call) => {
-            for argument in &call.args {
-                walk_expression(argument, source, provider, recovered);
+        syn::visit::visit_expr_method_call(self, call);
+    }
+
+    fn visit_expr_if(&mut self, conditional: &'ast syn::ExprIf) {
+        self.visit_expr(&conditional.cond);
+        self.under(|walk| {
+            walk.visit_block(&conditional.then_branch);
+            if let Some((_, otherwise)) = &conditional.else_branch {
+                walk.visit_expr(otherwise);
             }
-        }
-        Expr::Block(block) => {
-            for statement in &block.block.stmts {
-                walk_statement(statement, source, provider, recovered);
+        });
+    }
+
+    fn visit_expr_match(&mut self, matched: &'ast syn::ExprMatch) {
+        self.visit_expr(&matched.expr);
+        self.under(|walk| {
+            for arm in &matched.arms {
+                walk.visit_arm(arm);
             }
-        }
-        Expr::Return(expr) => {
-            if let Some(inner) = &expr.expr {
-                walk_expression(inner, source, provider, recovered);
-            }
-        }
-        Expr::Reference(expr) => walk_expression(&expr.expr, source, provider, recovered),
-        Expr::Paren(expr) => walk_expression(&expr.expr, source, provider, recovered),
-        Expr::Await(expr) => walk_expression(&expr.base, source, provider, recovered),
-        Expr::Try(expr) => walk_expression(&expr.expr, source, provider, recovered),
-        _ => {}
+        });
+    }
+
+    fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
+        self.under(|walk| syn::visit::visit_expr_closure(walk, closure));
+    }
+
+    fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
+        self.visit_expr(&loop_expr.expr);
+        self.under(|walk| walk.visit_block(&loop_expr.body));
+    }
+
+    fn visit_expr_while(&mut self, loop_expr: &'ast syn::ExprWhile) {
+        self.visit_expr(&loop_expr.cond);
+        self.under(|walk| walk.visit_block(&loop_expr.body));
     }
 }
 
@@ -279,6 +303,7 @@ fn record(
     method: &str,
     call: &syn::ExprMethodCall,
     source: usize,
+    conditional: bool,
     provider: &mut Provider,
     recovered: &mut Surface
 ) {
@@ -303,6 +328,7 @@ fn record(
                 method: verb,
                 path: path.clone(),
                 handler,
+                conditional,
                 source,
                 range: Range {
                     start: u32::try_from(span.start).unwrap_or(u32::MAX),
@@ -425,11 +451,12 @@ fn expand(
     };
     for route in &provider.routes {
         out.push(Route {
-            method:  route.method.clone(),
-            path:    join(prefix, &route.path),
-            handler: route.handler.clone(),
-            source:  route.source,
-            range:   route.range
+            method:      route.method.clone(),
+            path:        join(prefix, &route.path),
+            handler:     route.handler.clone(),
+            conditional: route.conditional,
+            source:      route.source,
+            range:       route.range
         });
     }
     for (nested_prefix, folded) in &provider.folds {
@@ -513,6 +540,45 @@ mod tests {
         assert_eq!(paths, ["/api/v1/list", "/health"]);
         assert_eq!(recovered.providers, 3);
         assert_eq!(recovered.composed, 2);
+    }
+
+    #[test]
+    fn a_registration_under_a_branch_is_recovered_and_marked_conditional() {
+        let recovered = surface(&source(
+            "fn routes(debug: bool) -> Router {\n    let mut app = Router::new().route(\"/live\", \
+             get(live));\n    if debug {\n        app = app.route(\"/debug\", get(debug_handler));\n \
+             }\n    app\n}"
+        ));
+        let rows: Vec<(&str, bool)> = recovered
+            .routes
+            .iter()
+            .map(|route| (route.path.as_str(), route.conditional))
+            .collect();
+        assert_eq!(rows, [("/debug", true), ("/live", false)]);
+        assert_eq!(recovered.conditional, 1);
+    }
+
+    #[test]
+    fn registrations_inside_a_match_arm_or_a_closure_are_not_lost() {
+        let matched = surface(&source(
+            "fn routes(mode: Mode) -> Router {\n    match mode {\n        Mode::Full => \
+             Router::new().route(\"/full\", get(full)),\n        Mode::Slim => \
+             Router::new().route(\"/slim\", get(slim))\n    }\n}"
+        ));
+        let paths: Vec<&str> = matched
+            .routes
+            .iter()
+            .map(|route| route.path.as_str())
+            .collect();
+        assert_eq!(paths, ["/full", "/slim"]);
+        assert_eq!(matched.conditional, 2);
+
+        let closured = surface(&source(
+            "fn routes() -> Router {\n    let build = || Router::new().route(\"/lazy\", \
+             get(lazy));\n    build()\n}"
+        ));
+        assert_eq!(closured.routes.len(), 1);
+        assert!(closured.routes[0].conditional);
     }
 
     #[test]
