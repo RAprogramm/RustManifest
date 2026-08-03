@@ -7,20 +7,17 @@
 //! third-party crate. SARIF is large; this renderer emits only the fields
 //! used by GitHub code scanning and other common ingesters: tool driver
 //! metadata, declared rules, and results with byte-precise physical
-//! locations.
+//! locations. The document model lives in [`document`], the fold from
+//! findings into it in [`conversion`].
 
-use std::{collections::BTreeMap, io::Write};
+mod conversion;
+mod document;
 
-use rustmanifest_schema::{Finding, Severity};
-use serde::Serialize;
+use std::io::Write;
 
-use crate::{Renderer, error::ReportError};
+use rustmanifest_schema::Finding;
 
-const SARIF_VERSION: &str = "2.1.0";
-const SARIF_SCHEMA_URI: &str =
-    "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
-const TOOL_NAME: &str = "rustmanifest";
-const TOOL_INFORMATION_URI: &str = "https://github.com/RAprogramm/RustManifest";
+use crate::{Renderer, error::ReportError, sarif::conversion::build_log};
 
 /// Renders findings as a SARIF 2.1.0 document.
 pub struct SarifRenderer<W: Write> {
@@ -52,185 +49,6 @@ impl<W: Write> Renderer for SarifRenderer<W> {
     }
 }
 
-fn build_log(findings: &[Finding], tool_version: &str) -> SarifLog {
-    let mut rules_index: BTreeMap<&str, RuleDescriptor> = BTreeMap::new();
-    for finding in findings {
-        rules_index
-            .entry(finding.rule_id.as_str())
-            .or_insert_with(|| RuleDescriptor {
-                id:                finding.rule_id.clone(),
-                name:              finding.rule_id.clone(),
-                short_description: MultiformatMessage {
-                    text: finding.message.clone()
-                },
-                help_uri:          finding.rationale_uri.clone()
-            });
-    }
-    let rules: Vec<RuleDescriptor> = rules_index.into_values().collect();
-
-    let results: Vec<SarifResult> = findings
-        .iter()
-        .map(|finding| SarifResult {
-            rule_id:    finding.rule_id.clone(),
-            level:      level_of(finding.severity),
-            message:    MultiformatMessage {
-                text: finding.message.clone()
-            },
-            properties: properties_of(finding),
-            locations:  vec![SarifLocation {
-                physical_location: PhysicalLocation {
-                    artifact_location: ArtifactLocation {
-                        uri: finding.location.file.display().to_string()
-                    },
-                    region:            Region {
-                        byte_offset: finding.location.range.start,
-                        byte_length: finding
-                            .location
-                            .range
-                            .end
-                            .saturating_sub(finding.location.range.start)
-                    }
-                }
-            }]
-        })
-        .collect();
-
-    SarifLog {
-        version: SARIF_VERSION.to_owned(),
-        schema:  SARIF_SCHEMA_URI.to_owned(),
-        runs:    vec![Run {
-            tool: Tool {
-                driver: Driver {
-                    name: TOOL_NAME.to_owned(),
-                    version: tool_version.to_owned(),
-                    information_uri: TOOL_INFORMATION_URI.to_owned(),
-                    rules
-                }
-            },
-            results
-        }]
-    }
-}
-
-/// Builds the SARIF property bag of one result: findings carrying a
-/// derivation trace expose it as `properties.trace`, findings without one
-/// omit the bag entirely.
-fn properties_of(finding: &Finding) -> Option<ResultProperties> {
-    if finding.trace.is_empty() {
-        return None;
-    }
-    Some(ResultProperties {
-        trace: finding
-            .trace
-            .iter()
-            .map(|step| TraceStepProperty {
-                fact:   step.fact.clone(),
-                reason: step.reason.clone()
-            })
-            .collect()
-    })
-}
-
-const fn level_of(severity: Severity) -> &'static str {
-    match severity {
-        Severity::Error => "error",
-        Severity::Warning => "warning",
-        Severity::Info => "note",
-        Severity::Hint => "none"
-    }
-}
-
-#[derive(Serialize)]
-struct SarifLog {
-    version: String,
-    #[serde(rename = "$schema")]
-    schema:  String,
-    runs:    Vec<Run>
-}
-
-#[derive(Serialize)]
-struct Run {
-    tool:    Tool,
-    results: Vec<SarifResult>
-}
-
-#[derive(Serialize)]
-struct Tool {
-    driver: Driver
-}
-
-#[derive(Serialize)]
-struct Driver {
-    name:            String,
-    version:         String,
-    #[serde(rename = "informationUri")]
-    information_uri: String,
-    rules:           Vec<RuleDescriptor>
-}
-
-#[derive(Serialize)]
-struct RuleDescriptor {
-    id:                String,
-    name:              String,
-    #[serde(rename = "shortDescription")]
-    short_description: MultiformatMessage,
-    #[serde(rename = "helpUri")]
-    help_uri:          String
-}
-
-#[derive(Serialize)]
-struct SarifResult {
-    #[serde(rename = "ruleId")]
-    rule_id:    String,
-    level:      &'static str,
-    message:    MultiformatMessage,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    properties: Option<ResultProperties>,
-    locations:  Vec<SarifLocation>
-}
-
-#[derive(Serialize)]
-struct ResultProperties {
-    trace: Vec<TraceStepProperty>
-}
-
-#[derive(Serialize)]
-struct TraceStepProperty {
-    fact:   String,
-    reason: String
-}
-
-#[derive(Serialize)]
-struct SarifLocation {
-    #[serde(rename = "physicalLocation")]
-    physical_location: PhysicalLocation
-}
-
-#[derive(Serialize)]
-struct PhysicalLocation {
-    #[serde(rename = "artifactLocation")]
-    artifact_location: ArtifactLocation,
-    region:            Region
-}
-
-#[derive(Serialize)]
-struct ArtifactLocation {
-    uri: String
-}
-
-#[derive(Serialize)]
-struct Region {
-    #[serde(rename = "byteOffset")]
-    byte_offset: u32,
-    #[serde(rename = "byteLength")]
-    byte_length: u32
-}
-
-#[derive(Serialize)]
-struct MultiformatMessage {
-    text: String
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -241,7 +59,7 @@ struct MultiformatMessage {
 mod tests {
     use std::path::PathBuf;
 
-    use rustmanifest_schema::{Location, Range, TraceStep};
+    use rustmanifest_schema::{Location, Range, Severity, TraceStep};
 
     use super::*;
 

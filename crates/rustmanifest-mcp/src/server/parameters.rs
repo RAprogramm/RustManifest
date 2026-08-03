@@ -1,0 +1,52 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! Parameter payloads accepted by the review tools.
+//!
+//! Every payload is deserialized from the MCP request arguments and
+//! carries a JSON schema so clients can discover the tool surface.
+
+use schemars::JsonSchema;
+use serde::Deserialize;
+
+/// Parameters for tools that accept a single workspace path.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PathParams {
+    /// File or directory path resolved against the workspace root.
+    pub path: String
+}
+
+/// Parameters for `project_overview`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct OverviewParams {
+    /// File or directory path resolved against the workspace root.
+    pub path: String,
+    /// Cap for every ranked list in the report; defaults to 10.
+    pub top:  Option<usize>
+}
+
+/// Parameters for `function_facts`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FactsParams {
+    /// File or directory path resolved against the workspace root.
+    pub path:   String,
+    /// Only include functions whose qualified name contains this
+    /// substring.
+    pub filter: Option<String>
+}
+
+/// Parameters for `explain_rule`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RuleIdParams {
+    /// Rule identifier, e.g. `RM-STRUCT-001`.
+    pub rule_id: String
+}
+
+/// Parameters for `check_rule`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RulePathParams {
+    /// Rule identifier, e.g. `RM-SEC-001`.
+    pub rule_id: String,
+    /// File or directory path resolved against the workspace root.
+    pub path:    String
+}

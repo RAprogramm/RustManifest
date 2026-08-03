@@ -21,16 +21,16 @@
 //! root claims it can appear under both crates; counters that deduplicate
 //! by source are unaffected.
 
-mod builder;
 mod layout;
 mod resolve;
+mod tree;
 
 use std::path::{Path, PathBuf};
 
 use rustmanifest_schema::Range;
 
 pub(super) use self::resolve::resolved_module;
-use self::{builder::GraphBuilder, layout::is_crate_root};
+use self::{layout::is_crate_root, tree::GraphBuilder};
 use crate::source::Source;
 
 /// One expanded `use` target recorded in a module.

@@ -5,14 +5,18 @@
 //! `mod name;` declarations to files, records inline modules, and
 //! expands `use` trees into flat targets.
 
+mod mod_source;
+mod use_path;
+
 use std::{
     collections::HashMap,
     path::{Path, PathBuf}
 };
 
 use rustmanifest_schema::Range;
-use syn::{UseTree, spanned::Spanned};
+use syn::spanned::Spanned;
 
+use self::{mod_source::declared_source, use_path::expand_use};
 use super::{ModuleNode, UseTarget};
 use crate::source::Source;
 
@@ -100,7 +104,6 @@ impl GraphBuilder<'_> {
     fn extract_mod(&mut self, scope: &ModuleScope, item: &syn::ItemMod) {
         let name = item.ident.to_string();
         let path = format!("{}::{name}", scope.path);
-        let dir = scope.dir.join(&name);
 
         if let Some((_, items)) = &item.content {
             let module = self.push_module(scope.krate, path.clone(), scope.source);
@@ -109,34 +112,14 @@ impl GraphBuilder<'_> {
                 module,
                 path,
                 source: scope.source,
-                dir
+                dir: scope.dir.join(&name)
             };
             self.extract_items(&child, items);
-        } else if let Some((source, source_dir)) = path_attribute(item)
-            .and_then(|relative| {
-                let file = scope.dir.join(relative);
-                let parent = file.parent().map(Path::to_path_buf);
-                self.by_path.get(file.as_path()).copied().zip(parent)
-            })
-            .or_else(|| {
-                self.child_source(&scope.dir, &name)
-                    .map(|source| (source, dir.clone()))
-            })
+        } else if let Some((source, source_dir)) =
+            declared_source(&self.by_path, &scope.dir, item, &name)
         {
             self.extract_file(scope.krate, path, source, source_dir);
         }
-    }
-
-    /// Resolves the source of a `mod name;` declaration, trying `name.rs`
-    /// then `name/mod.rs` relative to `dir`; unresolved declarations are
-    /// ignored.
-    fn child_source(&self, dir: &Path, name: &str) -> Option<usize> {
-        let flat = dir.join(format!("{name}.rs"));
-        if let Some(&index) = self.by_path.get(flat.as_path()) {
-            return Some(index);
-        }
-        let nested = dir.join(name).join("mod.rs");
-        self.by_path.get(nested.as_path()).copied()
     }
 
     /// Records one use target per imported path, expanding grouped trees.
@@ -156,114 +139,5 @@ impl GraphBuilder<'_> {
                 });
             }
         }
-    }
-}
-
-/// Extracts the string of a `#[path = "..."]` attribute on a `mod`
-/// declaration, which mounts the module from an explicit file relative to
-/// the declaring file's directory.
-fn path_attribute(item: &syn::ItemMod) -> Option<String> {
-    item.attrs.iter().find_map(|attr| {
-        if !attr.path().is_ident("path") {
-            return None;
-        }
-        let syn::Meta::NameValue(pair) = &attr.meta else {
-            return None;
-        };
-        let syn::Expr::Lit(literal) = &pair.value else {
-            return None;
-        };
-        let syn::Lit::Str(text) = &literal.lit else {
-            return None;
-        };
-        Some(text.value())
-    })
-}
-
-/// Expands a use tree into flat path strings without a leading `::`.
-pub(super) fn expand_use(prefix: String, tree: &UseTree, out: &mut Vec<String>) {
-    match tree {
-        UseTree::Path(segment) => {
-            expand_use(
-                joined(&prefix, &segment.ident.to_string()),
-                &segment.tree,
-                out
-            );
-        }
-        UseTree::Name(name) => {
-            let ident = name.ident.to_string();
-            if ident == "self" && !prefix.is_empty() {
-                out.push(prefix);
-            } else {
-                out.push(joined(&prefix, &ident));
-            }
-        }
-        UseTree::Rename(rename) => out.push(joined(&prefix, &rename.ident.to_string())),
-        UseTree::Glob(_) => out.push(joined(&prefix, "*")),
-        UseTree::Group(group) => {
-            for item in &group.items {
-                expand_use(prefix.clone(), item, out);
-            }
-        }
-    }
-}
-
-/// Joins a path prefix and a segment with `::`, dropping an empty prefix.
-fn joined(prefix: &str, segment: &str) -> String {
-    if prefix.is_empty() {
-        segment.to_string()
-    } else {
-        format!("{prefix}::{segment}")
-    }
-}
-
-#[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test code is allowed to fail loudly on broken invariants"
-)]
-mod tests {
-    use syn::ItemUse;
-
-    use super::expand_use;
-
-    fn expanded(text: &str) -> Vec<String> {
-        let item: ItemUse = syn::parse_str(text).expect("use item");
-        let mut out = Vec::new();
-        expand_use(String::new(), &item.tree, &mut out);
-        out
-    }
-
-    #[test]
-    fn group_expands_into_separate_targets() {
-        assert_eq!(
-            expanded("use a::{b, c};"),
-            vec!["a::b".to_string(), "a::c".to_string()]
-        );
-    }
-
-    #[test]
-    fn glob_renders_as_star() {
-        assert_eq!(expanded("use a::b::*;"), vec!["a::b::*".to_string()]);
-    }
-
-    #[test]
-    fn leading_colon_is_dropped() {
-        assert_eq!(expanded("use ::std::fmt;"), vec!["std::fmt".to_string()]);
-    }
-
-    #[test]
-    fn self_in_group_targets_the_prefix() {
-        assert_eq!(
-            expanded("use a::b::{self, c};"),
-            vec!["a::b".to_string(), "a::b::c".to_string()]
-        );
-    }
-
-    #[test]
-    fn rename_records_the_original_path() {
-        assert_eq!(expanded("use a::b as c;"), vec!["a::b".to_string()]);
     }
 }

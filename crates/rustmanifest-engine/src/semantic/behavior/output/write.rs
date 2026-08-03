@@ -1,0 +1,512 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! One observed write, as a single record: the stream it reaches, the
+//! text it puts there, the terminator it appends, and the two readings
+//! that say how certainly and how often it happens.
+//!
+//! One record per write site, in body order, never deduplicated — the
+//! channel the effect list cannot be.
+
+use super::{guard::SiteGuard, multiplicity::Multiplicity, payload::Payload, stream::Stream};
+
+/// Whether the write appends a line terminator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Newline {
+    /// A terminator is appended by the writing construct.
+    Appended,
+    /// No terminator is appended.
+    None
+}
+
+/// One observed write to an output stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputWrite {
+    /// Where the bytes go.
+    pub stream:       Stream,
+    /// What is written.
+    pub payload:      Payload,
+    /// Whether a line terminator is appended.
+    pub newline:      Newline,
+    /// Byte range of the writing construct.
+    pub site:         rustmanifest_schema::Range,
+    /// What stands between the site and unconditional execution.
+    pub guard:        SiteGuard,
+    /// How many times it runs per call.
+    pub multiplicity: Multiplicity
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use crate::semantic::behavior::output::{Grade, Guard, OpaqueReason, Payload, Stream};
+
+    #[test]
+    fn a_greeting_records_one_stdout_write_with_its_proven_text() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn main() {\n    println!(\"Hello, world!\");\n}".to_owned()
+        )];
+        let facts = behavior(&sources);
+        let main = facts
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        assert_eq!(main.output_writes.len(), 1);
+        let write = &main.output_writes[0];
+        assert_eq!(write.stream, super::Stream::Stdout);
+        assert_eq!(write.payload.fully_known(), Some("Hello, world!"));
+        assert_eq!(write.newline, super::Newline::Appended);
+        assert_eq!(write.guard.local_grade(), Grade::Certain);
+        assert!(write.site.end > write.site.start);
+        assert_eq!(main.effects, vec![crate::semantic::Effect::ConsoleIo]);
+    }
+
+    #[test]
+    fn each_write_is_its_own_event_in_body_order() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn main() {\n    println!(\"one\");\n    eprintln!(\"two\");\n    println!(\"one\");\n}"
+                .to_owned()
+        )];
+        let facts = behavior(&sources);
+        let main = facts
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        let observed: Vec<(super::Stream, Option<&str>)> = main
+            .output_writes
+            .iter()
+            .map(|write| (write.stream, write.payload.fully_known()))
+            .collect();
+        assert_eq!(
+            observed,
+            [
+                (super::Stream::Stdout, Some("one")),
+                (super::Stream::Stderr, Some("two")),
+                (super::Stream::Stdout, Some("one"))
+            ]
+        );
+    }
+
+    fn writes_of_source(source: &str, function: &str) -> Vec<super::OutputWrite> {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(PathBuf::from("src/main.rs"), source.to_owned())];
+        behavior(&sources)
+            .into_iter()
+            .find(|fact| fact.function == function)
+            .map(|fact| fact.output_writes)
+            .unwrap_or_default()
+    }
+
+    fn writes_of(body: &str) -> Vec<super::OutputWrite> {
+        writes_of_source(&format!("fn main() {{\n{body}\n}}"), "main")
+    }
+
+    #[test]
+    fn a_write_under_a_branch_is_possible_not_certain() {
+        let branch = writes_of("    if flag { println!(\"hi\"); }");
+        assert_eq!(branch[0].guard.guards, [Guard::If]);
+        assert_eq!(branch[0].guard.local_grade(), Grade::Possible);
+
+        let straight = writes_of("    println!(\"hi\");");
+        assert!(straight[0].guard.guards.is_empty());
+        assert_eq!(straight[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_loop_body_repeats_and_only_a_loop_that_may_not_run_weakens_it() {
+        let counted = writes_of("    for _ in 0..n { println!(\"hi\"); }");
+        assert_eq!(counted[0].guard.guards, [Guard::For]);
+        assert_eq!(counted[0].multiplicity, super::Multiplicity::Unbounded);
+        assert_eq!(counted[0].guard.local_grade(), Grade::Possible);
+
+        let forever = writes_of("    loop { println!(\"hi\"); }");
+        assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(forever[0].multiplicity, super::Multiplicity::Unbounded);
+        assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_closure_or_nested_item_body_only_runs_where_it_is_called() {
+        let closure = writes_of("    let shout = || println!(\"hi\");");
+        assert_eq!(closure[0].guard.guards, [Guard::Closure]);
+
+        let nested = writes_of("    fn inner() { println!(\"hi\"); }");
+        assert_eq!(nested[0].guard.guards, [Guard::NestedItem]);
+    }
+
+    #[test]
+    fn an_exit_before_a_write_weakens_it_and_divergence_kills_it() {
+        let after_try = writes_of("    helper()?;\n    println!(\"hi\");");
+        assert_eq!(after_try[0].guard.prior_exits, 1);
+        assert_eq!(after_try[0].guard.local_grade(), Grade::Possible);
+
+        let after_return = writes_of("    return;\n    println!(\"hi\");");
+        assert!(after_return[0].guard.dead);
+        assert_eq!(after_return[0].guard.local_grade(), Grade::Dead);
+
+        let after_panic = writes_of("    panic!(\"stop\");\n    println!(\"hi\");");
+        assert!(after_panic[0].guard.dead);
+    }
+
+    #[test]
+    fn a_configuration_gate_is_never_resolved_only_recorded() {
+        let gated = writes_of("    #[cfg(feature = \"loud\")]\n    println!(\"hi\");");
+        assert_eq!(gated[0].guard.guards, [Guard::CfgGated]);
+        assert_eq!(gated[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn the_guard_stack_unwinds_so_a_later_write_is_not_poisoned() {
+        let writes = writes_of(
+            "    if a { match b { Some(_) => println!(\"deep\"), None => {} } }\n    \
+             println!(\"flat\");"
+        );
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].guard.guards.len(), 2);
+        assert!(writes[1].guard.guards.is_empty());
+    }
+
+    #[test]
+    fn a_divergence_below_the_top_of_a_statement_is_seen() {
+        let branch = writes_of("    if flag { std::process::exit(1); }\n    println!(\"hi\");");
+        assert!(!branch[0].guard.dead);
+        assert_eq!(branch[0].guard.prior_exits, 1);
+        assert_eq!(branch[0].guard.local_grade(), Grade::Possible);
+
+        let nested = writes_of("    { panic!(\"stop\"); }\n    println!(\"hi\");");
+        assert_eq!(nested[0].guard.local_grade(), Grade::Dead);
+
+        let argument = writes_of("    helper(std::process::exit(1));\n    println!(\"hi\");");
+        assert_eq!(argument[0].guard.local_grade(), Grade::Dead);
+    }
+
+    #[test]
+    fn a_divergence_on_every_branch_kills_what_follows() {
+        let branches = writes_of(
+            "    if flag { return; } else { std::process::exit(1); }\n    println!(\"x\");"
+        );
+        assert!(branches[0].guard.dead);
+        assert_eq!(branches[0].guard.local_grade(), Grade::Dead);
+
+        let arms = writes_of(
+            "    match v { Some(_) => return, None => panic!(\"no\") }\n    println!(\"x\");"
+        );
+        assert!(arms[0].guard.dead);
+    }
+
+    #[test]
+    fn a_configuration_gated_divergence_weakens_what_follows_and_never_kills_it() {
+        let gated = writes_of("    #[cfg(feature = \"x\")]\n    todo!();\n    println!(\"hi\");");
+        assert!(!gated[0].guard.dead);
+        assert_eq!(gated[0].guard.prior_exits, 1);
+        assert_eq!(gated[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn a_configuration_gate_is_recorded_on_every_statement_shape() {
+        let block = writes_of("    #[cfg(feature = \"loud\")]\n    unsafe { println!(\"hi\"); }");
+        assert_eq!(block[0].guard.guards, [Guard::CfgGated]);
+
+        let repeated =
+            writes_of("    #[cfg(feature = \"loud\")]\n    for _ in 0..n { println!(\"hi\"); }");
+        assert_eq!(repeated[0].guard.guards, [Guard::CfgGated, Guard::For]);
+
+        let item = writes_of("    #[cfg(test)]\n    fn inner() { println!(\"hi\"); }");
+        assert_eq!(item[0].guard.guards, [Guard::CfgGated, Guard::NestedItem]);
+    }
+
+    #[test]
+    fn an_exit_inside_a_nested_body_does_not_weaken_the_body_around_it() {
+        let nested = writes_of("    fn inner() { return; }\n    println!(\"outer\");");
+        assert_eq!(nested.len(), 1);
+        assert_eq!(nested[0].guard.prior_exits, 0);
+        assert_eq!(nested[0].guard.local_grade(), Grade::Certain);
+
+        let closure = writes_of("    let quit = || return;\n    println!(\"outer\");");
+        assert_eq!(closure[0].guard.prior_exits, 0);
+        assert_eq!(closure[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_bare_loop_repeats_without_weakening_the_write_inside_it() {
+        let forever = writes_of("    loop { println!(\"hi\"); }");
+        assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
+        assert_eq!(forever[0].multiplicity, super::Multiplicity::Unbounded);
+    }
+
+    #[test]
+    fn a_loop_that_nothing_breaks_out_of_kills_what_follows_it() {
+        let endless = writes_of("    loop { helper(); }\n    println!(\"hi\");");
+        assert_eq!(endless[0].guard.local_grade(), Grade::Dead);
+
+        let escaping = writes_of("    loop { if flag { break; } }\n    println!(\"hi\");");
+        assert!(!escaping[0].guard.dead);
+        assert_eq!(escaping[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn a_macro_this_tier_cannot_see_through_weakens_what_follows() {
+        let unknown = writes_of("    unknown_macro!();\n    println!(\"hi\");");
+        assert_eq!(unknown[0].guard.prior_exits, 1);
+        assert_eq!(unknown[0].guard.local_grade(), Grade::Possible);
+
+        let settled = writes_of("    print!(\"first\");\n    println!(\"hi\");");
+        assert_eq!(settled[1].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_binding_arm_is_irrefutable_only_without_a_subpattern() {
+        let subpattern =
+            writes_of("    match v { y @ Some(1) => println!(\"a\"), _ => println!(\"b\") }");
+        assert_eq!(
+            subpattern[0].guard.guards,
+            [Guard::MatchArm {
+                irrefutable: false,
+                guarded:     false
+            }]
+        );
+        assert_eq!(
+            subpattern[1].guard.guards,
+            [Guard::MatchArm {
+                irrefutable: true,
+                guarded:     false
+            }]
+        );
+
+        let conditional =
+            writes_of("    match v { y if y > 1 => println!(\"a\"), _ => println!(\"b\") }");
+        assert_eq!(
+            conditional[0].guard.guards,
+            [Guard::MatchArm {
+                irrefutable: true,
+                guarded:     true
+            }]
+        );
+
+        let binding = writes_of("    match v { y => println!(\"a\") }");
+        assert!(binding[0].guard.guards.is_empty());
+        assert_eq!(binding[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_loop_that_may_hide_a_break_does_not_prove_what_follows_it_dead() {
+        let hidden = writes_of("    loop { escape!(); }\n    println!(\"hi\");");
+        assert!(!hidden[0].guard.dead);
+        assert_eq!(hidden[0].guard.prior_exits, 1);
+        assert_eq!(hidden[0].guard.local_grade(), Grade::Possible);
+
+        let opaque_call = writes_of("    loop { helper(); }\n    println!(\"hi\");");
+        assert_eq!(opaque_call[0].guard.local_grade(), Grade::Dead);
+    }
+
+    #[test]
+    fn an_async_body_is_framed_like_a_closure_because_both_run_where_driven() {
+        let writes =
+            writes_of("    let f = async { println!(\"a\"); };\n    let g = || println!(\"b\");");
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].guard.guards, [Guard::Closure]);
+        assert_eq!(writes[0].guard.local_grade(), Grade::Possible);
+        assert_eq!(writes[1].guard.guards, [Guard::Closure]);
+    }
+
+    #[test]
+    fn a_process_exit_reached_through_an_import_kills_what_follows_it() {
+        let imported = writes_of_source(
+            "use std::process::exit;\nfn main() { exit(1); println!(\"hi\"); }",
+            "main"
+        );
+        assert!(imported[0].guard.dead);
+        assert_eq!(imported[0].guard.local_grade(), Grade::Dead);
+
+        let aborted = writes_of_source(
+            "use std::process::abort;\nfn main() { abort(); println!(\"hi\"); }",
+            "main"
+        );
+        assert!(aborted[0].guard.dead);
+
+        let written = writes_of("    std::process::exit(1);\n    println!(\"hi\");");
+        assert!(written[0].guard.dead);
+
+        let unrelated = writes_of_source(
+            "use crate::shell::exit;\nfn main() { exit(1); println!(\"hi\"); }",
+            "main"
+        );
+        assert!(!unrelated[0].guard.dead);
+    }
+
+    #[test]
+    fn a_closure_invoked_where_it_is_written_runs_its_body_there() {
+        let diverging = writes_of("    (|| std::process::exit(1))();\n    println!(\"hi\");");
+        assert!(diverging[0].guard.dead);
+
+        let returning = writes_of("    (|| { return; })();\n    println!(\"hi\");");
+        assert!(!returning[0].guard.dead);
+        assert_eq!(returning[0].guard.prior_exits, 1);
+
+        let held = writes_of("    let quit = || std::process::exit(1);\n    println!(\"hi\");");
+        assert_eq!(held[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_nested_item_after_a_divergence_still_runs_where_it_is_called() {
+        let after_exit = writes_of(
+            "    helper();\n    std::process::exit(0);\n    fn helper() { println!(\"hi\"); }"
+        );
+        assert!(!after_exit[0].guard.dead);
+        assert_eq!(after_exit[0].guard.guards, [Guard::NestedItem]);
+        assert_eq!(after_exit[0].guard.local_grade(), Grade::Possible);
+
+        let after_return =
+            writes_of("    helper();\n    return;\n    fn helper() { println!(\"hi\"); }");
+        assert!(!after_return[0].guard.dead);
+        assert_eq!(after_return[0].guard.prior_exits, 0);
+    }
+
+    #[test]
+    fn a_conditionally_applied_attribute_is_not_a_configuration_gate() {
+        let applied = writes_of("    #[cfg_attr(feature = \"x\", inline)]\n    println!(\"hi\");");
+        assert!(applied[0].guard.guards.is_empty());
+        assert_eq!(applied[0].guard.local_grade(), Grade::Certain);
+
+        let diverging = writes_of(
+            "    #[cfg_attr(feature = \"x\", inline)]\n    todo!();\n    println!(\"hi\");"
+        );
+        assert!(diverging[0].guard.dead);
+
+        let gating =
+            writes_of("    #[cfg_attr(feature = \"x\", cfg(test))]\n    println!(\"hi\");");
+        assert_eq!(gating[0].guard.guards, [Guard::CfgGated]);
+        assert_eq!(gating[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn how_often_a_body_writes_comes_from_its_completion_not_from_the_keyword() {
+        let leaves = writes_of("    loop { println!(\"x\"); break; }\n    println!(\"after\");");
+        assert_eq!(leaves[0].payload.fully_known(), Some("x"));
+        assert_eq!(leaves[0].multiplicity, super::Multiplicity::Once);
+
+        let restarts = writes_of("    loop { println!(\"x\"); continue; }");
+        assert_eq!(restarts[0].multiplicity, super::Multiplicity::Unbounded);
+
+        let hidden = writes_of("    loop { println!(\"x\"); escape!(); }");
+        assert_eq!(hidden[0].multiplicity, super::Multiplicity::Unbounded);
+
+        let endless = writes_of("    loop { println!(\"x\"); }");
+        assert_eq!(endless[0].multiplicity, super::Multiplicity::Unbounded);
+    }
+
+    #[test]
+    fn a_while_condition_repeats_with_the_loop_it_governs() {
+        let writes = writes_of("    while ready(println!(\"tick\")) { println!(\"body\"); }");
+        assert_eq!(writes[0].payload.fully_known(), Some("tick"));
+        assert!(writes[0].guard.guards.is_empty());
+        assert_eq!(writes[0].multiplicity, super::Multiplicity::Unbounded);
+        assert_eq!(writes[1].guard.guards, [Guard::While]);
+        assert_eq!(writes[1].multiplicity, super::Multiplicity::Unbounded);
+    }
+
+    #[test]
+    fn a_write_inside_a_macro_argument_is_recorded_not_dropped() {
+        let nested = writes_of("    println!(\"{}\", { println!(\"inner\"); 1 });");
+        assert_eq!(nested.len(), 2);
+        assert_eq!(nested[1].payload.fully_known(), Some("inner"));
+
+        let asserted = writes_of("    assert!(flag, \"{}\", { println!(\"inner\"); 1 });");
+        assert_eq!(asserted.len(), 1);
+        assert_eq!(asserted[0].payload.fully_known(), Some("inner"));
+
+        let collected = writes_of("    let v = vec![{ println!(\"inner\"); 1 }];");
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].payload.fully_known(), Some("inner"));
+    }
+
+    #[test]
+    fn a_write_names_the_stream_it_reaches_or_states_that_it_cannot() {
+        let supplied = writes_of_source(
+            "fn dump<W: std::io::Write>(w: &mut W) { writeln!(w, \"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(supplied[0].stream, Stream::CallerSupplied);
+        assert_eq!(supplied[0].payload.fully_known(), Some("hi"));
+        assert_eq!(supplied[0].newline, super::Newline::Appended);
+
+        let unnamed = writes_of_source(
+            "fn dump() { let mut sink = make(); writeln!(sink, \"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(unnamed[0].stream, Stream::Unknown);
+
+        let handle = writes_of_source(
+            "fn dump() { write!(std::io::stdout().lock(), \"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(handle[0].stream, Stream::Stdout);
+        assert_eq!(handle[0].newline, super::Newline::None);
+    }
+
+    #[test]
+    fn bytes_written_from_a_value_state_the_value_as_the_reason() {
+        let literal = writes_of_source(
+            "fn dump<W: std::io::Write>(w: &mut W) { w.write_all(b\"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(literal[0].stream, Stream::CallerSupplied);
+        assert_eq!(literal[0].payload.fully_known(), Some("hi"));
+
+        let computed = writes_of_source(
+            "fn dump<W: std::io::Write>(w: &mut W, line: &str) { w.write_all(line.as_bytes()).ok(); }",
+            "dump"
+        );
+        assert_eq!(
+            computed[0].payload,
+            Payload::Opaque(OpaqueReason::RuntimeValue)
+        );
+    }
+
+    #[test]
+    fn a_call_to_a_never_returning_function_kills_what_follows_it() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn dies() -> ! { panic!(\"stop\") }\nfn main() {\n    dies();\n                 println!(\"hi\");\n}"
+                .to_owned()
+        )];
+        let facts = behavior(&sources);
+        let main = facts
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        assert_eq!(main.output_writes.len(), 1);
+        assert_eq!(main.output_writes[0].guard.local_grade(), Grade::Dead);
+
+        let returning = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn helper() -> u8 { 1 }\nfn main() {\n    helper();\n    println!(\"hi\");\n}"
+                .to_owned()
+        )];
+        let plain = behavior(&returning);
+        let entry = plain
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        assert_eq!(entry.output_writes[0].guard.local_grade(), Grade::Certain);
+    }
+}

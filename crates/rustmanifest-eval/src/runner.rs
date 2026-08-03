@@ -5,33 +5,21 @@
 //! repository and assembles a [`Report`].
 //!
 //! The composition mirrors the CLI's `check` path: every bundled pattern
-//! and AST rule runs per-file through an [`Orchestrator`], and every
-//! bundled semantic rule runs once per repository over all discovered
-//! sources. Files are analyzed one at a time so each file's wall time can
-//! be measured with [`Instant`].
+//! and AST rule runs per-file through an orchestrator, and every bundled
+//! semantic rule runs once per repository over all discovered sources.
+//! Files are analyzed one at a time so each file's wall time can be
+//! measured.
 
-use std::{collections::BTreeMap, path::Path, process::Command, time::Instant};
+mod checkout;
+mod composition;
+mod repo;
 
-use rustmanifest_engine::{
-    Analyzer, AstAnalyzer, Orchestrator, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer,
-    Source, orchestrator::DEFAULT_MAX_FILE_BYTES, walker
-};
-use rustmanifest_rules_core::RULES;
-use rustmanifest_schema::RuleDefinition;
-use tracing::warn;
+use std::{collections::BTreeMap, path::Path};
 
-use crate::{
-    corpus::{Corpus, RepoEntry},
-    error::EvalError,
-    report::{RepoReport, RepoTimings, Report, p95}
-};
+pub use checkout::UNKNOWN_REV;
+pub use repo::P95_LINE_LIMIT;
 
-/// Line-count threshold under which a file participates in the p95
-/// performance budget.
-pub const P95_LINE_LIMIT: usize = 1000;
-
-/// Revision recorded when `git rev-parse HEAD` cannot be resolved.
-pub const UNKNOWN_REV: &str = "unknown";
+use crate::{corpus::Corpus, error::EvalError, report::Report};
 
 /// Evaluates every corpus entry under `corpus_root` and assembles the full
 /// report. Repositories are processed and reported in name order.
@@ -43,13 +31,13 @@ pub const UNKNOWN_REV: &str = "unknown";
 /// discovery fails. A drifted checkout revision is tolerated: it is logged
 /// as a warning and recorded in the report.
 pub fn evaluate(corpus: &Corpus, corpus_root: &Path) -> Result<Report, EvalError> {
-    let orchestrator = build_orchestrator()?;
-    let semantic = build_semantic()?;
+    let orchestrator = composition::build_orchestrator()?;
+    let semantic = composition::build_semantic()?;
     let mut repos = Vec::with_capacity(corpus.repos.len());
     let mut timings = BTreeMap::new();
     for entry in &corpus.repos {
         let (repo_report, repo_timings) =
-            evaluate_repo(entry, corpus_root, &orchestrator, &semantic)?;
+            repo::evaluate(entry, corpus_root, &orchestrator, &semantic)?;
         timings.insert(repo_report.name.clone(), repo_timings);
         repos.push(repo_report);
     }
@@ -61,189 +49,6 @@ pub fn evaluate(corpus: &Corpus, corpus_root: &Path) -> Result<Report, EvalError
     })
 }
 
-/// Builds one orchestrator holding every bundled pattern and AST rule.
-fn build_orchestrator() -> Result<Orchestrator, EvalError> {
-    let analyzers: Vec<Box<dyn Analyzer>> = RULES
-        .iter()
-        .filter_map(|rule| match rule.definition {
-            RuleDefinition::Pattern {
-                ..
-            } => Some(
-                PatternAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn Analyzer>)
-            ),
-            RuleDefinition::Ast {
-                ..
-            } => Some(
-                AstAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn Analyzer>)
-            ),
-            RuleDefinition::Semantic {
-                ..
-            } => None
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(OrchestratorBuilder::new().analyzers(analyzers).build())
-}
-
-/// Builds one analyzer per bundled semantic rule.
-fn build_semantic() -> Result<Vec<SemanticAnalyzer>, EvalError> {
-    Ok(RULES
-        .iter()
-        .filter(|rule| matches!(rule.definition, RuleDefinition::Semantic { .. }))
-        .map(|rule| SemanticAnalyzer::new(rule.clone()))
-        .collect::<Result<Vec<_>, _>>()?)
-}
-
-/// Resolves the checked-out revision of `path`, falling back to
-/// [`UNKNOWN_REV`] when the directory is not a resolvable git checkout.
-fn head_revision(path: &Path) -> String {
-    Command::new("git")
-        .arg("-C")
-        .arg(path)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map_or_else(
-            || UNKNOWN_REV.to_owned(),
-            |output| String::from_utf8_lossy(&output.stdout).trim().to_owned()
-        )
-}
-
-/// Runs the engine over one repository checkout and measures per-file wall
-/// time.
-fn evaluate_repo(
-    entry: &RepoEntry,
-    corpus_root: &Path,
-    orchestrator: &Orchestrator,
-    semantic: &[SemanticAnalyzer]
-) -> Result<(RepoReport, RepoTimings), EvalError> {
-    let repo_path = corpus_root.join(&entry.path);
-    if !repo_path.is_dir() {
-        return Err(EvalError::MissingCheckout {
-            name: entry.name.clone(),
-            path: repo_path
-        });
-    }
-    let actual_rev = head_revision(&repo_path);
-    let mut materialized: Option<tempfile::TempDir> = None;
-    let analyzed_rev;
-    let analyzed_path = if actual_rev == entry.rev {
-        analyzed_rev = entry.rev.clone();
-        repo_path
-    } else if let Some(pinned_tree) = materialize_rev(&repo_path, &entry.rev) {
-        warn!(
-            repo = %entry.name,
-            pinned = %entry.rev,
-            actual = %actual_rev,
-            "live checkout drifted; analyzing the pinned revision from git archive"
-        );
-        analyzed_rev = entry.rev.clone();
-        let path = pinned_tree.path().to_path_buf();
-        materialized = Some(pinned_tree);
-        path
-    } else {
-        warn!(
-            repo = %entry.name,
-            pinned = %entry.rev,
-            actual = %actual_rev,
-            "pinned revision not materializable; analyzing the live tree, counts may not be \
-             comparable"
-        );
-        analyzed_rev = actual_rev;
-        repo_path
-    };
-
-    let repo_start = Instant::now();
-    let files = walker::discover(std::slice::from_ref(&analyzed_path))?;
-    let mut findings: BTreeMap<String, u64> = BTreeMap::new();
-    let mut budget_samples: Vec<f64> = Vec::new();
-    let mut max_file_ms = 0.0_f64;
-    let mut rust_lines = 0_u64;
-    let mut sources: Vec<Source> = Vec::new();
-
-    for file in &files {
-        let Ok(text) = std::fs::read_to_string(file) else {
-            warn!(path = %file.display(), "unreadable file skipped");
-            continue;
-        };
-        let lines = text.lines().count();
-        rust_lines += u64::try_from(lines).unwrap_or(u64::MAX);
-
-        let file_start = Instant::now();
-        let file_findings = orchestrator.run(std::slice::from_ref(file))?;
-        let elapsed_ms = file_start.elapsed().as_secs_f64() * 1000.0;
-        if lines < P95_LINE_LIMIT {
-            budget_samples.push(elapsed_ms);
-        }
-        max_file_ms = max_file_ms.max(elapsed_ms);
-        for finding in file_findings {
-            *findings.entry(finding.rule_id).or_insert(0) += 1;
-        }
-        if u64::try_from(text.len()).unwrap_or(u64::MAX) <= DEFAULT_MAX_FILE_BYTES {
-            sources.push(Source::new(file.clone(), text));
-        }
-    }
-
-    let semantic_start = Instant::now();
-    for analyzer in semantic {
-        for finding in analyzer.analyze(&sources) {
-            *findings.entry(finding.rule_id).or_insert(0) += 1;
-        }
-    }
-    let semantic_ms = semantic_start.elapsed().as_secs_f64() * 1000.0;
-
-    let timings = RepoTimings {
-        p95_under_1k_ms: p95(&budget_samples),
-        files_under_1k: u64::try_from(budget_samples.len()).unwrap_or(u64::MAX),
-        max_file_ms,
-        semantic_ms,
-        total_ms: repo_start.elapsed().as_secs_f64() * 1000.0
-    };
-    let report = RepoReport {
-        name: entry.name.clone(),
-        pinned_rev: entry.rev.clone(),
-        actual_rev: analyzed_rev,
-        files: u64::try_from(files.len()).unwrap_or(u64::MAX),
-        rust_lines,
-        findings
-    };
-    drop(materialized);
-    Ok((report, timings))
-}
-
-/// Extracts `rev` from the repository at `path` into a temporary directory
-/// via `git archive`, returning `None` when the revision is unavailable.
-fn materialize_rev(path: &Path, rev: &str) -> Option<tempfile::TempDir> {
-    let dir = tempfile::TempDir::new().ok()?;
-    let archive = Command::new("git")
-        .arg("-C")
-        .arg(path)
-        .args(["archive", "--format=tar", rev])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())?;
-    let mut child = Command::new("tar")
-        .arg("-x")
-        .arg("-C")
-        .arg(dir.path())
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .ok()?;
-    {
-        use std::io::Write;
-
-        let stdin = child.stdin.as_mut()?;
-        stdin.write_all(&archive.stdout).ok()?;
-    }
-    child
-        .wait()
-        .ok()
-        .filter(std::process::ExitStatus::success)?;
-    Some(dir)
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -253,6 +58,7 @@ fn materialize_rev(path: &Path, rev: &str) -> Option<tempfile::TempDir> {
 )]
 mod tests {
     use super::*;
+    use crate::corpus::RepoEntry;
 
     fn fixture_corpus(rev: &str) -> Corpus {
         Corpus {

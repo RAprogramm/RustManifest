@@ -14,6 +14,7 @@
 mod behavior;
 mod borrow_fix;
 mod calls;
+mod check;
 mod composition;
 mod coverage;
 mod dead;
@@ -52,7 +53,7 @@ mod surface;
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
 use tracing::trace;
 
-use self::insight::Insight;
+use self::check::Check;
 pub use self::{
     behavior::{
         CallSite, Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole, HoleSource,
@@ -86,93 +87,6 @@ pub use self::{
     surface::{FrameworkModel, Route, Surface, surface}
 };
 use crate::{error::EngineError, pragma, source::Source};
-
-/// Built-in semantic checks addressable from `definition.semantic`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Check {
-    /// `repeated-field-group` — identical field groups across structures.
-    RepeatedFieldGroup,
-    /// `module-cycles` — cycles in the module dependency graph.
-    ModuleCycles,
-    /// `structure-size` — oversized structures with a graph-derived split
-    /// suggestion.
-    StructureSize,
-    /// `borrowable-params` — owned non-`Copy` parameters that only read
-    /// fields and should be shared borrows.
-    BorrowableParams,
-    /// `loop-invariant-clone` — clones of loop-invariant places that are
-    /// only read and could be hoisted out of the loop.
-    LoopInvariantClone,
-    /// `loop-allocation` — fresh container allocations repeated every
-    /// iteration although the value never escapes the iteration.
-    LoopAllocation,
-    /// `deceptive-name` — read-named functions that write state or touch
-    /// the outside world.
-    DeceptiveName,
-    /// `deceptive-doc` — doc summaries claiming a read over a mutating
-    /// body.
-    DeceptiveDoc,
-    /// `orphan-file` — files reachable from no crate root, with a
-    /// plausible forgotten `mod` mount point.
-    OrphanFile,
-    /// `dead-function` — private functions no call ever mentions.
-    DeadFunction,
-    /// `output-lock-run` — a run of prints taking the stream lock once
-    /// per call.
-    OutputLockRun,
-    /// `output-in-loop` — a write inside a loop over a line-buffered
-    /// stream.
-    OutputInLoop,
-    /// `output-constant-format` — a proven constant carried through the
-    /// formatting machinery.
-    OutputConstantFormat,
-    /// `output-error-lost` — an entry point whose failed write panics
-    /// instead of leaving as a returned error.
-    OutputErrorLost
-}
-
-impl Check {
-    /// Resolves a check identifier from the rules pack.
-    fn resolved(name: &str) -> Option<Self> {
-        match name {
-            "repeated-field-group" => Some(Self::RepeatedFieldGroup),
-            "module-cycles" => Some(Self::ModuleCycles),
-            "structure-size" => Some(Self::StructureSize),
-            "borrowable-params" => Some(Self::BorrowableParams),
-            "loop-invariant-clone" => Some(Self::LoopInvariantClone),
-            "loop-allocation" => Some(Self::LoopAllocation),
-            "deceptive-name" => Some(Self::DeceptiveName),
-            "deceptive-doc" => Some(Self::DeceptiveDoc),
-            "orphan-file" => Some(Self::OrphanFile),
-            "dead-function" => Some(Self::DeadFunction),
-            "output-lock-run" => Some(Self::OutputLockRun),
-            "output-in-loop" => Some(Self::OutputInLoop),
-            "output-constant-format" => Some(Self::OutputConstantFormat),
-            "output-error-lost" => Some(Self::OutputErrorLost),
-            _ => None
-        }
-    }
-
-    /// Runs the check over the workspace sources and their type graph.
-    fn insights(self, sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
-        match self {
-            Self::RepeatedFieldGroup => field_group::insights(sources, graph),
-            Self::ModuleCycles => module_cycle::insights(sources),
-            Self::StructureSize => composition::insights(graph),
-            Self::BorrowableParams => ownership::insights(sources, graph),
-            Self::LoopInvariantClone => loops::clone_insights(sources),
-            Self::LoopAllocation => loops::allocation_insights(sources),
-            Self::DeceptiveName => naming::insights(sources),
-            Self::DeceptiveDoc => doc_truth::insights(sources),
-            Self::OrphanFile => orphan::insights(sources),
-            Self::DeadFunction => dead::insights(sources),
-            Self::OutputLockRun => io_forms::lock_run_insights(sources),
-            Self::OutputInLoop => io_forms::loop_write_insights(sources),
-            Self::OutputConstantFormat => io_forms::literal_format_insights(sources),
-            Self::OutputErrorLost => io_forms::lost_write_error_insights(sources)
-        }
-    }
-}
 
 /// Tier-3 analyzer evaluating one semantic check over the whole workspace.
 #[derive(Debug)]

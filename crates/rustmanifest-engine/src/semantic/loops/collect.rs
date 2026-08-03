@@ -5,56 +5,24 @@
 //! each eligible loop-local `let` into a [`Candidate`] carrying its
 //! origin classification and use summary. The rule layer consumes the
 //! candidates; this module never decides what is a violation.
+//!
+//! The walk over sources and items lives here; everything a single loop
+//! needs lives beside it: [`candidate`] holds the records handed onward,
+//! [`scan`] analyzes one loop body, [`binding`] and [`mutation`] supply the
+//! identifier sets the origin classification asks for, and [`hoist`]
+//! turns a statement span into fix coordinates.
 
-use rustmanifest_schema::Range;
-use syn::{spanned::Spanned, visit::Visit};
+mod binding;
+mod candidate;
+mod hoist;
+mod mutation;
+mod scan;
 
-use super::{
-    origin::{Origin, allocation_origin, clone_origin},
-    uses::{UseCollector, UseSummary}
-};
-use crate::{
-    semantic::expr::{
-        MUTATING_METHODS, binding_ident, compound_assignment, consuming_method, impl_type_name,
-        place_root, token_words
-    },
-    source::Source
-};
+use syn::visit::Visit;
 
-/// Everything needed to hoist a loop-local `let` out of its loop as a
-/// byte-precise fix: where the statement's lines sit, where to insert
-/// before the loop, and the indentation on both sides.
-pub(super) struct HoistPlan {
-    /// Line-expanded byte range of the `let` statement, newline included.
-    pub(super) stmt_lines:   Range,
-    /// Insertion offset: start of the loop's own line.
-    pub(super) insert_at:    u32,
-    /// Indentation of the loop line.
-    pub(super) outer_indent: String,
-    /// Indentation of the statement's line inside the loop body.
-    pub(super) inner_indent: String,
-    /// Raw statement text as written.
-    pub(super) stmt_text:    String
-}
-
-/// One loop-local `let` binding eligible for either check.
-pub(super) struct Candidate {
-    /// Index of the source the binding was parsed from.
-    pub(super) source:   usize,
-    /// Qualified name of the enclosing function.
-    pub(super) function: String,
-    /// Byte range of the binding identifier.
-    pub(super) range:    Range,
-    /// Name of the binding.
-    pub(super) name:     String,
-    /// How the binding obtained its value.
-    pub(super) origin:   Origin,
-    /// Classified uses of the binding after its `let`.
-    pub(super) uses:     UseSummary,
-    /// Hoisting coordinates when the statement sits cleanly on its own
-    /// lines; `None` disables fix synthesis for the candidate.
-    pub(super) hoist:    Option<HoistPlan>
-}
+pub(super) use self::candidate::Candidate;
+use self::scan::LoopFinder;
+use crate::{semantic::expr::impl_type_name, source::Source};
 
 /// Collects loop-local `let` candidates from every function in `sources`.
 pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
@@ -99,191 +67,4 @@ pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
         }
     }
     found
-}
-
-/// Visitor locating loops and analyzing their direct `let` statements.
-struct LoopFinder<'out> {
-    /// Index of the source under analysis.
-    source:     usize,
-    /// Qualified name of the enclosing function.
-    function:   String,
-    /// Full source text, for line expansion and indentation.
-    text:       &'out str,
-    /// Output collection shared across loops of the function.
-    candidates: &'out mut Vec<Candidate>
-}
-
-impl LoopFinder<'_> {
-    /// Analyzes one loop body, given the idents bound by the loop pattern
-    /// and the byte offset where the loop expression starts.
-    fn analyze_loop(&mut self, pattern: Option<&syn::Pat>, body: &syn::Block, loop_start: usize) {
-        let mut bound = Vec::new();
-        if let Some(pattern) = pattern {
-            pattern_idents(pattern, &mut bound);
-        }
-        let mut binder = BoundCollector {
-            bound: &mut bound
-        };
-        binder.visit_block(body);
-        let mut mutated = MutatedCollector {
-            roots: Vec::new()
-        };
-        mutated.visit_block(body);
-        for (index, statement) in body.stmts.iter().enumerate() {
-            let syn::Stmt::Local(local) = statement else {
-                continue;
-            };
-            let Some(ident) = binding_ident(&local.pat) else {
-                continue;
-            };
-            let Some(init) = &local.init else {
-                continue;
-            };
-            let origin = clone_origin(&init.expr, &bound, &mutated.roots)
-                .or_else(|| allocation_origin(&init.expr, &bound));
-            let Some(origin) = origin else {
-                continue;
-            };
-            let name = ident.to_string();
-            let mut uses = UseCollector {
-                name:    name.clone(),
-                summary: UseSummary::default()
-            };
-            for later in &body.stmts[index + 1..] {
-                uses.visit_stmt(later);
-            }
-            let bytes = ident.span().byte_range();
-            let hoist = hoist_plan(self.text, statement.span().byte_range(), loop_start);
-            self.candidates.push(Candidate {
-                source: self.source,
-                function: self.function.clone(),
-                range: Range {
-                    start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-                    end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
-                },
-                name,
-                origin,
-                uses: uses.summary,
-                hoist
-            });
-        }
-    }
-}
-
-impl<'ast> Visit<'ast> for LoopFinder<'_> {
-    fn visit_expr_for_loop(&mut self, expr: &'ast syn::ExprForLoop) {
-        self.analyze_loop(Some(&expr.pat), &expr.body, expr.span().byte_range().start);
-        syn::visit::visit_expr_for_loop(self, expr);
-    }
-
-    fn visit_expr_while(&mut self, expr: &'ast syn::ExprWhile) {
-        self.analyze_loop(None, &expr.body, expr.span().byte_range().start);
-        syn::visit::visit_expr_while(self, expr);
-    }
-
-    fn visit_expr_loop(&mut self, expr: &'ast syn::ExprLoop) {
-        self.analyze_loop(None, &expr.body, expr.span().byte_range().start);
-        syn::visit::visit_expr_loop(self, expr);
-    }
-}
-
-/// Builds the hoisting coordinates for a statement span, or `None` when
-/// the statement does not sit cleanly on its own lines.
-fn hoist_plan(text: &str, stmt: std::ops::Range<usize>, loop_start: usize) -> Option<HoistPlan> {
-    let line_start = text[..stmt.start].rfind('\n').map_or(0, |at| at + 1);
-    if !text[line_start..stmt.start].trim().is_empty() {
-        return None;
-    }
-    let after = &text[stmt.end..];
-    let line_break = after.find('\n')?;
-    if !after[..line_break].trim().is_empty() {
-        return None;
-    }
-    let stmt_lines_end = stmt.end + line_break + 1;
-    let loop_line_start = text[..loop_start].rfind('\n').map_or(0, |at| at + 1);
-    if !text[loop_line_start..loop_start].trim().is_empty() {
-        return None;
-    }
-    Some(HoistPlan {
-        stmt_lines:   Range {
-            start: u32::try_from(line_start).ok()?,
-            end:   u32::try_from(stmt_lines_end).ok()?
-        },
-        insert_at:    u32::try_from(loop_line_start).ok()?,
-        outer_indent: text[loop_line_start..loop_start].to_owned(),
-        inner_indent: text[line_start..stmt.start].to_owned(),
-        stmt_text:    text[stmt].to_owned()
-    })
-}
-
-/// Visitor collecting every identifier bound by a pattern in a block.
-struct BoundCollector<'out> {
-    /// Accumulated bound identifiers.
-    bound: &'out mut Vec<String>
-}
-
-impl<'ast> Visit<'ast> for BoundCollector<'_> {
-    fn visit_pat_ident(&mut self, pattern: &'ast syn::PatIdent) {
-        self.bound.push(pattern.ident.to_string());
-        syn::visit::visit_pat_ident(self, pattern);
-    }
-}
-
-/// Collects binding idents introduced by a pattern.
-fn pattern_idents(pattern: &syn::Pat, out: &mut Vec<String>) {
-    let mut collector = BoundCollector {
-        bound: out
-    };
-    collector.visit_pat(pattern);
-}
-
-/// Visitor collecting root identifiers that a loop body may mutate.
-struct MutatedCollector {
-    /// Roots of assignment targets, `&mut` borrows, mutating or consuming
-    /// method receivers, and every identifier a macro mentions.
-    roots: Vec<String>
-}
-
-impl MutatedCollector {
-    /// Records the root of a place expression, when it has one.
-    fn record(&mut self, expr: &syn::Expr) {
-        if let Some(root) = place_root(expr) {
-            self.roots.push(root);
-        }
-    }
-}
-
-impl<'ast> Visit<'ast> for MutatedCollector {
-    fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
-        self.record(&assignment.left);
-        syn::visit::visit_expr_assign(self, assignment);
-    }
-
-    fn visit_expr_binary(&mut self, binary: &'ast syn::ExprBinary) {
-        if compound_assignment(binary.op) {
-            self.record(&binary.left);
-        }
-        syn::visit::visit_expr_binary(self, binary);
-    }
-
-    fn visit_expr_reference(&mut self, reference: &'ast syn::ExprReference) {
-        if reference.mutability.is_some() {
-            self.record(&reference.expr);
-        }
-        syn::visit::visit_expr_reference(self, reference);
-    }
-
-    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        let method = call.method.to_string();
-        if MUTATING_METHODS.contains(&method.as_str()) || consuming_method(&method) {
-            self.record(&call.receiver);
-        }
-        syn::visit::visit_expr_method_call(self, call);
-    }
-
-    fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
-        self.roots
-            .extend(token_words(&invocation.tokens.to_string()));
-        syn::visit::visit_macro(self, invocation);
-    }
 }
