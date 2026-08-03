@@ -55,37 +55,38 @@ struct Form {
     /// The shape that satisfies the property. Editorial: prescription,
     /// not derivation.
     canonical:  &'static str,
-    /// What one deviation costs at run time. Editorial: the reading of
-    /// the derived property, not the property itself.
-    cost:       &'static str
+    /// What one deviation costs, as a countable unit paid per event.
+    /// The number is computed from the observed facts; only the unit is
+    /// named here.
+    unit:       &'static str
 }
 
 /// Catalogue of output forms, indexed by the check that reads it.
 const LOCK_RUN: Form = Form {
     properties: lock_properties,
     canonical:  "lock the stream handle once, then write every line through that guard",
-    cost:       "one reentrant lock acquisition and release per write"
+    unit:       "lock acquisition and release"
 };
 
 /// Form for writes standing inside a loop.
 const LOOP_WRITE: Form = Form {
     properties: buffering_properties,
     canonical:  "wrap the locked handle in a buffered writer and flush once after the loop",
-    cost:       "one write syscall per iteration"
+    unit:       "write syscall"
 };
 
 /// Form for constants carried through the formatting machinery.
 const CONSTANT_TEXT: Form = Form {
     properties: format_properties,
     canonical:  "write the constant's bytes directly to the locked handle",
-    cost:       "one format-argument construction and piece walk per write"
+    unit:       "format-argument construction"
 };
 
 /// Form for an entry point that cannot carry a write failure out.
 const WRITE_ERROR: Form = Form {
     properties: panic_properties,
     canonical:  "return a result from the entry point and hand the write's result back",
-    cost:       "a panic and stack unwind instead of an exit code"
+    unit:       "panic instead of an exit code"
 };
 
 /// Each stream holds its own lock, so each proves its own locking
@@ -144,10 +145,12 @@ fn support<'a>(
 
 /// Assembles the message of one finding from facts and a catalogue
 /// entry, in a fixed shape no check may deviate from.
-fn detail(form: &Form, subject: &str, observed: &str) -> String {
+fn detail(form: &Form, subject: &str, observed: &str, times: u32) -> String {
     format!(
-        "`{subject}` — {observed}\n    required: {}\n    cost: {}",
-        form.canonical, form.cost
+        "`{subject}` — {observed}\n    required: {}\n    cost: {times} {}{}",
+        form.canonical,
+        form.unit,
+        if times == 1 { "" } else { "s" }
     )
 }
 
@@ -309,7 +312,12 @@ pub(super) fn lock_run_insights(sources: &[Source]) -> Vec<Insight> {
             found.push(Insight::new(
                 fact.source,
                 first.site,
-                detail(&LOCK_RUN, &fact.function, &observed),
+                detail(
+                    &LOCK_RUN,
+                    &fact.function,
+                    &observed,
+                    u32::try_from(run.len()).unwrap_or(u32::MAX)
+                ),
                 steps
             ));
         }
@@ -361,7 +369,8 @@ pub(super) fn loop_write_insights(sources: &[Source]) -> Vec<Insight> {
                     &format!(
                         "a write to {} stands under {loops} loop construct(s)",
                         write.stream
-                    )
+                    ),
+                    1
                 ),
                 trace(
                     &format!("the write site stands under {loops} loop construct(s)"),
@@ -399,7 +408,8 @@ pub(super) fn literal_format_insights(sources: &[Source]) -> Vec<Insight> {
                 detail(
                     &CONSTANT_TEXT,
                     &fact.function,
-                    &format!("the written text is fully proven: `{text}`")
+                    &format!("the written text is fully proven: `{text}`"),
+                    1
                 ),
                 trace(
                     &format!("the written text is fully proven: `{text}`"),
@@ -442,7 +452,8 @@ pub(super) fn lost_write_error_insights(sources: &[Source]) -> Vec<Insight> {
                 &format!(
                     "the process entry point writes to {} and declares no return type",
                     write.stream
-                )
+                ),
+                1
             ),
             trace(
                 &format!("`{}` declares no return type", fact.function),
