@@ -741,31 +741,87 @@ knowledge the engine refused to use where it mattered.
   rejected for dispatch; the rule generalizes — any derivation is only
   as certain as the provenance of its weakest hop.
 
-### Measured, on real indexes
+### The first measurement was an artifact, and reading it hop by hop said so
 
-`rust-analyzer scip` over three workspaces, transitive effects
-compared with and without the overlay, integration-test files
-excluded:
+The initial run looked like a strong result: under a workspace-wide
+`net` ban on fork-hyper the engine went from 194 findings without the
+index to 301 with it, 334 trace steps carrying index provenance.
+Checking the shortest index-owed derivation against the source
+destroyed the reading. The trace claimed `Conn::poll_read_head` calls
+`TestClient::get`; the source at that point is `headers.get(TE)`, a
+method of an external header-map type. Our own resolver had bound a
+call on an untyped receiver to the single workspace function carrying
+that bare name — a helper defined in fork-hyper's `tests` target,
+whose body genuinely opens a socket. A real effect, attributed to
+library code through an impossible edge.
 
-| workspace | effect-carrying functions | functions gaining an effect |
+Grouping the findings by the sink they blame shows the whole delta was
+that one class:
+
+| sink blamed | without index | with index |
 |---|---|---|
-| rustmanifest (own) | 130 → 361 | 233 |
-| fork-hyper (all features) | 166 → 216 | 99 |
-| masterror | 57 → 57 | 0 |
+| helper in the `tests` target | 19 | 126 |
+| effect performed directly in the body | 99 | 99 |
+| every other sink | 76 | 76 |
 
-At the verdict level, a repo-wide `net` ban on fork-hyper moves from
-194 findings to 301 (+55%), with 334 trace steps carrying index
-provenance. The functions that gain the effect are exactly the ones a
-ban exists to catch — `Connection::poll`, its non-shutdown variant,
-the `TokioIo` poll family — each known to reach the network only
-through an edge the syntactic resolver could not bind.
+The index did nothing wrong; it supplied more entries into a hole the
+syntactic resolver had left open. **Edge count is not evidence.** A
+layer measured in edges says nothing about verdicts until the verdicts
+themselves are read against the source, which is how this was caught
+and is now the standing acceptance step for any resolver change.
 
-**The negative result is the more useful half.** masterror gains 718
-overlay edges (§11) and zero verdict changes, because its graph holds
-almost no effect sinks: a wider graph changes nothing when there is
-nothing new to reach. Edge lift is not verdict lift, and the layer's
-worth is a property of the codebase under analysis, not a headline
-percentage the engine can advertise.
+### The repair: build targets are compilation units
+
+Cargo compiles `src`, each top-level file under `tests`, each file
+under `benches`, and each under `examples` as separate crates. A
+library function therefore *cannot* call a function defined in a test
+target, and two integration test files cannot call each other. The
+resolver now derives each source's target — crate directory, target
+kind, and the individual unit inside a multi-target directory, with a
+shared module below the directory left mountable by any unit of that
+kind — and discards unreachable candidates *before* judging
+uniqueness, not after. The same constraint filters the SCIP overlay,
+so the index cannot cross a target boundary either. A candidate that
+survives only because an unreachable definition was counted now
+resolves to nothing, which is the honest outcome: the call is
+external.
+
+The classification counters follow the same rule — a bare method name
+found only in an unreachable target is counted external rather than as
+an unknown-receiver gap, so the coverage report stops crediting the
+engine with a gap it never had.
+
+### Measured again, after the repair
+
+`rust-analyzer scip` over three workspaces, transitive effects with
+and without the overlay. Test and bench targets are excluded from the
+population, and the second row of each pair also excludes `#[test]`
+functions inside `src`, since they are library-target code but not
+production code:
+
+| workspace | population | effect-carrying | gaining an effect |
+|---|---|---|---|
+| rustmanifest (own) | all library-target fns | 128 → 362 | 236 |
+| rustmanifest (own) | production only | 75 → 147 | 74 |
+| fork-hyper (all features) | all library-target fns | 120 → 164 | 44 |
+| fork-hyper (all features) | production only | 102 → 131 | 29 |
+| masterror | all library-target fns | 56 → 56 | 0 |
+| masterror | production only | 34 → 34 | 0 |
+
+At the verdict level the corrected picture is blunt: the same
+fork-hyper ban now yields **188 findings with the index and 188
+without it**. Every finding the index appeared to add was false. What
+survives is the fact-level gain — functions such as `Connection::poll`
+and the `TokioIo` poll family become known to carry `unsafe` through
+index-only edges — and that gain has not yet been shown to change a
+single verdict on this corpus.
+
+**The negative results are the useful half.** masterror gains 718
+overlay edges (§11) and moves nothing at either level, because its
+graph holds almost no effect sinks. fork-hyper gains 29 production
+functions with a wider effect set and still moves no verdict. The
+layer's worth is a property of the codebase under analysis, and on
+this evidence it is not yet demonstrated at the surface that matters.
 
 ### Boundary, restated with what the index actually covers
 
@@ -775,8 +831,16 @@ cross-crate generic instantiation hop is still not crossed by simply
 supplying an index: reaching into dependencies needs them vendored and
 indexed, and upstream states its SCIP support for that path is
 partial. Until that is measured rather than assumed, the honest claim
-is the one the numbers support — the layer widens what a ban is judged
-against inside the workspace, and says so in every trace.
+is the one the numbers support — the layer widens the fact base inside
+the workspace, states the provenance of every edge it contributes, and
+has not yet been shown to change a verdict.
+
+The open question this leaves is sharp and testable: are there
+codebases where index-only edges reach an effect sink that library
+code actually depends on, or is the syntactic resolver already
+complete for the sink-reaching subgraph? Two corpora say the latter so
+far. Answering it needs a corpus with declared invariants, not
+invented ones, which is the next experiment rather than a claim.
 
 ### Toolchain note
 
