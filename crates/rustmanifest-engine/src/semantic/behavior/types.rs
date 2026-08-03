@@ -97,6 +97,8 @@ impl FunctionFlags {
     pub const PUBLIC: u8 = 1 << 2;
     /// Bit marking a non-doc, non-test attribute.
     pub const ATTRIBUTED: u8 = 1 << 3;
+    /// Bit marking a body that can end the current path by panic.
+    pub const PANICS: u8 = 1 << 4;
 
     /// Builds the flag set from `Self::*` bit constants or-ed together.
     #[must_use]
@@ -129,6 +131,19 @@ impl FunctionFlags {
     #[must_use]
     pub const fn attributed(self) -> bool {
         self.0 & Self::ATTRIBUTED != 0
+    }
+
+    /// Whether the body can end the current path by panic — a
+    /// panic-family macro or an explicit process abort observed in it.
+    #[must_use]
+    pub const fn panics(self) -> bool {
+        self.0 & Self::PANICS != 0
+    }
+
+    /// Marks the body as one that can panic.
+    #[must_use]
+    pub const fn with_panic(self) -> Self {
+        Self(self.0 | Self::PANICS)
     }
 }
 

@@ -89,34 +89,273 @@ const ITERATOR_SOURCES: [&str; 7] = [
 /// Macros that end the current path rather than returning to it.
 const DIVERGING_MACROS: [&str; 4] = ["panic", "todo", "unimplemented", "unreachable"];
 
+/// Macros whose expansion is known to return to the point that invoked
+/// it. A macro outside this list may expand to anything, a divergence
+/// included, so its completion is recorded as unproven rather than
+/// assumed harmless — the same direction the rest of this channel takes
+/// when it cannot see through a construct.
+///
+/// The list holds standard macros only; a user macro of the same name
+/// shadowing one of them would break the reading, which is the standing
+/// assumption of every name-keyed recognizer in this tier.
+const SETTLED_MACROS: [&str; 28] = [
+    "assert",
+    "assert_eq",
+    "assert_ne",
+    "cfg",
+    "column",
+    "concat",
+    "dbg",
+    "debug_assert",
+    "debug_assert_eq",
+    "debug_assert_ne",
+    "env",
+    "eprint",
+    "eprintln",
+    "file",
+    "format",
+    "format_args",
+    "include_bytes",
+    "include_str",
+    "line",
+    "matches",
+    "module_path",
+    "option_env",
+    "print",
+    "println",
+    "stringify",
+    "vec",
+    "write",
+    "writeln"
+];
+
+/// Whether the program point after a construct is reached, given that
+/// the construct is entered.
+///
+/// The three values form a lattice, not a scale: `Never` and `Always`
+/// are both proofs and are incomparable with each other, `Unknown` is
+/// the absence of either proof. Every strong reading this channel emits
+/// — "runs on every path", "can never run" — is a claim about all
+/// executions, so it is only ever made from a proof; anything this tier
+/// cannot see through lands on `Unknown` and weakens the reading instead
+/// of strengthening it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Completion {
+    /// The point after the construct is never reached: every path
+    /// through it leaves by a return, a break, or a divergence.
+    Never,
+    /// Neither reaching the point after nor leaving before it is proven.
+    Unknown,
+    /// The point after the construct is always reached.
+    #[default]
+    Always
+}
+
+impl Completion {
+    /// Sequential composition: what holds after running `next` where
+    /// `self` completes. A divergence anywhere in the sequence carries
+    /// through, an unproven step leaves the whole sequence unproven.
+    const fn then(self, next: Self) -> Self {
+        match (self, next) {
+            (Self::Never, _) | (_, Self::Never) => Self::Never,
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            (Self::Always, Self::Always) => Self::Always
+        }
+    }
+
+    /// Branch merge: a proof survives only when every branch proves the
+    /// same thing, which is what makes a divergence on all arms of an
+    /// exhaustive construct kill what follows and a divergence on one
+    /// arm merely weaken it.
+    const fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Never, Self::Never) => Self::Never,
+            (Self::Always, Self::Always) => Self::Always,
+            _ => Self::Unknown
+        }
+    }
+}
+
+/// What one construct proves about the program point after it, together
+/// with the non-local exits it may perform on the way there.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Flow {
+    /// Whether the point after the construct is reached.
+    completion:     Completion,
+    /// Whether a `return` or a `?` inside may leave the function.
+    returns:        bool,
+    /// Whether an unlabelled `break` inside may leave the nearest
+    /// enclosing loop.
+    bare_breaks:    bool,
+    /// Labels named by `break`s inside that leave a labelled construct.
+    labeled_breaks: BTreeSet<String>
+}
+
+impl Flow {
+    /// A construct that completes and leaves nothing behind.
+    fn settled() -> Self {
+        Self::default()
+    }
+
+    /// A construct proving `completion` and performing no exit.
+    fn proving(completion: Completion) -> Self {
+        Self {
+            completion,
+            ..Self::default()
+        }
+    }
+
+    /// Sequential composition: `next` runs where `self` completes, so a
+    /// construct that never completes hides everything after it.
+    fn then(self, next: Self) -> Self {
+        if matches!(self.completion, Completion::Never) {
+            return self;
+        }
+        let mut labeled_breaks = self.labeled_breaks;
+        labeled_breaks.extend(next.labeled_breaks);
+        Self {
+            completion: self.completion.then(next.completion),
+            returns: self.returns || next.returns,
+            bare_breaks: self.bare_breaks || next.bare_breaks,
+            labeled_breaks
+        }
+    }
+
+    /// Branch merge: control takes one of the two, so an exit either may
+    /// perform is possible and only a shared proof survives.
+    fn join(self, other: Self) -> Self {
+        let mut labeled_breaks = self.labeled_breaks;
+        labeled_breaks.extend(other.labeled_breaks);
+        Self {
+            completion: self.completion.join(other.completion),
+            returns: self.returns || other.returns,
+            bare_breaks: self.bare_breaks || other.bare_breaks,
+            labeled_breaks
+        }
+    }
+
+    /// Weakens a proof of divergence into "not proven either way" and
+    /// leaves a proof of completion standing — what a construct that
+    /// exists in some builds and not others proves in every build.
+    const fn weakened(mut self) -> Self {
+        self.completion = self.completion.join(Completion::Always);
+        self
+    }
+
+    /// Whether the construct may hand control somewhere that skips the
+    /// program point after it.
+    fn may_skip(&self) -> bool {
+        self.returns || self.bare_breaks || !self.labeled_breaks.is_empty()
+    }
+
+    /// Whether a `break` inside targets the loop that carries `label`.
+    fn breaks_out_of(&self, label: Option<&syn::Label>) -> bool {
+        self.bare_breaks
+            || label
+                .is_some_and(|label| self.labeled_breaks.contains(&label.name.ident.to_string()))
+    }
+
+    /// Drops the breaks a loop absorbs: the unlabelled ones and those
+    /// naming the loop's own label.
+    fn absorbed(mut self, label: Option<&syn::Label>) -> Self {
+        self.bare_breaks = false;
+        if let Some(label) = label {
+            self.labeled_breaks.remove(&label.name.ident.to_string());
+        }
+        self
+    }
+}
+
+/// Attributes written on an expression, for every shape an expression
+/// can take. `syn` exposes them per variant only, and a partial match
+/// silently loses the gate on the shapes it omits. The variant list is
+/// kept one shape per line: a formatter that spreads each pattern over
+/// three lines buries the list it is here to make readable.
+#[rustfmt::skip]
+fn expression_attributes(expression: &syn::Expr) -> &[syn::Attribute] {
+    match expression {
+        syn::Expr::Array(syn::ExprArray { attrs, .. })
+        | syn::Expr::Assign(syn::ExprAssign { attrs, .. })
+        | syn::Expr::Async(syn::ExprAsync { attrs, .. })
+        | syn::Expr::Await(syn::ExprAwait { attrs, .. })
+        | syn::Expr::Binary(syn::ExprBinary { attrs, .. })
+        | syn::Expr::Block(syn::ExprBlock { attrs, .. })
+        | syn::Expr::Break(syn::ExprBreak { attrs, .. })
+        | syn::Expr::Call(syn::ExprCall { attrs, .. })
+        | syn::Expr::Cast(syn::ExprCast { attrs, .. })
+        | syn::Expr::Closure(syn::ExprClosure { attrs, .. })
+        | syn::Expr::Const(syn::ExprConst { attrs, .. })
+        | syn::Expr::Continue(syn::ExprContinue { attrs, .. })
+        | syn::Expr::Field(syn::ExprField { attrs, .. })
+        | syn::Expr::ForLoop(syn::ExprForLoop { attrs, .. })
+        | syn::Expr::Group(syn::ExprGroup { attrs, .. })
+        | syn::Expr::If(syn::ExprIf { attrs, .. })
+        | syn::Expr::Index(syn::ExprIndex { attrs, .. })
+        | syn::Expr::Infer(syn::ExprInfer { attrs, .. })
+        | syn::Expr::Let(syn::ExprLet { attrs, .. })
+        | syn::Expr::Lit(syn::ExprLit { attrs, .. })
+        | syn::Expr::Loop(syn::ExprLoop { attrs, .. })
+        | syn::Expr::Macro(syn::ExprMacro { attrs, .. })
+        | syn::Expr::Match(syn::ExprMatch { attrs, .. })
+        | syn::Expr::MethodCall(syn::ExprMethodCall { attrs, .. })
+        | syn::Expr::Paren(syn::ExprParen { attrs, .. })
+        | syn::Expr::Path(syn::ExprPath { attrs, .. })
+        | syn::Expr::Range(syn::ExprRange { attrs, .. })
+        | syn::Expr::RawAddr(syn::ExprRawAddr { attrs, .. })
+        | syn::Expr::Reference(syn::ExprReference { attrs, .. })
+        | syn::Expr::Repeat(syn::ExprRepeat { attrs, .. })
+        | syn::Expr::Return(syn::ExprReturn { attrs, .. })
+        | syn::Expr::Struct(syn::ExprStruct { attrs, .. })
+        | syn::Expr::Try(syn::ExprTry { attrs, .. })
+        | syn::Expr::TryBlock(syn::ExprTryBlock { attrs, .. })
+        | syn::Expr::Tuple(syn::ExprTuple { attrs, .. })
+        | syn::Expr::Unary(syn::ExprUnary { attrs, .. })
+        | syn::Expr::Unsafe(syn::ExprUnsafe { attrs, .. })
+        | syn::Expr::While(syn::ExprWhile { attrs, .. })
+        | syn::Expr::Yield(syn::ExprYield { attrs, .. }) => attrs,
+        _ => &[]
+    }
+}
+
+/// Attributes written on an item, for every shape an item can take.
+#[rustfmt::skip]
+fn item_attributes(item: &syn::Item) -> &[syn::Attribute] {
+    match item {
+        syn::Item::Const(syn::ItemConst { attrs, .. })
+        | syn::Item::Enum(syn::ItemEnum { attrs, .. })
+        | syn::Item::ExternCrate(syn::ItemExternCrate { attrs, .. })
+        | syn::Item::Fn(syn::ItemFn { attrs, .. })
+        | syn::Item::ForeignMod(syn::ItemForeignMod { attrs, .. })
+        | syn::Item::Impl(syn::ItemImpl { attrs, .. })
+        | syn::Item::Macro(syn::ItemMacro { attrs, .. })
+        | syn::Item::Mod(syn::ItemMod { attrs, .. })
+        | syn::Item::Static(syn::ItemStatic { attrs, .. })
+        | syn::Item::Struct(syn::ItemStruct { attrs, .. })
+        | syn::Item::Trait(syn::ItemTrait { attrs, .. })
+        | syn::Item::TraitAlias(syn::ItemTraitAlias { attrs, .. })
+        | syn::Item::Type(syn::ItemType { attrs, .. })
+        | syn::Item::Union(syn::ItemUnion { attrs, .. })
+        | syn::Item::Use(syn::ItemUse { attrs, .. }) => attrs,
+        _ => &[]
+    }
+}
+
+/// Attributes written on a statement, whatever shape it takes.
+fn statement_attributes(statement: &syn::Stmt) -> &[syn::Attribute] {
+    match statement {
+        syn::Stmt::Local(local) => &local.attrs,
+        syn::Stmt::Item(item) => item_attributes(item),
+        syn::Stmt::Expr(expression, _) => expression_attributes(expression),
+        syn::Stmt::Macro(invocation) => &invocation.attrs
+    }
+}
+
 /// Returns whether a statement is gated by a configuration attribute
 /// this tier does not resolve.
 fn gated(statement: &syn::Stmt) -> bool {
-    let attributes: &[syn::Attribute] = match statement {
-        syn::Stmt::Local(local) => &local.attrs,
-        syn::Stmt::Expr(syn::Expr::Block(block), _) => &block.attrs,
-        syn::Stmt::Macro(invocation) => &invocation.attrs,
-        syn::Stmt::Item(syn::Item::Fn(function)) => &function.attrs,
-        _ => &[]
-    };
-    attributes
+    statement_attributes(statement)
         .iter()
-        .any(|attribute| attribute.path().is_ident("cfg"))
-}
-
-/// Returns whether a statement unconditionally ends the current path, so
-/// everything after it in the same block never runs.
-fn diverges(statement: &syn::Stmt) -> bool {
-    match statement {
-        syn::Stmt::Expr(expression, _) => match expression {
-            syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => true,
-            syn::Expr::Call(call) => process_exit(&call.func),
-            syn::Expr::Macro(invocation) => diverging_macro(&invocation.mac),
-            _ => false
-        },
-        syn::Stmt::Macro(invocation) => diverging_macro(&invocation.mac),
-        _ => false
-    }
+        .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
 }
 
 /// Returns whether a call expression names the process-ending pair.
@@ -134,37 +373,250 @@ fn process_exit(callee: &syn::Expr) -> bool {
         && segments.iter().any(|segment| segment == "process")
 }
 
-/// Returns whether a macro invocation ends the current path.
-fn diverging_macro(invocation: &syn::Macro) -> bool {
-    invocation
+/// What a statement proves about the statement after it. A configuration
+/// gate weakens the answer and never decides it: the gated statement
+/// exists in some builds and not in others, so a divergence under a gate
+/// proves nothing about a build where the gate is off.
+fn statement_flow(statement: &syn::Stmt) -> Flow {
+    let flow = match statement {
+        syn::Stmt::Local(local) => local_flow(local),
+        syn::Stmt::Item(_) => Flow::settled(),
+        syn::Stmt::Expr(expression, _) => expression_flow(expression),
+        syn::Stmt::Macro(invocation) => macro_flow(&invocation.mac)
+    };
+    if gated(statement) {
+        flow.weakened()
+    } else {
+        flow
+    }
+}
+
+/// What a `let` proves: its initializer runs, and a `let` … `else` that
+/// binds by pattern reaches the next statement only when the pattern
+/// matched, which no syntax proves.
+fn local_flow(local: &syn::Local) -> Flow {
+    let Some(init) = &local.init else {
+        return Flow::settled();
+    };
+    let flow = expression_flow(&init.expr);
+    let Some((_, otherwise)) = &init.diverge else {
+        return flow;
+    };
+    let mut escape = expression_flow(otherwise);
+    escape.completion = Completion::Unknown;
+    flow.then(escape)
+}
+
+/// Left fold of the statements of a block.
+fn block_flow(block: &syn::Block) -> Flow {
+    let mut flow = Flow::settled();
+    for statement in &block.stmts {
+        flow = flow.then(statement_flow(statement));
+    }
+    flow
+}
+
+/// What a macro invocation proves. A macro that ends the path is proven
+/// to; a macro whose expansion this tier knows folds over its arguments,
+/// which is where a `?` or a diverging call inside one is seen; anything
+/// else could expand to a divergence and is recorded as unproven.
+fn macro_flow(invocation: &syn::Macro) -> Flow {
+    let Some(name) = invocation
         .path
         .segments
         .last()
-        .is_some_and(|segment| DIVERGING_MACROS.contains(&segment.ident.to_string().as_str()))
+        .map(|segment| segment.ident.to_string())
+    else {
+        return Flow::proving(Completion::Unknown);
+    };
+    if DIVERGING_MACROS.contains(&name.as_str()) {
+        return Flow::proving(Completion::Never);
+    }
+    if !SETTLED_MACROS.contains(&name.as_str()) {
+        return Flow::proving(Completion::Unknown);
+    }
+    let Ok(arguments) = invocation.parse_body_with(
+        syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
+    ) else {
+        return Flow::settled();
+    };
+    let mut flow = Flow::settled();
+    for argument in &arguments {
+        flow = flow.then(expression_flow(argument));
+    }
+    flow
 }
 
-/// Returns whether a statement may leave the function before the next
-/// one runs: a `?` operator or a conditional `return` inside it.
-fn exits(statement: &syn::Stmt) -> bool {
-    struct Scan {
-        found: bool
+/// What a conditional proves: the branch not taken is as real as the one
+/// taken, and a missing `else` branch is a branch that completes.
+fn conditional_flow(conditional: &syn::ExprIf) -> Flow {
+    let condition = expression_flow(&conditional.cond);
+    let taken = block_flow(&conditional.then_branch);
+    let otherwise = conditional
+        .else_branch
+        .as_ref()
+        .map_or_else(Flow::settled, |(_, branch)| expression_flow(branch));
+    condition.then(taken.join(otherwise))
+}
+
+/// What a match proves: control enters exactly one arm, so the arms
+/// merge. A match with no arms is matching a value that cannot exist and
+/// never completes.
+fn match_flow(matched: &syn::ExprMatch) -> Flow {
+    let scrutinee = expression_flow(&matched.expr);
+    let mut arms: Option<Flow> = None;
+    for arm in &matched.arms {
+        let condition = arm_condition(&arm.pat)
+            .map_or_else(Flow::settled, |guard| expression_flow(guard).weakened());
+        let taken = condition.then(expression_flow(&arm.body));
+        arms = Some(match arms {
+            Some(seen) => seen.join(taken),
+            None => taken
+        });
     }
-    impl<'ast> Visit<'ast> for Scan {
-        fn visit_expr_try(&mut self, tried: &'ast syn::ExprTry) {
-            self.found = true;
-            syn::visit::visit_expr_try(self, tried);
+    scrutinee.then(arms.unwrap_or_else(|| Flow::proving(Completion::Never)))
+}
+
+/// Sequential fold over the immediate children of a construct whose own
+/// control flow needs no rule of its own — every child runs, in written
+/// order. Nested items are not children of the flow: their bodies run
+/// where they are called, not here.
+fn children_flow(expression: &syn::Expr) -> Flow {
+    struct Children {
+        flow: Flow
+    }
+    impl<'ast> Visit<'ast> for Children {
+        fn visit_expr(&mut self, child: &'ast syn::Expr) {
+            self.flow = std::mem::take(&mut self.flow).then(expression_flow(child));
         }
 
-        fn visit_expr_return(&mut self, returned: &'ast syn::ExprReturn) {
-            self.found = true;
-            syn::visit::visit_expr_return(self, returned);
+        fn visit_block(&mut self, child: &'ast syn::Block) {
+            self.flow = std::mem::take(&mut self.flow).then(block_flow(child));
         }
+
+        fn visit_item(&mut self, _item: &'ast syn::Item) {}
     }
-    let mut scan = Scan {
-        found: false
+    let mut children = Children {
+        flow: Flow::settled()
     };
-    scan.visit_stmt(statement);
-    scan.found
+    syn::visit::visit_expr(&mut children, expression);
+    children.flow
+}
+
+/// What an expression proves about the program point after it.
+///
+/// The rules are the syntax-directed reachability fold: every construct
+/// that can end a path has one, and everything else folds over its
+/// children, so a divergence nested in a branch, a block, a match arm or
+/// a call argument is seen instead of being missed for sitting one level
+/// below the top of a statement.
+fn expression_flow(expression: &syn::Expr) -> Flow {
+    match expression {
+        syn::Expr::Return(returned) => {
+            let value = returned
+                .expr
+                .as_deref()
+                .map_or_else(Flow::settled, expression_flow);
+            let mut flow = value.then(Flow::proving(Completion::Never));
+            flow.returns = true;
+            flow
+        }
+        syn::Expr::Break(broken) => {
+            let value = broken
+                .expr
+                .as_deref()
+                .map_or_else(Flow::settled, expression_flow);
+            let mut flow = value.then(Flow::proving(Completion::Never));
+            if let Some(label) = &broken.label {
+                flow.labeled_breaks.insert(label.ident.to_string());
+            } else {
+                flow.bare_breaks = true;
+            }
+            flow
+        }
+        syn::Expr::Continue(_) => Flow::proving(Completion::Never),
+        syn::Expr::Try(tried) => {
+            let mut flow = expression_flow(&tried.expr).then(Flow::proving(Completion::Unknown));
+            flow.returns = true;
+            flow
+        }
+        syn::Expr::Macro(invocation) => macro_flow(&invocation.mac),
+        syn::Expr::Call(call) => {
+            let flow = children_flow(expression);
+            if process_exit(&call.func) {
+                return flow.then(Flow::proving(Completion::Never));
+            }
+            flow
+        }
+        syn::Expr::If(conditional) => conditional_flow(conditional),
+        syn::Expr::Match(matched) => match_flow(matched),
+        syn::Expr::Loop(repeated) => {
+            let body = block_flow(&repeated.body);
+            let escapes = body.breaks_out_of(repeated.label.as_ref());
+            let mut flow = body.absorbed(repeated.label.as_ref());
+            flow.completion = if escapes {
+                Completion::Unknown
+            } else {
+                Completion::Never
+            };
+            flow
+        }
+        syn::Expr::While(conditional) => {
+            let condition = expression_flow(&conditional.cond);
+            let mut body = block_flow(&conditional.body).absorbed(conditional.label.as_ref());
+            body.completion = Completion::Always;
+            condition.then(body)
+        }
+        syn::Expr::ForLoop(iterated) => {
+            let iterable = expression_flow(&iterated.expr);
+            let mut body = block_flow(&iterated.body).absorbed(iterated.label.as_ref());
+            body.completion = Completion::Always;
+            iterable.then(body)
+        }
+        syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_) => Flow::settled(),
+        syn::Expr::Block(braced) => {
+            let mut flow = block_flow(&braced.block);
+            if let Some(label) = &braced.label
+                && flow.labeled_breaks.remove(&label.name.ident.to_string())
+            {
+                flow.completion = flow.completion.join(Completion::Always);
+            }
+            flow
+        }
+        syn::Expr::Binary(binary)
+            if matches!(binary.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) =>
+        {
+            expression_flow(&binary.left).then(expression_flow(&binary.right).weakened())
+        }
+        syn::Expr::Verbatim(_) => Flow::proving(Completion::Unknown),
+        _ => children_flow(expression)
+    }
+}
+
+/// The extra condition an arm carries, which its pattern holds: an arm
+/// guard is a `Pat::Guard` wrapping the pattern it qualifies.
+fn arm_condition(pattern: &syn::Pat) -> Option<&syn::Expr> {
+    match pattern {
+        syn::Pat::Guard(guarded) => Some(&guarded.guard),
+        _ => None
+    }
+}
+
+/// Returns whether a pattern accepts every value reaching it, so an arm
+/// carrying it binds rather than branches. A binding with a subpattern —
+/// `n @ 1..=5` — is refutable: the subpattern decides, not the binding.
+/// A guard is not part of this answer; it is recorded beside it.
+fn irrefutable(pattern: &syn::Pat) -> bool {
+    match pattern {
+        syn::Pat::Wild(_) => true,
+        syn::Pat::Ident(binding) => binding.subpat.is_none(),
+        syn::Pat::Guard(guarded) => irrefutable(&guarded.pat),
+        syn::Pat::Paren(parenthesized) => irrefutable(&parenthesized.pat),
+        syn::Pat::Reference(borrowed) => irrefutable(&borrowed.pat),
+        syn::Pat::Type(typed) => irrefutable(&typed.pat),
+        syn::Pat::Tuple(tuple) => tuple.elems.iter().all(irrefutable),
+        _ => false
+    }
 }
 
 /// Syntax visitor accumulating facts from one function body.
@@ -567,6 +1019,22 @@ impl FactCollector {
         self.guards.pop();
     }
 
+    /// Visits `body` as the body of a repeating construct: every write
+    /// recorded inside it runs once per iteration, and no syntax bounds
+    /// the iteration count.
+    ///
+    /// Repetition is recorded here rather than read off the guard stack,
+    /// because repeating and weakening are different questions: a `loop`
+    /// repeats without bound while its body is still entered
+    /// unconditionally.
+    fn repeating<F: FnOnce(&mut Self)>(&mut self, body: F) {
+        let recorded = self.facts.output_writes.len();
+        body(self);
+        for write in self.facts.output_writes.iter_mut().skip(recorded) {
+            write.multiplicity = super::output::Multiplicity::Unbounded;
+        }
+    }
+
     /// Snapshot of everything standing between the current position and
     /// unconditional execution.
     fn site_guard(&self) -> super::output::SiteGuard {
@@ -600,16 +1068,7 @@ impl FactCollector {
                 end:   u32::try_from(span.end).unwrap_or(u32::MAX)
             },
             guard: self.site_guard(),
-            multiplicity: if self.guards.iter().any(|guard| {
-                matches!(
-                    guard,
-                    super::output::Guard::For | super::output::Guard::While
-                )
-            }) {
-                super::output::Multiplicity::Unbounded
-            } else {
-                super::output::Multiplicity::Once
-            }
+            multiplicity: super::output::Multiplicity::Once
         });
     }
 
@@ -769,14 +1228,28 @@ impl<'ast> Visit<'ast> for FactCollector {
     fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
         self.bind_element(&loop_expr.pat, &loop_expr.expr);
         self.visit_expr(&loop_expr.expr);
-        self.under(super::output::Guard::For, |collector| {
-            collector.visit_block(&loop_expr.body);
+        self.repeating(|collector| {
+            collector.under(super::output::Guard::For, |collector| {
+                collector.visit_block(&loop_expr.body);
+            });
         });
     }
 
     fn visit_expr_while(&mut self, loop_expr: &'ast syn::ExprWhile) {
         self.visit_expr(&loop_expr.cond);
-        self.under(super::output::Guard::While, |collector| {
+        self.repeating(|collector| {
+            collector.under(super::output::Guard::While, |collector| {
+                collector.visit_block(&loop_expr.body);
+            });
+        });
+    }
+
+    /// A bare `loop` repeats without bound, and its body is entered
+    /// unconditionally: the repetition is recorded while the guard stack
+    /// stays as it was, so a write inside keeps the certainty of the
+    /// position the loop stands in.
+    fn visit_expr_loop(&mut self, loop_expr: &'ast syn::ExprLoop) {
+        self.repeating(|collector| {
             collector.visit_block(&loop_expr.body);
         });
     }
@@ -795,14 +1268,27 @@ impl<'ast> Visit<'ast> for FactCollector {
 
     fn visit_expr_match(&mut self, matched: &'ast syn::ExprMatch) {
         self.visit_expr(&matched.expr);
+        let single = matched.arms.len() == 1;
         for arm in &matched.arms {
-            let guard = super::output::Guard::MatchArm {
-                irrefutable: matches!(arm.pat, syn::Pat::Wild(_) | syn::Pat::Ident(_)),
-                guarded:     matches!(arm.pat, syn::Pat::Guard(_))
+            let frame = super::output::Guard::MatchArm {
+                irrefutable: irrefutable(&arm.pat),
+                guarded:     arm_condition(&arm.pat).is_some()
             };
-            self.under(guard, |collector| {
-                collector.visit_arm(arm);
-            });
+            let binds = single
+                && matches!(
+                    frame,
+                    super::output::Guard::MatchArm {
+                        irrefutable: true,
+                        guarded:     false
+                    }
+                );
+            if binds {
+                self.visit_arm(arm);
+            } else {
+                self.under(frame, |collector| {
+                    collector.visit_arm(arm);
+                });
+            }
         }
     }
 
@@ -829,10 +1315,12 @@ impl<'ast> Visit<'ast> for FactCollector {
             } else {
                 self.visit_stmt(statement);
             }
-            if diverges(statement) {
-                self.dead = true;
-            } else if exits(statement) {
-                self.prior_exits += 1;
+            let flow = statement_flow(statement);
+            match flow.completion {
+                Completion::Never => self.dead = true,
+                Completion::Unknown => self.prior_exits += 1,
+                Completion::Always if flow.may_skip() => self.prior_exits += 1,
+                Completion::Always => {}
             }
         }
         self.dead = entry_dead;
@@ -981,6 +1469,9 @@ impl<'ast> Visit<'ast> for FactCollector {
             }
             if name == "vec" || name == "format" {
                 self.facts.allocations += 1;
+            }
+            if DIVERGING_MACROS.contains(&name.as_str()) {
+                self.facts.flags = self.facts.flags.with_panic();
             }
             if let Some(effect) =
                 knowledge::sql_macro_effect(&name, &invocation.tokens.to_string())

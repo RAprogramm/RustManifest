@@ -163,14 +163,24 @@ pub enum Guard {
 }
 
 /// Everything standing between one write site and certainty.
+///
+/// The two questions are distinct and are answered separately: `dead` is
+/// a proof that the site never runs, `prior_exits` counts what stands
+/// between the start of the function and the site without proving
+/// either way. Neither being set is the third state — the site is
+/// proven to be reached.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SiteGuard {
     /// Enclosing constructs, outermost first.
     pub guards:      Vec<Guard>,
-    /// Exits that may leave the function before this site is reached.
+    /// Statements before this site that may not hand control to it: an
+    /// exit that may leave the function first, a divergence proven on
+    /// some paths but not all, or a construct whose completion this tier
+    /// does not resolve. Provenance for the reading, never the reading
+    /// itself — one such statement weakens the site exactly as much as
+    /// ten do.
     pub prior_exits: u32,
-    /// Whether the site follows an unconditional divergence and can
-    /// never run.
+    /// Whether the site follows a proven divergence and can never run.
     pub dead:        bool
 }
 
@@ -221,12 +231,17 @@ impl fmt::Display for Grade {
 }
 
 /// How many times a site runs per execution of its function.
+///
+/// Only the two readings the analysis can produce exist: a site outside
+/// every repeating construct runs once, a site inside one runs a number
+/// of times no syntax bounds. A counted bound would need the iteration
+/// count of the enclosing construct, which this tier does not compute,
+/// and a variant nothing constructs is a promise the engine does not
+/// keep.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Multiplicity {
     /// Exactly once.
     Once,
-    /// At most the stated number of times.
-    Bounded(u32),
     /// A loop or cycle bounds it with no static limit.
     Unbounded
 }
@@ -584,13 +599,15 @@ mod tests {
     }
 
     #[test]
-    fn a_loop_body_is_possible_and_unbounded_while_a_bare_loop_is_neither() {
+    fn a_loop_body_repeats_and_only_a_loop_that_may_not_run_weakens_it() {
         let counted = writes_of("    for _ in 0..n { println!(\"hi\"); }");
         assert_eq!(counted[0].guard.guards, [Guard::For]);
         assert_eq!(counted[0].multiplicity, super::Multiplicity::Unbounded);
+        assert_eq!(counted[0].guard.local_grade(), Grade::Possible);
 
         let forever = writes_of("    loop { println!(\"hi\"); }");
         assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(forever[0].multiplicity, super::Multiplicity::Unbounded);
         assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
     }
 
@@ -633,6 +650,129 @@ mod tests {
         assert_eq!(writes.len(), 2);
         assert_eq!(writes[0].guard.guards.len(), 2);
         assert!(writes[1].guard.guards.is_empty());
+    }
+
+    #[test]
+    fn a_divergence_below_the_top_of_a_statement_is_seen() {
+        let branch = writes_of("    if flag { std::process::exit(1); }\n    println!(\"hi\");");
+        assert!(!branch[0].guard.dead);
+        assert_eq!(branch[0].guard.prior_exits, 1);
+        assert_eq!(branch[0].guard.local_grade(), Grade::Possible);
+
+        let nested = writes_of("    { panic!(\"stop\"); }\n    println!(\"hi\");");
+        assert_eq!(nested[0].guard.local_grade(), Grade::Dead);
+
+        let argument = writes_of("    helper(std::process::exit(1));\n    println!(\"hi\");");
+        assert_eq!(argument[0].guard.local_grade(), Grade::Dead);
+    }
+
+    #[test]
+    fn a_divergence_on_every_branch_kills_what_follows() {
+        let branches = writes_of(
+            "    if flag { return; } else { std::process::exit(1); }\n    println!(\"x\");"
+        );
+        assert!(branches[0].guard.dead);
+        assert_eq!(branches[0].guard.local_grade(), Grade::Dead);
+
+        let arms = writes_of(
+            "    match v { Some(_) => return, None => panic!(\"no\") }\n    println!(\"x\");"
+        );
+        assert!(arms[0].guard.dead);
+    }
+
+    #[test]
+    fn a_configuration_gated_divergence_weakens_what_follows_and_never_kills_it() {
+        let gated = writes_of("    #[cfg(feature = \"x\")]\n    todo!();\n    println!(\"hi\");");
+        assert!(!gated[0].guard.dead);
+        assert_eq!(gated[0].guard.prior_exits, 1);
+        assert_eq!(gated[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn a_configuration_gate_is_recorded_on_every_statement_shape() {
+        let block = writes_of("    #[cfg(feature = \"loud\")]\n    unsafe { println!(\"hi\"); }");
+        assert_eq!(block[0].guard.guards, [Guard::CfgGated]);
+
+        let repeated =
+            writes_of("    #[cfg(feature = \"loud\")]\n    for _ in 0..n { println!(\"hi\"); }");
+        assert_eq!(repeated[0].guard.guards, [Guard::CfgGated, Guard::For]);
+
+        let item = writes_of("    #[cfg(test)]\n    fn inner() { println!(\"hi\"); }");
+        assert_eq!(item[0].guard.guards, [Guard::CfgGated, Guard::NestedItem]);
+    }
+
+    #[test]
+    fn an_exit_inside_a_nested_body_does_not_weaken_the_body_around_it() {
+        let nested = writes_of("    fn inner() { return; }\n    println!(\"outer\");");
+        assert_eq!(nested.len(), 1);
+        assert_eq!(nested[0].guard.prior_exits, 0);
+        assert_eq!(nested[0].guard.local_grade(), Grade::Certain);
+
+        let closure = writes_of("    let quit = || return;\n    println!(\"outer\");");
+        assert_eq!(closure[0].guard.prior_exits, 0);
+        assert_eq!(closure[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_bare_loop_repeats_without_weakening_the_write_inside_it() {
+        let forever = writes_of("    loop { println!(\"hi\"); }");
+        assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
+        assert_eq!(forever[0].multiplicity, super::Multiplicity::Unbounded);
+    }
+
+    #[test]
+    fn a_loop_that_nothing_breaks_out_of_kills_what_follows_it() {
+        let endless = writes_of("    loop { helper(); }\n    println!(\"hi\");");
+        assert_eq!(endless[0].guard.local_grade(), Grade::Dead);
+
+        let escaping = writes_of("    loop { if flag { break; } }\n    println!(\"hi\");");
+        assert!(!escaping[0].guard.dead);
+        assert_eq!(escaping[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn a_macro_this_tier_cannot_see_through_weakens_what_follows() {
+        let unknown = writes_of("    unknown_macro!();\n    println!(\"hi\");");
+        assert_eq!(unknown[0].guard.prior_exits, 1);
+        assert_eq!(unknown[0].guard.local_grade(), Grade::Possible);
+
+        let settled = writes_of("    print!(\"first\");\n    println!(\"hi\");");
+        assert_eq!(settled[1].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_binding_arm_is_irrefutable_only_without_a_subpattern() {
+        let subpattern =
+            writes_of("    match v { y @ Some(1) => println!(\"a\"), _ => println!(\"b\") }");
+        assert_eq!(
+            subpattern[0].guard.guards,
+            [Guard::MatchArm {
+                irrefutable: false,
+                guarded:     false
+            }]
+        );
+        assert_eq!(
+            subpattern[1].guard.guards,
+            [Guard::MatchArm {
+                irrefutable: true,
+                guarded:     false
+            }]
+        );
+
+        let conditional =
+            writes_of("    match v { y if y > 1 => println!(\"a\"), _ => println!(\"b\") }");
+        assert_eq!(
+            conditional[0].guard.guards,
+            [Guard::MatchArm {
+                irrefutable: true,
+                guarded:     true
+            }]
+        );
+
+        let binding = writes_of("    match v { y => println!(\"a\") }");
+        assert!(binding[0].guard.guards.is_empty());
+        assert_eq!(binding[0].guard.local_grade(), Grade::Certain);
     }
 
     #[test]

@@ -15,9 +15,13 @@
 
 use crate::{semantic::behavior::FunctionFacts, source::Source};
 
-/// Runtime attributes that generate a real entry around an `async main`,
-/// matched on the last two path segments so a renamed import still
-/// resolves.
+/// Runtime attributes that generate a real entry around an `async main`.
+///
+/// The match is on the last two path segments, so a qualifier in front
+/// of the crate name still resolves (`::tokio::main`,
+/// `crate::rt::tokio::main`). A renamed import is the one case it cannot
+/// resolve — a rename replaces the very segment being compared — and an
+/// `async main` behind one is refused rather than assumed.
 const RUNTIME_ENTRY_ATTRS: [(&str, &str); 6] = [
     ("actix_rt", "main"),
     ("actix_web", "main"),
@@ -43,19 +47,29 @@ pub enum EntryKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntryPoint {
     /// Index of the fact describing the entry function.
-    pub fact: usize,
+    pub fact:    usize,
     /// How it becomes the entry.
-    pub kind: EntryKind,
+    pub kind:    EntryKind,
     /// Path of the binary root file that declares it.
-    pub file: String
+    pub file:    String,
+    /// Whether the entry declares a return type, so a failure inside it
+    /// can leave as a value instead of ending the process by panic.
+    pub returns: bool
 }
 
 /// Finds every process entry point among `sources`.
 ///
-/// A file is a binary root when it is the crate's `main.rs`, a file
-/// directly under a `bin` directory, or the `main.rs` of a directory
-/// under `bin` or `examples`. Only top-level functions of such a file
-/// are considered, so a `main` inside a module is not an entry.
+/// A file is a binary root when it is the crate's `src/main.rs`, a file
+/// directly under `src/bin`, or the `main.rs` of a directory under
+/// `src/bin` or under an `examples` directory outside `src`. Only
+/// top-level functions of such a file are considered, so a `main` inside
+/// a module is not an entry.
+///
+/// Each entry is bound to its own fact by the byte range of its own
+/// identifier, not by name: a file may declare several `main` items —
+/// the `#[cfg(unix)]` / `#[cfg(windows)]` pair is the ordinary case —
+/// and each of them describes a different program. An item whose fact
+/// is not recorded is skipped rather than bound to a namesake.
 #[must_use]
 pub fn entry_points(sources: &[Source], facts: &[FunctionFacts]) -> Vec<EntryPoint> {
     let mut entries = Vec::new();
@@ -77,50 +91,92 @@ pub fn entry_points(sources: &[Source], facts: &[FunctionFacts]) -> Vec<EntryPoi
             let Some(kind) = entry_kind(function) else {
                 continue;
             };
-            let Some(fact) = facts
-                .iter()
-                .position(|entry| entry.source == index && entry.function == "main")
-            else {
+            let Some(fact) = declaring_fact(facts, index, function) else {
                 continue;
             };
             entries.push(EntryPoint {
                 fact,
                 kind,
-                file: path.clone()
+                file: path.clone(),
+                returns: !matches!(function.sig.output, syn::ReturnType::Default)
             });
         }
     }
     entries
 }
 
+/// Index of the fact recorded for exactly this `main` item.
+///
+/// The fact's range is the byte range of the declaring identifier, so it
+/// identifies the item itself; every other `main` in the same file, at
+/// any nesting depth, carries a different range.
+fn declaring_fact(
+    facts: &[FunctionFacts],
+    source: usize,
+    function: &syn::ItemFn
+) -> Option<usize> {
+    let span = function.sig.ident.span().byte_range();
+    let start = u32::try_from(span.start).unwrap_or(u32::MAX);
+    let end = u32::try_from(span.end).unwrap_or(u32::MAX);
+    facts.iter().position(|fact| {
+        fact.source == source
+            && fact.function == "main"
+            && fact.range.start == start
+            && fact.range.end == end
+    })
+}
+
 /// Returns whether a path names a file that compiles into a binary.
+///
+/// Position is part of the rule and not only the directory name: cargo
+/// builds `<pkg>/src/bin/*.rs` and `<pkg>/examples/*.rs`, so a `bin`
+/// directory anywhere but directly under `src`, and an `examples`
+/// directory inside `src`, are ordinary module directories.
 fn binary_root(path: &str) -> bool {
     let components: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
-    let last = components.last().copied().unwrap_or_default();
-    let parent = components
-        .len()
-        .checked_sub(2)
-        .and_then(|index| components.get(index))
-        .copied()
-        .unwrap_or_default();
-    let grandparent = components
-        .len()
-        .checked_sub(3)
-        .and_then(|index| components.get(index))
-        .copied()
-        .unwrap_or_default();
-    match (parent, last) {
-        ("src", "main.rs") => true,
-        ("bin" | "examples", file) => std::path::Path::new(file)
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("rs")),
-        (_, "main.rs") => matches!(grandparent, "bin" | "examples"),
+    let last = ancestor(&components, 1);
+    if !std::path::Path::new(last)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
+    {
+        return false;
+    }
+    let parent = ancestor(&components, 2);
+    let grandparent = ancestor(&components, 3);
+    match parent {
+        "src" => last == "main.rs",
+        "bin" => grandparent == "src",
+        "examples" => grandparent != "src",
+        _ if last == "main.rs" => match grandparent {
+            "bin" => ancestor(&components, 4) == "src",
+            "examples" => ancestor(&components, 4) != "src",
+            _ => false
+        },
         _ => false
     }
 }
 
+/// The component `back` positions from the end, or the empty string when
+/// the path is shorter than that.
+fn ancestor<'path>(components: &[&'path str], back: usize) -> &'path str {
+    components
+        .len()
+        .checked_sub(back)
+        .and_then(|index| components.get(index))
+        .copied()
+        .unwrap_or_default()
+}
+
 /// Classifies a `main` function, refusing anything the build decides.
+///
+/// Asyncness is settled first: an `async main` is an entry only when a
+/// runtime attribute generates the real one around it, and a
+/// configuration gate cannot supply that generation. Only a `main` that
+/// would be an entry at all can then be recorded as a conditional one.
 fn entry_kind(function: &syn::ItemFn) -> Option<EntryKind> {
+    if function.sig.asyncness.is_some() && !runtime_attribute(&function.attrs) {
+        return None;
+    }
     if function
         .attrs
         .iter()
@@ -129,7 +185,7 @@ fn entry_kind(function: &syn::ItemFn) -> Option<EntryKind> {
         return Some(EntryKind::Conditional);
     }
     if function.sig.asyncness.is_some() {
-        return runtime_attribute(&function.attrs).then_some(EntryKind::Runtime);
+        return Some(EntryKind::Runtime);
     }
     Some(EntryKind::Plain)
 }
@@ -163,7 +219,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{EntryKind, entry_points};
-    use crate::{semantic::behavior::behavior, source::Source};
+    use crate::{
+        semantic::behavior::{FunctionFacts, behavior},
+        source::Source
+    };
 
     fn entries(path: &str, text: &str) -> Vec<(EntryKind, String)> {
         let sources = [Source::new(PathBuf::from(path), text.to_owned())];
@@ -171,6 +230,26 @@ mod tests {
         entry_points(&sources, &facts)
             .into_iter()
             .map(|entry| (entry.kind, entry.file))
+            .collect()
+    }
+
+    /// Every entry of one file as the text its own fact writes paired
+    /// with whether its own signature returns, so a fact bound to the
+    /// wrong item is visible.
+    fn bindings(path: &str, text: &str) -> Vec<(Option<String>, bool)> {
+        let sources = [Source::new(PathBuf::from(path), text.to_owned())];
+        let facts: Vec<FunctionFacts> = behavior(&sources);
+        entry_points(&sources, &facts)
+            .into_iter()
+            .map(|entry| {
+                let written = facts.get(entry.fact).and_then(|fact| {
+                    fact.output_writes
+                        .first()
+                        .and_then(|write| write.payload.fully_known())
+                        .map(ToOwned::to_owned)
+                });
+                (written, entry.returns)
+            })
             .collect()
     }
 
@@ -213,6 +292,77 @@ mod tests {
                 .first()
                 .map(|(kind, _)| *kind),
             Some(EntryKind::Conditional)
+        );
+    }
+
+    #[test]
+    fn a_main_nested_in_a_module_never_supplies_the_entry_fact() {
+        assert_eq!(
+            bindings(
+                "src/main.rs",
+                "mod inner {\n    pub fn main() { println!(\"inner\"); }\n}\nfn main() { \
+                 println!(\"outer\"); }"
+            ),
+            vec![(Some("outer".to_owned()), false)]
+        );
+    }
+
+    #[test]
+    fn each_gated_main_binds_to_its_own_fact_and_its_own_signature() {
+        assert_eq!(
+            bindings(
+                "src/main.rs",
+                "#[cfg(unix)]\nfn main() { println!(\"unix\"); }\n#[cfg(windows)]\nfn main() -> \
+                 std::io::Result<()> {\n    println!(\"windows\");\n    Ok(())\n}"
+            ),
+            vec![
+                (Some("unix".to_owned()), false),
+                (Some("windows".to_owned()), true)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_module_directory_named_bin_or_examples_is_not_a_binary_root() {
+        assert!(
+            entries("src/render/bin/mod.rs", "fn main() {}").is_empty(),
+            "`bin` counts only directly under `src`"
+        );
+        assert!(
+            entries("src/examples/demo.rs", "fn main() {}").is_empty(),
+            "cargo builds `examples` beside `src`, not inside it"
+        );
+        assert_eq!(entries("examples/demo.rs", "fn main() {}").len(), 1);
+        assert_eq!(entries("src/bin/tool/main.rs", "fn main() {}").len(), 1);
+    }
+
+    #[test]
+    fn a_gated_async_main_without_a_runtime_is_refused_like_an_ungated_one() {
+        assert!(
+            entries("src/main.rs", "#[cfg(unix)]\nasync fn main() {}").is_empty(),
+            "a configuration gate cannot turn an unwrapped `async main` into an entry"
+        );
+        assert_eq!(
+            entries(
+                "src/main.rs",
+                "#[cfg(unix)]\n#[tokio::main]\nasync fn main() {}"
+            )
+            .first()
+            .map(|(kind, _)| *kind),
+            Some(EntryKind::Conditional)
+        );
+    }
+
+    #[test]
+    fn an_extra_qualifier_resolves_and_a_renamed_runtime_import_does_not() {
+        assert_eq!(
+            entries("src/main.rs", "#[::tokio::main]\nasync fn main() {}").len(),
+            1,
+            "the last two segments still name the runtime"
+        );
+        assert!(
+            entries("src/main.rs", "#[rt::main]\nasync fn main() {}").is_empty(),
+            "a rename replaces the crate segment, so the match cannot resolve it"
         );
     }
 }

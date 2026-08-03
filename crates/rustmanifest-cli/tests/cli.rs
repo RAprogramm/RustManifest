@@ -44,7 +44,10 @@ fn version_works() {
 
 #[test]
 fn check_clean_tree_exits_zero() {
-    let tree = make_tree(&[("src/clean.rs", "fn main() { println!(\"hi\"); }\n")]);
+    let tree = make_tree(&[(
+        "src/clean.rs",
+        "pub fn add(left: u32, right: u32) -> u32 {\n    left + right\n}\n"
+    )]);
     rustmanifest()
         .arg("check")
         .arg(tree.path())
@@ -273,7 +276,10 @@ fn cache_second_run_produces_identical_json_output() {
 
 #[test]
 fn cache_creates_missing_directory() {
-    let tree = make_tree(&[("src/clean.rs", "fn main() { println!(\"hi\"); }\n")]);
+    let tree = make_tree(&[(
+        "src/clean.rs",
+        "pub fn add(left: u32, right: u32) -> u32 {\n    left + right\n}\n"
+    )]);
     let parent = TempDir::new().unwrap();
     let cache_dir = parent.path().join("nested").join("cache");
 

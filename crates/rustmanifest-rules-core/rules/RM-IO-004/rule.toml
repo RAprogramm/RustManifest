@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-IO-004"
+severity = "warning"
+title = "Entry point losing the write error to a panic"
+rationale-uri = "rustmanifest://methodology/rust-specific#panic-vs-result"
+
+[definition.semantic]
+check = "output-error-lost"

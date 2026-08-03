@@ -29,6 +29,7 @@ mod fingerprint;
 mod graph;
 mod insight;
 mod invariant;
+mod io_forms;
 mod knowledge;
 mod layers;
 mod layout;
@@ -44,6 +45,7 @@ mod rename_detect;
 mod rename_op;
 mod role;
 mod scip;
+mod std_derive;
 mod std_knowledge;
 mod surface;
 
@@ -80,6 +82,7 @@ pub use self::{
     rename_op::rename_module_fixes,
     role::{Role, role},
     scip::{ScipEdges, ScipError},
+    std_derive::{StdFact, StdOutputKnowledge, output_knowledge, std_source_root},
     surface::{FrameworkModel, Route, Surface, surface}
 };
 use crate::{error::EngineError, pragma, source::Source};
@@ -113,7 +116,19 @@ enum Check {
     /// plausible forgotten `mod` mount point.
     OrphanFile,
     /// `dead-function` — private functions no call ever mentions.
-    DeadFunction
+    DeadFunction,
+    /// `output-lock-run` — a run of prints taking the stream lock once
+    /// per call.
+    OutputLockRun,
+    /// `output-in-loop` — a write inside a loop over a line-buffered
+    /// stream.
+    OutputInLoop,
+    /// `output-constant-format` — a proven constant carried through the
+    /// formatting machinery.
+    OutputConstantFormat,
+    /// `output-error-lost` — an entry point whose failed write panics
+    /// instead of leaving as a returned error.
+    OutputErrorLost
 }
 
 impl Check {
@@ -130,6 +145,10 @@ impl Check {
             "deceptive-doc" => Some(Self::DeceptiveDoc),
             "orphan-file" => Some(Self::OrphanFile),
             "dead-function" => Some(Self::DeadFunction),
+            "output-lock-run" => Some(Self::OutputLockRun),
+            "output-in-loop" => Some(Self::OutputInLoop),
+            "output-constant-format" => Some(Self::OutputConstantFormat),
+            "output-error-lost" => Some(Self::OutputErrorLost),
             _ => None
         }
     }
@@ -146,7 +165,11 @@ impl Check {
             Self::DeceptiveName => naming::insights(sources),
             Self::DeceptiveDoc => doc_truth::insights(sources),
             Self::OrphanFile => orphan::insights(sources),
-            Self::DeadFunction => dead::insights(sources)
+            Self::DeadFunction => dead::insights(sources),
+            Self::OutputLockRun => io_forms::lock_run_insights(sources),
+            Self::OutputInLoop => io_forms::loop_write_insights(sources),
+            Self::OutputConstantFormat => io_forms::literal_format_insights(sources),
+            Self::OutputErrorLost => io_forms::lost_write_error_insights(sources)
         }
     }
 }

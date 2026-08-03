@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-IO-002"
+severity = "warning"
+title = "Run of prints taking the stream lock per call"
+rationale-uri = "rustmanifest://methodology/performance-issues#repeated-locking"
+
+[definition.semantic]
+check = "output-lock-run"

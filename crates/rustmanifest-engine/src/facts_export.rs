@@ -67,15 +67,106 @@ pub fn facts_json(
 
 /// Renders one recorded write to an output stream, with everything the
 /// analysis proved about it and nothing it did not.
+///
+/// `text` stays the fully proven string and is null whenever any part of
+/// the payload is unproven; `payload` then says which part and why, so a
+/// template keeps its proven shape and an unreadable payload keeps its
+/// reason instead of both collapsing into the same null. `guards` lists
+/// the constructs the site stands under, outermost first — the evidence
+/// behind `certainty`.
 fn output_json(write: &crate::semantic::OutputWrite) -> serde_json::Value {
     serde_json::json!({
         "stream": write.stream.to_string(),
         "text": write.payload.fully_known(),
+        "payload": payload_json(&write.payload),
         "certainty": write.guard.local_grade().to_string(),
+        "guards": write.guard.guards.iter().map(|guard| guard_name(*guard)).collect::<Vec<_>>(),
         "repeats": write.multiplicity == crate::semantic::Multiplicity::Unbounded,
         "newline": write.newline == crate::semantic::Newline::Appended,
         "site": { "start": write.site.start, "end": write.site.end }
     })
+}
+
+/// Renders what a write puts on the stream, keeping every part the
+/// analysis proved and naming every part it did not.
+///
+/// A template keeps its proven text with each unproven position marked
+/// `<name>`, and lists those names separately; an unreadable payload
+/// carries the reason it could not be read. No unproven value is ever
+/// stood in for.
+fn payload_json(payload: &crate::semantic::Payload) -> serde_json::Value {
+    use crate::semantic::{Payload, Segment};
+
+    match payload {
+        Payload::Empty => serde_json::json!({ "kind": "empty" }),
+        Payload::Literal(_) => serde_json::json!({ "kind": "literal" }),
+        Payload::Template(segments) => {
+            let shape: String = segments
+                .iter()
+                .map(|segment| match segment {
+                    Segment::Text(text) => text.clone(),
+                    Segment::Hole(hole) => format!("<{}>", hole_name(hole))
+                })
+                .collect();
+            let holes: Vec<String> = segments
+                .iter()
+                .filter_map(|segment| match segment {
+                    Segment::Text(_) => None,
+                    Segment::Hole(hole) => Some(hole_name(hole))
+                })
+                .collect();
+            serde_json::json!({ "kind": "template", "shape": shape, "holes": holes })
+        }
+        Payload::Opaque(reason) => {
+            serde_json::json!({ "kind": "opaque", "reason": reason_name(*reason) })
+        }
+    }
+}
+
+/// Names one unproven position by whatever the source gives it, never by
+/// a value it does not have.
+fn hole_name(hole: &crate::semantic::Hole) -> String {
+    use crate::semantic::HoleSource;
+
+    match &hole.source {
+        HoleSource::Named(name) => name.clone(),
+        HoleSource::Positional(index) | HoleSource::Indexed(index) => hole
+            .expr
+            .clone()
+            .unwrap_or_else(|| format!("argument {index}"))
+    }
+}
+
+/// Why a payload could not be recovered as text, as a stable key.
+const fn reason_name(reason: crate::semantic::OpaqueReason) -> &'static str {
+    use crate::semantic::OpaqueReason;
+
+    match reason {
+        OpaqueReason::RuntimeValue => "runtime-value",
+        OpaqueReason::NonLiteralFormat => "non-literal-format",
+        OpaqueReason::Unparsed => "unparsed",
+        OpaqueReason::DebugMacro => "debug-macro"
+    }
+}
+
+/// One construct standing between a write and unconditional execution,
+/// as a stable key. A match arm exports its kind only: whether its
+/// pattern is irrefutable is not proven at this tier.
+const fn guard_name(guard: crate::semantic::Guard) -> &'static str {
+    use crate::semantic::Guard;
+
+    match guard {
+        Guard::If => "if",
+        Guard::Else => "else",
+        Guard::MatchArm {
+            ..
+        } => "match-arm",
+        Guard::For => "for",
+        Guard::While => "while",
+        Guard::Closure => "closure",
+        Guard::NestedItem => "nested-item",
+        Guard::CfgGated => "cfg-gated"
+    }
 }
 
 /// Renders one function's facts as a JSON object, with the binarized
@@ -163,6 +254,59 @@ mod tests {
         assert_eq!(object["effects"][0], "console");
         assert_eq!(object["role"], "io");
         assert!(object["features"].is_null());
+    }
+
+    #[test]
+    fn a_template_payload_keeps_its_shape_instead_of_collapsing_to_null() {
+        let sources = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "fn report(amount: i64) { println!(\"credited {amount}\"); }".to_owned()
+        )];
+        let facts = behavior(&sources);
+        let object = fact_json(&facts[0], &sources, false);
+        let write = &object["output-writes"][0];
+        assert!(write["text"].is_null(), "a template is not fully known");
+        assert_eq!(write["payload"]["kind"], "template");
+        assert_eq!(write["payload"]["shape"], "credited <amount>");
+        assert_eq!(write["payload"]["holes"][0], "amount");
+    }
+
+    #[test]
+    fn an_opaque_payload_states_why_it_could_not_be_read() {
+        let sources = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "fn report() { println!(GREETING); }".to_owned()
+        )];
+        let facts = behavior(&sources);
+        let object = fact_json(&facts[0], &sources, false);
+        let write = &object["output-writes"][0];
+        assert!(write["text"].is_null(), "an opaque payload is not known");
+        assert_eq!(write["payload"]["kind"], "opaque");
+        assert_eq!(write["payload"]["reason"], "non-literal-format");
+    }
+
+    #[test]
+    fn a_guarded_write_exports_the_stack_it_stands_under() {
+        let sources = [Source::new(
+            PathBuf::from("src/lib.rs"),
+            "fn report(flag: bool) { if flag { println!(\"hi\"); } }".to_owned()
+        )];
+        let facts = behavior(&sources);
+        let object = fact_json(&facts[0], &sources, false);
+        let write = &object["output-writes"][0];
+        assert_eq!(write["certainty"], "possible");
+        assert_eq!(write["guards"][0], "if");
+    }
+
+    #[test]
+    fn an_unguarded_write_exports_an_empty_stack() {
+        let sources = wallet_sources();
+        let facts = behavior(&sources);
+        let object = fact_json(&facts[0], &sources, false);
+        let write = &object["output-writes"][0];
+        assert_eq!(write["guards"].as_array().unwrap().len(), 0);
+        assert_eq!(write["payload"]["kind"], "literal");
+        assert_eq!(write["text"], "credited");
     }
 
     #[test]

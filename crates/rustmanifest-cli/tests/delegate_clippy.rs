@@ -125,7 +125,7 @@ fn delegate_clippy_without_manifest_warns_and_succeeds() {
     fs::create_dir_all(dir.path().join("src")).unwrap();
     fs::write(
         dir.path().join("src").join("clean.rs"),
-        "fn main() { println!(\"hi\"); }\n"
+        "pub fn add(left: u32, right: u32) -> u32 {\n    left + right\n}\n"
     )
     .unwrap();
     let output = run_check(dir.path(), true);

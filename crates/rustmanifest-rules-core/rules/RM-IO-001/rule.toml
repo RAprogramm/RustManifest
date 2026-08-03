@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+id = "RM-IO-001"
+severity = "info"
+title = "Constant text carried through the formatting machinery"
+rationale-uri = "rustmanifest://methodology/performance-issues#unnecessary-formatting"
+
+[definition.semantic]
+check = "output-constant-format"

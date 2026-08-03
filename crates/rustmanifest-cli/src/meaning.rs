@@ -15,7 +15,9 @@ use std::{fmt::Write as _, io::Write, path::PathBuf, process::ExitCode};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
-use rustmanifest_engine::{EntryKind, EntryMeaning, Grade, Multiplicity, OutputClaim, walker};
+use rustmanifest_engine::{
+    EntryKind, EntryMeaning, Grade, Multiplicity, OUTPUT_SINK_SET, OutputClaim, walker
+};
 
 use crate::EXIT_CLEAN;
 
@@ -76,10 +78,10 @@ fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> String {
             entry_kind(entry.kind)
         );
         if entry.claims.is_empty() {
-            out.push_str(
-                "  no recognized write to a standard stream — the recognizer found none, which \
-                 is not a claim that the program writes nothing\n\n"
-            );
+            for sentence in entry.sentences() {
+                let _ = writeln!(out, "  {sentence}");
+            }
+            out.push('\n');
             continue;
         }
         let rows: Vec<[String; 4]> = entry.claims.iter().map(row).collect();
@@ -163,6 +165,10 @@ const fn entry_kind(kind: EntryKind) -> &'static str {
 }
 
 /// Renders the report as data.
+///
+/// Every entry carries `sink-set`, the version of the recognizer list
+/// this build ran, so an entry with no claim reads as a versioned
+/// negative result rather than as an absence of writes.
 fn json_report(entries: &[EntryMeaning], root: &std::path::Path) -> serde_json::Value {
     let documents: Vec<serde_json::Value> = entries
         .iter()
@@ -170,6 +176,7 @@ fn json_report(entries: &[EntryMeaning], root: &std::path::Path) -> serde_json::
             serde_json::json!({
                 "entry": relative(&entry.file, root),
                 "entry-kind": entry_kind(entry.kind),
+                "sink-set": OUTPUT_SINK_SET,
                 "claims": entry
                     .claims
                     .iter()
@@ -223,7 +230,33 @@ fn relative(path: &str, root: &std::path::Path) -> String {
 mod tests {
     use std::path::Path;
 
-    use super::relative;
+    use rustmanifest_engine::{EntryKind, EntryMeaning, OUTPUT_SINK_SET};
+
+    use super::{json_report, relative, text_report};
+
+    fn silent_entry() -> EntryMeaning {
+        EntryMeaning {
+            file:   "src/main.rs".to_owned(),
+            kind:   EntryKind::Plain,
+            claims: Vec::new()
+        }
+    }
+
+    #[test]
+    fn an_entry_with_no_claim_names_the_recognizer_set_that_found_none() {
+        let report = text_report(&[silent_entry()], Path::new("."));
+        assert!(
+            report.contains(&format!("recognizer set v{OUTPUT_SINK_SET}")),
+            "negative result must state its recognizer set: {report}"
+        );
+    }
+
+    #[test]
+    fn an_entry_with_no_claim_carries_the_recognizer_set_as_data() {
+        let report = json_report(&[silent_entry()], Path::new("."));
+        assert_eq!(report[0]["claims"].as_array().unwrap().len(), 0);
+        assert_eq!(report[0]["sink-set"], OUTPUT_SINK_SET);
+    }
 
     #[test]
     fn paths_shorten_against_the_analyzed_root() {

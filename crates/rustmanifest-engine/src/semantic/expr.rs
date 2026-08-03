@@ -72,13 +72,25 @@ pub(super) const fn compound_assignment(op: syn::BinOp) -> bool {
 
 /// Renders the last path segment of an impl's self type.
 pub(super) fn impl_type_name(block: &syn::ItemImpl) -> Option<String> {
-    let syn::Type::Path(path) = block.self_ty.as_ref() else {
-        return None;
-    };
-    path.path
-        .segments
-        .last()
-        .map(|segment| segment.ident.to_string())
+    named_type(block.self_ty.as_ref())
+}
+
+/// Last path segment of a type, seeing through references and
+/// parentheses: an implementation written for a borrow of a type is an
+/// implementation of that type's behaviour, and dropping it loses every
+/// method it declares.
+fn named_type(declared: &syn::Type) -> Option<String> {
+    match declared {
+        syn::Type::Path(path) => path
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string()),
+        syn::Type::Reference(reference) => named_type(&reference.elem),
+        syn::Type::Paren(inner) => named_type(&inner.elem),
+        syn::Type::Group(inner) => named_type(&inner.elem),
+        _ => None
+    }
 }
 
 /// Splits macro token text into identifier-shaped words.

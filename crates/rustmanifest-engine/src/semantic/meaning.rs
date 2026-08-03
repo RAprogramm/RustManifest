@@ -3,29 +3,35 @@
 
 //! What a program does for an observer outside the process.
 //!
-//! One claim per recorded write site reachable from an entry point: the
-//! stream it goes to, the text it puts there, and how certain both are.
-//! Certainty has two independent parts that are never merged into a
-//! score — whether the owning function is reached from the entry, and
-//! whether the site runs on every path through its own function. The
-//! rendered sentence degrades field by field: a weakened certainty names
-//! the construct that weakened it, a partially proven payload prints its
-//! proven text with the holes left as holes, and an unidentifiable
-//! stream says so instead of guessing.
+//! One claim per recorded write site, reachable from an entry point or
+//! not: the stream it goes to, the text it puts there, and how certain
+//! both are. Certainty has two independent parts that are never merged
+//! into a score — whether the owning function is reached from the entry,
+//! and whether the site runs on every path through its own function. A
+//! site the call graph never reaches keeps its claim and states that,
+//! because dropping it would turn a fact about the call graph into an
+//! empty report about the recognizer. The rendered sentence degrades
+//! field by field: a weakened certainty names every construct that
+//! weakened it, a partially proven payload prints its proven text with
+//! the holes left as holes, and an unidentifiable stream says so instead
+//! of guessing.
 //!
 //! Two properties of the standard library, not of the analyzed program,
 //! are attached to every claim about a standard stream: print output can
 //! be diverted by the library's capture hook, and a failed write panics
 //! rather than writing. A claim is therefore about an attempted write.
 
-use std::{collections::BTreeSet, fmt::Write as _};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _
+};
 
 use super::{
     behavior::{
         FunctionFacts, Grade, Guard, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason,
         OutputWrite, Payload, Segment, Stream, behavior
     },
-    calls::{CallGraph, call_graph, resolution_context},
+    calls::{CallGraph, ResolutionContext, call_graph, resolution_context},
     entry::{EntryKind, EntryPoint, entry_points}
 };
 use crate::source::Source;
@@ -40,6 +46,11 @@ pub struct OutputClaim {
     /// The recorded write.
     pub write:     OutputWrite,
     /// How certainly the owning function is reached from the entry.
+    ///
+    /// [`Grade::Unreached`] is a claim of its own — the call graph found
+    /// no path from this entry to the site — and is stated rather than
+    /// dropped, so an empty claim list means the recognizer found no
+    /// write at all and nothing else.
     pub reach:     Grade,
     /// How certainly the site runs, both parts composed.
     pub execution: Grade,
@@ -54,7 +65,9 @@ pub struct EntryMeaning {
     pub file:   String,
     /// How the entry is declared.
     pub kind:   EntryKind,
-    /// Claims in the order their sites were recorded.
+    /// Claims in the order their sites were recorded, one per recorded
+    /// write, including the writes no path from this entry reaches —
+    /// those carry [`Grade::Unreached`] rather than being dropped.
     pub claims: Vec<OutputClaim>
 }
 
@@ -62,26 +75,30 @@ pub struct EntryMeaning {
 #[must_use]
 pub fn program_meaning(sources: &[Source]) -> Vec<EntryMeaning> {
     let facts = behavior(sources);
-    let graph = call_graph(&facts, &resolution_context(sources));
+    let context = resolution_context(sources);
+    let graph = call_graph(&facts, &context);
     entry_points(sources, &facts)
         .into_iter()
-        .map(|entry| meaning_of(&entry, &facts, &graph, sources))
+        .map(|entry| meaning_of(&entry, &facts, &graph, &context, sources))
         .collect()
 }
 
 /// Builds the claims of one entry point.
+///
+/// Every recorded write becomes a claim. A write the call graph does not
+/// reach from this entry is stated as unreached, not dropped: dropping
+/// it would leave an empty list that reads as "the recognizer found
+/// nothing", which is a different fact and, here, a false one.
 fn meaning_of(
     entry: &EntryPoint,
     facts: &[FunctionFacts],
     graph: &CallGraph,
+    context: &ResolutionContext,
     sources: &[Source]
 ) -> EntryMeaning {
-    let reach = reachability(facts, graph, entry.fact);
+    let reach = reachability(facts, graph, context, entry.fact);
     let mut claims = Vec::new();
     for (index, fact) in facts.iter().enumerate() {
-        if reach[index] == Grade::Unreached {
-            continue;
-        }
         let file = sources.get(fact.source).map_or_else(String::new, |source| {
             source.path().to_string_lossy().replace('\\', "/")
         });
@@ -105,60 +122,137 @@ fn meaning_of(
 
 /// Grades how certainly every function is reached from `entry`.
 ///
-/// The entry itself is certain. A callee is as certain as its caller
-/// when the caller reaches it through an edge that is neither a
-/// possibility over several implementors nor made from a call standing
-/// under a branch — otherwise the callee is at most possible. Unreached
-/// functions keep their initial grade, so the caller can skip them.
-fn reachability(facts: &[FunctionFacts], graph: &CallGraph, entry: usize) -> Vec<Grade> {
-    let mut grades = vec![Grade::Unreached; facts.len()];
+/// The entry itself is certain. A callee is graded by the weaker of its
+/// caller's grade and the grade of the edge between them, and keeps the
+/// strongest grade any path gives it. An edge is possible when the
+/// dispatch behind it names several implementors, otherwise it is graded
+/// by the call sites that provably bind to that callee. A function no
+/// path grades stays [`Grade::Unreached`], which is a statement about
+/// the call graph and not about the function.
+fn reachability(
+    facts: &[FunctionFacts],
+    graph: &CallGraph,
+    context: &ResolutionContext,
+    entry: usize
+) -> Vec<Grade> {
     if entry >= facts.len() {
-        return grades;
+        return vec![Grade::Unreached; facts.len()];
     }
-    grades[entry] = Grade::Certain;
+    let bound = bound_sites(facts, context);
+    let mut grades: Vec<Option<Grade>> = vec![None; facts.len()];
+    grades[entry] = Some(Grade::Certain);
     let mut changed = true;
     while changed {
         changed = false;
         for caller in 0..facts.len() {
-            if grades[caller] == Grade::Unreached {
+            let Some(reached) = grades[caller] else {
                 continue;
-            }
+            };
             for &callee in graph.callees(caller) {
                 let edge = if graph.possibilistic(caller, callee) {
                     Grade::Possible
                 } else {
-                    certainty_of_call(&facts[caller], &facts[callee].function)
+                    bound[caller]
+                        .get(&callee)
+                        .copied()
+                        .unwrap_or(Grade::Possible)
                 };
-                let candidate = grades[caller].min(edge);
-                if candidate > grades[callee] {
-                    grades[callee] = candidate;
+                let candidate = reached.min(edge);
+                if grades[callee].is_none_or(|known| candidate > known) {
+                    grades[callee] = Some(candidate);
                     changed = true;
                 }
             }
         }
     }
     grades
+        .into_iter()
+        .map(|grade| grade.unwrap_or(Grade::Unreached))
+        .collect()
 }
 
-/// How certainly a caller reaches one callee, from the call sites it
-/// recorded. A caller with no unconditional call to that name reaches it
-/// at most possibly.
-fn certainty_of_call(from: &FunctionFacts, target: &str) -> Grade {
-    let method = target.rsplit("::").next().unwrap_or(target);
-    let unconditional = from.call_sites.iter().any(|site| {
-        (site.candidate == target || site.candidate.ends_with(&format!("::{method}")))
-            && site.guard.local_grade() == Grade::Certain
-    });
-    if unconditional {
-        Grade::Certain
-    } else {
-        Grade::Possible
+/// Grades every caller's edges by the call sites that provably bind to
+/// them: caller index to callee index to the strongest grade among the
+/// binding sites.
+///
+/// A callee reached only through sites that can never run is itself
+/// dead; a callee no site binds to is absent from the map, and its edge
+/// keeps the weakest honest grade — the graph proved the call, the
+/// sites did not prove when it runs.
+fn bound_sites(
+    facts: &[FunctionFacts],
+    context: &ResolutionContext
+) -> Vec<BTreeMap<usize, Grade>> {
+    let sole = sole_by_name(facts);
+    facts
+        .iter()
+        .map(|fact| {
+            let mut grades: BTreeMap<usize, Grade> = BTreeMap::new();
+            for site in &fact.call_sites {
+                let Some(callee) = bound_callee(&sole, context, &site.candidate) else {
+                    continue;
+                };
+                let grade = site.guard.local_grade();
+                grades
+                    .entry(callee)
+                    .and_modify(|known| *known = (*known).max(grade))
+                    .or_insert(grade);
+            }
+            grades
+        })
+        .collect()
+}
+
+/// Index of every function whose name no other function shares, so a
+/// candidate spelling one of these names cannot mean a second function.
+fn sole_by_name(facts: &[FunctionFacts]) -> BTreeMap<&str, usize> {
+    let mut seen: BTreeMap<&str, Option<usize>> = BTreeMap::new();
+    for (index, fact) in facts.iter().enumerate() {
+        seen.entry(fact.function.as_str())
+            .and_modify(|slot| *slot = None)
+            .or_insert(Some(index));
     }
+    seen.into_iter()
+        .filter_map(|(name, index)| index.map(|index| (name, index)))
+        .collect()
+}
+
+/// The one function a recorded call candidate can name, or `None` when
+/// the spelling admits another.
+///
+/// Two bindings are provable, the same two the call graph itself admits:
+/// the candidate is a function's own name and no other function carries
+/// it, or the candidate is `module::name` with a known module qualifier
+/// and exactly one free function is called `name`. A candidate whose
+/// receiver type is unknown (`?::method`) names a method rather than a
+/// function and binds to nothing — matching on the method name alone
+/// would bind whichever type happened to declare it.
+fn bound_callee(
+    sole: &BTreeMap<&str, usize>,
+    context: &ResolutionContext,
+    candidate: &str
+) -> Option<usize> {
+    if candidate.starts_with("?::") {
+        return None;
+    }
+    if let Some(index) = sole.get(candidate) {
+        return Some(*index);
+    }
+    let (qualifier, bare) = candidate.rsplit_once("::")?;
+    if !context.segments.contains(qualifier) {
+        return None;
+    }
+    sole.get(bare).copied()
 }
 
 impl EntryMeaning {
-    /// Renders every claim as one sentence, strongest form first, each
-    /// degraded exactly as far as its weakest field allows.
+    /// Renders every claim as one sentence in the order the claims were
+    /// recorded, each degraded exactly as far as its weakest field
+    /// allows.
+    ///
+    /// An empty claim list means one thing only: the recognizer set of
+    /// this build matched no write anywhere in the sources. It never
+    /// means a write was found and set aside.
     #[must_use]
     pub fn sentences(&self) -> Vec<String> {
         if self.claims.is_empty() {
@@ -204,11 +298,11 @@ impl OutputClaim {
     /// The sentence this claim licenses.
     #[must_use]
     pub fn sentence(&self) -> String {
-        let verb = match self.execution {
-            Grade::Certain => "unconditionally writes",
-            Grade::Possible => "may write",
-            Grade::Dead => "contains a write that can never run:",
-            Grade::Unreached => "is never reached, so it never writes"
+        let opening = match self.execution {
+            Grade::Certain => "the process unconditionally writes",
+            Grade::Possible => "the process may write",
+            Grade::Dead => "the process contains a write that can never run:",
+            Grade::Unreached => "no path from the entry point reaches a write of"
         };
         let destination = match self.write.stream {
             Stream::Stdout => "its standard output stream",
@@ -217,7 +311,7 @@ impl OutputClaim {
             Stream::Unknown => "a stream this analysis cannot identify"
         };
         let mut sentence = format!(
-            "the process {verb} {} to {destination}",
+            "{opening} {} to {destination}",
             describe(&self.write.payload, self.write.newline)
         );
         if self.write.multiplicity == Multiplicity::Unbounded {
@@ -237,14 +331,24 @@ impl OutputClaim {
     }
 }
 
-/// Names what stands between a claim and certainty.
+/// Names everything that stands between a claim and certainty.
+///
+/// Reach and local execution are two independent weakenings and a claim
+/// can carry both; naming only the first found would hide the other and
+/// report a doubly weakened claim as singly weakened. The order is
+/// outside-in: the call chain first, then the constructs standing over
+/// the site inside its own function.
 fn weakening_of(claim: &OutputClaim) -> Option<String> {
     if claim.execution == Grade::Certain {
         return None;
     }
-    if claim.reach != Grade::Certain {
-        return Some("a call chain that does not certainly reach it".to_owned());
-    }
+    let chain = match claim.reach {
+        Grade::Certain => None,
+        Grade::Possible => Some("a call chain that does not certainly reach it"),
+        Grade::Unreached => Some("a call chain that never reaches it"),
+        Grade::Dead => Some("a call chain whose every call to it can never run")
+    };
+    let mut reasons: Vec<String> = chain.into_iter().map(ToOwned::to_owned).collect();
     let guards: BTreeSet<&'static str> = claim
         .write
         .guard
@@ -261,10 +365,17 @@ fn weakening_of(claim: &OutputClaim) -> Option<String> {
             Guard::CfgGated => "a configuration gate this analysis does not resolve"
         })
         .collect();
-    if guards.is_empty() {
-        return Some("an exit that may leave the function first".to_owned());
+    reasons.extend(guards.into_iter().map(ToOwned::to_owned));
+    if claim.write.guard.dead {
+        reasons.push("a divergence before it that always leaves the function".to_owned());
     }
-    Some(guards.into_iter().collect::<Vec<_>>().join(" and "))
+    if claim.write.guard.prior_exits > 0 {
+        reasons.push("an exit that may leave the function first".to_owned());
+    }
+    if reasons.is_empty() {
+        return None;
+    }
+    Some(reasons.join(" and "))
 }
 
 /// Appends the line terminator a construct adds, so the rendered text
@@ -409,5 +520,86 @@ mod tests {
     fn a_loop_reports_repetition_rather_than_a_single_write() {
         let said = sentences("fn main() {\n    for _ in 0..3 { println!(\"tick\"); }\n}");
         assert!(said[0].contains("once per iteration"), "{}", said[0]);
+    }
+
+    /// The one sentence mentioning `text`, so a test names the claim it
+    /// is about instead of an index into a list that may grow.
+    fn about(said: &[String], text: &str) -> String {
+        let mut matching = said.iter().filter(|sentence| sentence.contains(text));
+        let found = matching
+            .next()
+            .unwrap_or_else(|| panic!("no sentence about `{text}` in {said:#?}"));
+        assert!(
+            matching.next().is_none(),
+            "several sentences about `{text}` in {said:#?}"
+        );
+        found.clone()
+    }
+
+    #[test]
+    fn a_call_on_one_type_never_certifies_the_same_method_name_on_another() {
+        let said = sentences(
+            "struct Ready;\nstruct Lazy;\nimpl Ready {\n    fn go() { println!(\"ready\"); \
+             }\n}\nimpl Lazy {\n    fn go() { println!(\"lazy\"); }\n}\nfn main() {\n    \
+             Ready::go();\n    if flag { Lazy::go(); }\n}"
+        );
+        let ready = about(&said, "ready");
+        let lazy = about(&said, "lazy");
+        assert!(ready.contains("unconditionally writes"), "{ready}");
+        assert!(
+            lazy.contains("may write"),
+            "the only call to `Lazy::go` stands under a branch: {lazy}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_receiver_never_certifies_the_only_method_of_that_name() {
+        let said = sentences(
+            "struct Lazy;\nimpl Lazy {\n    fn go(&self) { println!(\"lazy\"); }\n}\nfn main() \
+             {\n    let value = elsewhere();\n    value.go();\n}"
+        );
+        let lazy = about(&said, "lazy");
+        assert!(
+            lazy.contains("may write"),
+            "the receiver's type is unknown, so the callee is not proven: {lazy}"
+        );
+    }
+
+    #[test]
+    fn a_function_called_only_from_a_dead_site_writes_nothing() {
+        let said = sentences(
+            "fn shout() { println!(\"never\"); }\nfn main() {\n    return;\n    shout();\n}"
+        );
+        let never = about(&said, "never");
+        assert!(never.contains("can never run"), "{never}");
+    }
+
+    #[test]
+    fn a_claim_weakened_twice_names_both_weakeners() {
+        let said = sentences(
+            "fn shout() {\n    if inner { println!(\"hi\"); }\n}\nfn main() {\n    if outer { \
+             shout(); }\n}"
+        );
+        let claim = about(&said, "hi");
+        assert!(
+            claim.contains("a call chain that does not certainly reach it"),
+            "{claim}"
+        );
+        assert!(claim.contains("a branch"), "{claim}");
+    }
+
+    #[test]
+    fn a_write_the_call_graph_never_reaches_is_stated_rather_than_dropped() {
+        let said = sentences("fn orphan() { println!(\"orphan\"); }\nfn main() {}");
+        assert_eq!(said.len(), 1, "{said:#?}");
+        assert!(
+            said[0].contains("no path from the entry point reaches"),
+            "{}",
+            said[0]
+        );
+        assert!(
+            !said[0].starts_with("no recognized write"),
+            "a recognized write was found; the recognizer set is not what emptied the report"
+        );
     }
 }

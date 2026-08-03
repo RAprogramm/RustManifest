@@ -7,6 +7,7 @@
       "files": 259,
       "rust-lines": 47266,
       "findings": {
+        "RM-IO-002": 4,
         "RM-QUAL-003": 4,
         "RM-SEC-001": 2,
         "RM-STRUCT-001": 2,
@@ -26,6 +27,8 @@
       "files": 230,
       "rust-lines": 45406,
       "findings": {
+        "RM-IO-001": 3,
+        "RM-IO-002": 2,
         "RM-SEC-002": 20,
         "RM-STRUCT-001": 7,
         "RM-STRUCT-002": 7,
@@ -43,6 +46,10 @@
       "files": 98,
       "rust-lines": 34326,
       "findings": {
+        "RM-IO-001": 8,
+        "RM-IO-002": 21,
+        "RM-IO-003": 1,
+        "RM-IO-004": 1,
         "RM-MEM-001": 2,
         "RM-STRUCT-002": 9,
         "RM-STRUCT-003": 21,
@@ -80,6 +87,10 @@
       "files": 169,
       "rust-lines": 40749,
       "findings": {
+        "RM-IO-001": 91,
+        "RM-IO-002": 17,
+        "RM-IO-003": 8,
+        "RM-IO-004": 8,
         "RM-SEC-001": 2,
         "RM-STRUCT-002": 9,
         "RM-STRUCT-003": 12,
@@ -98,6 +109,9 @@
       "files": 463,
       "rust-lines": 39921,
       "findings": {
+        "RM-IO-001": 2,
+        "RM-IO-002": 3,
+        "RM-IO-004": 1,
         "RM-MEM-001": 1,
         "RM-QUAL-003": 1,
         "RM-SEC-001": 1,
