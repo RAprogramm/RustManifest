@@ -140,6 +140,15 @@ each subsystem is for, deterministically and with evidence per row.
 - **Acceptance**: precision and recall of the recovered route table against the
   OpenAPI paths projects declare independently of the router chain, measured on real
   workspaces in the style of the SCIP ground-truth experiment.
+- **Observable output** ([RFC 0003](./RFCS/0003-observable-output-fact.md)): a new
+  fact channel recording every write site with its stream, payload, guard stack and
+  order, plus entry-point identification and a reachability grade, so the engine can
+  state what a program writes to a standard stream and how certainly. The coarse
+  effect category is left untouched by decision; retiring it is separate work.
+- **Acceptance**: the smallest program in the language — a single unconditional
+  greeting — yields exactly one claim naming the stream, the literal payload, and
+  certainty, and every weakening of that program (a branch, a loop, a computed
+  string, an early exit) degrades the claim field by field instead of collapsing it.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
