@@ -712,3 +712,83 @@ receiver-typing rule reaches by construction. That is the honest
 boundary of the syntactic tier on this chain; crossing it is the
 resolved-name layer's job, and the SCIP overlay already carries such
 edges when an index is supplied.
+
+## 17. The resolved-name layer becomes load-bearing at the invariant surface (2026-08-03)
+
+The §16 boundary named the resolved-name layer as the next step, and
+inspecting where that layer actually reached exposed a gap worth more
+than another typing rule: since §11 the SCIP overlay had been wired
+into `facts` and `coverage` only. Those surfaces describe; they do not
+judge. The one surface that produces findings — the invariant check —
+built its call graph syntactically, so an accuracy layer measured at
++22.7% workspace edges could not move a single verdict. The layer was
+knowledge the engine refused to use where it mattered.
+
+- **Shipped**: `check --scip <INDEX>` and `check_invariants_with`. The
+  overlay is applied before the transitive-effect closure, so a
+  `deny-in` ban is judged against everything the index can resolve —
+  macro-generated bodies, trait dispatch, receivers the syntactic tier
+  cannot type. The layer stays additive by construction: it can only
+  widen reachability, never suppress a finding the syntactic graph
+  already produced, and the default run is unchanged.
+- **Provenance is now per edge, not per graph.** The call graph keeps
+  overlay-born edges as `(caller, callee)` pairs instead of a bare
+  counter, and every trace step states how its hop was established:
+  dispatch over several implementors admits possibility (§15), an edge
+  only the index resolved names the index, and everything else is the
+  syntactic resolver's unique match. A widened graph that hid which
+  hops it owed to an external tool would be the same dishonesty §15
+  rejected for dispatch; the rule generalizes — any derivation is only
+  as certain as the provenance of its weakest hop.
+
+### Measured, on real indexes
+
+`rust-analyzer scip` over three workspaces, transitive effects
+compared with and without the overlay, integration-test files
+excluded:
+
+| workspace | effect-carrying functions | functions gaining an effect |
+|---|---|---|
+| rustmanifest (own) | 130 → 361 | 233 |
+| fork-hyper (all features) | 166 → 216 | 99 |
+| masterror | 57 → 57 | 0 |
+
+At the verdict level, a repo-wide `net` ban on fork-hyper moves from
+194 findings to 301 (+55%), with 334 trace steps carrying index
+provenance. The functions that gain the effect are exactly the ones a
+ban exists to catch — `Connection::poll`, its non-shutdown variant,
+the `TokioIo` poll family — each known to reach the network only
+through an edge the syntactic resolver could not bind.
+
+**The negative result is the more useful half.** masterror gains 718
+overlay edges (§11) and zero verdict changes, because its graph holds
+almost no effect sinks: a wider graph changes nothing when there is
+nothing new to reach. Edge lift is not verdict lift, and the layer's
+worth is a property of the codebase under analysis, not a headline
+percentage the engine can advertise.
+
+### Boundary, restated with what the index actually covers
+
+The index reflects one cfg universe (the §9 all-features lesson, now a
+requirement on the flag) and covers workspace code, so the §16
+cross-crate generic instantiation hop is still not crossed by simply
+supplying an index: reaching into dependencies needs them vendored and
+indexed, and upstream states its SCIP support for that path is
+partial. Until that is measured rather than assumed, the honest claim
+is the one the numbers support — the layer widens what a ban is judged
+against inside the workspace, and says so in every trace.
+
+### Toolchain note
+
+The dependency bump to `syn` 3 had left the workspace uncompilable:
+receivers moved to a `ReceiverKind` enum, `Signature::unsafety` became
+`Safety`, trait-bound modifiers and `ItemImpl::trait_` changed shape.
+The migration is behavior-preserving by construction — each site maps
+to the same predicate it expressed before — and the eval baseline
+stayed byte-stable across it, which is the evidence, not the intent.
+Both `syn` majors now sit in the graph regardless of our own
+dependency (clap, async-trait, and tokio-macros are on 3; darling,
+tracing-attributes, futures-macro, and zerocopy-derive on 2), so the
+duplicate-version lint is accepted per crate with the reason recorded
+at each site, exactly as the §11 protobuf decision refused to weaken a
+gate silently.
