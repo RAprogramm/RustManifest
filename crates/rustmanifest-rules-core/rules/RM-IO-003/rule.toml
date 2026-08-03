@@ -3,7 +3,7 @@
 
 id = "RM-IO-003"
 severity = "warning"
-title = "Write inside a loop over a line-buffered stream"
+title = "Write inside a loop over an unbuffered or line-buffered stream"
 rationale-uri = "rustmanifest://methodology/performance-issues#syscall-per-iteration"
 
 [definition.semantic]

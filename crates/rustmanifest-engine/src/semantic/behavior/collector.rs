@@ -51,6 +51,67 @@ const OUTPUT_MACROS: [(&str, super::output::Stream, super::output::Newline); 5] 
     )
 ];
 
+/// Macros that write to a destination handed to them as their first
+/// argument. Where [`OUTPUT_MACROS`] fix the stream by name, these
+/// leave it to the destination, which is a different question and is
+/// answered by [`FactCollector::write_destination`].
+const WRITER_MACROS: [(&str, super::output::Newline); 2] = [
+    ("write", super::output::Newline::None),
+    ("writeln", super::output::Newline::Appended)
+];
+
+/// The write-trait method that puts a caller-provided byte slice on a
+/// writer. It is the one write spelling that carries its payload as a
+/// value rather than as a format template, so a payload it cannot read
+/// is opaque for a different reason than an unreadable format string.
+const BYTE_WRITE_METHOD: &str = "write_all";
+
+/// Standard-library constructors handing out a handle to one of the
+/// process's own streams, with the stream each names.
+const STREAM_HANDLES: [(&str, super::output::Stream); 2] = [
+    ("stderr", super::output::Stream::Stderr),
+    ("stdout", super::output::Stream::Stdout)
+];
+
+/// Written type names that name one of the process's own streams, so a
+/// binding declared as one is a write to that stream.
+const STREAM_TYPES: [(&str, super::output::Stream); 4] = [
+    ("Stderr", super::output::Stream::Stderr),
+    ("StderrLock", super::output::Stream::Stderr),
+    ("Stdout", super::output::Stream::Stdout),
+    ("StdoutLock", super::output::Stream::Stdout)
+];
+
+/// Macros whose every argument is an expression, so the fact channel can
+/// read the same tokens the reachability fold reads.
+///
+/// Deliberately narrower than [`SETTLED_MACROS`]: `matches!` takes a
+/// pattern and `stringify!` takes arbitrary tokens, and reading either
+/// as an expression would invent call and read facts the source does not
+/// carry.
+const EXPRESSION_MACROS: [&str; 20] = [
+    "assert",
+    "assert_eq",
+    "assert_ne",
+    "dbg",
+    "debug_assert",
+    "debug_assert_eq",
+    "debug_assert_ne",
+    "eprint",
+    "eprintln",
+    "format",
+    "format_args",
+    "panic",
+    "print",
+    "println",
+    "todo",
+    "unimplemented",
+    "unreachable",
+    "vec",
+    "write",
+    "writeln"
+];
+
 /// Iterator and `Option` adapters whose single-parameter closure
 /// receives one element of the adapted collection or option.
 const ITERATOR_ADAPTERS: [&str; 18] = [
@@ -176,19 +237,67 @@ impl Completion {
     }
 }
 
+/// The jumps of one kind — `break` or `continue` — a construct may
+/// perform, split by what decides which construct absorbs them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Jumps {
+    /// Whether an unlabelled jump of this kind may leave the construct;
+    /// the nearest enclosing loop absorbs it.
+    bare:    bool,
+    /// Labels named by jumps of this kind, each absorbed by the
+    /// construct carrying that label.
+    labeled: BTreeSet<String>
+}
+
+impl Jumps {
+    /// The jumps of two constructs taken together, whether they run one
+    /// after the other or one instead of the other — either way a jump
+    /// of either is a jump of the whole.
+    fn merged(mut self, other: Self) -> Self {
+        self.bare = self.bare || other.bare;
+        self.labeled.extend(other.labeled);
+        self
+    }
+
+    /// Whether a jump of this kind targets the construct carrying
+    /// `label`.
+    fn target(&self, label: Option<&syn::Label>) -> bool {
+        self.bare
+            || label.is_some_and(|label| self.labeled.contains(&label.name.ident.to_string()))
+    }
+
+    /// Drops the jumps the construct carrying `label` absorbs.
+    fn absorbed_by(&mut self, label: Option<&syn::Label>) {
+        self.bare = false;
+        if let Some(label) = label {
+            self.labeled.remove(&label.name.ident.to_string());
+        }
+    }
+}
+
 /// What one construct proves about the program point after it, together
 /// with the non-local exits it may perform on the way there.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Flow {
     /// Whether the point after the construct is reached.
-    completion:     Completion,
+    completion:   Completion,
     /// Whether a `return` or a `?` inside may leave the function.
-    returns:        bool,
-    /// Whether an unlabelled `break` inside may leave the nearest
+    returns:      bool,
+    /// `break`s inside that leave an enclosing loop or labelled block.
+    breaks:       Jumps,
+    /// `continue`s inside that hand control back to the top of an
     /// enclosing loop.
-    bare_breaks:    bool,
-    /// Labels named by `break`s inside that leave a labelled construct.
-    labeled_breaks: BTreeSet<String>
+    continues:    Jumps,
+    /// Whether the construct holds something this tier cannot see
+    /// through that may itself carry a `break` or a `continue` — an
+    /// unexpanded macro, a token stream no rule of this tier reads.
+    ///
+    /// It is tracked apart from [`Completion::Unknown`] because the two
+    /// answer different questions: a call may diverge and still cannot
+    /// jump out of the caller's loop, while a macro may expand to a
+    /// bare `break`. Conflating them would leave every opaque call
+    /// unbounding a loop that nothing breaks out of.
+    opaque_jumps: bool
 }
 
 impl Flow {
@@ -205,32 +314,41 @@ impl Flow {
         }
     }
 
+    /// A construct this tier cannot see through: it proves neither that
+    /// the point after it is reached nor that it is not, and whatever it
+    /// expands to may carry a `break` or a `continue` out of it.
+    fn opaque() -> Self {
+        Self {
+            completion: Completion::Unknown,
+            opaque_jumps: true,
+            ..Self::default()
+        }
+    }
+
     /// Sequential composition: `next` runs where `self` completes, so a
     /// construct that never completes hides everything after it.
     fn then(self, next: Self) -> Self {
         if matches!(self.completion, Completion::Never) {
             return self;
         }
-        let mut labeled_breaks = self.labeled_breaks;
-        labeled_breaks.extend(next.labeled_breaks);
         Self {
-            completion: self.completion.then(next.completion),
-            returns: self.returns || next.returns,
-            bare_breaks: self.bare_breaks || next.bare_breaks,
-            labeled_breaks
+            completion:   self.completion.then(next.completion),
+            returns:      self.returns || next.returns,
+            breaks:       self.breaks.merged(next.breaks),
+            continues:    self.continues.merged(next.continues),
+            opaque_jumps: self.opaque_jumps || next.opaque_jumps
         }
     }
 
     /// Branch merge: control takes one of the two, so an exit either may
     /// perform is possible and only a shared proof survives.
     fn join(self, other: Self) -> Self {
-        let mut labeled_breaks = self.labeled_breaks;
-        labeled_breaks.extend(other.labeled_breaks);
         Self {
-            completion: self.completion.join(other.completion),
-            returns: self.returns || other.returns,
-            bare_breaks: self.bare_breaks || other.bare_breaks,
-            labeled_breaks
+            completion:   self.completion.join(other.completion),
+            returns:      self.returns || other.returns,
+            breaks:       self.breaks.merged(other.breaks),
+            continues:    self.continues.merged(other.continues),
+            opaque_jumps: self.opaque_jumps || other.opaque_jumps
         }
     }
 
@@ -245,24 +363,59 @@ impl Flow {
     /// Whether the construct may hand control somewhere that skips the
     /// program point after it.
     fn may_skip(&self) -> bool {
-        self.returns || self.bare_breaks || !self.labeled_breaks.is_empty()
+        self.returns
+            || self.breaks.bare
+            || !self.breaks.labeled.is_empty()
+            || self.continues.bare
+            || !self.continues.labeled.is_empty()
     }
 
     /// Whether a `break` inside targets the loop that carries `label`.
     fn breaks_out_of(&self, label: Option<&syn::Label>) -> bool {
-        self.bare_breaks
-            || label
-                .is_some_and(|label| self.labeled_breaks.contains(&label.name.ident.to_string()))
+        self.breaks.target(label)
     }
 
-    /// Drops the breaks a loop absorbs: the unlabelled ones and those
-    /// naming the loop's own label.
+    /// Whether a `continue` inside restarts the loop that carries
+    /// `label`, so the loop can begin another iteration even where the
+    /// end of its body is never reached.
+    fn continues_into(&self, label: Option<&syn::Label>) -> bool {
+        self.continues.target(label)
+    }
+
+    /// Drops the jumps a loop absorbs: the unlabelled breaks and
+    /// continues, those naming the loop's own label, and the unproven
+    /// ones an opaque construct in its body may carry — a bare jump
+    /// hidden inside a macro targets the loop that encloses it.
     fn absorbed(mut self, label: Option<&syn::Label>) -> Self {
-        self.bare_breaks = false;
-        if let Some(label) = label {
-            self.labeled_breaks.remove(&label.name.ident.to_string());
-        }
+        self.breaks.absorbed_by(label);
+        self.continues.absorbed_by(label);
+        self.opaque_jumps = false;
         self
+    }
+}
+
+/// Whether a repeating construct's body provably leaves on its first
+/// pass, so a write inside it runs no more than once per call of the
+/// function around it.
+///
+/// The proof is the body's own completion: a body whose end is never
+/// reached cannot start a second iteration. It survives only where
+/// nothing can hand control back to the top of the loop — no `continue`
+/// this loop absorbs, and no construct opaque enough to hide one.
+fn leaves_on_first_pass(body: &Flow, label: Option<&syn::Label>) -> bool {
+    matches!(body.completion, Completion::Never)
+        && !body.continues_into(label)
+        && !body.opaque_jumps
+}
+
+/// How many times a write recorded inside a repeating construct's body
+/// runs, read off the completion analysis of that body rather than
+/// stamped on for standing in a loop.
+fn body_multiplicity(body: &Flow, label: Option<&syn::Label>) -> super::output::Multiplicity {
+    if leaves_on_first_pass(body, label) {
+        super::output::Multiplicity::Once
+    } else {
+        super::output::Multiplicity::Unbounded
     }
 }
 
@@ -350,246 +503,346 @@ fn statement_attributes(statement: &syn::Stmt) -> &[syn::Attribute] {
     }
 }
 
+/// Returns whether an attribute can remove the statement it stands on
+/// from a build.
+///
+/// `cfg` can. `cfg_attr` cannot: it applies an *attribute*
+/// conditionally to a statement that is present in every build, so
+/// reading it as a gate would weaken an unconditional write and let a
+/// genuine divergence stop killing what follows it. The one spelling
+/// that does gate is `cfg_attr` applying a `cfg`, which is read here
+/// rather than assumed away. An attribute whose arguments do not parse
+/// keeps the weakening, the direction that claims less.
+fn configuration_gate(attribute: &syn::Attribute) -> bool {
+    if attribute.path().is_ident("cfg") {
+        return true;
+    }
+    if !attribute.path().is_ident("cfg_attr") {
+        return false;
+    }
+    let Ok(applied) = attribute.parse_args_with(
+        syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated
+    ) else {
+        return true;
+    };
+    applied
+        .iter()
+        .skip(1)
+        .any(|meta| meta.path().is_ident("cfg"))
+}
+
 /// Returns whether a statement is gated by a configuration attribute
 /// this tier does not resolve.
 fn gated(statement: &syn::Stmt) -> bool {
     statement_attributes(statement)
         .iter()
-        .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+        .any(configuration_gate)
 }
 
-/// Returns whether a call expression names the process-ending pair.
-fn process_exit(callee: &syn::Expr) -> bool {
-    let syn::Expr::Path(path) = callee else {
-        return false;
-    };
-    let segments: Vec<String> = path
-        .path
-        .segments
-        .iter()
-        .map(|segment| segment.ident.to_string())
-        .collect();
-    matches!(segments.last().map(String::as_str), Some("exit" | "abort"))
-        && segments.iter().any(|segment| segment == "process")
+/// Renders a path as segment names, the first segment substituted with
+/// its full `use` path when the file imported it.
+fn expanded_segments(imports: &BTreeMap<String, String>, path: &syn::Path) -> Vec<String> {
+    let mut segments: Vec<String> = Vec::new();
+    for (position, segment) in path.segments.iter().enumerate() {
+        let name = segment.ident.to_string();
+        if position == 0 {
+            match imports.get(&name) {
+                Some(full) => segments.extend(full.split("::").map(str::to_owned)),
+                None => segments.push(name)
+            }
+        } else {
+            segments.push(name);
+        }
+    }
+    segments
 }
 
-/// What a statement proves about the statement after it. A configuration
-/// gate weakens the answer and never decides it: the gated statement
-/// exists in some builds and not in others, so a divergence under a gate
-/// proves nothing about a build where the gate is off.
-fn statement_flow(statement: &syn::Stmt) -> Flow {
-    let flow = match statement {
-        syn::Stmt::Local(local) => local_flow(local),
-        syn::Stmt::Item(_) => Flow::settled(),
-        syn::Stmt::Expr(expression, _) => expression_flow(expression),
-        syn::Stmt::Macro(invocation) => macro_flow(&invocation.mac)
-    };
-    if gated(statement) {
-        flow.weakened()
-    } else {
+/// The context the reachability fold reads beyond the syntax it walks.
+///
+/// It carries the enclosing file's `use` table, and that is the reason
+/// the fold is a set of methods rather than free functions: a name is
+/// only a path once the imports have been applied to it, and a
+/// recognizer that skips that step disagrees with every other
+/// recognizer in this module about the same call.
+struct FlowScope<'a> {
+    /// Imported names of the enclosing file to their full `use` paths.
+    imports: &'a BTreeMap<String, String>
+}
+
+impl FlowScope<'_> {
+    /// Returns whether a call expression names the process-ending pair,
+    /// the file's imports applied first — `use std::process::exit` and
+    /// `std::process::exit` are the same call and are read the same way.
+    fn process_exit(&self, callee: &syn::Expr) -> bool {
+        let syn::Expr::Path(path) = callee else {
+            return false;
+        };
+        let segments = expanded_segments(self.imports, &path.path);
+        matches!(segments.last().map(String::as_str), Some("exit" | "abort"))
+            && segments.iter().any(|segment| segment == "process")
+    }
+
+    /// What a statement proves about the statement after it. A
+    /// configuration gate weakens the answer and never decides it: the
+    /// gated statement exists in some builds and not in others, so a
+    /// divergence under a gate proves nothing about a build where the
+    /// gate is off.
+    fn statement_flow(&self, statement: &syn::Stmt) -> Flow {
+        let flow = match statement {
+            syn::Stmt::Local(local) => self.local_flow(local),
+            syn::Stmt::Item(_) => Flow::settled(),
+            syn::Stmt::Expr(expression, _) => self.expression_flow(expression),
+            syn::Stmt::Macro(invocation) => self.macro_flow(&invocation.mac)
+        };
+        if gated(statement) {
+            flow.weakened()
+        } else {
+            flow
+        }
+    }
+
+    /// What a `let` proves: its initializer runs, and a `let` … `else`
+    /// that binds by pattern reaches the next statement only when the
+    /// pattern matched, which no syntax proves.
+    fn local_flow(&self, local: &syn::Local) -> Flow {
+        let Some(init) = &local.init else {
+            return Flow::settled();
+        };
+        let flow = self.expression_flow(&init.expr);
+        let Some((_, otherwise)) = &init.diverge else {
+            return flow;
+        };
+        let mut escape = self.expression_flow(otherwise);
+        escape.completion = Completion::Unknown;
+        flow.then(escape)
+    }
+
+    /// Left fold of the statements of a block.
+    fn block_flow(&self, block: &syn::Block) -> Flow {
+        let mut flow = Flow::settled();
+        for statement in &block.stmts {
+            flow = flow.then(self.statement_flow(statement));
+        }
         flow
     }
-}
 
-/// What a `let` proves: its initializer runs, and a `let` … `else` that
-/// binds by pattern reaches the next statement only when the pattern
-/// matched, which no syntax proves.
-fn local_flow(local: &syn::Local) -> Flow {
-    let Some(init) = &local.init else {
-        return Flow::settled();
-    };
-    let flow = expression_flow(&init.expr);
-    let Some((_, otherwise)) = &init.diverge else {
-        return flow;
-    };
-    let mut escape = expression_flow(otherwise);
-    escape.completion = Completion::Unknown;
-    flow.then(escape)
-}
-
-/// Left fold of the statements of a block.
-fn block_flow(block: &syn::Block) -> Flow {
-    let mut flow = Flow::settled();
-    for statement in &block.stmts {
-        flow = flow.then(statement_flow(statement));
-    }
-    flow
-}
-
-/// What a macro invocation proves. A macro that ends the path is proven
-/// to; a macro whose expansion this tier knows folds over its arguments,
-/// which is where a `?` or a diverging call inside one is seen; anything
-/// else could expand to a divergence and is recorded as unproven.
-fn macro_flow(invocation: &syn::Macro) -> Flow {
-    let Some(name) = invocation
-        .path
-        .segments
-        .last()
-        .map(|segment| segment.ident.to_string())
-    else {
-        return Flow::proving(Completion::Unknown);
-    };
-    if DIVERGING_MACROS.contains(&name.as_str()) {
-        return Flow::proving(Completion::Never);
-    }
-    if !SETTLED_MACROS.contains(&name.as_str()) {
-        return Flow::proving(Completion::Unknown);
-    }
-    let Ok(arguments) = invocation.parse_body_with(
-        syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
-    ) else {
-        return Flow::settled();
-    };
-    let mut flow = Flow::settled();
-    for argument in &arguments {
-        flow = flow.then(expression_flow(argument));
-    }
-    flow
-}
-
-/// What a conditional proves: the branch not taken is as real as the one
-/// taken, and a missing `else` branch is a branch that completes.
-fn conditional_flow(conditional: &syn::ExprIf) -> Flow {
-    let condition = expression_flow(&conditional.cond);
-    let taken = block_flow(&conditional.then_branch);
-    let otherwise = conditional
-        .else_branch
-        .as_ref()
-        .map_or_else(Flow::settled, |(_, branch)| expression_flow(branch));
-    condition.then(taken.join(otherwise))
-}
-
-/// What a match proves: control enters exactly one arm, so the arms
-/// merge. A match with no arms is matching a value that cannot exist and
-/// never completes.
-fn match_flow(matched: &syn::ExprMatch) -> Flow {
-    let scrutinee = expression_flow(&matched.expr);
-    let mut arms: Option<Flow> = None;
-    for arm in &matched.arms {
-        let condition = arm_condition(&arm.pat)
-            .map_or_else(Flow::settled, |guard| expression_flow(guard).weakened());
-        let taken = condition.then(expression_flow(&arm.body));
-        arms = Some(match arms {
-            Some(seen) => seen.join(taken),
-            None => taken
-        });
-    }
-    scrutinee.then(arms.unwrap_or_else(|| Flow::proving(Completion::Never)))
-}
-
-/// Sequential fold over the immediate children of a construct whose own
-/// control flow needs no rule of its own — every child runs, in written
-/// order. Nested items are not children of the flow: their bodies run
-/// where they are called, not here.
-fn children_flow(expression: &syn::Expr) -> Flow {
-    struct Children {
-        flow: Flow
-    }
-    impl<'ast> Visit<'ast> for Children {
-        fn visit_expr(&mut self, child: &'ast syn::Expr) {
-            self.flow = std::mem::take(&mut self.flow).then(expression_flow(child));
+    /// What a macro invocation proves. A macro that ends the path is
+    /// proven to; a macro whose expansion this tier knows folds over its
+    /// arguments, which is where a `?` or a diverging call inside one is
+    /// seen; anything else could expand to a divergence — or to a bare
+    /// `break` — and is recorded as unproven on both counts.
+    fn macro_flow(&self, invocation: &syn::Macro) -> Flow {
+        let Some(name) = invocation
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string())
+        else {
+            return Flow::opaque();
+        };
+        if DIVERGING_MACROS.contains(&name.as_str()) {
+            return Flow::proving(Completion::Never);
         }
-
-        fn visit_block(&mut self, child: &'ast syn::Block) {
-            self.flow = std::mem::take(&mut self.flow).then(block_flow(child));
+        if !SETTLED_MACROS.contains(&name.as_str()) {
+            return Flow::opaque();
         }
-
-        fn visit_item(&mut self, _item: &'ast syn::Item) {}
+        let Ok(arguments) = invocation.parse_body_with(
+            syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
+        ) else {
+            return Flow::settled();
+        };
+        let mut flow = Flow::settled();
+        for argument in &arguments {
+            flow = flow.then(self.expression_flow(argument));
+        }
+        flow
     }
-    let mut children = Children {
-        flow: Flow::settled()
-    };
-    syn::visit::visit_expr(&mut children, expression);
-    children.flow
-}
 
-/// What an expression proves about the program point after it.
-///
-/// The rules are the syntax-directed reachability fold: every construct
-/// that can end a path has one, and everything else folds over its
-/// children, so a divergence nested in a branch, a block, a match arm or
-/// a call argument is seen instead of being missed for sitting one level
-/// below the top of a statement.
-fn expression_flow(expression: &syn::Expr) -> Flow {
-    match expression {
-        syn::Expr::Return(returned) => {
-            let value = returned
-                .expr
-                .as_deref()
-                .map_or_else(Flow::settled, expression_flow);
-            let mut flow = value.then(Flow::proving(Completion::Never));
-            flow.returns = true;
-            flow
+    /// What a conditional proves: the branch not taken is as real as the
+    /// one taken, and a missing `else` branch is a branch that
+    /// completes.
+    fn conditional_flow(&self, conditional: &syn::ExprIf) -> Flow {
+        let condition = self.expression_flow(&conditional.cond);
+        let taken = self.block_flow(&conditional.then_branch);
+        let otherwise = conditional
+            .else_branch
+            .as_ref()
+            .map_or_else(Flow::settled, |(_, branch)| self.expression_flow(branch));
+        condition.then(taken.join(otherwise))
+    }
+
+    /// What a match proves: control enters exactly one arm, so the arms
+    /// merge. A match with no arms is matching a value that cannot exist
+    /// and never completes.
+    fn match_flow(&self, matched: &syn::ExprMatch) -> Flow {
+        let scrutinee = self.expression_flow(&matched.expr);
+        let mut arms: Option<Flow> = None;
+        for arm in &matched.arms {
+            let condition = arm_condition(&arm.pat).map_or_else(Flow::settled, |guard| {
+                self.expression_flow(guard).weakened()
+            });
+            let taken = condition.then(self.expression_flow(&arm.body));
+            arms = Some(match arms {
+                Some(seen) => seen.join(taken),
+                None => taken
+            });
         }
-        syn::Expr::Break(broken) => {
-            let value = broken
-                .expr
-                .as_deref()
-                .map_or_else(Flow::settled, expression_flow);
-            let mut flow = value.then(Flow::proving(Completion::Never));
-            if let Some(label) = &broken.label {
-                flow.labeled_breaks.insert(label.ident.to_string());
-            } else {
-                flow.bare_breaks = true;
+        scrutinee.then(arms.unwrap_or_else(|| Flow::proving(Completion::Never)))
+    }
+
+    /// Sequential fold over the immediate children of a construct whose
+    /// own control flow needs no rule of its own — every child runs, in
+    /// written order. Nested items are not children of the flow: their
+    /// bodies run where they are called, not here.
+    fn children_flow(&self, expression: &syn::Expr) -> Flow {
+        struct Children<'scope, 'imports> {
+            flow:  Flow,
+            scope: &'scope FlowScope<'imports>
+        }
+        impl<'ast> Visit<'ast> for Children<'_, '_> {
+            fn visit_expr(&mut self, child: &'ast syn::Expr) {
+                self.flow = std::mem::take(&mut self.flow).then(self.scope.expression_flow(child));
             }
-            flow
-        }
-        syn::Expr::Continue(_) => Flow::proving(Completion::Never),
-        syn::Expr::Try(tried) => {
-            let mut flow = expression_flow(&tried.expr).then(Flow::proving(Completion::Unknown));
-            flow.returns = true;
-            flow
-        }
-        syn::Expr::Macro(invocation) => macro_flow(&invocation.mac),
-        syn::Expr::Call(call) => {
-            let flow = children_flow(expression);
-            if process_exit(&call.func) {
-                return flow.then(Flow::proving(Completion::Never));
+
+            fn visit_block(&mut self, child: &'ast syn::Block) {
+                self.flow = std::mem::take(&mut self.flow).then(self.scope.block_flow(child));
             }
-            flow
+
+            fn visit_item(&mut self, _item: &'ast syn::Item) {}
         }
-        syn::Expr::If(conditional) => conditional_flow(conditional),
-        syn::Expr::Match(matched) => match_flow(matched),
-        syn::Expr::Loop(repeated) => {
-            let body = block_flow(&repeated.body);
-            let escapes = body.breaks_out_of(repeated.label.as_ref());
-            let mut flow = body.absorbed(repeated.label.as_ref());
-            flow.completion = if escapes {
-                Completion::Unknown
-            } else {
-                Completion::Never
-            };
-            flow
+        let mut children = Children {
+            flow:  Flow::settled(),
+            scope: self
+        };
+        syn::visit::visit_expr(&mut children, expression);
+        children.flow
+    }
+
+    /// What a closure invoked where it is written proves: its body runs
+    /// here, so a divergence in it ends this path. A `return` inside
+    /// leaves the closure and not the function around it, which no
+    /// syntax here tells apart from a body that falls off its end, so a
+    /// returning body proves nothing either way.
+    fn invoked_body_flow(&self, closure: &syn::ExprClosure) -> Flow {
+        let body = self.expression_flow(&closure.body);
+        let completion = if body.returns {
+            body.completion.join(Completion::Always)
+        } else {
+            body.completion
+        };
+        Flow {
+            completion,
+            opaque_jumps: body.opaque_jumps,
+            ..Flow::default()
         }
-        syn::Expr::While(conditional) => {
-            let condition = expression_flow(&conditional.cond);
-            let mut body = block_flow(&conditional.body).absorbed(conditional.label.as_ref());
-            body.completion = Completion::Always;
-            condition.then(body)
-        }
-        syn::Expr::ForLoop(iterated) => {
-            let iterable = expression_flow(&iterated.expr);
-            let mut body = block_flow(&iterated.body).absorbed(iterated.label.as_ref());
-            body.completion = Completion::Always;
-            iterable.then(body)
-        }
-        syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_) => Flow::settled(),
-        syn::Expr::Block(braced) => {
-            let mut flow = block_flow(&braced.block);
-            if let Some(label) = &braced.label
-                && flow.labeled_breaks.remove(&label.name.ident.to_string())
+    }
+
+    /// What an expression proves about the program point after it.
+    ///
+    /// The rules are the syntax-directed reachability fold: every
+    /// construct that can end a path has one, and everything else folds
+    /// over its children, so a divergence nested in a branch, a block, a
+    /// match arm or a call argument is seen instead of being missed for
+    /// sitting one level below the top of a statement.
+    fn expression_flow(&self, expression: &syn::Expr) -> Flow {
+        match expression {
+            syn::Expr::Return(returned) => {
+                let value = returned
+                    .expr
+                    .as_deref()
+                    .map_or_else(Flow::settled, |value| self.expression_flow(value));
+                let mut flow = value.then(Flow::proving(Completion::Never));
+                flow.returns = true;
+                flow
+            }
+            syn::Expr::Break(broken) => {
+                let value = broken
+                    .expr
+                    .as_deref()
+                    .map_or_else(Flow::settled, |value| self.expression_flow(value));
+                let mut flow = value.then(Flow::proving(Completion::Never));
+                if let Some(label) = &broken.label {
+                    flow.breaks.labeled.insert(label.ident.to_string());
+                } else {
+                    flow.breaks.bare = true;
+                }
+                flow
+            }
+            syn::Expr::Continue(continued) => {
+                let mut flow = Flow::proving(Completion::Never);
+                if let Some(label) = &continued.label {
+                    flow.continues.labeled.insert(label.ident.to_string());
+                } else {
+                    flow.continues.bare = true;
+                }
+                flow
+            }
+            syn::Expr::Try(tried) => {
+                let mut flow = self
+                    .expression_flow(&tried.expr)
+                    .then(Flow::proving(Completion::Unknown));
+                flow.returns = true;
+                flow
+            }
+            syn::Expr::Macro(invocation) => self.macro_flow(&invocation.mac),
+            syn::Expr::Call(call) => {
+                let flow = self.children_flow(expression);
+                if self.process_exit(&call.func) {
+                    return flow.then(Flow::proving(Completion::Never));
+                }
+                if let syn::Expr::Closure(closure) = unwrapped(&call.func) {
+                    return flow.then(self.invoked_body_flow(closure));
+                }
+                flow
+            }
+            syn::Expr::If(conditional) => self.conditional_flow(conditional),
+            syn::Expr::Match(matched) => self.match_flow(matched),
+            syn::Expr::Loop(repeated) => {
+                let body = self.block_flow(&repeated.body);
+                let escapes = body.breaks_out_of(repeated.label.as_ref()) || body.opaque_jumps;
+                let mut flow = body.absorbed(repeated.label.as_ref());
+                flow.completion = if escapes {
+                    Completion::Unknown
+                } else {
+                    Completion::Never
+                };
+                flow
+            }
+            syn::Expr::While(conditional) => {
+                let condition = self.expression_flow(&conditional.cond);
+                let mut body = self
+                    .block_flow(&conditional.body)
+                    .absorbed(conditional.label.as_ref());
+                body.completion = Completion::Always;
+                condition.then(body)
+            }
+            syn::Expr::ForLoop(iterated) => {
+                let iterable = self.expression_flow(&iterated.expr);
+                let mut body = self
+                    .block_flow(&iterated.body)
+                    .absorbed(iterated.label.as_ref());
+                body.completion = Completion::Always;
+                iterable.then(body)
+            }
+            syn::Expr::Closure(_) | syn::Expr::Async(_) | syn::Expr::Const(_) => Flow::settled(),
+            syn::Expr::Block(braced) => {
+                let mut flow = self.block_flow(&braced.block);
+                if let Some(label) = &braced.label
+                    && flow.breaks.labeled.remove(&label.name.ident.to_string())
+                {
+                    flow.completion = flow.completion.join(Completion::Always);
+                }
+                flow
+            }
+            syn::Expr::Binary(binary)
+                if matches!(binary.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) =>
             {
-                flow.completion = flow.completion.join(Completion::Always);
+                self.expression_flow(&binary.left)
+                    .then(self.expression_flow(&binary.right).weakened())
             }
-            flow
+            syn::Expr::Verbatim(_) => Flow::opaque(),
+            _ => self.children_flow(expression)
         }
-        syn::Expr::Binary(binary)
-            if matches!(binary.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) =>
-        {
-            expression_flow(&binary.left).then(expression_flow(&binary.right).weakened())
-        }
-        syn::Expr::Verbatim(_) => Flow::proving(Completion::Unknown),
-        _ => children_flow(expression)
     }
 }
 
@@ -966,19 +1219,14 @@ impl FactCollector {
     /// `remove_dir_all` imported from `std::fs` classifies as a
     /// filesystem sink.
     fn expanded_segments(&self, path: &syn::Path) -> Vec<String> {
-        let mut segments: Vec<String> = Vec::new();
-        for (position, segment) in path.segments.iter().enumerate() {
-            let name = segment.ident.to_string();
-            if position == 0 {
-                match self.imports.get(&name) {
-                    Some(full) => segments.extend(full.split("::").map(str::to_owned)),
-                    None => segments.push(name)
-                }
-            } else {
-                segments.push(name);
-            }
+        expanded_segments(&self.imports, path)
+    }
+
+    /// The reachability fold read against this function's own file.
+    const fn flow_scope(&self) -> FlowScope<'_> {
+        FlowScope {
+            imports: &self.imports
         }
-        segments
     }
 
     /// Classifies a call path against the effect sink patterns, seen
@@ -1019,19 +1267,28 @@ impl FactCollector {
         self.guards.pop();
     }
 
-    /// Visits `body` as the body of a repeating construct: every write
-    /// recorded inside it runs once per iteration, and no syntax bounds
-    /// the iteration count.
+    /// Visits `body` as the body of a repeating construct, stamping
+    /// every write recorded inside it with `multiplicity`.
     ///
     /// Repetition is recorded here rather than read off the guard stack,
     /// because repeating and weakening are different questions: a `loop`
     /// repeats without bound while its body is still entered
-    /// unconditionally.
-    fn repeating<F: FnOnce(&mut Self)>(&mut self, body: F) {
+    /// unconditionally. It is also not stamped for standing inside a
+    /// loop: `multiplicity` comes from the completion analysis of the
+    /// body, so a body that provably leaves on its first pass keeps the
+    /// single run it has.
+    fn repeating<F: FnOnce(&mut Self)>(
+        &mut self,
+        multiplicity: super::output::Multiplicity,
+        body: F
+    ) {
         let recorded = self.facts.output_writes.len();
         body(self);
+        if matches!(multiplicity, super::output::Multiplicity::Once) {
+            return;
+        }
         for write in self.facts.output_writes.iter_mut().skip(recorded) {
-            write.multiplicity = super::output::Multiplicity::Unbounded;
+            write.multiplicity = multiplicity;
         }
     }
 
@@ -1047,21 +1304,19 @@ impl FactCollector {
 
     /// Records one write to an output stream, in body order.
     ///
-    /// The payload is whatever the invocation proves and no more; the
-    /// byte range of the invocation is kept so a claim can point at the
-    /// construct that produced it.
-    fn record_output(
+    /// The payload is whatever the construct proves and no more; the
+    /// byte range of the construct is kept so a claim can point at what
+    /// produced it.
+    fn push_output(
         &mut self,
-        invocation: &syn::Macro,
+        span: std::ops::Range<usize>,
         stream: super::output::Stream,
-        newline: super::output::Newline,
-        debug_macro: bool
+        payload: super::output::Payload,
+        newline: super::output::Newline
     ) {
-        use syn::spanned::Spanned;
-        let span = invocation.span().byte_range();
         self.facts.output_writes.push(super::output::OutputWrite {
             stream,
-            payload: super::output::macro_payload(invocation, debug_macro),
+            payload,
             newline,
             site: rustmanifest_schema::Range {
                 start: u32::try_from(span.start).unwrap_or(u32::MAX),
@@ -1070,6 +1325,113 @@ impl FactCollector {
             guard: self.site_guard(),
             multiplicity: super::output::Multiplicity::Once
         });
+    }
+
+    /// Records one write by a print-family macro, whose stream is fixed
+    /// by the macro's own name.
+    fn record_output(
+        &mut self,
+        invocation: &syn::Macro,
+        stream: super::output::Stream,
+        newline: super::output::Newline,
+        debug_macro: bool
+    ) {
+        use syn::spanned::Spanned;
+        self.push_output(
+            invocation.span().byte_range(),
+            stream,
+            super::output::macro_payload(invocation, debug_macro),
+            newline
+        );
+    }
+
+    /// Records one write by a macro that takes its destination as the
+    /// first argument. The destination decides the stream, the remaining
+    /// arguments carry the payload, and an invocation whose arguments do
+    /// not parse is still recorded — with both answers stated as
+    /// unproven rather than dropped.
+    fn record_writer_output(&mut self, invocation: &syn::Macro, newline: super::output::Newline) {
+        use syn::spanned::Spanned;
+        let span = invocation.span().byte_range();
+        let unreadable = super::output::Payload::Opaque(super::output::OpaqueReason::Unparsed);
+        let Ok(arguments) = invocation.parse_body_with(
+            syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
+        ) else {
+            self.push_output(span, super::output::Stream::Unknown, unreadable, newline);
+            return;
+        };
+        let written: Vec<&syn::Expr> = arguments.iter().collect();
+        let Some((destination, rest)) = written.split_first() else {
+            self.push_output(span, super::output::Stream::Unknown, unreadable, newline);
+            return;
+        };
+        let stream = self.write_destination(destination);
+        let payload = super::output::argument_payload(rest);
+        self.push_output(span, stream, payload, newline);
+    }
+
+    /// Records one write by the byte-slice write method of the write
+    /// trait: the receiver decides the stream, and the bytes are proven
+    /// only where they are written as a literal.
+    fn record_byte_output(&mut self, call: &syn::ExprMethodCall) {
+        use syn::spanned::Spanned;
+        let stream = self.write_destination(&call.receiver);
+        let payload = call.args.first().map_or(
+            super::output::Payload::Empty,
+            super::output::literal_bytes_payload
+        );
+        self.push_output(
+            call.span().byte_range(),
+            stream,
+            payload,
+            super::output::Newline::None
+        );
+    }
+
+    /// The stream a written-to destination names.
+    ///
+    /// Two questions, asked in order and neither guessed: whether the
+    /// destination is built from one of the process's own handles, and
+    /// whether it arrives from outside this function — a writer this
+    /// function is handed is the caller's to point wherever it likes.
+    /// Anything else is recorded as unidentified rather than assumed.
+    fn write_destination(&self, destination: &syn::Expr) -> super::output::Stream {
+        if let Some(stream) = handle_stream(destination) {
+            return stream;
+        }
+        let syn::Expr::Path(path) = destination_root(destination) else {
+            return super::output::Stream::Unknown;
+        };
+        let Some(name) = path.path.get_ident().map(ToString::to_string) else {
+            return super::output::Stream::Unknown;
+        };
+        if let Some(stream) = self
+            .param_types
+            .get(&name)
+            .and_then(|type_name| named_stream(type_name))
+        {
+            return stream;
+        }
+        if self.facts.params.iter().any(|param| param.name == name) {
+            return super::output::Stream::CallerSupplied;
+        }
+        super::output::Stream::Unknown
+    }
+
+    /// Visits the arguments of a macro whose arguments are expressions,
+    /// so a fact standing inside one is recorded rather than dropped for
+    /// the depth it sits at. The reachability fold already reads these
+    /// same tokens; reading them for one channel and not the other is
+    /// what let a write inside a macro argument disappear.
+    fn visit_macro_arguments(&mut self, invocation: &syn::Macro) {
+        let Ok(arguments) = invocation.parse_body_with(
+            syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
+        ) else {
+            return;
+        };
+        for argument in &arguments {
+            Visit::visit_expr(self, argument);
+        }
     }
 
     /// Records one normalized call candidate, resolving `Self` and typed
@@ -1106,6 +1468,72 @@ fn pinned_inner(call: &syn::ExprCall) -> Option<&syn::Expr> {
         return None;
     }
     call.args.first().map(strip_ref_deref)
+}
+
+/// The process stream a destination expression is built from: the
+/// handle constructors, seen through the borrows and the locking calls
+/// that hand out a guard over the same stream.
+///
+/// A buffering wrapper is deliberately not seen through. It is a
+/// different destination: bytes handed to it reach the process stream
+/// when the buffer is flushed and not when they are written, which is
+/// the whole point of putting one there. Claiming otherwise would name
+/// the canonical form as a write to a line-buffered handle.
+fn handle_stream(expression: &syn::Expr) -> Option<super::output::Stream> {
+    match expression {
+        syn::Expr::Reference(reference) => handle_stream(&reference.expr),
+        syn::Expr::Paren(inner) => handle_stream(&inner.expr),
+        syn::Expr::Group(inner) => handle_stream(&inner.expr),
+        syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+            handle_stream(&unary.expr)
+        }
+        syn::Expr::MethodCall(call) => handle_stream(&call.receiver),
+        syn::Expr::Call(call) => {
+            let syn::Expr::Path(path) = call.func.as_ref() else {
+                return None;
+            };
+            let name = path.path.segments.last()?.ident.to_string();
+            STREAM_HANDLES
+                .iter()
+                .find(|(handle, _)| *handle == name.as_str())
+                .map(|(_, stream)| *stream)
+        }
+        _ => None
+    }
+}
+
+/// The process stream a written type name stands for.
+fn named_stream(type_name: &str) -> Option<super::output::Stream> {
+    STREAM_TYPES
+        .iter()
+        .find(|(named, _)| *named == type_name)
+        .map(|(_, stream)| *stream)
+}
+
+/// The expression inside the parentheses and invisible groupings around
+/// it — a closure invoked where it is written has to be parenthesized,
+/// so a recognizer that skips them never sees one.
+fn unwrapped(expression: &syn::Expr) -> &syn::Expr {
+    match expression {
+        syn::Expr::Paren(inner) => unwrapped(&inner.expr),
+        syn::Expr::Group(inner) => unwrapped(&inner.expr),
+        _ => expression
+    }
+}
+
+/// The expression a write destination is ultimately reached from,
+/// borrows, parentheses and the method chain over it stripped.
+fn destination_root(expression: &syn::Expr) -> &syn::Expr {
+    match expression {
+        syn::Expr::Reference(reference) => destination_root(&reference.expr),
+        syn::Expr::Paren(inner) => destination_root(&inner.expr),
+        syn::Expr::Group(inner) => destination_root(&inner.expr),
+        syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+            destination_root(&unary.expr)
+        }
+        syn::Expr::MethodCall(call) => destination_root(&call.receiver),
+        _ => expression
+    }
 }
 
 /// Strips leading references and dereferences off an expression.
@@ -1228,28 +1656,39 @@ impl<'ast> Visit<'ast> for FactCollector {
     fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
         self.bind_element(&loop_expr.pat, &loop_expr.expr);
         self.visit_expr(&loop_expr.expr);
-        self.repeating(|collector| {
+        let body = self.flow_scope().block_flow(&loop_expr.body);
+        let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
+        self.repeating(multiplicity, |collector| {
             collector.under(super::output::Guard::For, |collector| {
                 collector.visit_block(&loop_expr.body);
             });
         });
     }
 
+    /// A `while` re-evaluates its condition before every iteration, so a
+    /// write standing in the condition repeats exactly as one in the
+    /// body does. The condition still carries no guard: it is reached
+    /// whenever the loop is.
     fn visit_expr_while(&mut self, loop_expr: &'ast syn::ExprWhile) {
-        self.visit_expr(&loop_expr.cond);
-        self.repeating(|collector| {
+        let body = self.flow_scope().block_flow(&loop_expr.body);
+        let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
+        self.repeating(multiplicity, |collector| {
+            collector.visit_expr(&loop_expr.cond);
             collector.under(super::output::Guard::While, |collector| {
                 collector.visit_block(&loop_expr.body);
             });
         });
     }
 
-    /// A bare `loop` repeats without bound, and its body is entered
-    /// unconditionally: the repetition is recorded while the guard stack
-    /// stays as it was, so a write inside keeps the certainty of the
-    /// position the loop stands in.
+    /// A bare `loop` repeats until something leaves it, and its body is
+    /// entered unconditionally: the repetition is recorded while the
+    /// guard stack stays as it was, so a write inside keeps the
+    /// certainty of the position the loop stands in. How many times it
+    /// repeats is the body's answer, not the loop keyword's.
     fn visit_expr_loop(&mut self, loop_expr: &'ast syn::ExprLoop) {
-        self.repeating(|collector| {
+        let body = self.flow_scope().block_flow(&loop_expr.body);
+        let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
+        self.repeating(multiplicity, |collector| {
             collector.visit_block(&loop_expr.body);
         });
     }
@@ -1298,10 +1737,32 @@ impl<'ast> Visit<'ast> for FactCollector {
         });
     }
 
+    /// An `async` block builds a future whose body runs where the future
+    /// is driven, not where it is written — the same shape a closure
+    /// has, and it carries the same frame. Without one, a write in a
+    /// future that is never polled was graded as running on every path.
+    fn visit_expr_async(&mut self, block: &'ast syn::ExprAsync) {
+        self.under(super::output::Guard::Closure, |collector| {
+            syn::visit::visit_expr_async(collector, block);
+        });
+    }
+
+    /// A nested item is order-independent: it is visible to the whole
+    /// block around it and is callable from before the line it is
+    /// written on. What stands over that line therefore says nothing
+    /// about it, so the enclosing divergence and the exits counted
+    /// before it are both dropped on the way in and restored on the way
+    /// out.
     fn visit_item_fn(&mut self, nested: &'ast syn::ItemFn) {
+        let entry_dead = self.dead;
+        let entry_exits = self.prior_exits;
+        self.dead = false;
+        self.prior_exits = 0;
         self.under(super::output::Guard::NestedItem, |collector| {
             syn::visit::visit_item_fn(collector, nested);
         });
+        self.dead = entry_dead;
+        self.prior_exits = entry_exits;
     }
 
     fn visit_block(&mut self, block: &'ast syn::Block) {
@@ -1315,7 +1776,7 @@ impl<'ast> Visit<'ast> for FactCollector {
             } else {
                 self.visit_stmt(statement);
             }
-            let flow = statement_flow(statement);
+            let flow = self.flow_scope().statement_flow(statement);
             match flow.completion {
                 Completion::Never => self.dead = true,
                 Completion::Unknown => self.prior_exits += 1,
@@ -1363,6 +1824,9 @@ impl<'ast> Visit<'ast> for FactCollector {
         }
         if method == "clone" || method == "to_owned" || method == "to_string" {
             self.facts.clones += 1;
+        }
+        if method == BYTE_WRITE_METHOD {
+            self.record_byte_output(call);
         }
         if ITERATOR_ADAPTERS.contains(&method.as_str()) {
             for argument in &call.args {
@@ -1467,6 +1931,12 @@ impl<'ast> Visit<'ast> for FactCollector {
                 self.facts.effects.push(Effect::ConsoleIo);
                 self.record_output(invocation, *stream, *newline, name == "dbg");
             }
+            if let Some((_, newline)) = WRITER_MACROS
+                .iter()
+                .find(|(macro_name, _)| *macro_name == name)
+            {
+                self.record_writer_output(invocation, *newline);
+            }
             if name == "vec" || name == "format" {
                 self.facts.allocations += 1;
             }
@@ -1477,6 +1947,9 @@ impl<'ast> Visit<'ast> for FactCollector {
                 knowledge::sql_macro_effect(&name, &invocation.tokens.to_string())
             {
                 self.facts.effects.push(effect);
+            }
+            if EXPRESSION_MACROS.contains(&name.as_str()) {
+                self.visit_macro_arguments(invocation);
             }
         }
         syn::visit::visit_macro(self, invocation);

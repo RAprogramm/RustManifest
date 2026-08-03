@@ -29,9 +29,9 @@ use std::{
 use super::{
     behavior::{
         FunctionFacts, Grade, Guard, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason,
-        OutputWrite, Payload, Segment, Stream, behavior
+        OutputWrite, Payload, Segment, SiteGuard, Stream, behavior
     },
-    calls::{CallGraph, ResolutionContext, call_graph, resolution_context},
+    calls::{CallGraph, call_graph, resolution_context},
     entry::{EntryKind, EntryPoint, entry_points}
 };
 use crate::source::Source;
@@ -77,9 +77,10 @@ pub fn program_meaning(sources: &[Source]) -> Vec<EntryMeaning> {
     let facts = behavior(sources);
     let context = resolution_context(sources);
     let graph = call_graph(&facts, &context);
+    let qualifiers = qualifiers_by_fact(sources, &facts);
     entry_points(sources, &facts)
         .into_iter()
-        .map(|entry| meaning_of(&entry, &facts, &graph, &context, sources))
+        .map(|entry| meaning_of(&entry, &facts, &graph, &qualifiers, sources))
         .collect()
 }
 
@@ -93,10 +94,10 @@ fn meaning_of(
     entry: &EntryPoint,
     facts: &[FunctionFacts],
     graph: &CallGraph,
-    context: &ResolutionContext,
+    qualifiers: &[BTreeSet<String>],
     sources: &[Source]
 ) -> EntryMeaning {
-    let reach = reachability(facts, graph, context, entry.fact);
+    let reach = reachability(facts, graph, qualifiers, entry.fact);
     let mut claims = Vec::new();
     for (index, fact) in facts.iter().enumerate() {
         let file = sources.get(fact.source).map_or_else(String::new, |source| {
@@ -132,13 +133,13 @@ fn meaning_of(
 fn reachability(
     facts: &[FunctionFacts],
     graph: &CallGraph,
-    context: &ResolutionContext,
+    qualifiers: &[BTreeSet<String>],
     entry: usize
 ) -> Vec<Grade> {
     if entry >= facts.len() {
         return vec![Grade::Unreached; facts.len()];
     }
-    let bound = bound_sites(facts, context);
+    let bound = bound_sites(facts, qualifiers);
     let mut grades: Vec<Option<Grade>> = vec![None; facts.len()];
     grades[entry] = Some(Grade::Certain);
     let mut changed = true;
@@ -181,7 +182,7 @@ fn reachability(
 /// sites did not prove when it runs.
 fn bound_sites(
     facts: &[FunctionFacts],
-    context: &ResolutionContext
+    qualifiers: &[BTreeSet<String>]
 ) -> Vec<BTreeMap<usize, Grade>> {
     let sole = sole_by_name(facts);
     facts
@@ -189,7 +190,7 @@ fn bound_sites(
         .map(|fact| {
             let mut grades: BTreeMap<usize, Grade> = BTreeMap::new();
             for site in &fact.call_sites {
-                let Some(callee) = bound_callee(&sole, context, &site.candidate) else {
+                let Some(callee) = bound_callee(&sole, qualifiers, &site.candidate) else {
                     continue;
                 };
                 let grade = site.guard.local_grade();
@@ -220,16 +221,19 @@ fn sole_by_name(facts: &[FunctionFacts]) -> BTreeMap<&str, usize> {
 /// The one function a recorded call candidate can name, or `None` when
 /// the spelling admits another.
 ///
-/// Two bindings are provable, the same two the call graph itself admits:
-/// the candidate is a function's own name and no other function carries
-/// it, or the candidate is `module::name` with a known module qualifier
-/// and exactly one free function is called `name`. A candidate whose
-/// receiver type is unknown (`?::method`) names a method rather than a
-/// function and binds to nothing — matching on the method name alone
-/// would bind whichever type happened to declare it.
+/// Two bindings are provable: the candidate is a function's own name and
+/// no other function carries it, or the candidate is `module::name`,
+/// exactly one function is called `name`, and `module` is the very scope
+/// that declares it — the qualifier must own the callee, not merely
+/// exist somewhere in the workspace. Any workspace module would do
+/// otherwise, and `elsewhere::name` would certify a function that module
+/// does not hold. A candidate whose receiver type is unknown
+/// (`?::method`) names a method rather than a function and binds to
+/// nothing — matching on the method name alone would bind whichever type
+/// happened to declare it.
 fn bound_callee(
     sole: &BTreeMap<&str, usize>,
-    context: &ResolutionContext,
+    qualifiers: &[BTreeSet<String>],
     candidate: &str
 ) -> Option<usize> {
     if candidate.starts_with("?::") {
@@ -239,10 +243,104 @@ fn bound_callee(
         return Some(*index);
     }
     let (qualifier, bare) = candidate.rsplit_once("::")?;
-    if !context.segments.contains(qualifier) {
-        return None;
+    let index = *sole.get(bare)?;
+    qualifiers.get(index)?.contains(qualifier).then_some(index)
+}
+
+/// Names that may qualify each function in a call, by fact index.
+///
+/// A free function answers to the scope that declares it and to nothing
+/// else: the innermost inline module around it, or — at a file's top
+/// level — the module the file itself is, which is its stem, its
+/// directory for a `mod.rs`, and the crate for a crate root. A function
+/// no scope could be read for keeps an empty set, so a qualified
+/// candidate never binds to it by proximity of spelling alone.
+fn qualifiers_by_fact(sources: &[Source], facts: &[FunctionFacts]) -> Vec<BTreeSet<String>> {
+    let mut positions: BTreeMap<(usize, u32, u32), usize> = BTreeMap::new();
+    for (index, fact) in facts.iter().enumerate() {
+        positions.insert((fact.source, fact.range.start, fact.range.end), index);
     }
-    sole.get(bare).copied()
+    let mut qualifiers = vec![BTreeSet::new(); facts.len()];
+    for (index, source) in sources.iter().enumerate() {
+        let Ok(file) = syn::parse_file(source.text()) else {
+            continue;
+        };
+        let scope = file_scope(&source.path().to_string_lossy());
+        scope_items(&file.items, &scope, index, &positions, &mut qualifiers);
+    }
+    qualifiers
+}
+
+/// Records the scope of every function declared directly in `items`,
+/// descending into inline modules, which replace the scope for what they
+/// hold.
+fn scope_items(
+    items: &[syn::Item],
+    scope: &BTreeSet<String>,
+    source: usize,
+    positions: &BTreeMap<(usize, u32, u32), usize>,
+    qualifiers: &mut [BTreeSet<String>]
+) {
+    for item in items {
+        match item {
+            syn::Item::Fn(function) => {
+                let span = function.sig.ident.span().byte_range();
+                let start = u32::try_from(span.start).unwrap_or(u32::MAX);
+                let end = u32::try_from(span.end).unwrap_or(u32::MAX);
+                if let Some(index) = positions.get(&(source, start, end))
+                    && let Some(slot) = qualifiers.get_mut(*index)
+                {
+                    slot.clone_from(scope);
+                }
+            }
+            syn::Item::Mod(module) => {
+                if let Some((_, nested)) = &module.content {
+                    let inner: BTreeSet<String> =
+                        std::iter::once(module.ident.to_string()).collect();
+                    scope_items(nested, &inner, source, positions, qualifiers);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The module names a file's own top level answers to.
+fn file_scope(path: &str) -> BTreeSet<String> {
+    let normalized = path.replace('\\', "/");
+    let components: Vec<&str> = normalized
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .collect();
+    let mut names = BTreeSet::new();
+    let Some((last, directories)) = components.split_last() else {
+        return names;
+    };
+    match last.strip_suffix(".rs").unwrap_or(last) {
+        "mod" => {
+            if let Some(parent) = directories.last() {
+                names.insert((*parent).to_owned());
+            }
+        }
+        "lib" | "main" => {
+            names.insert("crate".to_owned());
+            if let Some(krate) = crate_name(directories) {
+                names.insert(krate);
+            }
+        }
+        stem => {
+            names.insert(stem.to_owned());
+        }
+    }
+    names
+}
+
+/// The crate a source directory belongs to, read from the `<crate>/src/`
+/// layout with `-` normalized to `_` as the module system spells it.
+fn crate_name(directories: &[&str]) -> Option<String> {
+    let at = directories.iter().position(|part| *part == "src")?;
+    let owner = at.checked_sub(1).and_then(|index| directories.get(index))?;
+    Some(owner.replace('-', "_"))
 }
 
 impl EntryMeaning {
@@ -271,6 +369,26 @@ impl OutputClaim {
     #[must_use]
     pub fn weakening(&self) -> Option<String> {
         weakening_of(self)
+    }
+
+    /// What the sentence still has to name after its opening words.
+    ///
+    /// The opening of an unreached claim already states the call chain,
+    /// so repeating it would say the same thing twice; everything else
+    /// the claim carries is named at every grade below certainty,
+    /// because a claim that is dead or unreached has a cause exactly as
+    /// a possible one does.
+    fn stated_weakening(&self) -> Option<String> {
+        let reasons = match self.execution {
+            Grade::Certain => Vec::new(),
+            Grade::Unreached => site_reasons(&self.write.guard),
+            Grade::Possible | Grade::Dead => chain_reason(self.reach)
+                .into_iter()
+                .map(ToOwned::to_owned)
+                .chain(site_reasons(&self.write.guard))
+                .collect()
+        };
+        (!reasons.is_empty()).then(|| reasons.join(" and "))
     }
 
     /// The text this claim proves, rendered without ever standing in a
@@ -317,9 +435,7 @@ impl OutputClaim {
         if self.write.multiplicity == Multiplicity::Unbounded {
             sentence.push_str(", once per iteration of the loop around it");
         }
-        if self.execution == Grade::Possible
-            && let Some(reason) = self.weakening()
-        {
+        if let Some(reason) = self.stated_weakening() {
             let _ = write!(sentence, ", weakened by {reason}");
         }
         let _ = write!(
@@ -342,16 +458,28 @@ fn weakening_of(claim: &OutputClaim) -> Option<String> {
     if claim.execution == Grade::Certain {
         return None;
     }
-    let chain = match claim.reach {
+    let reasons: Vec<String> = chain_reason(claim.reach)
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .chain(site_reasons(&claim.write.guard))
+        .collect();
+    (!reasons.is_empty()).then(|| reasons.join(" and "))
+}
+
+/// What the call chain does to a claim, or `None` when it does nothing.
+const fn chain_reason(reach: Grade) -> Option<&'static str> {
+    match reach {
         Grade::Certain => None,
         Grade::Possible => Some("a call chain that does not certainly reach it"),
         Grade::Unreached => Some("a call chain that never reaches it"),
         Grade::Dead => Some("a call chain whose every call to it can never run")
-    };
-    let mut reasons: Vec<String> = chain.into_iter().map(ToOwned::to_owned).collect();
-    let guards: BTreeSet<&'static str> = claim
-        .write
-        .guard
+    }
+}
+
+/// Every construct standing over the site inside its own function, each
+/// named once however many times it stands there.
+fn site_reasons(guard: &SiteGuard) -> Vec<String> {
+    let named: BTreeSet<&'static str> = guard
         .guards
         .iter()
         .map(|guard| match guard {
@@ -365,17 +493,14 @@ fn weakening_of(claim: &OutputClaim) -> Option<String> {
             Guard::CfgGated => "a configuration gate this analysis does not resolve"
         })
         .collect();
-    reasons.extend(guards.into_iter().map(ToOwned::to_owned));
-    if claim.write.guard.dead {
+    let mut reasons: Vec<String> = named.into_iter().map(ToOwned::to_owned).collect();
+    if guard.dead {
         reasons.push("a divergence before it that always leaves the function".to_owned());
     }
-    if claim.write.guard.prior_exits > 0 {
+    if guard.prior_exits > 0 {
         reasons.push("an exit that may leave the function first".to_owned());
     }
-    if reasons.is_empty() {
-        return None;
-    }
-    Some(reasons.join(" and "))
+    reasons
 }
 
 /// Appends the line terminator a construct adds, so the rendered text
@@ -457,7 +582,17 @@ mod tests {
     use crate::source::Source;
 
     fn sentences(body: &str) -> Vec<String> {
-        let sources = [Source::new(PathBuf::from("src/main.rs"), body.to_owned())];
+        sentences_of(&[("src/main.rs", body)])
+    }
+
+    /// Every sentence of the first entry point of a whole file set, so a
+    /// claim about cross-file qualification is stated on the layout it
+    /// depends on.
+    fn sentences_of(files: &[(&str, &str)]) -> Vec<String> {
+        let sources: Vec<Source> = files
+            .iter()
+            .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
+            .collect();
         program_meaning(&sources)
             .first()
             .map(super::EntryMeaning::sentences)
@@ -586,6 +721,86 @@ mod tests {
             "{claim}"
         );
         assert!(claim.contains("a branch"), "{claim}");
+    }
+
+    #[test]
+    fn a_qualifier_naming_another_module_never_certifies_the_call() {
+        let said = sentences(
+            "mod alpha {\n    pub fn go() { println!(\"alpha\"); }\n}\nmod beta {\n    pub fn \
+             stub() { let value = 1; }\n}\nfn main() {\n    beta::go();\n}"
+        );
+        let alpha = about(&said, "alpha");
+        assert!(
+            !alpha.contains("unconditionally writes"),
+            "`beta::go` is not `alpha::go`; the qualifier does not own the callee: {alpha}"
+        );
+    }
+
+    #[test]
+    fn the_module_that_declares_the_function_still_certifies_the_call() {
+        let said = sentences(
+            "mod alpha {\n    pub fn go() { println!(\"alpha\"); }\n}\nfn main() {\n    \
+             alpha::go();\n}"
+        );
+        let alpha = about(&said, "alpha");
+        assert!(
+            alpha.contains("unconditionally writes"),
+            "the qualifier names the very module declaring the callee: {alpha}"
+        );
+    }
+
+    #[test]
+    fn a_file_module_certifies_its_own_function_and_no_other_files() {
+        let said = sentences_of(&[
+            (
+                "src/main.rs",
+                "mod alpha;\nmod beta;\nfn main() {\n    alpha::go();\n}"
+            ),
+            ("src/alpha.rs", "pub fn go() { println!(\"alpha\"); }"),
+            ("src/beta.rs", "pub fn stub() { let value = 1; }")
+        ]);
+        let alpha = about(&said, "alpha");
+        assert!(
+            alpha.contains("unconditionally writes"),
+            "the file is the module the qualifier names: {alpha}"
+        );
+        let other = sentences_of(&[
+            (
+                "src/main.rs",
+                "mod alpha;\nmod beta;\nfn main() {\n    beta::go();\n}"
+            ),
+            ("src/alpha.rs", "pub fn go() { println!(\"alpha\"); }"),
+            ("src/beta.rs", "pub fn stub() { let value = 1; }")
+        ]);
+        let claimed = about(&other, "alpha");
+        assert!(
+            !claimed.contains("unconditionally writes"),
+            "`beta` does not declare `go`: {claimed}"
+        );
+    }
+
+    #[test]
+    fn a_dead_claim_names_what_killed_it() {
+        let said = sentences(
+            "fn shout() { println!(\"never\"); }\nfn main() {\n    return;\n    shout();\n}"
+        );
+        let never = about(&said, "never");
+        assert!(
+            never.contains("a call chain whose every call to it can never run"),
+            "a claim that can never run states its cause like every other: {never}"
+        );
+    }
+
+    #[test]
+    fn an_unreached_claim_names_the_site_without_restating_the_chain() {
+        let said =
+            sentences("fn orphan() {\n    if flag { println!(\"orphan\"); }\n}\nfn main() {}");
+        let orphan = about(&said, "orphan");
+        assert!(orphan.contains("weakened by a branch"), "{orphan}");
+        assert!(
+            !orphan.contains("a call chain that never reaches it"),
+            "the opening already states the chain; saying it twice states nothing new: {orphan}"
+        );
     }
 
     #[test]

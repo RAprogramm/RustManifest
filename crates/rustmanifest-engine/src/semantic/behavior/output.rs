@@ -154,7 +154,10 @@ pub enum Guard {
     For,
     /// A conditional loop whose body may run zero times.
     While,
-    /// A closure body, which runs only where the closure is called.
+    /// A body that runs only where something drives it: a closure where
+    /// it is called, an `async` block where its future is polled. The
+    /// two are one frame because they weaken a write for one reason —
+    /// the body is written here and run elsewhere, if at all.
     Closure,
     /// An item nested inside a body, which runs only when called.
     NestedItem,
@@ -232,15 +235,20 @@ impl fmt::Display for Grade {
 
 /// How many times a site runs per execution of its function.
 ///
-/// Only the two readings the analysis can produce exist: a site outside
-/// every repeating construct runs once, a site inside one runs a number
-/// of times no syntax bounds. A counted bound would need the iteration
-/// count of the enclosing construct, which this tier does not compute,
-/// and a variant nothing constructs is a promise the engine does not
-/// keep.
+/// Only the two readings the analysis can produce exist: a site that
+/// cannot run twice, and a site that runs a number of times no syntax
+/// bounds. A counted bound would need the iteration count of the
+/// enclosing construct, which this tier does not compute, and a variant
+/// nothing constructs is a promise the engine does not keep.
+///
+/// Standing inside a loop is not the question — completing the loop
+/// body is. A body that provably leaves on its first pass runs its
+/// writes once however many times the keyword around it suggests, so
+/// the reading comes from the completion analysis of that body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Multiplicity {
-    /// Exactly once.
+    /// No more than once per call: nothing repeats the site. Whether it
+    /// runs at all is the separate question [`SiteGuard`] answers.
     Once,
     /// A loop or cycle bounds it with no static limit.
     Unbounded
@@ -284,11 +292,22 @@ pub(super) fn macro_payload(invocation: &syn::Macro, debug_macro: bool) -> Paylo
     ) else {
         return Payload::Opaque(OpaqueReason::Unparsed);
     };
-    let mut arguments = arguments.into_iter();
-    let Some(first) = arguments.next() else {
+    let written: Vec<&syn::Expr> = arguments.iter().collect();
+    argument_payload(&written)
+}
+
+/// Reads what a format-argument list writes, the destination of a
+/// writing construct already removed.
+///
+/// The same rule the print family follows, applied one argument later:
+/// the first remaining argument must be a string literal for any text to
+/// be proven, and the rest are provenance for the holes and nothing
+/// more.
+pub(super) fn argument_payload(arguments: &[&syn::Expr]) -> Payload {
+    let Some((first, rest)) = arguments.split_first() else {
         return Payload::Empty;
     };
-    let syn::Expr::Lit(literal) = &first else {
+    let syn::Expr::Lit(literal) = first else {
         return Payload::Opaque(OpaqueReason::NonLiteralFormat);
     };
     let text = match &literal.lit {
@@ -296,10 +315,30 @@ pub(super) fn macro_payload(invocation: &syn::Macro, debug_macro: bool) -> Paylo
         syn::Lit::ByteStr(value) => String::from_utf8_lossy(&value.value()).into_owned(),
         _ => return Payload::Opaque(OpaqueReason::NonLiteralFormat)
     };
-    let rest: Vec<String> = arguments
+    let rest: Vec<String> = rest
+        .iter()
         .map(|argument| quote::quote!(#argument).to_string())
         .collect();
     template(&text, &rest)
+}
+
+/// Reads what a byte-slice write puts on its stream.
+///
+/// There is no format string here: the bytes are the payload. Written as
+/// a literal they are proven verbatim; written as anything else they are
+/// a value this tier does not evaluate, which is the one reason a
+/// payload can be unreadable without a format string being involved.
+pub(super) fn literal_bytes_payload(argument: &syn::Expr) -> Payload {
+    let syn::Expr::Lit(literal) = argument else {
+        return Payload::Opaque(OpaqueReason::RuntimeValue);
+    };
+    match &literal.lit {
+        syn::Lit::Str(value) => Payload::Literal(value.value()),
+        syn::Lit::ByteStr(value) => {
+            Payload::Literal(String::from_utf8_lossy(&value.value()).into_owned())
+        }
+        _ => Payload::Opaque(OpaqueReason::RuntimeValue)
+    }
 }
 
 /// Splits a format string into proven text and holes.
@@ -572,19 +611,20 @@ mod tests {
         );
     }
 
-    fn writes_of(body: &str) -> Vec<super::OutputWrite> {
+    fn writes_of_source(source: &str, function: &str) -> Vec<super::OutputWrite> {
         use std::path::PathBuf;
 
         use crate::{semantic::behavior::behavior, source::Source};
-        let sources = [Source::new(
-            PathBuf::from("src/main.rs"),
-            format!("fn main() {{\n{body}\n}}")
-        )];
+        let sources = [Source::new(PathBuf::from("src/main.rs"), source.to_owned())];
         behavior(&sources)
             .into_iter()
-            .find(|fact| fact.function == "main")
+            .find(|fact| fact.function == function)
             .map(|fact| fact.output_writes)
             .unwrap_or_default()
+    }
+
+    fn writes_of(body: &str) -> Vec<super::OutputWrite> {
+        writes_of_source(&format!("fn main() {{\n{body}\n}}"), "main")
     }
 
     #[test]
@@ -773,6 +813,181 @@ mod tests {
         let binding = writes_of("    match v { y => println!(\"a\") }");
         assert!(binding[0].guard.guards.is_empty());
         assert_eq!(binding[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_loop_that_may_hide_a_break_does_not_prove_what_follows_it_dead() {
+        let hidden = writes_of("    loop { escape!(); }\n    println!(\"hi\");");
+        assert!(!hidden[0].guard.dead);
+        assert_eq!(hidden[0].guard.prior_exits, 1);
+        assert_eq!(hidden[0].guard.local_grade(), Grade::Possible);
+
+        let opaque_call = writes_of("    loop { helper(); }\n    println!(\"hi\");");
+        assert_eq!(opaque_call[0].guard.local_grade(), Grade::Dead);
+    }
+
+    #[test]
+    fn an_async_body_is_framed_like_a_closure_because_both_run_where_driven() {
+        let writes =
+            writes_of("    let f = async { println!(\"a\"); };\n    let g = || println!(\"b\");");
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].guard.guards, [Guard::Closure]);
+        assert_eq!(writes[0].guard.local_grade(), Grade::Possible);
+        assert_eq!(writes[1].guard.guards, [Guard::Closure]);
+    }
+
+    #[test]
+    fn a_process_exit_reached_through_an_import_kills_what_follows_it() {
+        let imported = writes_of_source(
+            "use std::process::exit;\nfn main() { exit(1); println!(\"hi\"); }",
+            "main"
+        );
+        assert!(imported[0].guard.dead);
+        assert_eq!(imported[0].guard.local_grade(), Grade::Dead);
+
+        let aborted = writes_of_source(
+            "use std::process::abort;\nfn main() { abort(); println!(\"hi\"); }",
+            "main"
+        );
+        assert!(aborted[0].guard.dead);
+
+        let written = writes_of("    std::process::exit(1);\n    println!(\"hi\");");
+        assert!(written[0].guard.dead);
+
+        let unrelated = writes_of_source(
+            "use crate::shell::exit;\nfn main() { exit(1); println!(\"hi\"); }",
+            "main"
+        );
+        assert!(!unrelated[0].guard.dead);
+    }
+
+    #[test]
+    fn a_closure_invoked_where_it_is_written_runs_its_body_there() {
+        let diverging = writes_of("    (|| std::process::exit(1))();\n    println!(\"hi\");");
+        assert!(diverging[0].guard.dead);
+
+        let returning = writes_of("    (|| { return; })();\n    println!(\"hi\");");
+        assert!(!returning[0].guard.dead);
+        assert_eq!(returning[0].guard.prior_exits, 1);
+
+        let held = writes_of("    let quit = || std::process::exit(1);\n    println!(\"hi\");");
+        assert_eq!(held[0].guard.local_grade(), Grade::Certain);
+    }
+
+    #[test]
+    fn a_nested_item_after_a_divergence_still_runs_where_it_is_called() {
+        let after_exit = writes_of(
+            "    helper();\n    std::process::exit(0);\n    fn helper() { println!(\"hi\"); }"
+        );
+        assert!(!after_exit[0].guard.dead);
+        assert_eq!(after_exit[0].guard.guards, [Guard::NestedItem]);
+        assert_eq!(after_exit[0].guard.local_grade(), Grade::Possible);
+
+        let after_return =
+            writes_of("    helper();\n    return;\n    fn helper() { println!(\"hi\"); }");
+        assert!(!after_return[0].guard.dead);
+        assert_eq!(after_return[0].guard.prior_exits, 0);
+    }
+
+    #[test]
+    fn a_conditionally_applied_attribute_is_not_a_configuration_gate() {
+        let applied = writes_of("    #[cfg_attr(feature = \"x\", inline)]\n    println!(\"hi\");");
+        assert!(applied[0].guard.guards.is_empty());
+        assert_eq!(applied[0].guard.local_grade(), Grade::Certain);
+
+        let diverging = writes_of(
+            "    #[cfg_attr(feature = \"x\", inline)]\n    todo!();\n    println!(\"hi\");"
+        );
+        assert!(diverging[0].guard.dead);
+
+        let gating =
+            writes_of("    #[cfg_attr(feature = \"x\", cfg(test))]\n    println!(\"hi\");");
+        assert_eq!(gating[0].guard.guards, [Guard::CfgGated]);
+        assert_eq!(gating[0].guard.local_grade(), Grade::Possible);
+    }
+
+    #[test]
+    fn how_often_a_body_writes_comes_from_its_completion_not_from_the_keyword() {
+        let leaves = writes_of("    loop { println!(\"x\"); break; }\n    println!(\"after\");");
+        assert_eq!(leaves[0].payload.fully_known(), Some("x"));
+        assert_eq!(leaves[0].multiplicity, super::Multiplicity::Once);
+
+        let restarts = writes_of("    loop { println!(\"x\"); continue; }");
+        assert_eq!(restarts[0].multiplicity, super::Multiplicity::Unbounded);
+
+        let hidden = writes_of("    loop { println!(\"x\"); escape!(); }");
+        assert_eq!(hidden[0].multiplicity, super::Multiplicity::Unbounded);
+
+        let endless = writes_of("    loop { println!(\"x\"); }");
+        assert_eq!(endless[0].multiplicity, super::Multiplicity::Unbounded);
+    }
+
+    #[test]
+    fn a_while_condition_repeats_with_the_loop_it_governs() {
+        let writes = writes_of("    while ready(println!(\"tick\")) { println!(\"body\"); }");
+        assert_eq!(writes[0].payload.fully_known(), Some("tick"));
+        assert!(writes[0].guard.guards.is_empty());
+        assert_eq!(writes[0].multiplicity, super::Multiplicity::Unbounded);
+        assert_eq!(writes[1].guard.guards, [Guard::While]);
+        assert_eq!(writes[1].multiplicity, super::Multiplicity::Unbounded);
+    }
+
+    #[test]
+    fn a_write_inside_a_macro_argument_is_recorded_not_dropped() {
+        let nested = writes_of("    println!(\"{}\", { println!(\"inner\"); 1 });");
+        assert_eq!(nested.len(), 2);
+        assert_eq!(nested[1].payload.fully_known(), Some("inner"));
+
+        let asserted = writes_of("    assert!(flag, \"{}\", { println!(\"inner\"); 1 });");
+        assert_eq!(asserted.len(), 1);
+        assert_eq!(asserted[0].payload.fully_known(), Some("inner"));
+
+        let collected = writes_of("    let v = vec![{ println!(\"inner\"); 1 }];");
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].payload.fully_known(), Some("inner"));
+    }
+
+    #[test]
+    fn a_write_names_the_stream_it_reaches_or_states_that_it_cannot() {
+        let supplied = writes_of_source(
+            "fn dump<W: std::io::Write>(w: &mut W) { writeln!(w, \"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(supplied[0].stream, Stream::CallerSupplied);
+        assert_eq!(supplied[0].payload.fully_known(), Some("hi"));
+        assert_eq!(supplied[0].newline, super::Newline::Appended);
+
+        let unnamed = writes_of_source(
+            "fn dump() { let mut sink = make(); writeln!(sink, \"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(unnamed[0].stream, Stream::Unknown);
+
+        let handle = writes_of_source(
+            "fn dump() { write!(std::io::stdout().lock(), \"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(handle[0].stream, Stream::Stdout);
+        assert_eq!(handle[0].newline, super::Newline::None);
+    }
+
+    #[test]
+    fn bytes_written_from_a_value_state_the_value_as_the_reason() {
+        let literal = writes_of_source(
+            "fn dump<W: std::io::Write>(w: &mut W) { w.write_all(b\"hi\").ok(); }",
+            "dump"
+        );
+        assert_eq!(literal[0].stream, Stream::CallerSupplied);
+        assert_eq!(literal[0].payload.fully_known(), Some("hi"));
+
+        let computed = writes_of_source(
+            "fn dump<W: std::io::Write>(w: &mut W, line: &str) { w.write_all(line.as_bytes()).ok(); }",
+            "dump"
+        );
+        assert_eq!(
+            computed[0].payload,
+            Payload::Opaque(OpaqueReason::RuntimeValue)
+        );
     }
 
     #[test]
