@@ -24,6 +24,7 @@ pub mod learn;
 pub mod manifests;
 pub mod meaning;
 pub mod overview;
+pub mod report;
 
 use std::{path::PathBuf, process::ExitCode};
 
@@ -80,7 +81,9 @@ pub enum Command {
     /// Print what the program does for an observer outside the process.
     Meaning(meaning::MeaningArgs),
     /// Print everything the engine knows about the project as one report.
-    Overview(overview::OverviewArgs)
+    Overview(overview::OverviewArgs),
+    /// Print everything the engine knows about the program in one pass.
+    Report(report::ReportArgs)
 }
 
 /// Entry point used by both the binary and integration tests.
@@ -98,7 +101,8 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Graph(args) => graph::run_graph(&args),
         Command::Learn(args) => learn::run_learn(&args),
         Command::Meaning(args) => meaning::run_meaning(&args),
-        Command::Overview(args) => overview::run_overview(&args)
+        Command::Overview(args) => overview::run_overview(&args),
+        Command::Report(args) => report::run_report(&args)
     }
 }
 
