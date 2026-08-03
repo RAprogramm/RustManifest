@@ -47,9 +47,9 @@ pub use pattern::PatternAnalyzer;
 pub use semantic::{
     Absorption, CallGraph, Coverage, DocFacts, Effect, ExpansionReport, Feature, FunctionFacts,
     FunctionFlags, ImplNode, MethodNode, ModuleEdge, ModuleInfo, ModuleOverview, ParamFacts,
-    ParamMode, Role, ScipEdges, ScipError, SemanticAnalyzer, TraitNode, TypeGraph, TypeKind,
-    TypeNode, behavior, call_graph, call_graph_with, check_invariants, check_invariants_with,
-    coverage, coverage_indexed, coverage_with, doc_facts, expansion, features, module_overview,
-    role, transitive_effects, unresolved_targets
+    ParamMode, Role, Route, ScipEdges, ScipError, SemanticAnalyzer, Surface, TraitNode, TypeGraph,
+    TypeKind, TypeNode, behavior, call_graph, call_graph_with, check_invariants,
+    check_invariants_with, coverage, coverage_indexed, coverage_with, doc_facts, expansion,
+    features, module_overview, role, surface, transitive_effects, unresolved_targets
 };
 pub use source::Source;

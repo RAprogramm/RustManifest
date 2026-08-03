@@ -55,6 +55,7 @@ pub fn overview_markdown(sources: &[Source], top: usize, conventions: &[Conventi
     module_section(&mut out, &modules);
     type_section(&mut out, &graph, top);
     role_section(&mut out, &facts);
+    surface_section(&mut out, sources, top);
     boundary_section(&mut out, sources, &facts, top);
     state_section(&mut out, &facts, top);
     shape_section(&mut out, sources, top);
@@ -193,6 +194,77 @@ fn role_section(out: &mut String, facts: &[FunctionFacts]) {
     }
     for (name, count) in &distribution {
         push(out, &format!("- {name}: {count}\n"));
+    }
+    out.push('\n');
+}
+
+/// Prints the external contract recovered from framework registration
+/// calls: method, path, and handler per endpoint, with the honesty
+/// counters that state what could not be recovered.
+fn surface_section(out: &mut String, sources: &[Source], top: usize) {
+    let recovered = crate::semantic::surface(sources);
+    if recovered.routes.is_empty()
+        && recovered.dynamic == 0
+        && recovered.unresolved.is_empty()
+        && recovered.entangled.is_empty()
+    {
+        return;
+    }
+    out.push_str("## External surface\n\n");
+    push(
+        out,
+        &format!(
+            "- {} endpoint(s) from {} router-building function(s)\n",
+            recovered.routes.len(),
+            recovered.providers
+        )
+    );
+    if recovered.dynamic > 0 {
+        push(
+            out,
+            &format!(
+                "- {} registration(s) with a path assembled at runtime — not \
+                 recoverable\n",
+                recovered.dynamic
+            )
+        );
+    }
+    if !recovered.unresolved.is_empty() {
+        push(
+            out,
+            &format!(
+                "- {} composition(s) naming no resolvable router function\n",
+                recovered.unresolved.len()
+            )
+        );
+    }
+    if !recovered.entangled.is_empty() {
+        push(
+            out,
+            &format!(
+                "- router functions folding each other, composition order undetermined: \
+                 {}\n",
+                recovered.entangled.join(", ")
+            )
+        );
+    }
+    for route in recovered.routes.iter().take(top) {
+        let file = sources
+            .get(route.source)
+            .map_or_else(String::new, |source| format!(" ({})", source.short_path()));
+        push(
+            out,
+            &format!(
+                "- `{} {}` → `{}`{file}\n",
+                route.method, route.path, route.handler
+            )
+        );
+    }
+    if recovered.routes.len() > top {
+        push(
+            out,
+            &format!("- ... {} more endpoint(s)\n", recovered.routes.len() - top)
+        );
     }
     out.push('\n');
 }

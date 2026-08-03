@@ -43,6 +43,7 @@ mod rename_op;
 mod role;
 mod scip;
 mod std_knowledge;
+mod surface;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
 use tracing::trace;
@@ -70,7 +71,8 @@ pub use self::{
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,
     role::{Role, role},
-    scip::{ScipEdges, ScipError}
+    scip::{ScipEdges, ScipError},
+    surface::{FrameworkModel, Route, Surface, surface}
 };
 use crate::{error::EngineError, pragma, source::Source};
 
