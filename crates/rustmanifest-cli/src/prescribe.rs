@@ -67,11 +67,7 @@ fn prescriptions(sources: &[Source], why: bool) -> String {
                 );
                 continue;
             };
-            let _ = writeln!(
-                out,
-                "- `{}`\n\n```rust\n{prescription}\n```\n",
-                claim.function
-            );
+            out.push_str(&anchored(claim, sources, &prescription));
             if why {
                 out.push_str(&derivation(claim, sources));
             }
@@ -123,6 +119,84 @@ fn missing(claim: &OutputClaim) -> String {
             .to_owned();
     }
     "the stream this write reaches is not identified".to_owned()
+}
+
+/// Renders the prescription against the source it replaces, in the
+/// shape a compiler diagnostic uses: the offending line, a caret span
+/// under the exact bytes, the label of what is wrong, then the
+/// replacement and the note that justifies it.
+fn anchored(claim: &OutputClaim, sources: &[Source], prescription: &str) -> String {
+    let Some((line_number, line_text, column, width)) = span(claim, sources) else {
+        return format!("- `{}`\n\n```rust\n{prescription}\n```\n", claim.function);
+    };
+    let gutter = line_number.to_string().len();
+    let pad = " ".repeat(gutter);
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "warning: this write carries proven text through formatting"
+    );
+    let _ = writeln!(
+        out,
+        "{pad}--> {}:{line_number}:{}",
+        relative_file(claim),
+        column + 1
+    );
+    let _ = writeln!(out, "{pad} |");
+    let _ = writeln!(out, "{line_number} | {line_text}");
+    let _ = writeln!(
+        out,
+        "{pad} | {}{} the text is proven here, so the format machinery has nothing to resolve",
+        " ".repeat(column),
+        "^".repeat(width.max(1))
+    );
+    let _ = writeln!(out, "{pad} |");
+    let _ = writeln!(
+        out,
+        "{pad} = help: write the bytes to the locked handle instead"
+    );
+    for replacement in prescription.lines() {
+        let _ = writeln!(out, "{pad} |     {replacement}");
+    }
+    out.push('\n');
+    out
+}
+
+/// The line the write sits on, with the column and width of its own
+/// bytes.
+fn span(claim: &OutputClaim, sources: &[Source]) -> Option<(usize, String, usize, usize)> {
+    let source = sources
+        .iter()
+        .find(|source| source.path().to_string_lossy() == claim.file)?;
+    let text = source.text();
+    let start = claim.write.site.start as usize;
+    let end = (claim.write.site.end as usize).min(text.len());
+    let line_start = text
+        .get(..start)?
+        .rfind('\n')
+        .map_or(0, |offset| offset + 1);
+    let line_end = text
+        .get(line_start..)
+        .and_then(|rest| rest.find('\n'))
+        .map_or(text.len(), |offset| line_start + offset);
+    let line_text = text.get(line_start..line_end)?.to_owned();
+    let line_number = text.get(..start)?.matches('\n').count() + 1;
+    Some((
+        line_number,
+        line_text,
+        start - line_start,
+        end.saturating_sub(start)
+    ))
+}
+
+/// File of a claim, shortened to its last two components so the header
+/// stays readable.
+fn relative_file(claim: &OutputClaim) -> String {
+    let parts: Vec<&str> = claim.file.split('/').collect();
+    parts
+        .len()
+        .checked_sub(2)
+        .map_or_else(|| claim.file.clone(), |index| parts[index..].join("/"))
 }
 
 /// The counts the change moves, each with the fact behind it.
