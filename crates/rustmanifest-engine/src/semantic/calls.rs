@@ -40,7 +40,12 @@ pub struct ResolutionContext {
     pub ext_traits:  BTreeMap<String, Vec<(String, String)>>,
     /// Trait name to its first supertrait, so dispatch on an extension
     /// trait's receiver falls through to the supertrait's implementors.
-    pub supertraits: BTreeMap<String, String>
+    pub supertraits: BTreeMap<String, String>,
+    /// Cargo build target of every source, by source index. An edge into
+    /// a target the caller does not compile with is impossible, so such
+    /// candidates are dropped before uniqueness is judged. An empty
+    /// vector disables the check, keeping hand-built contexts permissive.
+    pub targets:     Vec<Target>
 }
 
 /// Builds the full resolution context over `sources`.
@@ -107,7 +112,115 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
         segments: resolution_segments(sources),
         trait_impls,
         ext_traits,
-        supertraits
+        supertraits,
+        targets: sources
+            .iter()
+            .map(|source| Target::of_path(&source.path().to_string_lossy()))
+            .collect()
+    }
+}
+
+/// Cargo build target one source file compiles into.
+///
+/// Targets are separate compilation units: a library function cannot
+/// call a function defined in the crate's `tests`, `benches`, or
+/// `examples` directory, and two integration test files are two crates
+/// that cannot call each other. Resolution reads this to discard
+/// candidates that are unreachable by construction — a `Type::method`
+/// or bare method name is only a match when the caller compiles
+/// together with it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Target {
+    /// Path of the crate directory the target belongs to.
+    root: String,
+    /// Which cargo target directory the file sits under.
+    kind: TargetKind,
+    /// The individual target inside a multi-target directory: the file
+    /// stem of a top-level `tests/foo.rs`, or the directory name of a
+    /// `tests/foo/main.rs`. `None` marks a shared module below the
+    /// directory, which any target of that kind may mount.
+    unit: Option<String>
+}
+
+/// Which cargo target directory a source file sits under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TargetKind {
+    /// Library or binary sources — everything under `src`, plus files
+    /// outside a recognized target directory, which stay permissive.
+    Library,
+    /// Integration tests under `tests`.
+    Tests,
+    /// Benchmarks under `benches`.
+    Benches,
+    /// Examples under `examples`.
+    Examples
+}
+
+impl Target {
+    /// Derives the build target of one source path.
+    #[must_use]
+    pub fn of_path(path: &str) -> Self {
+        let normalized = path.replace('\\', "/");
+        let components: Vec<&str> = normalized.split('/').filter(|c| !c.is_empty()).collect();
+        let marked = components.iter().enumerate().find_map(|(at, component)| {
+            let kind = match *component {
+                "src" => TargetKind::Library,
+                "tests" => TargetKind::Tests,
+                "benches" => TargetKind::Benches,
+                "examples" => TargetKind::Examples,
+                _ => return None
+            };
+            Some((at, kind))
+        });
+        let Some((at, kind)) = marked else {
+            let root = components
+                .len()
+                .checked_sub(1)
+                .map_or_else(String::new, |end| components[..end].join("/"));
+            return Self {
+                root,
+                kind: TargetKind::Library,
+                unit: None
+            };
+        };
+        Self {
+            root: components[..at].join("/"),
+            kind,
+            unit: unit_of(&components[at + 1..])
+        }
+    }
+
+    /// Returns whether a caller in this target can reach a definition in
+    /// `other`.
+    ///
+    /// The library of any crate is linkable from anywhere in the
+    /// workspace. Every other target is private to itself: reachable
+    /// only from the same crate directory, the same target kind, and the
+    /// same unit — with a shared module below the directory, which
+    /// several units may mount, admitted by either side.
+    #[must_use]
+    fn reaches(&self, other: &Self) -> bool {
+        if other.kind == TargetKind::Library {
+            return true;
+        }
+        if self.kind != other.kind || self.root != other.root {
+            return false;
+        }
+        match (&self.unit, &other.unit) {
+            (Some(ours), Some(theirs)) => ours == theirs,
+            _ => true
+        }
+    }
+}
+
+/// Names the individual target inside a cargo target directory: a
+/// top-level `foo.rs` or a `foo/main.rs`. Anything deeper is a shared
+/// module rather than a target of its own.
+fn unit_of(rest: &[&str]) -> Option<String> {
+    match rest {
+        [only] => only.strip_suffix(".rs").map(ToOwned::to_owned),
+        [directory, "main.rs"] => Some((*directory).to_owned()),
+        _ => None
     }
 }
 
@@ -294,53 +407,63 @@ pub fn call_graph_with(
                 },
                 |method| by_method.get(method)
             );
-            match matches {
-                Some(indices) if indices.len() == 1 => {
-                    resolved += 1;
-                    if !edges[index].contains(&indices[0]) {
-                        edges[index].push(indices[0]);
+            let matches = matches.map(|indices| linkable(context, facts, index, indices));
+            if let Some([only]) = matches.as_deref() {
+                resolved += 1;
+                if !edges[index].contains(only) {
+                    edges[index].push(*only);
+                }
+                continue;
+            }
+            let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(o, m)| {
+                linkable(
+                    context,
+                    facts,
+                    index,
+                    &dispatch_targets(o, m, context, &by_qualified)
+                )
+            });
+            if !targets.is_empty() {
+                let ambiguous = targets.len() > 1;
+                for target in targets {
+                    if ambiguous {
+                        possibilistic.insert((index, target));
+                    }
+                    if !edges[index].contains(&target) {
+                        edges[index].push(target);
                     }
                 }
-                _ => {
-                    let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(o, m)| {
-                        dispatch_targets(o, m, context, &by_qualified)
-                    });
-                    if !targets.is_empty() {
-                        let ambiguous = targets.len() > 1;
-                        for target in targets {
-                            if ambiguous {
-                                possibilistic.insert((index, target));
-                            }
-                            if !edges[index].contains(&target) {
-                                edges[index].push(target);
-                            }
-                        }
-                        resolved += 1;
-                        continue;
-                    }
-                    unresolved += 1;
-                    if let Some(method) = candidate.strip_prefix("?::") {
-                        if by_method.contains_key(method) {
-                            unknown_receiver += 1;
-                        } else {
-                            external += 1;
-                        }
-                    } else if candidate.rsplit_once("::").map_or_else(
-                        || !by_bare_free.contains_key(candidate.as_str()),
-                        |(owner, _)| {
-                            !workspace_owners.contains(owner)
-                                && !module_segments.contains(owner)
-                                && !context.trait_impls.contains_key(owner)
-                        }
-                    ) {
-                        external += 1;
-                    }
+                resolved += 1;
+                continue;
+            }
+            unresolved += 1;
+            if let Some(method) = candidate.strip_prefix("?::") {
+                let reachable = by_method
+                    .get(method)
+                    .is_some_and(|indices| !linkable(context, facts, index, indices).is_empty());
+                if reachable {
+                    unknown_receiver += 1;
+                } else {
+                    external += 1;
                 }
+            } else if candidate.rsplit_once("::").map_or_else(
+                || !by_bare_free.contains_key(candidate.as_str()),
+                |(owner, _)| {
+                    !workspace_owners.contains(owner)
+                        && !module_segments.contains(owner)
+                        && !context.trait_impls.contains_key(owner)
+                }
+            ) {
+                external += 1;
             }
         }
         edges[index].sort_unstable();
     }
-    let indexed = overlay.map_or_else(BTreeSet::new, |overlay| apply_overlay(&mut edges, overlay));
+    let indexed = overlay.map_or_else(BTreeSet::new, |overlay| {
+        apply_overlay(&mut edges, overlay, &|caller, callee| {
+            !linkable(context, facts, caller, &[callee]).is_empty()
+        })
+    });
     CallGraph {
         edges,
         resolved,
@@ -350,6 +473,39 @@ pub fn call_graph_with(
         indexed,
         possibilistic
     }
+}
+
+/// Keeps only the candidates the caller's build target can link
+/// against, so an impossible edge never reaches the uniqueness decision.
+///
+/// A context without target information — one built by hand rather than
+/// from sources — admits everything, which keeps the check an added
+/// constraint rather than a hidden dependency.
+fn linkable(
+    context: &ResolutionContext,
+    facts: &[FunctionFacts],
+    caller: usize,
+    candidates: &[usize]
+) -> Vec<usize> {
+    if context.targets.is_empty() {
+        return candidates.to_vec();
+    }
+    let Some(from) = facts
+        .get(caller)
+        .and_then(|fact| context.targets.get(fact.source))
+    else {
+        return candidates.to_vec();
+    };
+    candidates
+        .iter()
+        .copied()
+        .filter(|&callee| {
+            facts
+                .get(callee)
+                .and_then(|fact| context.targets.get(fact.source))
+                .is_none_or(|to| from.reaches(to))
+        })
+        .collect()
 }
 
 /// Resolves an unmatched `Owner::method` candidate through the trait
@@ -456,10 +612,21 @@ fn name_tables(facts: &[FunctionFacts]) -> NameTables<'_> {
 /// edges the overlay added beyond the ones already present, as
 /// `(caller, callee)` pairs — the provenance record a consumer reads to
 /// tell an index-resolved edge from a syntactic one.
-fn apply_overlay(edges: &mut [Vec<usize>], overlay: &[Vec<usize>]) -> BTreeSet<(usize, usize)> {
+///
+/// `admits` holds the same build-target constraint the syntactic
+/// resolution obeys, so the index cannot introduce an edge across a
+/// target boundary either.
+fn apply_overlay(
+    edges: &mut [Vec<usize>],
+    overlay: &[Vec<usize>],
+    admits: &dyn Fn(usize, usize) -> bool
+) -> BTreeSet<(usize, usize)> {
     let mut added = BTreeSet::new();
     for (index, callees) in overlay.iter().enumerate().take(edges.len()) {
         for &callee in callees {
+            if !admits(index, callee) {
+                continue;
+            }
             if !edges[index].contains(&callee) {
                 edges[index].push(callee);
                 added.insert((index, callee));
@@ -562,6 +729,72 @@ mod tests {
         assert!(callees.contains(&index_of(&all, "Ext::write_all")));
         let effects = super::transitive_effects(&all, &graph);
         assert!(effects[index_of(&all, "go")].contains(&Effect::Network));
+    }
+
+    /// Library code that calls a method on an untyped receiver next to a
+    /// crate whose only definition of that name lives in its test target.
+    fn library_and_test_target() -> [Source; 2] {
+        [
+            Source::new(
+                PathBuf::from("crates/demo/src/lib.rs"),
+                "pub struct Conn;\nimpl Conn { pub fn read_head(&self, headers: Headers) { \
+                 headers.get(TE); } }"
+                    .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("crates/demo/tests/server.rs"),
+                "struct TestClient;\nimpl TestClient { fn get(&self) { \
+                 std::net::TcpStream::connect(\"h\").ok(); } }\nfn drive(client: TestClient) { \
+                 client.get(); }"
+                    .to_owned()
+            )
+        ]
+    }
+
+    #[test]
+    fn a_library_call_never_binds_to_a_test_target_definition() {
+        let sources = library_and_test_target();
+        let all = behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        let caller = index_of(&all, "Conn::read_head");
+        assert!(
+            graph.callees(caller).is_empty(),
+            "the only workspace `get` compiles into a different target"
+        );
+        assert!(!transitive_effects(&all, &graph)[caller].contains(&Effect::Network));
+    }
+
+    #[test]
+    fn a_call_inside_one_test_target_still_resolves() {
+        let sources = library_and_test_target();
+        let all = behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        let caller = index_of(&all, "drive");
+        assert!(
+            graph
+                .callees(caller)
+                .contains(&index_of(&all, "TestClient::get"))
+        );
+        assert!(transitive_effects(&all, &graph)[caller].contains(&Effect::Network));
+    }
+
+    #[test]
+    fn two_integration_test_files_are_two_crates_that_cannot_call_each_other() {
+        let sources = [
+            Source::new(
+                PathBuf::from("crates/demo/tests/one.rs"),
+                "struct Client;\nimpl Client { fn get(&self) { \
+                 std::net::TcpStream::connect(\"h\").ok(); } }"
+                    .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("crates/demo/tests/two.rs"),
+                "fn drive(client: Other) { client.get(); }".to_owned()
+            )
+        ];
+        let all = behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        assert!(graph.callees(index_of(&all, "drive")).is_empty());
     }
 
     #[test]
