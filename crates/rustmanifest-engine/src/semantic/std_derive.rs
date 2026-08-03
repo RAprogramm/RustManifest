@@ -29,85 +29,29 @@
 //! is the honest outcome — the alternative is exactly the hand-written
 //! constant this module exists to remove.
 
-use std::path::{Path, PathBuf};
+mod buffering;
+mod capacity;
+mod citation;
+mod documentation;
+mod evidence;
+mod expression;
+mod fact;
+mod toolchain;
 
-use rustmanifest_schema::Range;
-use syn::spanned::Spanned;
+use std::path::Path;
 
-use super::{behavior::behavior, expr::impl_type_name};
+use self::{
+    capacity::buffer_capacity,
+    documentation::{DOC_SOURCES, doc_quote},
+    evidence::Evidence,
+    expression::ExpressionKind
+};
+pub use self::{
+    fact::{StdFact, StdOutputKnowledge},
+    toolchain::std_source_root
+};
+use super::behavior::behavior;
 use crate::source::Source;
-
-/// One property of the standard output path, with the exact expression
-/// that proves it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StdFact {
-    /// Property name, as the forms refer to it. A property that holds
-    /// per stream carries the stream after a colon.
-    pub property: String,
-    /// What the derivation read, spelled with the names it read there.
-    pub observed: String,
-    /// File the evidence lives in.
-    pub file:     PathBuf,
-    /// Byte range of the proving expression itself.
-    pub range:    Range,
-    /// The library's own documentation sentence for this property, read
-    /// from the doc comment of the item that declares it. `None` when
-    /// the library documents nothing about it, which is stated rather
-    /// than filled in.
-    pub doc:      Option<DocQuote>,
-    /// One-based line of the proving expression.
-    pub line:     usize,
-    /// The library's own text at [`StdFact::range`], with runs of
-    /// whitespace collapsed onto one line. This is the evidence a trace
-    /// step shows: the source itself, never a restatement of it.
-    pub snippet:  String
-}
-
-/// One sentence the library writes about itself, with its location.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DocQuote {
-    /// The sentence, as written in the library's doc comment.
-    pub text: String,
-    /// File the sentence lives in.
-    pub file: PathBuf,
-    /// One-based line of the sentence.
-    pub line: usize
-}
-
-/// Everything derived about the print path of the active toolchain.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StdOutputKnowledge {
-    /// Facts in derivation order.
-    pub facts: Vec<StdFact>
-}
-
-impl StdOutputKnowledge {
-    /// Whether a property was derived.
-    #[must_use]
-    pub fn has(&self, property: &str) -> bool {
-        self.facts.iter().any(|fact| fact.property == property)
-    }
-
-    /// The fact for one property, when derived.
-    #[must_use]
-    pub fn fact(&self, property: &str) -> Option<&StdFact> {
-        self.facts.iter().find(|fact| fact.property == property)
-    }
-}
-
-/// Path of the standard library's source tree for the active toolchain,
-/// when the component is installed.
-#[must_use]
-pub fn std_source_root() -> Option<PathBuf> {
-    let output = std::process::Command::new("rustc")
-        .arg("--print")
-        .arg("sysroot")
-        .output()
-        .ok()?;
-    let sysroot = String::from_utf8(output.stdout).ok()?;
-    let root = Path::new(sysroot.trim()).join("lib/rustlib/src/rust/library");
-    root.is_dir().then_some(root)
-}
 
 /// The two standard streams: the handle type the library declares for
 /// each one, and the name a per-stream property carries.
@@ -117,18 +61,6 @@ const HANDLES: [(&str, &str); 2] = [("Stdout", "stdout"), ("Stderr", "stderr")];
 /// stream it is handed, which is why the properties read out of it hold
 /// for both streams and carry no stream in their name.
 const PRINT_FUNCTION: &str = "print_to";
-
-/// Writer types this derivation recognizes as holding a buffer, with the
-/// discipline each one implements.
-const BUFFERING_WRITERS: [(&str, &str); 2] = [
-    ("LineWriter", "line-buffered"),
-    ("BufWriter", "block-buffered")
-];
-
-/// Types that hand their bytes straight to the operating system handle.
-/// A chain ending in one of them, naming no buffering writer on the way,
-/// buffers nothing.
-const RAW_HANDLES: [&str; 2] = ["StdoutRaw", "StderrRaw"];
 
 /// Derives what the print path guarantees, by reading the library's own
 /// standard-output module.
@@ -208,429 +140,6 @@ pub fn output_knowledge(root: &Path) -> StdOutputKnowledge {
     }
 }
 
-/// Where each property's own documentation sentence lives in the
-/// library, and the word that identifies the sentence inside it.
-///
-/// The library documents its own guarantees; a finding that cites the
-/// code without the sentence beside it leaves the reader to take the
-/// analyzer's word for what the code means. Both are quoted, and a
-/// property whose sentence cannot be found carries none rather than a
-/// substitute written here.
-const DOC_SOURCES: [(&str, &str, &str, &str); 4] = [
-    (
-        "panic-on-failure",
-        "std/src/macros.rs",
-        "println",
-        "Panics if writing"
-    ),
-    ("format-machinery", "std/src/macros.rs", "println", "format"),
-    (
-        "lock-per-call:stdout",
-        "std/src/io/stdio.rs",
-        "Stdout",
-        "lock"
-    ),
-    (
-        "lock-per-call:stderr",
-        "std/src/io/stdio.rs",
-        "Stderr",
-        "lock"
-    )
-];
-
-/// Capacity the buffering writer reserves when the stream builds it,
-/// read from the literal the library passes to its own constructor.
-///
-/// The number is the heap the first write to the stream costs, and it is
-/// the library's number, not one written here: a constructor that stops
-/// passing a literal yields nothing rather than a stale constant.
-fn buffer_capacity(root: &Path) -> Option<StdFact> {
-    let path = root.join("std/src/io/buffered/linewriter.rs");
-    let text = std::fs::read_to_string(&path).ok()?;
-    let parsed = syn::parse_file(&text).ok()?;
-    let mut items = Vec::new();
-    crate::ast::flattened(&parsed.items, &mut items);
-    for item in items {
-        let syn::Item::Impl(block) = item else {
-            continue;
-        };
-        for member in &block.items {
-            let syn::ImplItem::Fn(method) = member else {
-                continue;
-            };
-            if method.sig.ident != "new" {
-                continue;
-            }
-            let Some((capacity, range)) = capacity_argument(&method.block) else {
-                continue;
-            };
-            let line = text
-                .get(..range.start as usize)
-                .map_or(1, |before| before.matches('\n').count() + 1);
-            return Some(StdFact {
-                property: "buffer-capacity".to_owned(),
-                observed: capacity.to_string(),
-                file: path,
-                range,
-                line,
-                snippet: text
-                    .get(range.start as usize..range.end as usize)
-                    .unwrap_or_default()
-                    .trim()
-                    .to_owned(),
-                doc: None
-            });
-        }
-    }
-    None
-}
-
-/// The capacity literal a body passes to a with-capacity constructor.
-fn capacity_argument(block: &syn::Block) -> Option<(u64, Range)> {
-    use syn::spanned::Spanned;
-
-    struct Locate {
-        found: Option<(u64, Range)>
-    }
-    impl<'ast> syn::visit::Visit<'ast> for Locate {
-        fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
-            if let syn::Expr::Path(path) = call.func.as_ref()
-                && path
-                    .path
-                    .segments
-                    .last()
-                    .is_some_and(|segment| segment.ident == "with_capacity")
-                && let Some(syn::Expr::Lit(literal)) = call.args.first()
-                && let syn::Lit::Int(value) = &literal.lit
-                && let Ok(capacity) = value.base10_parse::<u64>()
-                && self.found.is_none()
-            {
-                let span = call.span().byte_range();
-                self.found = Some((
-                    capacity,
-                    Range {
-                        start: u32::try_from(span.start).unwrap_or(u32::MAX),
-                        end:   u32::try_from(span.end).unwrap_or(u32::MAX)
-                    }
-                ));
-            }
-            syn::visit::visit_expr_call(self, call);
-        }
-    }
-    let mut locate = Locate {
-        found: None
-    };
-    syn::visit::Visit::visit_block(&mut locate, block);
-    locate.found
-}
-
-/// Reads the library's own sentence for one property.
-///
-/// The item is located by name in the named file and its doc comment is
-/// searched for the first sentence carrying the identifying word. A file
-/// that does not parse, an item that is absent, or a doc comment that
-/// never mentions the word all yield nothing.
-fn doc_quote(root: &Path, file: &str, item_name: &str, keyword: &str) -> Option<DocQuote> {
-    let path = root.join(file);
-    let text = std::fs::read_to_string(&path).ok()?;
-    let parsed = syn::parse_file(&text).ok()?;
-    let mut items = Vec::new();
-    crate::ast::flattened(&parsed.items, &mut items);
-    for item in items {
-        let (attrs, name) = match item {
-            syn::Item::Macro(declared) => (
-                &declared.attrs,
-                declared
-                    .ident
-                    .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_default()
-            ),
-            syn::Item::Struct(declared) => (&declared.attrs, declared.ident.to_string()),
-            syn::Item::Fn(declared) => (&declared.attrs, declared.sig.ident.to_string()),
-            _ => continue
-        };
-        if name != item_name {
-            continue;
-        }
-        if let Some(quote) = doc_sentence(attrs, keyword, &text, &path) {
-            return Some(quote);
-        }
-    }
-    None
-}
-
-/// First doc line carrying the identifying word, with its location.
-fn doc_sentence(
-    attrs: &[syn::Attribute],
-    keyword: &str,
-    text: &str,
-    path: &Path
-) -> Option<DocQuote> {
-    for attribute in attrs {
-        if !attribute.path().is_ident("doc") {
-            continue;
-        }
-        let syn::Meta::NameValue(pair) = &attribute.meta else {
-            continue;
-        };
-        let syn::Expr::Lit(literal) = &pair.value else {
-            continue;
-        };
-        let syn::Lit::Str(line) = &literal.lit else {
-            continue;
-        };
-        let sentence = line.value();
-        let trimmed = sentence.trim();
-        if trimmed.is_empty() || !trimmed.contains(keyword) {
-            continue;
-        }
-        let located = text.find(trimmed).map_or(1, |offset| {
-            text.get(..offset)
-                .map_or(1, |before| before.matches('\n').count() + 1)
-        });
-        return Some(DocQuote {
-            text: trimmed.to_owned(),
-            file: path.to_path_buf(),
-            line: located
-        });
-    }
-    None
-}
-
-/// The library file under derivation, parsed once and read from many
-/// times.
-struct Evidence<'a> {
-    /// Path the facts cite.
-    file:  &'a Path,
-    /// Full text, the only source of a quoted snippet.
-    text:  &'a str,
-    /// Every item of the file, modules flattened.
-    items: &'a [&'a syn::Item]
-}
-
-impl Evidence<'_> {
-    /// Builds one fact, resolving the line and quoting the library's own
-    /// text at the proving range.
-    fn fact(&self, property: &str, observed: &str, range: Range) -> StdFact {
-        StdFact {
-            property: property.to_owned(),
-            observed: observed.to_owned(),
-            file: self.file.to_path_buf(),
-            range,
-            line: self
-                .text
-                .get(..range.start as usize)
-                .map_or(1, |before| before.matches('\n').count() + 1),
-            snippet: quoted(self.text, range),
-            doc: None
-        }
-    }
-
-    /// Buffering of one stream, read from the writer chain its handle
-    /// type declares. A chain naming a writer this derivation does not
-    /// recognize yields nothing at all rather than a guess.
-    fn buffering(&self, handle: &str, stream: &str) -> Option<StdFact> {
-        let (chain, range) = self.writer_chain(handle)?;
-        let kind = buffering_kind(&chain)?;
-        Some(self.fact(
-            &format!("{kind}:{stream}"),
-            &format!(
-                "the `{handle}` handle declares the writer chain `{}`",
-                chain.join(" -> ")
-            ),
-            range
-        ))
-    }
-
-    /// Type names the handle's own field declares, outermost first, with
-    /// the byte range of that declaration.
-    fn writer_chain(&self, handle: &str) -> Option<(Vec<String>, Range)> {
-        for item in self.items {
-            let syn::Item::Struct(declared) = item else {
-                continue;
-            };
-            if declared.ident != handle {
-                continue;
-            }
-            for field in &declared.fields {
-                let names = type_names(&field.ty);
-                if names.is_empty() {
-                    continue;
-                }
-                return Some((names, byte_range(&field.span().byte_range())));
-            }
-        }
-        None
-    }
-
-    /// Byte range of a proving expression inside a free function's body.
-    fn free_expression(&self, function: &str, kind: ExpressionKind) -> Option<Range> {
-        for item in self.items {
-            let syn::Item::Fn(declared) = item else {
-                continue;
-            };
-            if declared.sig.ident != function {
-                continue;
-            }
-            if let Some(range) = locate(&declared.block, kind) {
-                return Some(range);
-            }
-        }
-        None
-    }
-
-    /// Byte range of a proving expression inside a method written for
-    /// the named type, across every implementation block that type has:
-    /// the library splits the write trait between a handle and a borrow
-    /// of it, and the proving call sits in the borrow's block.
-    fn method_expression(&self, owner: &str, method: &str, kind: ExpressionKind) -> Option<Range> {
-        for item in self.items {
-            let syn::Item::Impl(block) = item else {
-                continue;
-            };
-            if impl_type_name(block).as_deref() != Some(owner) {
-                continue;
-            }
-            for member in &block.items {
-                let syn::ImplItem::Fn(declared) = member else {
-                    continue;
-                };
-                if declared.sig.ident != method {
-                    continue;
-                }
-                if let Some(range) = locate(&declared.block, kind) {
-                    return Some(range);
-                }
-            }
-        }
-        None
-    }
-}
-
-/// Buffering discipline a writer chain implements. A chain naming no
-/// recognized writer and ending outside the raw handles yields `None`:
-/// an unknown writer is reported as no knowledge, never as no buffer.
-fn buffering_kind(chain: &[String]) -> Option<&'static str> {
-    if let Some((_, kind)) = BUFFERING_WRITERS
-        .iter()
-        .find(|(writer, _)| chain.iter().any(|name| name == writer))
-    {
-        return Some(kind);
-    }
-    let last = chain.last()?;
-    RAW_HANDLES.contains(&last.as_str()).then_some("unbuffered")
-}
-
-/// The library's own text at a range, with runs of whitespace collapsed
-/// so one quote stays one line.
-fn quoted(text: &str, range: Range) -> String {
-    text.get(range.start as usize..range.end as usize)
-        .unwrap_or_default()
-        .split_whitespace()
-        .collect::<Vec<&str>>()
-        .join(" ")
-}
-
-/// A span's byte range, clamped to the width the schema records.
-fn byte_range(span: &std::ops::Range<usize>) -> Range {
-    Range {
-        start: u32::try_from(span.start).unwrap_or(u32::MAX),
-        end:   u32::try_from(span.end).unwrap_or(u32::MAX)
-    }
-}
-
-/// Which proving expression to locate inside a function body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ExpressionKind {
-    /// A method call named `lock`.
-    LockCall,
-    /// A method call named `write_fmt`.
-    FormatWrite,
-    /// A panic-family macro invocation.
-    Panic
-}
-
-/// First proving expression of one kind inside a body.
-fn locate(block: &syn::Block, kind: ExpressionKind) -> Option<Range> {
-    let mut scan = Locate {
-        kind,
-        found: None
-    };
-    syn::visit::Visit::visit_block(&mut scan, block);
-    scan.found
-}
-
-/// Visitor locating one proving expression.
-struct Locate {
-    /// Expression being looked for.
-    kind:  ExpressionKind,
-    /// Byte range of the first match.
-    found: Option<Range>
-}
-
-impl Locate {
-    /// Records the first match only.
-    fn note(&mut self, span: &std::ops::Range<usize>) {
-        if self.found.is_none() {
-            self.found = Some(byte_range(span));
-        }
-    }
-}
-
-impl<'ast> syn::visit::Visit<'ast> for Locate {
-    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        let wanted = match self.kind {
-            ExpressionKind::LockCall => "lock",
-            ExpressionKind::FormatWrite => "write_fmt",
-            ExpressionKind::Panic => ""
-        };
-        if !wanted.is_empty() && call.method == wanted {
-            self.note(&call.span().byte_range());
-        }
-        syn::visit::visit_expr_method_call(self, call);
-    }
-
-    fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
-        if self.kind == ExpressionKind::Panic
-            && invocation
-                .path
-                .segments
-                .last()
-                .is_some_and(|segment| segment.ident == "panic")
-        {
-            self.note(&invocation.span().byte_range());
-        }
-        syn::visit::visit_macro(self, invocation);
-    }
-}
-
-/// Every type name appearing in a declared type, outermost first,
-/// looking through references, parentheses and groups so a handle field
-/// written as a borrow still yields its writer chain.
-fn type_names(declared: &syn::Type) -> Vec<String> {
-    let mut names = Vec::new();
-    match declared {
-        syn::Type::Reference(borrowed) => return type_names(&borrowed.elem),
-        syn::Type::Paren(inner) => return type_names(&inner.elem),
-        syn::Type::Group(inner) => return type_names(&inner.elem),
-        syn::Type::Path(path) => {
-            for segment in &path.path.segments {
-                names.push(segment.ident.to_string());
-                if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
-                    for argument in &arguments.args {
-                        if let syn::GenericArgument::Type(inner) = argument {
-                            names.extend(type_names(inner));
-                        }
-                    }
-                }
-            }
-        }
-        _ => ()
-    }
-    names
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -639,7 +148,7 @@ fn type_names(declared: &syn::Type) -> Vec<String> {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{output_knowledge, std_source_root};
+    use super::{citation::quoted, output_knowledge, std_source_root};
 
     #[test]
     fn the_print_path_properties_come_from_the_library_itself() {
@@ -698,7 +207,7 @@ mod tests {
         assert!(!knowledge.facts.is_empty());
         for fact in &knowledge.facts {
             let text = std::fs::read_to_string(&fact.file).unwrap();
-            let quoted = super::quoted(&text, fact.range);
+            let quoted = quoted(&text, fact.range);
             assert_eq!(fact.snippet, quoted);
             assert!(!fact.snippet.is_empty());
             assert!(!fact.snippet.contains('\n'));
@@ -731,29 +240,5 @@ mod tests {
         let stdout = knowledge.fact("lock-per-call:stdout").unwrap();
         let stderr = knowledge.fact("lock-per-call:stderr").unwrap();
         assert_ne!(stdout.range, stderr.range);
-    }
-
-    #[test]
-    fn a_writer_chain_is_read_through_a_borrow_and_judged_by_its_own_names() {
-        let declared: syn::Type =
-            syn::parse_str("&'static ReentrantLock<RefCell<LineWriter<StdoutRaw>>>").unwrap();
-        assert_eq!(
-            super::type_names(&declared),
-            ["ReentrantLock", "RefCell", "LineWriter", "StdoutRaw"]
-        );
-        assert_eq!(
-            super::buffering_kind(&super::type_names(&declared)),
-            Some("line-buffered")
-        );
-
-        let raw: syn::Type = syn::parse_str("&'static ReentrantLock<RefCell<StderrRaw>>").unwrap();
-        assert_eq!(
-            super::buffering_kind(&super::type_names(&raw)),
-            Some("unbuffered")
-        );
-
-        let unknown: syn::Type =
-            syn::parse_str("&'static ReentrantLock<SomeFutureWriter>").unwrap();
-        assert_eq!(super::buffering_kind(&super::type_names(&unknown)), None);
     }
 }

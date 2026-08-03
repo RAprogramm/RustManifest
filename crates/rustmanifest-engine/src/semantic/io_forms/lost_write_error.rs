@@ -1,0 +1,88 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! The entry point that writes through the print family while returning
+//! nothing, so a failed write becomes a panic rather than an exit code.
+
+use super::{
+    catalogue::{WRITE_ERROR, library_knowledge, support},
+    finding::{detail, trace},
+    shipped_code::shipped
+};
+use crate::{
+    semantic::{behavior::behavior, entry::entry_points, insight::Insight},
+    source::Source
+};
+
+/// Reports an entry point that writes through the print family while
+/// returning nothing, so a failed write becomes a panic rather than an
+/// exit code.
+pub(in crate::semantic) fn lost_write_error_insights(sources: &[Source]) -> Vec<Insight> {
+    let library = library_knowledge();
+    let facts = behavior(sources);
+    let mut found = Vec::new();
+    for entry in entry_points(sources, &facts) {
+        let Some(fact) = facts.get(entry.fact) else {
+            continue;
+        };
+        if entry.returns || !shipped(sources, fact) {
+            continue;
+        }
+        let Some((write, derived)) = fact
+            .output_writes
+            .iter()
+            .find_map(|write| support(&WRITE_ERROR, write.stream, library).map(|of| (write, of)))
+        else {
+            continue;
+        };
+        found.push(Insight::new(
+            fact.source,
+            write.site,
+            detail(
+                &WRITE_ERROR,
+                &fact.function,
+                &format!(
+                    "the process entry point writes to {} and declares no return type",
+                    write.stream
+                ),
+                1
+            ),
+            trace(
+                &format!("`{}` declares no return type", fact.function),
+                "the entry signature returns nothing, so no failure can leave it",
+                derived
+            )
+        ));
+    }
+    found
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::lost_write_error_insights;
+    use crate::source::Source;
+
+    fn sources(text: &str) -> Vec<Source> {
+        vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
+    }
+
+    #[test]
+    fn an_entry_point_losing_the_write_error_is_reported() {
+        let lost = lost_write_error_insights(&sources("fn main() {\n    println!(\"hi\");\n}"));
+        assert_eq!(lost.len(), 1);
+        assert!(lost[0].detail.contains("declares no return type"));
+
+        let returned = lost_write_error_insights(&sources(
+            "fn main() -> std::io::Result<()> {\n    println!(\"hi\");\n    Ok(())\n}"
+        ));
+        assert!(returned.is_empty());
+    }
+}
