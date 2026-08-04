@@ -18,19 +18,24 @@ impl FactCollector {
     pub(super) fn record_called_path(&mut self, call: &syn::ExprCall) {
         use syn::spanned::Spanned;
 
+        let mut reserved = None;
         if let syn::Expr::Path(path) = call.func.as_ref() {
             let segments = &path.path.segments;
             let span = call.span().byte_range();
-            let arguments: Vec<&syn::Expr> = call.args.iter().collect();
             if segments.len() == 1 {
-                self.record_written_call(None, &segments[0].ident.to_string(), &span, &arguments);
+                reserved =
+                    Some(self.reserve_written_call(None, &segments[0].ident.to_string(), &span));
             } else if segments.len() >= 2 {
                 let owner = segments[segments.len() - 2].ident.to_string();
                 let callee = segments[segments.len() - 1].ident.to_string();
-                self.record_written_call(Some(&owner), &callee, &span, &arguments);
+                reserved = Some(self.reserve_written_call(Some(&owner), &callee, &span));
             }
         }
         syn::visit::visit_expr_call(self, call);
+        if let Some(index) = reserved {
+            let arguments: Vec<&syn::Expr> = call.args.iter().collect();
+            self.settle_arguments(index, &arguments);
+        }
     }
 
     /// Records everything one method call carries.
@@ -69,20 +74,21 @@ impl FactCollector {
             use syn::spanned::Spanned;
             call.span().byte_range()
         };
-        let mut written: Vec<&syn::Expr> = vec![call.receiver.as_ref()];
-        written.extend(call.args.iter());
-        match self.expr_type(&call.receiver) {
+        let reserved = match self.expr_type(&call.receiver) {
             Some(owner) => {
                 if let Some(effect) = knowledge::method_effect(&owner, &method)
                     .or_else(|| crate::semantic::std_knowledge::method_effect(&owner, &method))
                 {
                     self.facts.effects.push(effect);
                 }
-                self.record_written_call(Some(&owner), &method, &span, &written);
+                self.reserve_written_call(Some(&owner), &method, &span)
             }
-            None => self.record_written_call(Some("?"), &method, &span, &written)
-        }
+            None => self.reserve_written_call(Some("?"), &method, &span)
+        };
         syn::visit::visit_expr_method_call(self, call);
+        let mut written: Vec<&syn::Expr> = vec![call.receiver.as_ref()];
+        written.extend(call.args.iter());
+        self.settle_arguments(reserved, &written);
     }
 
     /// Records the poll an awaited future stands for, where the future's

@@ -38,6 +38,7 @@ impl FactCollector {
     pub(super) fn collect_return(&mut self, returned: &syn::ExprReturn) {
         use syn::spanned::Spanned;
 
+        syn::visit::visit_expr_return(self, returned);
         let span = returned.span().byte_range();
         match &returned.expr {
             Some(written) => {
@@ -51,7 +52,6 @@ impl FactCollector {
                 Outcome::Plain
             )
         }
-        syn::visit::visit_expr_return(self, returned);
     }
 
     /// Records the failure a `?` hands back.

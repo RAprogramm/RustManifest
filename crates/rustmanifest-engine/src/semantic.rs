@@ -48,6 +48,7 @@ mod role;
 mod scip;
 mod std_derive;
 mod std_knowledge;
+mod summary;
 mod surface;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
@@ -86,6 +87,7 @@ pub use self::{
     role::{Role, role},
     scip::{ScipEdges, ScipError},
     std_derive::{StdFact, StdOutputKnowledge, output_knowledge, std_source_root},
+    summary::{ComposedOrigin, FunctionSummary, ORIGIN_DEPTH, SUMMARY_SET, summaries},
     surface::{FrameworkModel, Route, Surface, surface}
 };
 use crate::{error::EngineError, pragma, source::Source};

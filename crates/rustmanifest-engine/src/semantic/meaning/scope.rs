@@ -22,7 +22,7 @@ use crate::{semantic::behavior::FunctionFacts, source::Source};
 /// directory for a `mod.rs`, and the crate for a crate root. A function
 /// no scope could be read for keeps an empty set, so a qualified
 /// candidate never binds to it by proximity of spelling alone.
-pub(super) fn qualifiers_by_fact(
+pub(in crate::semantic) fn qualifiers_by_fact(
     sources: &[Source],
     facts: &[FunctionFacts]
 ) -> Vec<BTreeSet<String>> {

@@ -53,7 +53,7 @@ impl FactCollector {
                 }
             }
         }
-        self.record_local_origin(local);
         syn::visit::visit_local(self, local);
+        self.record_local_origin(local);
     }
 }

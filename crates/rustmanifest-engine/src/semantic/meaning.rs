@@ -31,7 +31,8 @@ mod weakening;
 use std::collections::BTreeSet;
 
 pub use self::completion::{ExitClaim, completion_rule};
-use self::{reach::reachability, scope::qualifiers_by_fact};
+use self::reach::reachability;
+pub(in crate::semantic) use self::scope::qualifiers_by_fact;
 use super::{
     behavior::{FunctionFacts, Grade, OUTPUT_SINK_SET, OutputWrite, behavior},
     calls::{CallGraph, call_graph, resolution_context},
