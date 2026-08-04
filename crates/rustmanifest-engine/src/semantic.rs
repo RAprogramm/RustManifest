@@ -84,7 +84,8 @@ pub use self::{
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
     meaning::{
-        EntryMeaning, ExitClaim, IntakeClaim, OutputClaim, completion_rule, program_meaning
+        ChoiceClaim, Clause, ComputeClaim, EntryMeaning, ExitClaim, HandbackClaim, IntakeClaim,
+        Narrative, OutputClaim, completion_rule, program_meaning
     },
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},

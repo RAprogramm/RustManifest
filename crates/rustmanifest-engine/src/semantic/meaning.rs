@@ -21,8 +21,10 @@
 //! be diverted by the library's capture hook, and a failed write panics
 //! rather than writing. A claim is therefore about an attempted write.
 
+mod claim;
 mod completion;
 mod intake;
+mod narrative;
 mod payload;
 mod reach;
 mod scope;
@@ -34,8 +36,10 @@ use std::collections::BTreeSet;
 use self::reach::reachability;
 pub(in crate::semantic) use self::scope::qualifiers_by_fact;
 pub use self::{
+    claim::{ChoiceClaim, ComputeClaim, HandbackClaim},
     completion::{ExitClaim, completion_rule},
-    intake::IntakeClaim
+    intake::IntakeClaim,
+    narrative::{Clause, Narrative}
 };
 use super::{
     behavior::{FunctionFacts, Grade, OUTPUT_SINK_SET, OutputWrite, behavior},
@@ -70,22 +74,31 @@ pub struct OutputClaim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntryMeaning {
     /// Path of the binary root declaring the entry.
-    pub file:       String,
+    pub file:         String,
     /// How the entry is declared.
-    pub kind:       EntryKind,
+    pub kind:         EntryKind,
     /// Claims in the order their sites were recorded, one per recorded
     /// write, including the writes no path from this entry reaches —
     /// those carry [`Grade::Unreached`] rather than being dropped.
-    pub claims:     Vec<OutputClaim>,
+    pub claims:       Vec<OutputClaim>,
     /// One claim per recorded read from outside the process, on the same
     /// terms as the write claims.
-    pub intake:     Vec<IntakeClaim>,
+    pub intake:       Vec<IntakeClaim>,
+    /// One claim per recorded operation, on the same terms.
+    pub computations: Vec<ComputeClaim>,
+    /// One claim per recorded choice, on the same terms.
+    pub choices:      Vec<ChoiceClaim>,
+    /// One claim per recorded return position, on the same terms.
+    pub handbacks:    Vec<HandbackClaim>,
+    /// What the entry point does, as one statement or as the parts of
+    /// one.
+    pub narrative:    Narrative,
     /// What the entry's own signature decides about the status the
     /// process leaves behind.
-    pub completion: Completion,
+    pub completion:   Completion,
     /// One claim per recorded site producing a status, on the same terms
     /// as the write claims.
-    pub exits:      Vec<ExitClaim>
+    pub exits:        Vec<ExitClaim>
 }
 
 /// Derives what every entry point of `sources` does.
@@ -131,14 +144,20 @@ fn meaning_of(
             });
         }
     }
-    EntryMeaning {
+    let mut meaning = EntryMeaning {
         file: entry.file.clone(),
         kind: entry.kind,
         claims,
         completion: entry.completion,
         intake: intake::intake_claims(facts, sources, &reach),
+        computations: claim::compute_claims(facts, sources, &reach),
+        choices: claim::choice_claims(facts, sources, &reach),
+        handbacks: claim::handback_claims(facts, sources, &reach),
+        narrative: Narrative::Whole(String::new()),
         exits: exit_claims(facts, sources, &reach)
-    }
+    };
+    meaning.narrative = narrative::narrative_of(&meaning);
+    meaning
 }
 
 /// Builds the status claims of one entry point, one per recorded site.

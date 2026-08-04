@@ -69,12 +69,16 @@ mod tests {
 
     fn silent_entry() -> EntryMeaning {
         EntryMeaning {
-            file:       "src/main.rs".to_owned(),
-            kind:       EntryKind::Plain,
-            claims:     Vec::new(),
-            intake:     Vec::new(),
-            completion: rustmanifest_engine::Completion::Nothing,
-            exits:      Vec::new()
+            file:         "src/main.rs".to_owned(),
+            kind:         EntryKind::Plain,
+            claims:       Vec::new(),
+            intake:       Vec::new(),
+            computations: Vec::new(),
+            choices:      Vec::new(),
+            handbacks:    Vec::new(),
+            narrative:    rustmanifest_engine::Narrative::Whole(String::new()),
+            completion:   rustmanifest_engine::Completion::Nothing,
+            exits:        Vec::new()
         }
     }
 

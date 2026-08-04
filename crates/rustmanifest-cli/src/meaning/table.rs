@@ -7,7 +7,7 @@
 
 use std::fmt::Write as _;
 
-use rustmanifest_engine::{EntryMeaning, Multiplicity, OutputClaim};
+use rustmanifest_engine::{EntryMeaning, Multiplicity, Narrative, OutputClaim};
 
 use super::{
     completion::status_block,
@@ -82,6 +82,7 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
             }
         }
         out.push_str(&status_block(entry, root));
+        out.push_str(&statement(entry));
         out.push('\n');
     }
     if standard_stream_seen {
@@ -91,6 +92,29 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
         );
     }
     out.trim_end().to_owned()
+}
+
+/// What the entry point does, as one statement or as the parts of one.
+///
+/// A clause resting on a refusal does not weaken the whole into vagueness:
+/// the statement decomposes into the clauses that stand on their own, and
+/// the missing fact is named.
+fn statement(entry: &EntryMeaning) -> String {
+    match &entry.narrative {
+        Narrative::Whole(said) => format!("\n  {said}.\n"),
+        Narrative::Parts {
+            refused: (clause, gap),
+            licensed
+        } => {
+            let mut out = format!(
+                "\n  the {clause} clause is not licensed: {gap}. What stands on its own:\n"
+            );
+            for said in licensed {
+                let _ = writeln!(out, "    {said}");
+            }
+            out
+        }
+    }
 }
 
 /// The four columns of one row: certainty, stream, text, function.
@@ -135,12 +159,16 @@ mod tests {
 
     fn silent_entry() -> EntryMeaning {
         EntryMeaning {
-            file:       "src/main.rs".to_owned(),
-            kind:       EntryKind::Plain,
-            claims:     Vec::new(),
-            intake:     Vec::new(),
-            completion: Completion::Nothing,
-            exits:      Vec::new()
+            file:         "src/main.rs".to_owned(),
+            kind:         EntryKind::Plain,
+            claims:       Vec::new(),
+            intake:       Vec::new(),
+            computations: Vec::new(),
+            choices:      Vec::new(),
+            handbacks:    Vec::new(),
+            narrative:    rustmanifest_engine::Narrative::Whole(String::new()),
+            completion:   Completion::Nothing,
+            exits:        Vec::new()
         }
     }
 
