@@ -14,12 +14,10 @@ use super::{
     finding::{detail, trace},
     shipped_code::shipped
 };
-use crate::{
-    semantic::{
-        behavior::{Acquisition, Grade, OutputWrite, behavior},
-        insight::Insight
-    },
-    source::Source
+use crate::semantic::{
+    behavior::{Acquisition, Grade, OutputWrite},
+    insight::Insight,
+    workspace::Workspace
 };
 
 /// Reports functions taking one stream's lock once per print where a
@@ -39,11 +37,12 @@ use crate::{
 /// left-out sites are counted in its trace; where the counted run is too
 /// short to report, nothing is claimed about them, which is the boundary
 /// of this tier and not a judgement that they are fine.
-pub(in crate::semantic) fn lock_run_insights(sources: &[Source]) -> Vec<Insight> {
+pub(in crate::semantic) fn lock_run_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
     let library = library_knowledge();
     let mut found = Vec::new();
-    for fact in behavior(sources) {
-        if !shipped(sources, &fact) {
+    for fact in workspace.facts() {
+        if !shipped(sources, fact) {
             continue;
         }
         for stream in STANDARD_STREAMS {
@@ -163,7 +162,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::lock_run_insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn sources(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
@@ -171,13 +170,15 @@ mod tests {
 
     #[test]
     fn a_run_of_prints_is_reported_and_a_single_print_is_not() {
-        let run = lock_run_insights(&sources(
+        let run = lock_run_insights(&Workspace::new(&sources(
             "fn main() {\n    println!(\"one\");\n    println!(\"two\");\n}"
-        ));
+        )));
         assert_eq!(run.len(), 1);
         assert!(run[0].detail.contains("2 writes to stdout"));
 
-        let single = lock_run_insights(&sources("fn main() {\n    println!(\"one\");\n}"));
+        let single = lock_run_insights(&Workspace::new(&sources(
+            "fn main() {\n    println!(\"one\");\n}"
+        )));
         assert!(single.is_empty());
     }
 
@@ -185,15 +186,15 @@ mod tests {
     /// could not serve both and a print to each is not a run.
     #[test]
     fn the_two_standard_streams_are_never_pooled_into_one_run() {
-        let mixed = lock_run_insights(&sources(
+        let mixed = lock_run_insights(&Workspace::new(&sources(
             "fn main() {\n    println!(\"out\");\n    eprintln!(\"err\");\n}"
-        ));
+        )));
         assert!(mixed.is_empty());
 
-        let both = lock_run_insights(&sources(
+        let both = lock_run_insights(&Workspace::new(&sources(
             "fn main() {\n    println!(\"a\");\n    println!(\"b\");\n    eprintln!(\"c\");\n    \
              eprintln!(\"d\");\n}"
-        ));
+        )));
         assert_eq!(both.len(), 2);
         assert!(both[0].detail.contains("2 writes to stdout"));
         assert!(both[1].detail.contains("2 writes to stderr"));
@@ -204,21 +205,21 @@ mod tests {
     /// ever happen in one execution.
     #[test]
     fn writes_under_branches_are_not_counted_as_a_run() {
-        let exclusive = lock_run_insights(&sources(
+        let exclusive = lock_run_insights(&Workspace::new(&sources(
             "fn main(ok: bool) {\n    if ok { println!(\"yes\"); } else { println!(\"no\"); }\n}"
-        ));
+        )));
         assert!(exclusive.is_empty());
 
-        let arms = lock_run_insights(&sources(
+        let arms = lock_run_insights(&Workspace::new(&sources(
             "fn main(v: Command) {\n    match v {\n        Command::Place(_) => \
              println!(\"placing\"),\n        Command::Cancel(_) => println!(\"cancelling\")\n    \
              }\n}"
-        ));
+        )));
         assert!(arms.is_empty());
 
-        let dead = lock_run_insights(&sources(
+        let dead = lock_run_insights(&Workspace::new(&sources(
             "fn main() {\n    return;\n    println!(\"a\");\n    println!(\"b\");\n}"
-        ));
+        )));
         assert!(dead.is_empty());
     }
 
@@ -226,10 +227,10 @@ mod tests {
     /// reader knows the run reported is not the whole story.
     #[test]
     fn sites_left_out_of_a_run_are_stated_in_the_trace() {
-        let mixed = lock_run_insights(&sources(
+        let mixed = lock_run_insights(&Workspace::new(&sources(
             "fn main(ok: bool) {\n    println!(\"a\");\n    println!(\"b\");\n    if ok { \
              println!(\"c\"); }\n}"
-        ));
+        )));
         assert_eq!(mixed.len(), 1);
         assert!(mixed[0].detail.contains("2 writes to stdout"));
         assert!(mixed[0].trace.iter().any(|step| {
@@ -243,11 +244,11 @@ mod tests {
     /// itself: the lock was taken once, at the binding.
     #[test]
     fn writes_through_a_guard_bound_once_are_not_a_run() {
-        let locked_once = lock_run_insights(&sources(
+        let locked_once = lock_run_insights(&Workspace::new(&sources(
             "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout().lock();\n    \
              out.write_all(b\"one\")?;\n    out.write_all(b\"two\")?;\n    \
              out.write_all(b\"three\")\n}"
-        ));
+        )));
         assert!(locked_once.is_empty());
     }
 
@@ -255,10 +256,10 @@ mod tests {
     /// means every unguarded site before it has already written.
     #[test]
     fn a_run_after_an_early_exit_claims_only_the_paths_that_reach_it() {
-        let weakened = lock_run_insights(&sources(
+        let weakened = lock_run_insights(&Workspace::new(&sources(
             "fn main() -> Result<(), ()> {\n    println!(\"a\");\n    helper()?;\n    \
              println!(\"b\");\n    Ok(())\n}"
-        ));
+        )));
         assert_eq!(weakened.len(), 1);
         assert!(
             weakened[0]

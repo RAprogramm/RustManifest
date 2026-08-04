@@ -25,17 +25,17 @@ mod search;
 
 use self::report::cycle_insight;
 pub(super) use self::{edge::dependency_edges, search::cycles};
-use super::{insight::Insight, module_graph::ModuleGraph};
-use crate::source::Source;
+use super::{insight::Insight, workspace::Workspace};
 
 /// Reports every module dependency cycle of the source slice, anchored at
 /// the `use` edge leaving the first module of the canonical cycle.
-pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
-    let graph = ModuleGraph::from_sources(sources);
-    let edges = dependency_edges(&graph);
-    cycles(&graph, &edges)
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
+    let graph = workspace.modules();
+    let edges = dependency_edges(graph);
+    cycles(graph, &edges)
         .iter()
-        .filter_map(|cycle| cycle_insight(sources, &graph, &edges, cycle))
+        .filter_map(|cycle| cycle_insight(sources, graph, &edges, cycle))
         .collect()
 }
 
@@ -50,7 +50,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -62,7 +62,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::b::Item; } mod b { use std::fmt; pub struct Item; }"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -71,7 +71,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
         )];
-        let found = insights(&sources);
+        let found = insights(&Workspace::new(&sources));
         assert_eq!(found.len(), 1);
         assert_eq!(
             found[0].detail,
@@ -100,7 +100,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item;"),
             source("src/b.rs", "use crate::a::Other;")
         ];
-        let found = insights(&sources);
+        let found = insights(&Workspace::new(&sources));
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].source, 1);
         assert_eq!(found[0].range.start, 0);
@@ -113,7 +113,7 @@ mod tests {
             "src/lib.rs",
             "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }"
         )];
-        let found = insights(&sources);
+        let found = insights(&Workspace::new(&sources));
         assert_eq!(found.len(), 1);
         assert_eq!(
             found[0].detail,
@@ -128,7 +128,7 @@ mod tests {
             "src/lib.rs",
             "use crate::child::Item; mod child { use crate::Error; }"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -137,7 +137,7 @@ mod tests {
             "src/lib.rs",
             "use crate::a::X; mod a { use crate::b::Y; } mod b { use crate::Z; }"
         )];
-        assert_eq!(insights(&sources).len(), 1);
+        assert_eq!(insights(&Workspace::new(&sources)).len(), 1);
     }
 
     #[test]
@@ -146,7 +146,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::a::Thing; use self::Widget; }"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -155,7 +155,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use std::fmt; use serde::Serialize; use crate::nope::Thing; }"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
             source("src/a.rs", "use std::fmt;"),
             source("src/orphan.rs", "use crate::a::Item;")
         ];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -174,7 +174,7 @@ mod tests {
             "rules/fail.rs",
             "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
         )];
-        assert_eq!(insights(&sources).len(), 1);
+        assert_eq!(insights(&Workspace::new(&sources)).len(), 1);
     }
 
     #[test]
@@ -183,11 +183,11 @@ mod tests {
             "src/lib.rs",
             "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }"
         )];
-        let first: Vec<String> = insights(&sources)
+        let first: Vec<String> = insights(&Workspace::new(&sources))
             .into_iter()
             .map(|insight| insight.detail)
             .collect();
-        let second: Vec<String> = insights(&sources)
+        let second: Vec<String> = insights(&Workspace::new(&sources))
             .into_iter()
             .map(|insight| insight.detail)
             .collect();

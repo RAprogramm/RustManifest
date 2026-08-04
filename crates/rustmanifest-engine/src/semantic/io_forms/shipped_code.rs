@@ -53,7 +53,7 @@ mod tests {
         literal_format::literal_format_insights, lock_run::lock_run_insights,
         loop_write::loop_write_insights, lost_write_error::lost_write_error_insights
     };
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     /// Compile-only fixture data for a macro test carries no
     /// `#[cfg(test)]` anywhere — it is a whole file of ordinary items
@@ -67,21 +67,24 @@ mod tests {
             PathBuf::from("crates/thing/tests/cases/pass/commands.rs"),
             body.to_owned()
         )];
-        assert!(lock_run_insights(&fixture).is_empty());
-        assert!(literal_format_insights(&fixture).is_empty());
-        assert!(lost_write_error_insights(&fixture).is_empty());
+        assert!(lock_run_insights(&Workspace::new(&fixture)).is_empty());
+        assert!(literal_format_insights(&Workspace::new(&fixture)).is_empty());
+        assert!(lost_write_error_insights(&Workspace::new(&fixture)).is_empty());
 
         let looped = vec![Source::new(
             PathBuf::from("crates/thing/tests/cases/pass/loop.rs"),
             "pub fn go(v: &[u8]) {\n    for b in v { println!(\"{b}\"); }\n}".to_owned()
         )];
-        assert!(loop_write_insights(&looped).is_empty());
+        assert!(loop_write_insights(&Workspace::new(&looped)).is_empty());
 
         let shipped = vec![Source::new(
             PathBuf::from("crates/thing/src/main.rs"),
             body.to_owned()
         )];
-        assert_eq!(lock_run_insights(&shipped).len(), 1);
-        assert_eq!(lost_write_error_insights(&shipped).len(), 1);
+        assert_eq!(lock_run_insights(&Workspace::new(&shipped)).len(), 1);
+        assert_eq!(
+            lost_write_error_insights(&Workspace::new(&shipped)).len(),
+            1
+        );
     }
 }

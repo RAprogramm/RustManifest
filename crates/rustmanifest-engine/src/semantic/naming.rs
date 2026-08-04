@@ -16,10 +16,10 @@
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    behavior::{Effect, FunctionFacts, behavior},
-    insight::Insight
+    behavior::{Effect, FunctionFacts},
+    insight::Insight,
+    workspace::Workspace
 };
-use crate::source::Source;
 
 /// Leading verbs that promise pure observation.
 const READ_VERBS: [&str; 5] = ["get", "has", "is", "len", "peek"];
@@ -32,13 +32,13 @@ const LIE_EFFECTS: [Effect; 3] = [Effect::Process, Effect::ConsoleIo, Effect::Da
 
 /// Reports functions whose name promises a read while the body provably
 /// writes state or touches the outside world.
-pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let mut found = Vec::new();
-    for fact in behavior(sources) {
+    for fact in workspace.facts() {
         if fact.flags.trait_impl() || fact.flags.test() {
             continue;
         }
-        let Some(verb) = read_promise(&fact) else {
+        let Some(verb) = read_promise(fact) else {
             continue;
         };
         let writes: Vec<&str> = fact
@@ -121,10 +121,11 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn found(text: &str) -> usize {
-        insights(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]).len()
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        insights(&Workspace::new(&sources)).len()
     }
 
     #[test]
@@ -201,12 +202,13 @@ mod tests {
 
     #[test]
     fn trace_carries_the_derivation() {
-        let insights = insights(&[Source::new(
+        let sources = [Source::new(
             PathBuf::from("src/lib.rs"),
             "struct Counter { hits: u64 }\nimpl Counter { fn get_hits(&mut self) -> u64 { \
              self.hits += 1; self.hits } }"
                 .to_owned()
-        )]);
+        )];
+        let insights = insights(&Workspace::new(&sources));
         assert_eq!(insights[0].trace.len(), 3);
         assert!(insights[0].trace[0].fact.contains("read-verb `get`"));
         assert!(insights[0].trace[1].fact.contains("writes [Counter.hits]"));

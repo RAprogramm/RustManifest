@@ -19,19 +19,21 @@ use std::collections::BTreeMap;
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes, std_knowledge::is_copy_type
+    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes, std_knowledge::is_copy_type,
+    workspace::Workspace
 };
-use crate::source::Source;
 
 /// Reports owned parameters that could be shared borrows, one insight per
 /// function with at least one such parameter.
-pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
+    let graph = workspace.types();
     let weights: BTreeMap<String, (Option<u64>, u32)> = shapes(sources)
         .into_iter()
         .map(|shape| (shape.name, (shape.payload, shape.indirections)))
         .collect();
     let mut found = Vec::new();
-    for fact in super::behavior::behavior(sources) {
+    for fact in workspace.facts() {
         if fact.flags.trait_impl() || consuming_by_convention(&fact.function) {
             continue;
         }
@@ -169,12 +171,15 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::{semantic::TypeGraph, source::Source};
+    use crate::{
+        semantic::{TypeGraph, workspace::Workspace},
+        source::Source
+    };
 
     fn found(text: &str) -> usize {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let graph = TypeGraph::from_sources(&sources);
-        insights(&sources, &graph).len()
+        let _graph = TypeGraph::from_sources(&sources);
+        insights(&Workspace::new(&sources)).len()
     }
 
     #[test]
@@ -185,8 +190,8 @@ mod tests {
              report.total }"
                 .to_owned()
         )];
-        let graph = TypeGraph::from_sources(&sources);
-        let all = insights(&sources, &graph);
+        let _graph = TypeGraph::from_sources(&sources);
+        let all = insights(&Workspace::new(&sources));
         assert_eq!(all.len(), 1);
         assert!(
             all[0]
@@ -288,8 +293,8 @@ mod tests {
             "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { report.total }"
                 .to_owned()
         )];
-        let graph = TypeGraph::from_sources(&sources);
-        let insights = insights(&sources, &graph);
+        let _graph = TypeGraph::from_sources(&sources);
+        let insights = insights(&Workspace::new(&sources));
         assert_eq!(insights[0].trace.len(), 4);
         assert!(insights[0].trace[2].fact.contains("without `Copy`"));
         assert!(

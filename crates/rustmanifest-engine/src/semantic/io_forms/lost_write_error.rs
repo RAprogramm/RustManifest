@@ -9,13 +9,8 @@ use super::{
     finding::{detail, trace},
     shipped_code::shipped
 };
-use crate::{
-    semantic::{
-        behavior::{Conduit, behavior},
-        entry::entry_points,
-        insight::Insight
-    },
-    source::Source
+use crate::semantic::{
+    behavior::Conduit, entry::entry_points, insight::Insight, workspace::Workspace
 };
 
 /// Reports an entry point that writes through the print family while
@@ -27,11 +22,12 @@ use crate::{
 /// failure back as a value, and an entry point performing only those
 /// loses nothing by returning nothing — it is charged for no panic that
 /// its code cannot reach.
-pub(in crate::semantic) fn lost_write_error_insights(sources: &[Source]) -> Vec<Insight> {
+pub(in crate::semantic) fn lost_write_error_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
     let library = library_knowledge();
-    let facts = behavior(sources);
+    let facts = workspace.facts();
     let mut found = Vec::new();
-    for entry in entry_points(sources, &facts) {
+    for entry in entry_points(sources, facts) {
         let Some(fact) = facts.get(entry.fact) else {
             continue;
         };
@@ -79,7 +75,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::lost_write_error_insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn sources(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
@@ -87,13 +83,15 @@ mod tests {
 
     #[test]
     fn an_entry_point_losing_the_write_error_is_reported() {
-        let lost = lost_write_error_insights(&sources("fn main() {\n    println!(\"hi\");\n}"));
+        let lost = lost_write_error_insights(&Workspace::new(&sources(
+            "fn main() {\n    println!(\"hi\");\n}"
+        )));
         assert_eq!(lost.len(), 1);
         assert!(lost[0].detail.contains("declares no return type"));
 
-        let returned = lost_write_error_insights(&sources(
+        let returned = lost_write_error_insights(&Workspace::new(&sources(
             "fn main() -> std::io::Result<()> {\n    println!(\"hi\");\n    Ok(())\n}"
-        ));
+        )));
         assert!(returned.is_empty());
     }
 }

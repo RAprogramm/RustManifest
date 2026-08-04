@@ -9,12 +9,10 @@ use super::{
     finding::{detail, memory_steps, trace},
     shipped_code::shipped
 };
-use crate::{
-    semantic::{
-        behavior::{Conduit, Payload, behavior},
-        insight::Insight
-    },
-    source::Source
+use crate::semantic::{
+    behavior::{Conduit, Payload},
+    insight::Insight,
+    workspace::Workspace
 };
 
 /// Reports a fully proven literal carried through the formatting
@@ -26,11 +24,12 @@ use crate::{
 /// formatting machinery, and a site that never entered it pays nothing.
 /// Such a site is passed over in silence rather than charged for
 /// machinery it does not use.
-pub(in crate::semantic) fn literal_format_insights(sources: &[Source]) -> Vec<Insight> {
+pub(in crate::semantic) fn literal_format_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
     let library = library_knowledge();
     let mut found = Vec::new();
-    for fact in behavior(sources) {
-        if !shipped(sources, &fact) {
+    for fact in workspace.facts() {
+        if !shipped(sources, fact) {
             continue;
         }
         for write in &fact.output_writes {
@@ -81,7 +80,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::literal_format_insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn sources(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
@@ -89,11 +88,14 @@ mod tests {
 
     #[test]
     fn a_constant_through_the_format_machinery_is_reported() {
-        let constant = literal_format_insights(&sources("fn main() {\n    println!(\"hi\");\n}"));
+        let constant = literal_format_insights(&Workspace::new(&sources(
+            "fn main() {\n    println!(\"hi\");\n}"
+        )));
         assert_eq!(constant.len(), 1);
 
-        let computed =
-            literal_format_insights(&sources("fn main() {\n    println!(\"{name}\");\n}"));
+        let computed = literal_format_insights(&Workspace::new(&sources(
+            "fn main() {\n    println!(\"{name}\");\n}"
+        )));
         assert!(computed.is_empty());
     }
 
@@ -102,16 +104,16 @@ mod tests {
     /// machinery, so there is no argument pack to charge it for.
     #[test]
     fn the_prescribed_byte_write_is_not_reported_against_itself() {
-        let prescribed = literal_format_insights(&sources(
+        let prescribed = literal_format_insights(&Workspace::new(&sources(
             "fn main() -> std::io::Result<()> {\n    \
              std::io::stdout().lock().write_all(b\"hi\")\n}"
-        ));
+        )));
         assert!(prescribed.is_empty());
 
-        let bound = literal_format_insights(&sources(
+        let bound = literal_format_insights(&Workspace::new(&sources(
             "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout().lock();\n    \
              out.write_all(b\"hi\")\n}"
-        ));
+        )));
         assert!(bound.is_empty());
     }
 }

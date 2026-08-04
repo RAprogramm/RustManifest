@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf}
 };
 
-use rustmanifest_engine::{SemanticAnalyzer, Source, TypeGraph};
+use rustmanifest_engine::{SemanticAnalyzer, Source, Workspace};
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::RuleDefinition;
 
@@ -87,16 +87,14 @@ fn semantic_fixtures_match_their_rule() {
         let dir = rules_dir.join(&rule.id);
 
         let fail_sources = workspace(&dir, "fail");
-        let fail_findings =
-            analyzer.analyze(&fail_sources, &TypeGraph::from_sources(&fail_sources));
+        let fail_findings = analyzer.analyze(&Workspace::new(&fail_sources));
         assert!(
             !fail_findings.is_empty(),
             "{}: fail.rs MUST trigger the check but did not",
             rule.id
         );
         let pass_sources = workspace(&dir, "pass");
-        let pass_findings =
-            analyzer.analyze(&pass_sources, &TypeGraph::from_sources(&pass_sources));
+        let pass_findings = analyzer.analyze(&Workspace::new(&pass_sources));
         assert!(
             pass_findings.is_empty(),
             "{}: pass.rs MUST NOT trigger the check but produced {:?}",

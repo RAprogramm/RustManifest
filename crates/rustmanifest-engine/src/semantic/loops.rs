@@ -36,11 +36,11 @@ mod uses;
 use rustmanifest_schema::{Applicability, Fix, Range, TraceStep};
 
 use self::{collect::candidates, origin::Origin};
-use super::insight::Insight;
-use crate::source::Source;
+use super::{insight::Insight, workspace::Workspace};
 
 /// Reports loop-invariant clones that could be hoisted out of the loop.
-pub(super) fn clone_insights(sources: &[Source]) -> Vec<Insight> {
+pub(super) fn clone_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
     let mut found = Vec::new();
     for candidate in candidates(sources) {
         let Origin::Clone {
@@ -115,7 +115,8 @@ pub(super) fn clone_insights(sources: &[Source]) -> Vec<Insight> {
 
 /// Reports per-iteration container allocations that never escape the
 /// iteration.
-pub(super) fn allocation_insights(sources: &[Source]) -> Vec<Insight> {
+pub(super) fn allocation_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
     let mut found = Vec::new();
     for candidate in candidates(sources) {
         let Origin::Allocation {
@@ -189,7 +190,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{allocation_insights, clone_insights};
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn sources(text: &str) -> [Source; 1] {
         [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]
@@ -202,7 +203,7 @@ mod tests {
              let mut total = 0;\n    for job in jobs {\n        let snapshot = config.clone();\n   \
              total += snapshot.retries + job;\n    }\n    total\n}"
         );
-        let insights = clone_insights(&sources);
+        let insights = clone_insights(&Workspace::new(&sources));
         assert_eq!(insights.len(), 1);
         assert!(insights[0].detail.contains("`config`"));
         assert_eq!(insights[0].trace.len(), 3);
@@ -215,7 +216,7 @@ mod tests {
              {\n        let copy = item.clone();\n        seen += copy.len() as u32;\n    }\n    \
              seen\n}"
         );
-        assert!(clone_insights(&sources).is_empty());
+        assert!(clone_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -226,7 +227,7 @@ mod tests {
              config.clone();\n        snapshot.retries += 1;\n        last = snapshot.retries;\n  \
              }\n    last\n}"
         );
-        assert!(clone_insights(&sources).is_empty());
+        assert!(clone_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -236,7 +237,7 @@ mod tests {
              Vec<Config> {\n    let mut kept = Vec::new();\n    for _job in jobs {\n        let \
              snapshot = config.clone();\n        kept.push(snapshot);\n    }\n    kept\n}"
         );
-        assert!(clone_insights(&sources).is_empty());
+        assert!(clone_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -247,7 +248,7 @@ mod tests {
              config.clone();\n        total += snapshot.retries;\n        config.retries += 1;\n  \
              }\n    total\n}"
         );
-        assert!(clone_insights(&sources).is_empty());
+        assert!(clone_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -256,7 +257,7 @@ mod tests {
             "struct Config { retries: u32 }\nfn once(config: Config) -> u32 {\n    let snapshot \
              = config.clone();\n    snapshot.retries\n}"
         );
-        assert!(clone_insights(&sources).is_empty());
+        assert!(clone_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -266,7 +267,7 @@ mod tests {
              _job in jobs {\n        let snapshot = config.clone();\n        \
              println!(\"{}\", snapshot.retries);\n    }\n}"
         );
-        assert!(clone_insights(&sources).is_empty());
+        assert!(clone_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -276,7 +277,7 @@ mod tests {
              = 3;\n    while left > 0 {\n        let snapshot = config.clone();\n        left -= \
              snapshot.retries;\n    }\n    left\n}"
         );
-        assert_eq!(clone_insights(&sources).len(), 1);
+        assert_eq!(clone_insights(&Workspace::new(&sources)).len(), 1);
     }
 
     #[test]
@@ -286,7 +287,7 @@ mod tests {
              values {\n        let mut line = String::with_capacity(16);\n        \
              line.push('#');\n        width += line.len();\n    }\n    width\n}"
         );
-        let insights = allocation_insights(&sources);
+        let insights = allocation_insights(&Workspace::new(&sources));
         assert_eq!(insights.len(), 1);
         assert!(insights[0].detail.contains("String::with_capacity"));
         assert_eq!(insights[0].trace.len(), 2);
@@ -299,7 +300,7 @@ mod tests {
              _value in values {\n        let mut line = String::new();\n        \
              line.push('#');\n        lines.push(line);\n    }\n    lines\n}"
         );
-        assert!(allocation_insights(&sources).is_empty());
+        assert!(allocation_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -309,7 +310,7 @@ mod tests {
              {\n        let mut batch = vec![];\n        batch.push(value);\n        total += \
              batch.len() as u32;\n    }\n    total\n}"
         );
-        assert_eq!(allocation_insights(&sources).len(), 1);
+        assert_eq!(allocation_insights(&Workspace::new(&sources)).len(), 1);
     }
 
     #[test]
@@ -318,7 +319,7 @@ mod tests {
             "fn idle(values: &[u32]) {\n    for _value in values {\n        let _scratch: \
              Vec<u32> = Vec::new();\n    }\n}"
         );
-        assert!(allocation_insights(&sources).is_empty());
+        assert!(allocation_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -328,7 +329,7 @@ mod tests {
              values {\n        let line = String::with_capacity(*value);\n        width += \
              line.len();\n    }\n    width\n}"
         );
-        assert!(allocation_insights(&sources).is_empty());
+        assert!(allocation_insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -338,6 +339,6 @@ mod tests {
              values {\n        let line = String::new();\n        total += \
              line.into_bytes().len();\n    }\n    total\n}"
         );
-        assert!(allocation_insights(&sources).is_empty());
+        assert!(allocation_insights(&Workspace::new(&sources)).is_empty());
     }
 }

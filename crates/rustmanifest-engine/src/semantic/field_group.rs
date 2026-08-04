@@ -10,9 +10,9 @@ use std::collections::BTreeMap;
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    TypeGraph,
     graph::{TypeKind, TypeNode},
-    insight::Insight
+    insight::Insight,
+    workspace::Workspace
 };
 use crate::source::Source;
 
@@ -23,8 +23,10 @@ const GROUP_SIZE: usize = 2;
 /// group family: overlapping groups collapse into the variant declared by
 /// the most structures, so `{created_at, id}` across eight entities and
 /// `{created_at, id, user_id}` across four of them yield a single finding.
-pub(super) fn insights(sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
-    let types: Vec<&TypeNode> = graph
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
+    let types: Vec<&TypeNode> = workspace
+        .types()
         .types()
         .iter()
         .filter(|node| node.kind == TypeKind::Struct)
@@ -166,14 +168,14 @@ mod tests {
 
     use super::insights;
     use crate::{
-        semantic::{TypeGraph, insight::Insight},
+        semantic::{TypeGraph, insight::Insight, workspace::Workspace},
         source::Source
     };
 
     fn found(text: &str) -> Vec<Insight> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let graph = TypeGraph::from_sources(&sources);
-        insights(&sources, &graph)
+        let _graph = TypeGraph::from_sources(&sources);
+        insights(&Workspace::new(&sources))
     }
 
     #[test]

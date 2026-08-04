@@ -19,16 +19,14 @@ use quote::ToTokens;
 use rustmanifest_schema::TraceStep;
 use syn::visit::Visit;
 
-use super::{
-    behavior::behavior, expr::token_words, insight::Insight, module_graph::ModuleGraph,
-    module_overview
-};
+use super::{expr::token_words, insight::Insight, module_overview, workspace::Workspace};
 use crate::source::Source;
 
 /// Reports provably unreferenced private functions.
-pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
-    let facts = behavior(sources);
-    let graph = ModuleGraph::from_sources(sources);
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let graph = workspace.modules();
     let mut reachable = vec![false; sources.len()];
     for module in graph.modules() {
         if module.layout
@@ -51,7 +49,7 @@ pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
             .map_or_else(|| "?".to_owned(), |module| module.path.clone())
     };
     let mut found = Vec::new();
-    for fact in &facts {
+    for fact in facts {
         if fact.flags.public()
             || fact.flags.test()
             || fact.flags.trait_impl()
@@ -174,7 +172,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -188,7 +186,7 @@ mod tests {
              double(v: &u64) -> u64 { v * 2 }\npub fn shout(name: &str) { println!(\"{}\", \
              greet(name)); }\nfn greet(name: &str) -> String { name.to_owned() }"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -197,7 +195,7 @@ mod tests {
             "src/lib.rs",
             "pub fn used() { helper(); }\nfn helper() {}\nfn stale() {}"
         )];
-        let found = insights(&sources);
+        let found = insights(&Workspace::new(&sources));
         assert_eq!(found.len(), 1);
         assert!(found[0].detail.contains("`stale`"));
     }
@@ -208,7 +206,7 @@ mod tests {
             "src/lib.rs",
             "pub fn used() { helper(); }\nfn helper() {}\npub fn api() {}"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -218,7 +216,7 @@ mod tests {
             "struct A;\nimpl A { fn ping(&self) {} }\nstruct B;\nimpl B { fn ping(&self) {} \
              }\npub fn run(x: u32) { x.ping(); }"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -227,7 +225,7 @@ mod tests {
             "src/main.rs",
             "fn main() {}\nfn _scratch() {}\n#[test]\nfn probe() {}\n#[inline]\nfn pinned() {}"
         )];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -236,6 +234,6 @@ mod tests {
             source("src/lib.rs", "pub fn api() {}"),
             source("src/lost.rs", "fn maybe_needed() {}")
         ];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 }

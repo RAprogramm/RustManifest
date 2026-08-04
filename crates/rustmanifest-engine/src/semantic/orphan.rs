@@ -24,15 +24,16 @@ use std::path::{Path, PathBuf};
 
 use rustmanifest_schema::{Applicability, Fix, Range, TraceStep};
 
-use super::{insight::Insight, module_graph::ModuleGraph};
+use super::{insight::Insight, workspace::Workspace};
 use crate::source::Source;
 
 /// File names that are roots or mount points themselves, never orphans.
 const NEVER_ORPHAN: [&str; 4] = ["build.rs", "lib.rs", "main.rs", "mod.rs"];
 
 /// Reports unreachable files that have a plausible parent module file.
-pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
-    let graph = ModuleGraph::from_sources(sources);
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
+    let graph = workspace.modules();
     let mut reachable = vec![false; sources.len()];
     for module in graph.modules() {
         if module.layout
@@ -167,7 +168,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -180,7 +181,7 @@ mod tests {
             source("src/ledger.rs", "pub fn post() {}\n"),
             source("src/handlers.rs", "pub fn on_click() {}\n")
         ];
-        let found = insights(&sources);
+        let found = insights(&Workspace::new(&sources));
         assert_eq!(found.len(), 1);
         assert!(found[0].detail.contains("forgotten `mod handlers;`"));
         assert_eq!(found[0].fixes.len(), 1);
@@ -199,7 +200,7 @@ mod tests {
             source("src/lib.rs", "mod handlers;\n"),
             source("src/handlers.rs", "pub fn on_click() {}\n")
         ];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 
     #[test]
@@ -210,7 +211,7 @@ mod tests {
             source("src/net/udp.rs", "pub fn bind() {}\n"),
             source("src/net/tcp.rs", "pub fn connect() {}\n")
         ];
-        let found = insights(&sources);
+        let found = insights(&Workspace::new(&sources));
         assert_eq!(found.len(), 1);
         assert!(found[0].detail.contains("`mod udp;`"));
         assert!(
@@ -227,6 +228,6 @@ mod tests {
             source("src/lib.rs", "pub struct Wallet;\n"),
             source("fixtures/sample.rs", "pub fn probe() {}\n")
         ];
-        assert!(insights(&sources).is_empty());
+        assert!(insights(&Workspace::new(&sources)).is_empty());
     }
 }

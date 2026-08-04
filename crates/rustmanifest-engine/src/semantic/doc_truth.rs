@@ -11,12 +11,7 @@
 
 use rustmanifest_schema::TraceStep;
 
-use super::{
-    behavior::{Effect, behavior},
-    docs::doc_facts,
-    insight::Insight
-};
-use crate::source::Source;
+use super::{behavior::Effect, docs::doc_facts, insight::Insight, workspace::Workspace};
 
 /// Doc summary verbs that promise pure observation.
 const READ_CLAIM_VERBS: [&str; 2] = ["gets", "returns"];
@@ -26,8 +21,9 @@ const LIE_EFFECTS: [Effect; 2] = [Effect::Process, Effect::ConsoleIo];
 
 /// Reports documented functions whose summary claims a read while the
 /// body provably mutates or emits.
-pub(super) fn insights(sources: &[Source]) -> Vec<Insight> {
-    let behaviors = behavior(sources);
+pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
+    let sources = workspace.sources();
+    let behaviors = workspace.facts();
     let mut found = Vec::new();
     for doc in doc_facts(sources) {
         let Some(verb) = doc.summary_verb.as_deref() else {
@@ -108,10 +104,11 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn found(text: &str) -> usize {
-        insights(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]).len()
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        insights(&Workspace::new(&sources)).len()
     }
 
     #[test]

@@ -9,10 +9,9 @@
 //! addition of a check touches exactly one place: the enumeration below.
 
 use super::{
-    composition, dead, doc_truth, field_group, graph::TypeGraph, insight::Insight, io_forms,
-    loops, module_cycle, naming, orphan, ownership
+    composition, dead, doc_truth, field_group, insight::Insight, io_forms, loops, module_cycle,
+    naming, orphan, ownership, workspace::Workspace
 };
-use crate::source::Source;
 
 /// Built-in semantic checks addressable from `definition.semantic`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,23 +79,24 @@ impl Check {
         }
     }
 
-    /// Runs the check over the workspace sources and their type graph.
-    pub(super) fn insights(self, sources: &[Source], graph: &TypeGraph) -> Vec<Insight> {
+    /// Runs the check over the analyzed workspace, reading only the
+    /// derivations it needs — an unread derivation is never taken.
+    pub(super) fn insights(self, workspace: &Workspace<'_>) -> Vec<Insight> {
         match self {
-            Self::RepeatedFieldGroup => field_group::insights(sources, graph),
-            Self::ModuleCycles => module_cycle::insights(sources),
-            Self::StructureSize => composition::insights(graph),
-            Self::BorrowableParams => ownership::insights(sources, graph),
-            Self::LoopInvariantClone => loops::clone_insights(sources),
-            Self::LoopAllocation => loops::allocation_insights(sources),
-            Self::DeceptiveName => naming::insights(sources),
-            Self::DeceptiveDoc => doc_truth::insights(sources),
-            Self::OrphanFile => orphan::insights(sources),
-            Self::DeadFunction => dead::insights(sources),
-            Self::OutputLockRun => io_forms::lock_run_insights(sources),
-            Self::OutputInLoop => io_forms::loop_write_insights(sources),
-            Self::OutputConstantFormat => io_forms::literal_format_insights(sources),
-            Self::OutputErrorLost => io_forms::lost_write_error_insights(sources)
+            Self::RepeatedFieldGroup => field_group::insights(workspace),
+            Self::ModuleCycles => module_cycle::insights(workspace),
+            Self::StructureSize => composition::insights(workspace.types()),
+            Self::BorrowableParams => ownership::insights(workspace),
+            Self::LoopInvariantClone => loops::clone_insights(workspace),
+            Self::LoopAllocation => loops::allocation_insights(workspace),
+            Self::DeceptiveName => naming::insights(workspace),
+            Self::DeceptiveDoc => doc_truth::insights(workspace),
+            Self::OrphanFile => orphan::insights(workspace),
+            Self::DeadFunction => dead::insights(workspace),
+            Self::OutputLockRun => io_forms::lock_run_insights(workspace),
+            Self::OutputInLoop => io_forms::loop_write_insights(workspace),
+            Self::OutputConstantFormat => io_forms::literal_format_insights(workspace),
+            Self::OutputErrorLost => io_forms::lost_write_error_insights(workspace)
         }
     }
 }

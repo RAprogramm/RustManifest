@@ -50,6 +50,7 @@ mod std_derive;
 mod std_knowledge;
 mod summary;
 mod surface;
+mod workspace;
 
 use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition};
 use tracing::trace;
@@ -97,7 +98,8 @@ pub use self::{
         ComposedOrigin, Composition, FunctionSummary, ORIGIN_DEPTH, SUMMARY_SET, composition,
         summaries
     },
-    surface::{FrameworkModel, Route, Surface, surface}
+    surface::{FrameworkModel, Route, Surface, surface},
+    workspace::Workspace
 };
 use crate::{error::EngineError, pragma, source::Source};
 
@@ -138,16 +140,17 @@ impl SemanticAnalyzer {
         })
     }
 
-    /// Evaluates the check over `sources` against `graph`, honoring pragma
-    /// suppression in the file each finding anchors to.
+    /// Evaluates the check over `workspace`, honoring pragma suppression in
+    /// the file each finding anchors to.
     ///
-    /// The graph arrives as an argument rather than being derived here, so
-    /// that a whole rule set derives it once instead of once per rule.
-    /// [`semantic_findings`] is that composition for the common case.
-    pub fn analyze(&self, sources: &[Source], graph: &TypeGraph) -> Vec<Finding> {
+    /// The workspace derivations arrive as an argument rather than being
+    /// taken here, so that a whole rule set derives each of them once
+    /// instead of once per rule. [`semantic_findings`] is that composition
+    /// for the common case.
+    pub fn analyze(&self, workspace: &Workspace<'_>) -> Vec<Finding> {
         let mut findings = Vec::new();
-        for insight in self.check.insights(sources, graph) {
-            let Some(source) = sources.get(insight.source) else {
+        for insight in self.check.insights(workspace) {
+            let Some(source) = workspace.sources().get(insight.source) else {
                 continue;
             };
             let text = source.text();
@@ -178,18 +181,19 @@ impl SemanticAnalyzer {
 /// Runs every analyzer in `analyzers` over `sources` and returns their
 /// findings in analyzer order.
 ///
-/// The workspace type graph is derived once and shared by all of them: it is
-/// a property of the sources, not of the rule asking about them, and building
-/// it per rule made the tier cost scale with the size of the rule set.
+/// The workspace derivations — type graph, behavioral facts, module graph —
+/// are taken once and shared by all of them: each is a property of the
+/// sources, not of the rule asking about them, and deriving them per rule
+/// made the tier's cost scale with the size of the rule set.
 #[must_use]
 pub fn semantic_findings(analyzers: &[SemanticAnalyzer], sources: &[Source]) -> Vec<Finding> {
     if analyzers.is_empty() {
         return Vec::new();
     }
-    let graph = TypeGraph::from_sources(sources);
+    let workspace = Workspace::new(sources);
     analyzers
         .iter()
-        .flat_map(|analyzer| analyzer.analyze(sources, &graph))
+        .flat_map(|analyzer| analyzer.analyze(&workspace))
         .collect()
 }
 
@@ -242,7 +246,7 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        let findings = analyzer.analyze(&sources, &TypeGraph::from_sources(&sources));
+        let findings = analyzer.analyze(&Workspace::new(&sources));
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("created_at"));
         assert!(findings[0].message.contains("User"));
@@ -267,10 +271,6 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        assert!(
-            analyzer
-                .analyze(&sources, &TypeGraph::from_sources(&sources))
-                .is_empty()
-        );
+        assert!(analyzer.analyze(&Workspace::new(&sources)).is_empty());
     }
 }
