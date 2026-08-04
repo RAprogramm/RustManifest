@@ -2,9 +2,13 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-08-01):** Phases 1C, 1D, 2, and 2S shipped. The MCP server additionally exposes the knowledge surface — `project_overview`, `function_facts`, `learn_conventions` — so agents read the same project understanding the CLI prints. Tier-2 AST rules `RM-STRUCT-001`..`009` cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, and the first reasoning rule `RM-MEM-001` (borrowable-params). The stdio MCP server ships five tools and nine bundled methodology resources.
+**Current status (2026-08-04):** Phases 1C, 1D, 1E, 2, and 2S shipped; Phase 2M is landing in parts. The rules pack holds 25 rules — `RM-SEC-001`..`003`, `RM-STRUCT-001`..`011`, `RM-MEM-001`..`003`, `RM-IO-001`..`004`, `RM-QUAL-001`..`004` — and tier-2 AST rules cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, call graph with transitive effects. The stdio MCP server ships eight tools — `review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`, `project_overview`, `function_facts`, `learn_conventions` — and nine bundled methodology resources, so agents read the same project understanding the CLI prints. The CLI ships ten commands: `check`, `coverage`, `explain`, `facts`, `graph`, `learn`, `meaning`, `overview`, `prescribe`, `report`.
 
-**Next:** Phase 2M (meaning tier — framework models, external surface, subsystem capabilities; [RFC 0002](./RFCS/0002-meaning-tier-framework-models.md)), then Phase 3 (HTTP/OAuth) and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner). The resolved-name extractor shipped as an opt-in SCIP overlay reaching `facts`, `coverage`, and `check`.
+**Landed since the semantic tier closed:** the resolved-name extractor as an opt-in SCIP overlay (`--scip`) reaching `facts`, `coverage`, `check` and the invariant surface, with edge provenance in traces; call resolution confined to cargo build-target boundaries; error-conversion edges synthesized from `From` implementations at `?` sites; macro expansion promoted to a standard analysis mode; multi-implementor dispatch over-approximated with the modality stated in the trace; ecosystem knowledge packs (`reqwest`, `tempfile`, `tokio`) plus standard-library knowledge, quoted in findings from the library's own documentation with the cost of a deviation counted rather than described; machine-applicable fixes applied by `check --fix`.
+
+**Next:** finish Phase 2M (subsystem capability, and the route-table acceptance measurement), then Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`) and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
+
+**Source layout:** no source file exceeds 150 pure code lines (blank lines, `//`/`///`/`//!` and `#[cfg(test)]` blocks excluded); oversized modules are split into nested single-responsibility submodules, with the parent as `X.rs` beside the directory `X/` and never a `mod.rs`.
 
 ---
 
@@ -94,12 +98,12 @@ The MCP server in Phase 2 is the project's primary deliverable. Everything befor
 ### Phase 2 — MCP server (stdio) ✅ done (local; scripted stdio conformance tests shipped, external validator pending)
 
 - `rustmanifest-mcp` built on the `rmcp` SDK.
-- **Tools**: `review_file`, `review_diff`, `review_pr`, `check_rule(id, path)`, `lint_structure`, `explain_finding(finding_id)`.
-- **Resources**: `rustmanifest://methodology/{section}` for every English methodology document.
-- **Prompts**: `pr-review`, `pre-commit-check`, `security-audit`, `structural-audit`.
-- **Roots**: client-supplied workspace; server refuses access outside.
-- Conformance test suite against the Anthropic mcp-validator wired into CI.
+- **Tools** (eight): `review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`, `project_overview`, `function_facts`, `learn_conventions`. The knowledge trio is the same surface the CLI prints, so an agent and a human read one understanding.
+- **Resources**: `rustmanifest://methodology/{section}` — nine English methodology documents; every rule's rationale URI is gated against that list by test.
+- **Roots**: workspace root taken from the process directory at startup; every client path is joined and canonicalized against it, and a result outside the root is refused.
+- Scripted stdio conformance tests in CI; the external validator is still pending.
 - All server-facing strings are English regardless of request language.
+- **Not shipped**: prompts (`pr-review`, `pre-commit-check`, `security-audit`, `structural-audit`) — deferred, no prompt surface exists yet.
 
 ### Phase 2S — Semantic tier: fact base, behavior, ownership ✅ done (local)
 
@@ -124,38 +128,60 @@ Executes [RFC 0002](./RFCS/0002-meaning-tier-framework-models.md). The semantic 
 answers structure and behavior; this phase answers what the program exposes and what
 each subsystem is for, deterministically and with evidence per row.
 
-- **Framework models as data**: the knowledge-pack shape extended with a crate's
+- ✅ **Framework models as data**: the knowledge-pack shape extended with a crate's
   registration vocabulary — router constructors, route registrations, HTTP method
   wrappers, composition methods (`nest` with prefix, `merge` without), extractor
   types, listener constructors. A construct absent from the model produces no row.
-- **Route recovery** (`semantic/surface.rs`): method, path, handler and byte range
+- ✅ **Route recovery** (`semantic/surface/`): method, path, handler and byte range
   per registration; composition resolved through the existing call graph; a
   composition argument that is not a resolvable provider is reported as unresolved
-  rather than silently dropped; runtime-assembled paths counted as dynamic.
-- **Handler contract**: request body, path and query parameters, shared state and
+  rather than silently dropped; runtime-assembled paths counted as dynamic; a
+  conditionally registered route is recovered and marked, not lost. The table also
+  counts what it could not read — unparsed sources, opaque handlers, framework
+  vocabulary on a receiver never proven to hold a router — so silence is measured.
+- ✅ **Handler contract**: request body, path and query parameters, shared state and
   application-defined extractors read from the handler signature; response payload
   from the return type.
-- **Subsystem capability**: per-module capability with the function and call that
-  proved it, plus the set of subsystems reachable from the entry point.
-- **Acceptance**: precision and recall of the recovered route table against the
-  OpenAPI paths projects declare independently of the router chain, measured on real
-  workspaces in the style of the SCIP ground-truth experiment.
-- **Observable output** ([RFC 0003](./RFCS/0003-observable-output-fact.md)): a new
+- ✅ **Observable output** ([RFC 0003](./RFCS/0003-observable-output-fact.md)): a
   fact channel recording every write site with its stream, payload, guard stack and
-  order, plus entry-point identification and a reachability grade, so the engine can
-  state what a program writes to a standard stream and how certainly. The coarse
-  effect category is left untouched by decision; retiring it is separate work.
-- **Acceptance**: the smallest program in the language — a single unconditional
-  greeting — yields exactly one claim naming the stream, the literal payload, and
-  certainty, and every weakening of that program (a branch, a loop, a computed
-  string, an early exit) degrades the claim field by field instead of collapsing it.
+  order (`semantic/behavior/output.rs`), entry-point identification
+  (`semantic/entry.rs`), and a reachability grade, exported through
+  `rustmanifest facts`. The coarse effect category is left untouched by decision;
+  retiring it is separate work.
+- ✅ **Meaning claims** (`semantic/meaning/`, `rustmanifest meaning`): one claim per
+  write site — the stream, the text, and two certainties never merged into a score
+  (reached from the entry, and runs on every path through its own function). A site
+  the call graph never reaches keeps its claim and says so. The sentence degrades
+  field by field: a weakened certainty names each construct that weakened it, a
+  partially proven payload prints its proven text with the holes left as holes.
+- ✅ **Canonical output forms** (`semantic/io_forms/`, rules `RM-IO-001`..`004`): the
+  forms live as data — the properties the code must satisfy, the shape that
+  satisfies them, what one deviation costs in counted bytes or calls, and the
+  library guarantee the cost follows from. Checks contribute only facts; the message
+  is assembled mechanically, so a finding can never claim more than the catalogue
+  and the fact base license.
+- ✅ **Prescription** (`rustmanifest prescribe`): the code the canonical form asks
+  for, anchored to the line it replaces, with the counted gain stated beside it.
+- ✅ **One-pass reports** (`rustmanifest overview`, `rustmanifest report`):
+  everything the engine knows about a project, behaviour first, absent sections
+  dropped rather than printed empty.
+- ⏳ **Subsystem capability**: per-module capability with the function and call that
+  proved it, plus the set of subsystems reachable from the entry point. Not started.
+- ⏳ **Acceptance (route table)**: precision and recall of the recovered route table
+  against the OpenAPI paths projects declare independently of the router chain,
+  measured on real workspaces in the style of the SCIP ground-truth experiment.
+- ✅ **Acceptance (output)**: the smallest program in the language — a single
+  unconditional greeting — yields exactly one claim naming the stream, the literal
+  payload, and certainty, and every weakening of that program (a branch, a loop, a
+  computed string, an early exit) degrades the claim field by field instead of
+  collapsing it.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
-- HTTP transport with OAuth 2.1 + PKCE + RFC 8707 resource indicators.
-- Audience-scoped tokens, TLS 1.3 only, per-client rate limiting.
-- Tier-3 delegation: `cargo clippy --message-format=json` parsed and surfaced under rustmanifest's reporting umbrella with rationale URIs.
-- Optional `cargo audit` and `cargo geiger` integrations.
+- ⏳ HTTP transport with OAuth 2.1 + PKCE + RFC 8707 resource indicators.
+- ⏳ Audience-scoped tokens, TLS 1.3 only, per-client rate limiting.
+- ✅ Tier-3 delegation (`check --delegate-clippy`): `cargo clippy --message-format=json` parsed and surfaced under rustmanifest's reporting umbrella, each delegated finding carrying a rationale URI into the clippy lint index.
+- ⏳ Optional `cargo audit` and `cargo geiger` integrations.
 
 ### Phase 4 — Sampling and elicitation ⏳ planned
 
@@ -167,8 +193,8 @@ each subsystem is for, deterministically and with evidence per row.
 
 - `rust-manifest/rustmanifest-action@v1` GitHub Action (composite): runs `rustmanifest check`, uploads SARIF, comments on PR.
 - Pre-commit hook YAML snippet.
-- `rustmanifest-lsp` — LSP server reusing the engine. Diagnostics, code actions, hover.
-- Editor docs: Claude Code, Cursor, Zed, Helix, VS Code (LSP and MCP).
+- `rustmanifest-lsp` — LSP server reusing the engine. Diagnostics, code actions, hover. The crate today is a skeleton: it declares the targeted protocol version and nothing else, so nothing the engine knows reaches an editor over LSP yet.
+- Editor docs: Cursor, Zed, Helix, VS Code (LSP and MCP).
 
 ### Phase 6 — Governance and community ⏳ planned
 
