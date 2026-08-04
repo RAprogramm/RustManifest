@@ -30,6 +30,7 @@ mod collector;
 mod conversion;
 mod declaration;
 mod extraction;
+mod folding;
 mod imports;
 mod output;
 mod returned;

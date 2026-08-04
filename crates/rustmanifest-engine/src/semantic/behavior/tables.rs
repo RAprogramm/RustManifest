@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: MIT
 
 //! Workspace typing tables shared by every function's fact extraction:
-//! what each field of each struct holds, what each function returns, and
-//! which crate every source belongs to.
+//! what each field of each struct holds, what each function returns, what
+//! each named string constant stands for, and which crate every source
+//! belongs to.
 //!
-//! The two tables that have to walk the whole workspace to be built sit
-//! in submodules beside this file; crate identity reads a path and stays
+//! The tables that have to walk the whole workspace to be built sit in
+//! submodules beside this file; crate identity reads a path and stays
 //! here.
 
+mod constant;
 mod field;
 mod function_return;
 
@@ -26,6 +28,8 @@ pub(super) struct TypeTables {
     /// `Type.field` keys of single-generic wrapper fields to the
     /// wrapped inner type.
     pub(super) field_wraps: Scoped<String>,
+    /// Names of string constants to the literal each is written as.
+    pub(super) constants:   Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
     pub(super) crates:      Vec<String>
 }
@@ -39,6 +43,7 @@ impl TypeTables {
             fields,
             field_elems,
             field_wraps,
+            constants: constant::constant_texts(sources),
             crates: crate_ids(sources)
         }
     }

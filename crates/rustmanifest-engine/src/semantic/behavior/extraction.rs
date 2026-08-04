@@ -12,6 +12,7 @@ use syn::visit::Visit;
 use super::{
     collector::FactCollector,
     declaration::ItemContext,
+    folding::fold_constants,
     signature::{error_types, param_facts, parameter_elements, parameter_types},
     tables::TypeTables,
     types::{Effect, FunctionFacts}
@@ -82,5 +83,12 @@ pub(super) fn function_facts(
     collector.facts.effects.dedup();
     collector.facts.calls.sort();
     collector.facts.calls.dedup();
+    fold_constants(
+        &mut collector.facts,
+        block,
+        &tables.constants,
+        source,
+        &tables.crates
+    );
     collector.facts
 }
