@@ -34,7 +34,7 @@ impl Orchestrator {
     /// rule set. The message distinguishes the two cases.
     pub(super) fn unused_pragma_findings(&self, source: &Source) -> Vec<Finding> {
         let text = source.text();
-        let pragmas = pragma::collect(text);
+        let pragmas = source.pragmas();
         if pragmas.is_empty() {
             return Vec::new();
         }

@@ -119,9 +119,9 @@ pub fn check_invariants_with(
                 continue;
             };
             let text = source.text();
-            let pragmas = pragma::collect(text);
+            let pragmas = source.pragmas();
             let start = fact.range.start as usize;
-            if let Some(active) = pragma::suppressing(text, start, &rule_id, &pragmas) {
+            if let Some(active) = pragma::suppressing(text, start, &rule_id, pragmas) {
                 source.record_pragma_use(active.line_index);
                 continue;
             }

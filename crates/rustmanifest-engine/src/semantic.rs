@@ -154,9 +154,9 @@ impl SemanticAnalyzer {
                 continue;
             };
             let text = source.text();
-            let pragmas = pragma::collect(text);
+            let pragmas = source.pragmas();
             let start = insight.range.start as usize;
-            if let Some(active) = pragma::suppressing(text, start, &self.rule.id, &pragmas) {
+            if let Some(active) = pragma::suppressing(text, start, &self.rule.id, pragmas) {
                 source.record_pragma_use(active.line_index);
                 trace!(rule = %self.rule.id, offset = start, "suppressed by pragma");
                 continue;

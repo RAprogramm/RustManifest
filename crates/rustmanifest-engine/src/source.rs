@@ -13,16 +13,19 @@
 //! `Analyzer::analyze(&self, source: &Source) -> Vec<Finding>` signature
 //! unchanged.
 //!
-//! A source also carries the Rust syntax tree parsed from its text, behind
-//! the same kind of lazy cell. Every tier above the pattern tier reads the
-//! same tree of the same file, so parsing it per reader made one file parsed
-//! dozens of times per run; parsing it on the source parses it once.
+//! A source also hands out what its own text determines — the syntax tree
+//! and the inline pragmas — which [`Derivations`] derives once per file and
+//! every tier then shares.
+
+mod derivations;
 
 use std::{
-    cell::OnceCell,
     path::PathBuf,
     sync::{Mutex, OnceLock}
 };
+
+use self::derivations::Derivations;
+use crate::pragma::Pragma;
 
 /// A single source file under analysis.
 ///
@@ -30,8 +33,8 @@ use std::{
 /// against `exclude_globs` and for emitting [`Location`]s on findings. `text`
 /// is the file contents loaded into memory.
 ///
-/// The parsed tree is not part of the value's identity: a clone starts with
-/// an empty cell and parses on demand, exactly like a freshly read file.
+/// Neither derivation is part of the value's identity: a clone starts with
+/// empty cells and derives on demand, exactly like a freshly read file.
 ///
 /// `syn` trees hold spans that are neither [`Send`] nor [`Sync`], so a
 /// `Source` stays on the thread that built it. The engine's parallelism runs
@@ -43,9 +46,8 @@ pub struct Source {
     path:              PathBuf,
     /// Contents of the file, loaded into memory.
     text:              String,
-    /// Syntax tree of [`Self::text`], or `None` when it is not Rust. Empty
-    /// until the first reader asks.
-    tree:              OnceCell<Option<syn::File>>,
+    /// What [`Self::text`] alone determines, derived on demand.
+    derivations:       Derivations,
     /// Lines of the pragmas that suppressed something during this run.
     used_pragma_lines: OnceLock<Mutex<Vec<usize>>>
 }
@@ -56,7 +58,7 @@ impl std::fmt::Debug for Source {
             .debug_struct("Source")
             .field("path", &self.path)
             .field("text", &format_args!("{} bytes", self.text.len()))
-            .field("tree", &self.tree.get().map(Option::is_some))
+            .field("derivations", &self.derivations)
             .field("used_pragma_lines", &self.used_pragma_lines)
             .finish()
     }
@@ -79,7 +81,7 @@ impl Source {
         Self {
             path,
             text,
-            tree: OnceCell::new(),
+            derivations: Derivations::new(),
             used_pragma_lines: OnceLock::new()
         }
     }
@@ -119,15 +121,18 @@ impl Source {
     /// file the pattern tier alone visits is never parsed at all.
     #[must_use]
     pub fn tree(&self) -> Option<&syn::File> {
-        self.tree
-            .get_or_init(|| syn::parse_file(&self.text).ok())
-            .as_ref()
+        self.derivations.tree(&self.text)
     }
 
-    /// Returns the size of the file in bytes.
+    /// Returns the inline suppression pragmas written in the file,
+    /// collecting them on the first call.
+    ///
+    /// Every tier consults the same list for the same file; collecting it
+    /// per rule, or per reported occurrence, rescanned the whole text for
+    /// each of them.
     #[must_use]
-    pub const fn len_bytes(&self) -> usize {
-        self.text.len()
+    pub fn pragmas(&self) -> &[Pragma] {
+        self.derivations.pragmas(&self.text)
     }
 
     /// Records that the pragma on `line_index` suppressed at least one
