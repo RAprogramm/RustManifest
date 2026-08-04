@@ -9,9 +9,16 @@
 //! resting on an origin can fail: a write and a return position are
 //! recorded whole, and nothing about them is left to a reading that could
 //! refuse.
+//!
+//! Each clause speaks per function, not over the whole program at once.
+//! Certainty belongs to a site and reaches a group only through the
+//! function holding it, so a clause covering two functions makes two
+//! statements rather than one hedged to the weaker of them.
 
+mod grouping;
 mod outward;
 
+use self::grouping::{by_function, joined};
 pub(super) use self::outward::{handback_clause, write_clause};
 use super::super::{
     claim::{ChoiceClaim, ComputeClaim},
@@ -21,81 +28,102 @@ use crate::semantic::behavior::{Closure, Grade, Operation, OriginGap, Provenance
 
 /// What the program takes in, or the question the reading failed on.
 pub(super) fn intake_clause(claims: &[IntakeClaim]) -> Result<Option<String>, OriginGap> {
-    if claims.is_empty() {
-        return Ok(None);
-    }
-    let mut named = Vec::new();
-    for claim in claims {
-        match &claim.read.selector {
-            Selector::NotIdentified(_) => return Err(OriginGap::Unreadable),
-            settled => named.push(format!("{} of its {}", settled, claim.read.channel))
+    let groups = by_function(
+        claims,
+        |claim| claim.function.as_str(),
+        |claim| claim.execution
+    );
+    let mut parts = Vec::new();
+    for held in groups {
+        let mut named = Vec::new();
+        for claim in held.sites {
+            match &claim.read.selector {
+                Selector::NotIdentified(_) => return Err(OriginGap::Unreadable),
+                settled => named.push(format!("{} of its {}", settled, claim.read.channel))
+            }
         }
+        parts.push(format!(
+            "{} {} in `{}`",
+            opening(held.grade, "takes"),
+            joined(&named),
+            held.function
+        ));
     }
-    Ok(Some(format!(
-        "{} {}",
-        opening(weakest(claims.iter().map(|claim| claim.execution)), "takes"),
-        named.join(", ")
-    )))
+    Ok(sentence(&parts))
 }
 
 /// What the program computes, or the question the reading failed on.
 pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, OriginGap> {
-    if claims.is_empty() {
-        return Ok(None);
-    }
-    let mut named = Vec::new();
-    for claim in claims {
-        if let Operation::Conversion(conversion) = &claim.operation.operation
-            && conversion.target.is_none()
-        {
-            return Err(OriginGap::Unreadable);
+    let groups = by_function(
+        claims,
+        |claim| claim.function.as_str(),
+        |claim| claim.execution
+    );
+    let mut parts = Vec::new();
+    for held in groups {
+        let mut named = Vec::new();
+        for claim in held.sites {
+            if let Operation::Conversion(conversion) = &claim.operation.operation
+                && conversion.target.is_none()
+            {
+                return Err(OriginGap::Unreadable);
+            }
+            if let Some(gap) = claim.operation.operands.iter().find_map(unsettled) {
+                return Err(gap);
+            }
+            named.push(claim.operation.operation.to_string());
         }
-        if let Some(gap) = claim.operation.operands.iter().find_map(unsettled) {
-            return Err(gap);
-        }
-        named.push(claim.operation.operation.to_string());
+        named.sort_unstable();
+        named.dedup();
+        parts.push(format!(
+            "{} {} in `{}`",
+            opening(held.grade, "computes"),
+            joined(&named),
+            held.function
+        ));
     }
-    named.sort_unstable();
-    named.dedup();
-    Ok(Some(format!(
-        "{} {}",
-        opening(
-            weakest(claims.iter().map(|claim| claim.execution)),
-            "computes"
-        ),
-        named.join(", ")
-    )))
+    Ok(sentence(&parts))
 }
 
 /// What the program chooses between, or the question the reading failed
 /// on.
 pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, OriginGap> {
-    if claims.is_empty() {
-        return Ok(None);
-    }
-    let mut named = Vec::new();
-    for claim in claims {
-        if let Some(gap) = unsettled(&claim.choice.scrutinee) {
-            return Err(gap);
+    let groups = by_function(
+        claims,
+        |claim| claim.function.as_str(),
+        |claim| claim.execution
+    );
+    let mut parts = Vec::new();
+    for held in groups {
+        let mut named = Vec::new();
+        for claim in held.sites {
+            if let Some(gap) = unsettled(&claim.choice.scrutinee) {
+                return Err(gap);
+            }
+            named.push(format!(
+                "{} written alternatives {}",
+                claim.choice.alternatives.len(),
+                if matches!(claim.choice.closure, Closure::CatchAll) {
+                    "of which one accepts every remaining value"
+                } else {
+                    "not proven to be all of them"
+                }
+            ));
         }
-        let closed = if matches!(claim.choice.closure, Closure::CatchAll) {
-            "of which one accepts every remaining value"
-        } else {
-            "not proven to be all of them"
-        };
-        named.push(format!(
-            "{} written alternatives {closed}",
-            claim.choice.alternatives.len()
+        parts.push(format!(
+            "{} between {} in `{}`",
+            opening(held.grade, "chooses"),
+            joined(&named),
+            held.function
         ));
     }
-    Ok(Some(format!(
-        "{} between {}",
-        opening(
-            weakest(claims.iter().map(|claim| claim.execution)),
-            "chooses"
-        ),
-        named.join(", and between ")
-    )))
+    Ok(sentence(&parts))
+}
+
+/// The clause a set of per-function parts amounts to, or nothing where
+/// the channel recorded no site at all.
+fn sentence(parts: &[String]) -> Option<String> {
+    (!parts.is_empty()).then(|| parts.join("; "))
 }
 
 /// The question an origin failed on, where it failed on one.
@@ -106,17 +134,7 @@ const fn unsettled(origin: &Provenance) -> Option<OriginGap> {
     }
 }
 
-/// The weakest grade among a set of claims.
-///
-/// A clause speaks of its sites together, and a group of sites is only as
-/// certain as its least certain member: saying "unconditionally" of a set
-/// containing one guarded site would state of all of them what holds of
-/// some.
-fn weakest(grades: impl Iterator<Item = Grade>) -> Grade {
-    grades.min().unwrap_or(Grade::Unreached)
-}
-
-/// The opening words of one clause, fixed by how certainly it happens.
+/// The opening words of one part, fixed by how certainly it happens.
 fn opening(grade: Grade, verb: &str) -> String {
     match grade {
         Grade::Certain => format!("the process unconditionally {verb}"),
@@ -126,7 +144,7 @@ fn opening(grade: Grade, verb: &str) -> String {
             verb.trim_end_matches('s')
         ),
         Grade::Unreached => format!(
-            "a site no call chain from this entry reaches would {}",
+            "no call chain from this entry reaches a site that would {}",
             verb.trim_end_matches('s')
         )
     }

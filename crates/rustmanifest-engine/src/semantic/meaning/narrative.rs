@@ -128,6 +128,25 @@ mod tests {
         assert!(said.contains("ends the process with success"), "{said}");
     }
 
+    /// A clause covering two functions makes two statements rather than
+    /// one hedged to the weaker of them: certainty belongs to a site and
+    /// reaches a group only through the function holding it.
+    #[test]
+    fn a_clause_over_two_functions_speaks_of_each_of_them() {
+        let Narrative::Whole(said) = statement(
+            "fn always(left: u32) -> u32 { left + 1 }\nfn guarded(flag: bool, left: u32) -> u32 { \
+             if flag { return left * 2; } 0 }\nfn main() {\n    let one = always(1);\n    let \
+             two = guarded(true, one);\n    println!(\"{two}\");\n}"
+        ) else {
+            panic!("no clause rests on a refusal here");
+        };
+        assert!(
+            said.contains("unconditionally computes addition in `always`"),
+            "{said}"
+        );
+        assert!(said.contains("multiplication in `guarded`"), "{said}");
+    }
+
     /// A program taking a value from outside itself says so, and the
     /// clause names the channel and the part drawn.
     #[test]
