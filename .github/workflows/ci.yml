@@ -59,13 +59,23 @@ jobs:
         run: cargo build --workspace --release --locked
 
   msrv:
-    name: msrv 1.95
+    name: msrv
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Verify rust-toolchain.toml pins 1.95
+      - name: Verify the toolchain pin matches the declared MSRV
         run: |
-          grep -q 'channel = "1.95.0"' rust-toolchain.toml || (echo "MSRV drifted" && exit 1)
+          declared=$(grep -m1 '^rust-version = ' Cargo.toml | cut -d'"' -f2)
+          pinned=$(grep -m1 '^channel = ' rust-toolchain.toml | cut -d'"' -f2)
+          if [ -z "$declared" ] || [ -z "$pinned" ]; then
+            echo "MSRV unreadable: declared='$declared' pinned='$pinned'"
+            exit 1
+          fi
+          if [ "${pinned%.*}" != "$declared" ]; then
+            echo "MSRV drifted: Cargo.toml declares $declared, rust-toolchain.toml pins $pinned"
+            exit 1
+          fi
+          echo "MSRV $declared, toolchain pinned to $pinned"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: msrv
