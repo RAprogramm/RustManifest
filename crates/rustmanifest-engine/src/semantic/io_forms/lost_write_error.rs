@@ -10,13 +10,23 @@ use super::{
     shipped_code::shipped
 };
 use crate::{
-    semantic::{behavior::behavior, entry::entry_points, insight::Insight},
+    semantic::{
+        behavior::{Conduit, behavior},
+        entry::entry_points,
+        insight::Insight
+    },
     source::Source
 };
 
 /// Reports an entry point that writes through the print family while
 /// returning nothing, so a failed write becomes a panic rather than an
 /// exit code.
+///
+/// The panic belongs to the print family alone: it is that machinery that
+/// turns the write's failed result into one. A byte write hands its
+/// failure back as a value, and an entry point performing only those
+/// loses nothing by returning nothing — it is charged for no panic that
+/// its code cannot reach.
 pub(in crate::semantic) fn lost_write_error_insights(sources: &[Source]) -> Vec<Insight> {
     let library = library_knowledge();
     let facts = behavior(sources);
@@ -31,6 +41,7 @@ pub(in crate::semantic) fn lost_write_error_insights(sources: &[Source]) -> Vec<
         let Some((write, derived)) = fact
             .output_writes
             .iter()
+            .filter(|write| write.conduit == Conduit::Formatting)
             .find_map(|write| support(&WRITE_ERROR, write.stream, library).map(|of| (write, of)))
         else {
             continue;

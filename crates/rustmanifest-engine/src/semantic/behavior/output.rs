@@ -22,6 +22,8 @@
 //! own beside this file: the stream, the payload and its recovery, the
 //! grade, the guards behind it, and how often it repeats.
 
+mod acquisition;
+mod conduit;
 mod grade;
 mod guard;
 mod multiplicity;
@@ -31,6 +33,8 @@ mod write;
 
 pub(super) use self::payload::{argument_payload, literal_bytes_payload, macro_payload};
 pub use self::{
+    acquisition::Acquisition,
+    conduit::Conduit,
     grade::Grade,
     guard::{Guard, SiteGuard},
     multiplicity::Multiplicity,

@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     semantic::{
-        behavior::{Payload, behavior},
+        behavior::{Conduit, Payload, behavior},
         insight::Insight
     },
     source::Source
@@ -19,6 +19,13 @@ use crate::{
 
 /// Reports a fully proven literal carried through the formatting
 /// machinery, where a direct byte write skips it.
+///
+/// A write that already puts its bytes on the stream directly is the form
+/// this check prescribes, not a deviation from it: the cost counted here
+/// — one argument pack built and walked by a formatter — is a cost of the
+/// formatting machinery, and a site that never entered it pays nothing.
+/// Such a site is passed over in silence rather than charged for
+/// machinery it does not use.
 pub(in crate::semantic) fn literal_format_insights(sources: &[Source]) -> Vec<Insight> {
     let library = library_knowledge();
     let mut found = Vec::new();
@@ -27,6 +34,9 @@ pub(in crate::semantic) fn literal_format_insights(sources: &[Source]) -> Vec<In
             continue;
         }
         for write in &fact.output_writes {
+            if write.conduit != Conduit::Formatting {
+                continue;
+            }
             let Some(derived) = support(&CONSTANT_TEXT, write.stream, library) else {
                 continue;
             };
@@ -85,5 +95,23 @@ mod tests {
         let computed =
             literal_format_insights(&sources("fn main() {\n    println!(\"{name}\");\n}"));
         assert!(computed.is_empty());
+    }
+
+    /// The form this check prescribes is not a deviation from itself: a
+    /// literal written as bytes to the locked handle enters no formatting
+    /// machinery, so there is no argument pack to charge it for.
+    #[test]
+    fn the_prescribed_byte_write_is_not_reported_against_itself() {
+        let prescribed = literal_format_insights(&sources(
+            "fn main() -> std::io::Result<()> {\n    \
+             std::io::stdout().lock().write_all(b\"hi\")\n}"
+        ));
+        assert!(prescribed.is_empty());
+
+        let bound = literal_format_insights(&sources(
+            "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout().lock();\n    \
+             out.write_all(b\"hi\")\n}"
+        ));
+        assert!(bound.is_empty());
     }
 }

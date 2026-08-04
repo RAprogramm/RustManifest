@@ -42,8 +42,8 @@ mod types;
 pub use self::{
     assembly::behavior,
     output::{
-        Grade, Guard, Hole, HoleSource, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason,
-        OutputWrite, Payload, Segment, SiteGuard, Stream
+        Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
+        OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
     types::{CallSite, Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode}
 };

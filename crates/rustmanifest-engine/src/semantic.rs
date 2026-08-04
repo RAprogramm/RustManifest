@@ -56,9 +56,9 @@ use tracing::trace;
 use self::check::Check;
 pub use self::{
     behavior::{
-        CallSite, Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole, HoleSource,
-        Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OutputWrite, ParamFacts, ParamMode,
-        Payload, Segment, SiteGuard, Stream, behavior
+        Acquisition, CallSite, Conduit, Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole,
+        HoleSource, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OutputWrite, ParamFacts,
+        ParamMode, Payload, Segment, SiteGuard, Stream, behavior
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,

@@ -39,9 +39,38 @@ pub(super) const WRITER_MACROS: [(&str, Newline); 2] =
 pub(super) const BYTE_WRITE_METHOD: &str = "write_all";
 
 /// Standard-library constructors handing out a handle to one of the
-/// process's own streams, with the stream each names.
-pub(super) const STREAM_HANDLES: [(&str, Stream); 2] =
-    [("stderr", Stream::Stderr), ("stdout", Stream::Stdout)];
+/// process's own streams: the full path of the constructor, the stream it
+/// leads to, the handle type it returns, and the guard type the handle's
+/// locking call hands out.
+///
+/// The path is matched whole, against the segments a call expands to
+/// through the file's imports. A constructor whose name alone were
+/// enough would credit any library's own `stdout` — an asynchronous one,
+/// a captured one, a test double — to the process stream, and every cost
+/// this engine derives from the standard library's buffering would then
+/// be claimed of an object that does not buffer that way.
+pub(super) const STREAM_HANDLE_PATHS: [(&[&str], Stream, &str, &str); 2] = [
+    (
+        &["std", "io", "stderr"],
+        Stream::Stderr,
+        "Stderr",
+        "StderrLock"
+    ),
+    (
+        &["std", "io", "stdout"],
+        Stream::Stdout,
+        "Stdout",
+        "StdoutLock"
+    )
+];
+
+/// The locking call a stream handle answers with a guard held until the
+/// guard is dropped.
+pub(super) const STREAM_LOCK_METHOD: &str = "lock";
+
+/// Suffix of the library type names standing for a held stream guard, so
+/// a write through one is known to have taken no lock of its own.
+pub(super) const STREAM_GUARD_SUFFIX: &str = "Lock";
 
 /// Written type names that name one of the process's own streams, so a
 /// binding declared as one is a write to that stream.

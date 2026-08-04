@@ -3,7 +3,8 @@
 
 //! What a `let` teaches the type tables: the written type of the binding,
 //! the element type of a collection it declares, the wrapped inner type it
-//! inherits, and whether the value it holds was constructed in this body.
+//! inherits, the process stream it holds a handle to, and whether the
+//! value it holds was constructed in this body.
 
 use super::{FactCollector, typing::initializer_type};
 use crate::semantic::behavior::signature::{element_type, type_last_segment};
@@ -36,7 +37,10 @@ impl FactCollector {
         }
         if let (Some(name), init) = (name, &local.init) {
             let constructed = init.as_ref().and_then(|init| {
-                initializer_type(&init.expr).or_else(|| self.called_return(&init.expr))
+                self.handle_type(&init.expr)
+                    .map(ToOwned::to_owned)
+                    .or_else(|| initializer_type(&init.expr))
+                    .or_else(|| self.called_return(&init.expr))
             });
             match constructed {
                 Some(type_name) => {

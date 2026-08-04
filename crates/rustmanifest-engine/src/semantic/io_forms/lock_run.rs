@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{
     semantic::{
-        behavior::{Grade, OutputWrite, behavior},
+        behavior::{Acquisition, Grade, OutputWrite, behavior},
         insight::Insight
     },
     source::Source
@@ -78,7 +78,18 @@ pub(in crate::semantic) fn lock_run_insights(sources: &[Source]) -> Vec<Insight>
             let uncounted = fact
                 .output_writes
                 .iter()
-                .filter(|write| write.stream == stream && !counted_in_run(write))
+                .filter(|write| {
+                    write.stream == stream
+                        && matches!(write.acquisition, Acquisition::AtSite)
+                        && !counted_in_run(write)
+                })
+                .count();
+            let already_held = fact
+                .output_writes
+                .iter()
+                .filter(|write| {
+                    write.stream == stream && matches!(write.acquisition, Acquisition::Held)
+                })
                 .count();
             let mut steps = trace(
                 &format!(
@@ -95,6 +106,17 @@ pub(in crate::semantic) fn lock_run_insights(sources: &[Source]) -> Vec<Insight>
                              the kind of a branch, not which branch, so nothing proves two such \
                              sites share an execution"
                         .to_owned()
+                });
+            }
+            if already_held > 0 {
+                steps.push(TraceStep {
+                    fact:   format!(
+                        "{already_held} site(s) to {stream} write through a guard bound earlier"
+                    ),
+                    reason:
+                        "such a site takes no lock of its own — the lock was taken once where \
+                             the guard was bound, which is the form this finding asks for"
+                            .to_owned()
                 });
             }
             found.push(Insight::new(
@@ -116,10 +138,18 @@ pub(in crate::semantic) fn lock_run_insights(sources: &[Source]) -> Vec<Insight>
 /// How many prints in one function make a run worth locking once.
 const RUN_THRESHOLD: usize = 2;
 
-/// Whether a write site belongs to the run its body always performs: no
-/// branch stands over it, and it is not proven unreachable.
+/// Whether a write site belongs to the run its body always performs: it
+/// takes the stream's lock itself, no branch stands over it, and it is
+/// not proven unreachable.
+///
+/// A site writing through a guard bound before it is left out entirely.
+/// The lock it would be charged for was taken once, at the binding, which
+/// is exactly the form this check asks for — counting such sites would
+/// report the fix as the defect.
 const fn counted_in_run(write: &OutputWrite) -> bool {
-    write.guard.guards.is_empty() && !write.guard.dead
+    matches!(write.acquisition, Acquisition::AtSite)
+        && write.guard.guards.is_empty()
+        && !write.guard.dead
 }
 
 #[cfg(test)]
@@ -206,6 +236,19 @@ mod tests {
             step.fact
                 .contains("1 further site(s) to stdout are not counted")
         }));
+    }
+
+    /// A run of writes through one guard bound before them is the form
+    /// this finding asks for, so it is never reported as a deviation from
+    /// itself: the lock was taken once, at the binding.
+    #[test]
+    fn writes_through_a_guard_bound_once_are_not_a_run() {
+        let locked_once = lock_run_insights(&sources(
+            "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout().lock();\n    \
+             out.write_all(b\"one\")?;\n    out.write_all(b\"two\")?;\n    \
+             out.write_all(b\"three\")\n}"
+        ));
+        assert!(locked_once.is_empty());
     }
 
     /// A site standing after an exit still belongs to the run: reaching it

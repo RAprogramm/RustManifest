@@ -46,7 +46,7 @@
       "findings": {
         "RM-IO-001": 8,
         "RM-IO-002": 7,
-        "RM-IO-003": 2,
+        "RM-IO-003": 1,
         "RM-IO-004": 1,
         "RM-MEM-001": 2,
         "RM-STRUCT-002": 9,

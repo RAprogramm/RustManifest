@@ -4,8 +4,10 @@
 //! Canonical JSON shape of one recorded write to an output stream.
 //!
 //! The stream, the proven text, the payload behind it, the certainty and
-//! the guard stack that earns that certainty, plus multiplicity, newline
-//! and site. The payload itself is shaped by the sibling module.
+//! the guard stack that earns that certainty, the machinery the payload
+//! travelled through and where the stream's lock was taken, plus
+//! multiplicity, newline and site. The payload itself is shaped by the
+//! sibling module.
 
 use super::payload::payload_json;
 
@@ -17,7 +19,10 @@ use super::payload::payload_json;
 /// template keeps its proven shape and an unreadable payload keeps its
 /// reason instead of both collapsing into the same null. `guards` lists
 /// the constructs the site stands under, outermost first — the evidence
-/// behind `certainty`.
+/// behind `certainty`. `conduit` names the machinery the payload reached
+/// the stream through, and `lock` where the stream's lock was taken, so a
+/// consumer can tell a formatted print from a direct byte write and a
+/// per-write lock from a guard held across a run.
 pub(super) fn output_json(write: &crate::semantic::OutputWrite) -> serde_json::Value {
     serde_json::json!({
         "stream": write.stream.to_string(),
@@ -27,6 +32,8 @@ pub(super) fn output_json(write: &crate::semantic::OutputWrite) -> serde_json::V
         "guards": write.guard.guards.iter().map(|guard| guard_name(*guard)).collect::<Vec<_>>(),
         "repeats": write.multiplicity == crate::semantic::Multiplicity::Unbounded,
         "newline": write.newline == crate::semantic::Newline::Appended,
+        "conduit": write.conduit.label(),
+        "lock": write.acquisition.label(),
         "site": { "start": write.site.start, "end": write.site.end }
     })
 }

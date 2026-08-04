@@ -2,13 +2,17 @@
 // SPDX-License-Identifier: MIT
 
 //! One observed write, as a single record: the stream it reaches, the
-//! text it puts there, the terminator it appends, and the two readings
-//! that say how certainly and how often it happens.
+//! text it puts there, the terminator it appends, the machinery it goes
+//! through, where its lock was taken, and the two readings that say how
+//! certainly and how often it happens.
 //!
 //! One record per write site, in body order, never deduplicated — the
 //! channel the effect list cannot be.
 
-use super::{guard::SiteGuard, multiplicity::Multiplicity, payload::Payload, stream::Stream};
+use super::{
+    acquisition::Acquisition, conduit::Conduit, guard::SiteGuard, multiplicity::Multiplicity,
+    payload::Payload, stream::Stream
+};
 
 /// Whether the write appends a line terminator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +37,11 @@ pub struct OutputWrite {
     /// What stands between the site and unconditional execution.
     pub guard:        SiteGuard,
     /// How many times it runs per call.
-    pub multiplicity: Multiplicity
+    pub multiplicity: Multiplicity,
+    /// By what machinery the payload reaches the stream.
+    pub conduit:      Conduit,
+    /// Where the stream's lock was taken relative to this site.
+    pub acquisition:  Acquisition
 }
 
 #[cfg(test)]
@@ -68,6 +76,66 @@ mod tests {
         assert_eq!(write.guard.local_grade(), Grade::Certain);
         assert!(write.site.end > write.site.start);
         assert_eq!(main.effects, vec![crate::semantic::Effect::ConsoleIo]);
+        assert_eq!(write.conduit, super::Conduit::Formatting);
+        assert_eq!(write.acquisition, super::Acquisition::AtSite);
+    }
+
+    /// A handle put in a binding still names its stream, however many
+    /// bindings stand between the constructor and the write. Losing the
+    /// stream there would blind the engine to the very form it prescribes
+    /// — lock once, write bytes — and the lock reading says the guard was
+    /// taken before the site, not at it.
+    #[test]
+    fn a_write_through_a_bound_handle_keeps_its_stream() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        for body in [
+            "    let mut out = std::io::stdout().lock();\n    out.write_all(b\"hi\")",
+            "    let out = std::io::stdout();\n    let mut held = out.lock();\n    \
+             held.write_all(b\"hi\")"
+        ] {
+            let sources = [Source::new(
+                PathBuf::from("src/main.rs"),
+                format!("fn main() -> std::io::Result<()> {{\n{body}\n}}")
+            )];
+            let facts = behavior(&sources);
+            let main = facts
+                .iter()
+                .find(|fact| fact.function == "main")
+                .expect("the entry function is a fact");
+            assert_eq!(main.output_writes.len(), 1);
+            let write = &main.output_writes[0];
+            assert_eq!(write.stream, super::Stream::Stdout);
+            assert_eq!(write.conduit, super::Conduit::Bytes);
+            assert_eq!(write.acquisition, super::Acquisition::Held);
+        }
+    }
+
+    /// A write on the handle itself takes the lock per call, so it is not
+    /// read as a guard held across a run.
+    #[test]
+    fn a_write_on_the_handle_itself_takes_the_lock_at_the_site() {
+        use std::path::PathBuf;
+
+        use crate::{semantic::behavior::behavior, source::Source};
+        let sources = [Source::new(
+            PathBuf::from("src/main.rs"),
+            "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout();\n    \
+             out.write_all(b\"hi\")\n}"
+                .to_owned()
+        )];
+        let facts = behavior(&sources);
+        let main = facts
+            .iter()
+            .find(|fact| fact.function == "main")
+            .expect("the entry function is a fact");
+        assert_eq!(main.output_writes.len(), 1);
+        assert_eq!(main.output_writes[0].stream, super::Stream::Stdout);
+        assert_eq!(
+            main.output_writes[0].acquisition,
+            super::Acquisition::AtSite
+        );
     }
 
     #[test]
