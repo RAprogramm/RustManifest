@@ -3,6 +3,12 @@
 
 //! One pass of the analysis pipeline: configuration, analyzer construction,
 //! discovery, the three tiers, delegation, and the severity filter.
+//!
+//! The workspace-level tiers — semantic checks and declared invariants —
+//! read one set of sources between them, loaded only when at least one of
+//! them has something to say. Loading it per tier read every file from disk
+//! twice, and loading it unconditionally read them all for a run that used
+//! neither tier.
 
 use anyhow::Context;
 use rustmanifest_config::Effective;
@@ -88,10 +94,12 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     let mut findings = orchestrator
         .run(&files)
         .context("orchestrator run failed")?;
-    findings.extend(rustmanifest_engine::semantic_findings(
-        &semantic,
-        &read_sources(&files, args.max_file_size)
-    ));
+    let sources = if semantic.is_empty() && effective.invariants().is_empty() {
+        Vec::new()
+    } else {
+        read_sources(&files, args.max_file_size)
+    };
+    findings.extend(rustmanifest_engine::semantic_findings(&semantic, &sources));
     if !effective.invariants().is_empty() {
         let scip = args
             .scip
@@ -100,7 +108,7 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
             .transpose()
             .context("loading SCIP index")?;
         findings.extend(rustmanifest_engine::check_invariants_with(
-            &read_sources(&files, args.max_file_size),
+            &sources,
             effective.invariants(),
             scip.as_ref()
         ));
