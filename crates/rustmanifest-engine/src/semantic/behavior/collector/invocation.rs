@@ -8,7 +8,9 @@
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, OUTCOME_ADAPTERS, TEXT_WRITE_METHOD}
+    catalog::{
+        BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, OUTCOME_ADAPTERS, TEXT_WRITE_METHOD, VALUE_WRAPPERS
+    }
 };
 use crate::semantic::{expr::MUTATING_METHODS, knowledge};
 
@@ -18,11 +20,11 @@ impl FactCollector {
     pub(super) fn record_called_path(&mut self, call: &syn::ExprCall) {
         use syn::spanned::Spanned;
 
+        let span = call.span().byte_range();
         let mut reserved = None;
         self.record_source_call(call);
         if let syn::Expr::Path(path) = call.func.as_ref() {
             let segments = &path.path.segments;
-            let span = call.span().byte_range();
             if segments.len() == 1 {
                 reserved =
                     Some(self.reserve_written_call(None, &segments[0].ident.to_string(), &span));
@@ -37,6 +39,37 @@ impl FactCollector {
             let arguments: Vec<&syn::Expr> = call.args.iter().collect();
             self.settle_arguments(index, &arguments);
         }
+        self.carry_wrapper(call, &span);
+    }
+
+    /// Hands on the origin of the one value a library wrapper is built
+    /// around.
+    ///
+    /// The value such a construction stands for is the value written
+    /// inside it; naming the construction instead would put a step
+    /// between a value and itself, and a term full of those steps says
+    /// less with every one of them.
+    fn carry_wrapper(&mut self, call: &syn::ExprCall, span: &std::ops::Range<usize>) {
+        let syn::Expr::Path(path) = call.func.as_ref() else {
+            return;
+        };
+        let Some(named) = path.path.segments.last() else {
+            return;
+        };
+        if !VALUE_WRAPPERS.contains(&named.ident.to_string().as_str()) {
+            return;
+        }
+        let [only] = call.args.iter().collect::<Vec<_>>()[..] else {
+            return;
+        };
+        let carried = self.origin_of(only);
+        self.produced.insert(
+            (
+                u32::try_from(span.start).unwrap_or(u32::MAX),
+                u32::try_from(span.end).unwrap_or(u32::MAX)
+            ),
+            carried
+        );
     }
 
     /// Records everything one method call carries.

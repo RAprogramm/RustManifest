@@ -32,15 +32,92 @@ mod unfolding;
 use std::collections::BTreeMap;
 
 pub(in crate::semantic) use self::binding::{bound_callee, sole_by_name};
-use self::{component::components, derivation::Bindings};
+use self::{
+    component::components,
+    derivation::{Bindings, carry},
+    unfolding::unfold
+};
 pub use self::{
     composed::{ComposedOrigin, ORIGIN_DEPTH},
     record::{FunctionSummary, SUMMARY_SET}
 };
 use crate::{
-    semantic::{behavior::FunctionFacts, calls::CallGraph, meaning::qualifiers_by_fact},
+    semantic::{
+        behavior::{FunctionFacts, Provenance},
+        calls::CallGraph,
+        meaning::qualifiers_by_fact
+    },
     source::Source
 };
+
+/// Every function's summary, with the machinery to restate one value of
+/// one function in terms that name nothing of any callee's.
+pub struct Composition<'facts> {
+    /// Every function's facts.
+    facts:      &'facts [FunctionFacts],
+    /// What each function hands back, by fact index.
+    settled:    BTreeMap<usize, FunctionSummary>,
+    /// The call graph the candidates were resolved against.
+    graph:      &'facts CallGraph,
+    /// Scopes owning each function.
+    qualifiers: &'facts [std::collections::BTreeSet<String>],
+    /// Which functions share a recursion cycle.
+    components: component::Components
+}
+
+impl Composition<'_> {
+    /// Where one value of one function came from, with every reference
+    /// followed and every call it passes through restated.
+    #[must_use]
+    pub fn of(&self, fact: usize, origin: &Provenance) -> ComposedOrigin {
+        let Some(own) = self.facts.get(fact) else {
+            return ComposedOrigin::NotDerived(crate::semantic::behavior::OriginGap::Unreadable);
+        };
+        let bindings = Bindings {
+            facts:      self.facts,
+            graph:      self.graph,
+            qualifiers: self.qualifiers,
+            components: &self.components
+        };
+        let term = unfold(own, origin, composed::ORIGIN_DEPTH);
+        carry(
+            &bindings,
+            fact,
+            &term,
+            &self.settled,
+            composed::ORIGIN_DEPTH
+        )
+    }
+}
+
+/// Derives every function's summary and keeps what is needed to restate
+/// one value in a caller's terms.
+#[must_use]
+pub fn composition<'facts>(
+    facts: &'facts [FunctionFacts],
+    graph: &'facts CallGraph,
+    qualifiers: &'facts [std::collections::BTreeSet<String>]
+) -> Composition<'facts> {
+    let components = components(graph, facts.len());
+    let bindings = Bindings {
+        facts,
+        graph,
+        qualifiers,
+        components: &components
+    };
+    let mut settled: BTreeMap<usize, FunctionSummary> = BTreeMap::new();
+    for &fact in components.order() {
+        let summary = derivation::summary_of(&bindings, fact, &settled);
+        settled.insert(fact, summary);
+    }
+    Composition {
+        facts,
+        settled,
+        graph,
+        qualifiers,
+        components
+    }
+}
 
 /// Derives what a call to every function of `facts` hands back.
 ///

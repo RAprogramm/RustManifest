@@ -89,6 +89,9 @@ fn hole(body: &str, arguments: &[String], positional: &mut u32) -> Hole {
         spec: spec.to_owned(),
         expr,
         type_name: None,
+        origin: crate::semantic::behavior::value::Provenance::NotDerived(
+            crate::semantic::behavior::value::OriginGap::Unreadable
+        ),
         alternatives: Vec::new()
     }
 }

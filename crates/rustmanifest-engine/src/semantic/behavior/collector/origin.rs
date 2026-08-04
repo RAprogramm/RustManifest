@@ -52,6 +52,12 @@ impl FactCollector {
         }
     }
 
+    /// Where the value a bare name stands for came from, read off the
+    /// name alone.
+    pub(super) fn named_value(&self, name: &str) -> Provenance {
+        self.named_origin(name)
+    }
+
     /// Where the value a bare name stands for came from.
     ///
     /// A name this body gave a value to answers with that value. A name

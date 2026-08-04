@@ -85,6 +85,7 @@ impl FactCollector {
                     output::Segment::Hole(mut hole) => {
                         if let output::HoleSource::Named(name) = &hole.source {
                             hole.type_name = self.param_types.get(name).cloned();
+                            hole.origin = self.named_value(name);
                         }
                         output::Segment::Hole(hole)
                     }

@@ -42,6 +42,16 @@ pub(super) fn substitute(
                 .collect(),
             carried:   Box::new(substitute(carried, arguments, remaining))
         },
+        ComposedOrigin::Computed {
+            operation,
+            operands
+        } => ComposedOrigin::Computed {
+            operation: operation.clone(),
+            operands:  operands
+                .iter()
+                .map(|operand| substitute(operand, arguments, remaining))
+                .collect()
+        },
         ComposedOrigin::Choice(alternatives) => ComposedOrigin::Choice(
             alternatives
                 .iter()

@@ -25,6 +25,7 @@ mod claim;
 mod completion;
 mod intake;
 mod narrative;
+mod origin_text;
 mod payload;
 mod reach;
 mod scope;
@@ -39,14 +40,17 @@ pub use self::{
     claim::{ChoiceClaim, ComputeClaim, HandbackClaim},
     completion::{ExitClaim, completion_rule},
     intake::IntakeClaim,
-    narrative::{Clause, Narrative}
+    narrative::{Clause, Narrative},
+    origin_text::origin_text
 };
 use super::{
-    behavior::{FunctionFacts, Grade, OUTPUT_SINK_SET, OutputWrite, behavior},
+    behavior::{
+        FunctionFacts, Grade, HoleSource, OUTPUT_SINK_SET, OutputWrite, Payload, Segment, behavior
+    },
     calls::{CallGraph, call_graph, resolution_context},
     entry::{Completion, EntryKind, EntryPoint, entry_points}
 };
-use crate::source::Source;
+use crate::{semantic::summary::ComposedOrigin, source::Source};
 
 /// One statement about what the program writes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,8 +70,40 @@ pub struct OutputClaim {
     pub reach:     Grade,
     /// How certainly the site runs, both parts composed.
     pub execution: Grade,
+    /// Where the value filling each named position of the payload came
+    /// from, with every reference followed and every call restated.
+    ///
+    /// One entry per named position of the payload. A term the reading
+    /// could not settle is kept and says which question it failed on:
+    /// dropping it would leave the claim silent about a position the
+    /// program certainly fills.
+    pub sources:   Vec<(String, ComposedOrigin)>,
     /// Version of the recognizer list that produced this claim.
     pub sink_set:  u32
+}
+
+/// Where the value filling each named position of one write came from.
+fn hole_sources(
+    composed: &crate::semantic::summary::Composition<'_>,
+    fact: usize,
+    write: &OutputWrite
+) -> Vec<(String, ComposedOrigin)> {
+    let Payload::Template(segments) = &write.payload else {
+        return Vec::new();
+    };
+    segments
+        .iter()
+        .filter_map(|segment| match segment {
+            Segment::Hole(hole) => {
+                let named = match &hole.source {
+                    HoleSource::Named(name) => name.clone(),
+                    _ => return None
+                };
+                Some((named, composed.of(fact, &hole.origin)))
+            }
+            Segment::Text(_) => None
+        })
+        .collect()
 }
 
 /// Everything one entry point is observed to do.
@@ -128,6 +164,7 @@ fn meaning_of(
     sources: &[Source]
 ) -> EntryMeaning {
     let reach = reachability(facts, graph, qualifiers, entry.fact);
+    let composed = crate::semantic::summary::composition(facts, graph, qualifiers);
     let mut claims = Vec::new();
     for (index, fact) in facts.iter().enumerate() {
         let file = sources.get(fact.source).map_or_else(String::new, |source| {
@@ -140,6 +177,7 @@ fn meaning_of(
                 execution: reach[index].min(write.guard.local_grade()),
                 reach:     reach[index],
                 write:     write.clone(),
+                sources:   hole_sources(&composed, index, write),
                 sink_set:  OUTPUT_SINK_SET
             });
         }

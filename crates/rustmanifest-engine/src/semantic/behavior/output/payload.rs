@@ -11,6 +11,8 @@
 //! file, so the shape of the answer and the reading that produces it
 //! stay separable.
 
+use super::super::value::Provenance;
+
 mod reading;
 mod segmentation;
 
@@ -42,6 +44,13 @@ pub struct Hole {
     /// Type of the value filling this position, where the tables
     /// resolved the name it is written as.
     pub type_name:    Option<String>,
+    /// Where the value filling this position came from.
+    ///
+    /// Answered only where the position is written as a bare name: a
+    /// position written as an expression names an expression rather than
+    /// a binding, and reading its origin would record a site the walk
+    /// records again.
+    pub origin:       Provenance,
     /// What this position can put on the stream, one entry per write
     /// the display implementation of its own type records, each proven
     /// exactly as far as that write is.
@@ -109,7 +118,7 @@ impl Payload {
 
 #[cfg(test)]
 mod tests {
-    use super::{Hole, HoleSource, OpaqueReason, Payload, Segment};
+    use super::{Hole, HoleSource, OpaqueReason, Payload, Provenance, Segment};
 
     #[test]
     fn a_payload_is_fully_known_only_when_every_part_is_proven() {
@@ -125,6 +134,9 @@ mod tests {
                 spec:         String::new(),
                 expr:         Some("total".to_owned()),
                 type_name:    None,
+                origin:       Provenance::NotDerived(
+                    crate::semantic::behavior::value::OriginGap::Unreadable
+                ),
                 alternatives: Vec::new()
             }),
         ]);

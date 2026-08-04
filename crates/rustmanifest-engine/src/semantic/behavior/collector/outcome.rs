@@ -9,6 +9,11 @@
 //! signature rather than at the binding — and reading it there is a
 //! lookup, not an inference.
 //!
+//! The name an arm of the success side binds also holds the value the
+//! scrutinee produced, so a later reading of it reaches through to what
+//! the call handed back. The failure side binds the other half, which no
+//! term here names, and is left alone.
+//!
 //! Only the two shapes the library's own result has are read, and only
 //! where the arm binds exactly one plain name. A pattern that destructures
 //! further, renames through a nested pattern, or names a type of the
@@ -41,6 +46,10 @@ impl FactCollector {
                 .iter()
                 .find(|(named, _)| *named == variant)
                 .and_then(|(_, ok)| if *ok { success.clone() } else { error.clone() });
+            if variant == "Ok" {
+                let produced = self.origin_of(&matched.expr);
+                self.origins.insert(bound.clone(), produced);
+            }
             if let Some(type_name) = carried {
                 self.param_types.insert(bound, type_name);
             }

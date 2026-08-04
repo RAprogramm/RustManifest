@@ -12,7 +12,7 @@
 use std::fmt::Write as _;
 
 use super::{
-    super::super::{OutputClaim, claim::HandbackClaim},
+    super::super::{OutputClaim, claim::HandbackClaim, origin_text::origin_text},
     opening
 };
 use crate::semantic::behavior::{Grade, Outcome};
@@ -38,11 +38,12 @@ pub(in crate::semantic::meaning::narrative) fn write_clause(
         }
         let _ = write!(
             sentence,
-            "{}{} {} to {}",
+            "{}{} {} to {}{}",
             if sentence.is_empty() { "" } else { ", " },
             opening(claim.execution, "writes"),
             claim.payload_text(),
-            claim.write.stream
+            claim.write.stream,
+            sourced(claim)
         );
     }
     if unreached > 0 {
@@ -53,6 +54,24 @@ pub(in crate::semantic::meaning::narrative) fn write_clause(
         );
     }
     Some(sentence)
+}
+
+/// Where the value filling each named position of one write came from,
+/// in words, or nothing where the reading answered for none.
+///
+/// This is the whole point of naming an origin: without it the claim says
+/// a value is written and stops, which is a statement about the shape of
+/// the text rather than about the program.
+fn sourced(claim: &OutputClaim) -> String {
+    let named: Vec<String> = claim
+        .sources
+        .iter()
+        .map(|(position, origin)| format!("`<{position}>` is {}", origin_text(origin)))
+        .collect();
+    if named.is_empty() {
+        return String::new();
+    }
+    format!(", where {}", named.join(", and "))
 }
 
 /// What the program hands back to whoever called it.

@@ -14,13 +14,13 @@
 //! states that the origin continues, which is a different thing from a
 //! leaf that reads as an answer.
 
-use crate::semantic::behavior::{Literal, OriginGap, ParamSlot};
+use crate::semantic::behavior::{Channel, Literal, Operation, OriginGap, ParamSlot, Selector};
 
 /// How deep a composed origin is unfolded.
 ///
 /// This number is this repository's prescription and is admitted as such.
 /// What is derived is the refusal at the bottom, never the depth itself.
-pub const ORIGIN_DEPTH: u8 = 6;
+pub const ORIGIN_DEPTH: u8 = 14;
 
 /// Where one value came from, with every reference followed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,16 +45,60 @@ pub enum ComposedOrigin {
     Choice(Vec<Self>),
     /// The value a field of a known type holds, named `Owner.field`.
     Field(String),
+    /// A value drawn from outside the process.
+    Boundary {
+        /// Where it comes from.
+        channel:  Channel,
+        /// Which part of that channel.
+        selector: Selector
+    },
+    /// A value one operation produced from others.
+    Computed {
+        /// What the operation does.
+        operation: Operation,
+        /// Where each operand came from, in written order.
+        operands:  Vec<Self>
+    },
     /// Not derived, with the reason.
     NotDerived(OriginGap)
 }
 
 impl ComposedOrigin {
+    /// The alternatives one term amounts to, with a choice of choices
+    /// read as the one set it is.
+    ///
+    /// A call is seen through for the same reason its phrase already is:
+    /// the value a call stands for is the value it hands back, and the
+    /// step from one to the other says nothing about the program.
+    ///
+    /// Nesting here is an artefact of how the alternatives were reached —
+    /// one function choosing among values another function chose among —
+    /// and not a fact about the program: what can stand in that position
+    /// is one set, however many steps led to it.
+    #[must_use]
+    pub fn flattened(&self) -> Vec<Self> {
+        match self {
+            Self::Choice(alternatives) => alternatives.iter().flat_map(Self::flattened).collect(),
+            Self::Call {
+                carried, ..
+            } if !matches!(carried.as_ref(), Self::NotDerived(_)) => carried.flattened(),
+            settled => vec![settled.clone()]
+        }
+    }
+
     /// Whether the term is settled all the way down.
     #[must_use]
     pub fn derived(&self) -> bool {
         match self {
-            Self::Written(_) | Self::Parameter(_) | Self::Field(_) => true,
+            Self::Written(_)
+            | Self::Parameter(_)
+            | Self::Field(_)
+            | Self::Boundary {
+                ..
+            } => true,
+            Self::Computed {
+                operands, ..
+            } => operands.iter().all(Self::derived),
             Self::Call {
                 arguments,
                 carried,
@@ -69,7 +113,15 @@ impl ComposedOrigin {
     #[must_use]
     pub fn gap(&self) -> Option<OriginGap> {
         match self {
-            Self::Written(_) | Self::Parameter(_) | Self::Field(_) => None,
+            Self::Written(_)
+            | Self::Parameter(_)
+            | Self::Field(_)
+            | Self::Boundary {
+                ..
+            } => None,
+            Self::Computed {
+                operands, ..
+            } => operands.iter().find_map(Self::gap),
             Self::Call {
                 arguments,
                 carried,

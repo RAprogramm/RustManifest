@@ -78,7 +78,7 @@ fn handed_back(own: &FunctionFacts) -> ComposedOrigin {
 }
 
 /// Settles what every call inside a term hands back.
-fn carry(
+pub(super) fn carry(
     bindings: &Bindings<'_>,
     caller: usize,
     term: &ComposedOrigin,
@@ -105,6 +105,16 @@ fn carry(
                 carried:   Box::new(answer)
             }
         }
+        ComposedOrigin::Computed {
+            operation,
+            operands
+        } => ComposedOrigin::Computed {
+            operation: operation.clone(),
+            operands:  operands
+                .iter()
+                .map(|operand| carry(bindings, caller, operand, settled, remaining))
+                .collect()
+        },
         ComposedOrigin::Choice(alternatives) => ComposedOrigin::Choice(
             alternatives
                 .iter()

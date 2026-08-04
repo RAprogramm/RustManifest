@@ -27,11 +27,58 @@ pub(super) fn unfold(fact: &FunctionFacts, origin: &Provenance, budget: u8) -> C
         Provenance::Parameter(slot) => ComposedOrigin::Parameter(slot.clone()),
         Provenance::Field(key) => ComposedOrigin::Field(key.clone()),
         Provenance::Called(index) => called(fact, *index, remaining),
-        Provenance::Read(_) | Provenance::Computed(_) | Provenance::Chosen(_) => {
-            ComposedOrigin::NotDerived(OriginGap::Unreadable)
-        }
+        Provenance::Read(index) => drawn(fact, *index),
+        Provenance::Computed(index) => computed(fact, *index, remaining),
+        Provenance::Chosen(index) => chosen(fact, *index, remaining),
         Provenance::NotDerived(gap) => ComposedOrigin::NotDerived(*gap)
     }
+}
+
+/// Unfolds the read at one position of the input channel.
+fn drawn(fact: &FunctionFacts, index: u32) -> ComposedOrigin {
+    usize::try_from(index)
+        .ok()
+        .and_then(|at| fact.input_reads.get(at))
+        .map_or(ComposedOrigin::NotDerived(OriginGap::Unreadable), |read| {
+            ComposedOrigin::Boundary {
+                channel:  read.channel,
+                selector: read.selector.clone()
+            }
+        })
+}
+
+/// Unfolds the operation at one position of the operation channel.
+fn computed(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
+    let Some(site) = usize::try_from(index)
+        .ok()
+        .and_then(|at| fact.operations.get(at))
+    else {
+        return ComposedOrigin::NotDerived(OriginGap::Unreadable);
+    };
+    ComposedOrigin::Computed {
+        operation: site.operation.clone(),
+        operands:  site
+            .operands
+            .iter()
+            .map(|operand| unfold(fact, operand, budget))
+            .collect()
+    }
+}
+
+/// Unfolds the choice at one position of the choice channel.
+fn chosen(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
+    let Some(site) = usize::try_from(index)
+        .ok()
+        .and_then(|at| fact.choices.get(at))
+    else {
+        return ComposedOrigin::NotDerived(OriginGap::Unreadable);
+    };
+    ComposedOrigin::Choice(
+        site.alternatives
+            .iter()
+            .map(|alternative| unfold(fact, &alternative.value, budget))
+            .collect()
+    )
 }
 
 /// Unfolds the call at one position of the call channel.

@@ -85,7 +85,7 @@ pub use self::{
     layout::{TypeShape, shapes},
     meaning::{
         ChoiceClaim, Clause, ComputeClaim, EntryMeaning, ExitClaim, HandbackClaim, IntakeClaim,
-        Narrative, OutputClaim, completion_rule, program_meaning
+        Narrative, OutputClaim, completion_rule, origin_text, program_meaning
     },
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},
@@ -93,7 +93,10 @@ pub use self::{
     role::{Role, role},
     scip::{ScipEdges, ScipError},
     std_derive::{StdFact, StdOutputKnowledge, output_knowledge, std_source_root},
-    summary::{ComposedOrigin, FunctionSummary, ORIGIN_DEPTH, SUMMARY_SET, summaries},
+    summary::{
+        ComposedOrigin, Composition, FunctionSummary, ORIGIN_DEPTH, SUMMARY_SET, composition,
+        summaries
+    },
     surface::{FrameworkModel, Route, Surface, surface}
 };
 use crate::{error::EngineError, pragma, source::Source};
