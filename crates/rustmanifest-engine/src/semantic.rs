@@ -57,11 +57,12 @@ use tracing::trace;
 use self::check::Check;
 pub use self::{
     behavior::{
-        Acquisition, Arguments, CallSite, Condition, Conduit, Disposal, Effect, ExitRoute,
-        ExitStatus, FunctionFacts, FunctionFlags, Grade, Guard, HANDBACK_SET, Handback, Hole,
-        HoleSource, Literal, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OriginGap,
-        Outcome, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload, ProcessExit, Provenance,
-        Segment, SiteGuard, Stream, VALUE_ORIGIN_SET, behavior
+        Acquisition, Arguments, CallSite, Channel, Condition, Conduit, Disposal, Effect,
+        ExitRoute, ExitStatus, FunctionFacts, FunctionFlags, Grade, Guard, HANDBACK_SET, Handback,
+        Hole, HoleSource, INPUT_SOURCE_SET, InputRead, Intake, Literal, Multiplicity, Newline,
+        OUTPUT_SINK_SET, OpaqueReason, OriginGap, Outcome, OutputWrite, ParamFacts, ParamMode,
+        ParamSlot, Payload, ProcessExit, Provenance, ReadShape, Segment, Selector, SelectorGap,
+        SiteGuard, Stream, Terminator, VALUE_ORIGIN_SET, behavior
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
@@ -80,7 +81,9 @@ pub use self::{
     invariant::{check_invariants, check_invariants_with},
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
-    meaning::{EntryMeaning, ExitClaim, OutputClaim, completion_rule, program_meaning},
+    meaning::{
+        EntryMeaning, ExitClaim, IntakeClaim, OutputClaim, completion_rule, program_meaning
+    },
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,

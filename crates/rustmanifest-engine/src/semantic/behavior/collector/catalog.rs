@@ -6,9 +6,14 @@
 //! as expressions, the iterator adapters and sources, and the macros whose
 //! expansion is settled or diverging.
 //!
+//! The tables naming what brings a value in from outside the process sit
+//! in a submodule beside this file.
+//!
 //! Every recognizer keyed on one of these lists shares the same standing
 //! assumption: the name is the standard one, and a user item shadowing it
 //! would break the reading.
+
+pub(super) mod intake;
 
 use crate::semantic::behavior::output::{Newline, Stream};
 

@@ -9,7 +9,7 @@
 //! writes, the test flag and the behavioral role. The binarized feature
 //! vector is appended on request.
 
-use super::{output_write::output_json, process_exit::exit_json};
+use super::{input_read::read_json, output_write::output_json, process_exit::exit_json};
 use crate::{
     semantic::{FunctionFacts, features, role},
     source::Source
@@ -45,6 +45,7 @@ pub fn fact_json(
         "calls": entry.calls,
         "clones": entry.clones,
         "allocations": entry.allocations,
+        "input-reads": entry.input_reads.iter().map(read_json).collect::<Vec<_>>(),
         "output-writes": entry.output_writes.iter().map(output_json).collect::<Vec<_>>(),
         "exits": entry.exits.iter().map(exit_json).collect::<Vec<_>>(),
         "test": entry.flags.test(),

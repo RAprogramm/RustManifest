@@ -34,6 +34,7 @@ mod extraction;
 mod folding;
 mod handback;
 mod imports;
+mod input;
 mod output;
 mod rendering;
 mod returned;
@@ -48,6 +49,9 @@ pub use self::{
     assembly::behavior,
     exit::{ExitRoute, ExitStatus, ProcessExit},
     handback::{HANDBACK_SET, Handback, Outcome},
+    input::{
+        Channel, INPUT_SOURCE_SET, InputRead, Intake, ReadShape, Selector, SelectorGap, Terminator
+    },
     output::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream

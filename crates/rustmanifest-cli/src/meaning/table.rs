@@ -29,6 +29,17 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
             relative(&entry.file, root),
             entry_kind(entry.kind)
         );
+        for claim in &entry.intake {
+            let _ = writeln!(
+                out,
+                "  {}  {}  {} of {}  {}",
+                certainty(claim.execution),
+                claim.read.channel,
+                claim.read.selector,
+                claim.read.shape,
+                claim.function
+            );
+        }
         if entry.claims.is_empty() {
             for sentence in entry.sentences() {
                 let _ = writeln!(out, "  {sentence}");
@@ -127,6 +138,7 @@ mod tests {
             file:       "src/main.rs".to_owned(),
             kind:       EntryKind::Plain,
             claims:     Vec::new(),
+            intake:     Vec::new(),
             completion: Completion::Nothing,
             exits:      Vec::new()
         }

@@ -72,6 +72,7 @@ mod tests {
             file:       "src/main.rs".to_owned(),
             kind:       EntryKind::Plain,
             claims:     Vec::new(),
+            intake:     Vec::new(),
             completion: rustmanifest_engine::Completion::Nothing,
             exits:      Vec::new()
         }

@@ -228,6 +228,14 @@ pub struct FunctionFacts {
     /// deduplicated: two identical writes are two events, and their
     /// order is part of the fact.
     pub output_writes: Vec<super::output::OutputWrite>,
+    /// Sites drawing a value from outside the process, in body order.
+    ///
+    /// The mirror of [`Self::output_writes`], on the same terms: never
+    /// sorted, never deduplicated, one record per site, each carrying
+    /// what stands over it. Like the write channel it deliberately does
+    /// not agree with [`Self::effects`], which records that the
+    /// environment was touched and can record no more.
+    pub input_reads:   Vec<super::input::InputRead>,
     /// Positions handing a value back to the caller, in body order.
     ///
     /// The tail expression, every written `return`, and every `?`, each

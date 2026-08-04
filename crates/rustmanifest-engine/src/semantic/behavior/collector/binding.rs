@@ -39,6 +39,7 @@ impl FactCollector {
         if let (Some(name), init) = (name, &local.init) {
             let constructed = init.as_ref().and_then(|init| {
                 self.handle_type(&init.expr)
+                    .or_else(|| self.intake_type(&init.expr))
                     .map(ToOwned::to_owned)
                     .or_else(|| initializer_type(&init.expr))
                     .or_else(|| self.called_return(&init.expr))

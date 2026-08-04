@@ -19,6 +19,7 @@ impl FactCollector {
         use syn::spanned::Spanned;
 
         let mut reserved = None;
+        self.record_source_call(call);
         if let syn::Expr::Path(path) = call.func.as_ref() {
             let segments = &path.path.segments;
             let span = call.span().byte_range();
@@ -89,6 +90,9 @@ impl FactCollector {
         let mut written: Vec<&syn::Expr> = vec![call.receiver.as_ref()];
         written.extend(call.args.iter());
         self.settle_arguments(reserved, &written);
+        if self.record_read_method(call).is_none() {
+            self.follow_intake(call);
+        }
     }
 
     /// Records the poll an awaited future stands for, where the future's

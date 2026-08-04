@@ -102,6 +102,7 @@ fn conversion_fact(source: usize, owner: &str, source_type: String) -> FunctionF
         allocations: 0,
         call_sites: Vec::new(),
         slots: Vec::new(),
+        input_reads: Vec::new(),
         handbacks: Vec::new(),
         output_writes: Vec::new(),
         exits: Vec::new()

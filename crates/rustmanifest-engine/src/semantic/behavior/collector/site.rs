@@ -38,7 +38,7 @@ impl FactCollector {
     }
 
     /// Visits `body` as the body of a repeating construct, stamping
-    /// every write recorded inside it with `multiplicity`.
+    /// every per-site record made inside it with `multiplicity`.
     ///
     /// Repetition is recorded here rather than read off the guard stack,
     /// because repeating and weakening are different questions: a `loop`
@@ -48,13 +48,17 @@ impl FactCollector {
     /// body, so a body that provably leaves on its first pass keeps the
     /// single run it has.
     pub(super) fn repeating<F: FnOnce(&mut Self)>(&mut self, multiplicity: Multiplicity, body: F) {
-        let recorded = self.facts.output_writes.len();
+        let written = self.facts.output_writes.len();
+        let drawn = self.facts.input_reads.len();
         body(self);
         if matches!(multiplicity, Multiplicity::Once) {
             return;
         }
-        for write in self.facts.output_writes.iter_mut().skip(recorded) {
+        for write in self.facts.output_writes.iter_mut().skip(written) {
             write.multiplicity = multiplicity;
+        }
+        for read in self.facts.input_reads.iter_mut().skip(drawn) {
+            read.multiplicity = multiplicity;
         }
     }
 

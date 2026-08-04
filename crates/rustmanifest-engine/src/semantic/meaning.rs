@@ -22,6 +22,7 @@
 //! rather than writing. A claim is therefore about an attempted write.
 
 mod completion;
+mod intake;
 mod payload;
 mod reach;
 mod scope;
@@ -30,9 +31,12 @@ mod weakening;
 
 use std::collections::BTreeSet;
 
-pub use self::completion::{ExitClaim, completion_rule};
 use self::reach::reachability;
 pub(in crate::semantic) use self::scope::qualifiers_by_fact;
+pub use self::{
+    completion::{ExitClaim, completion_rule},
+    intake::IntakeClaim
+};
 use super::{
     behavior::{FunctionFacts, Grade, OUTPUT_SINK_SET, OutputWrite, behavior},
     calls::{CallGraph, call_graph, resolution_context},
@@ -73,6 +77,9 @@ pub struct EntryMeaning {
     /// write, including the writes no path from this entry reaches —
     /// those carry [`Grade::Unreached`] rather than being dropped.
     pub claims:     Vec<OutputClaim>,
+    /// One claim per recorded read from outside the process, on the same
+    /// terms as the write claims.
+    pub intake:     Vec<IntakeClaim>,
     /// What the entry's own signature decides about the status the
     /// process leaves behind.
     pub completion: Completion,
@@ -129,6 +136,7 @@ fn meaning_of(
         kind: entry.kind,
         claims,
         completion: entry.completion,
+        intake: intake::intake_claims(facts, sources, &reach),
         exits: exit_claims(facts, sources, &reach)
     }
 }

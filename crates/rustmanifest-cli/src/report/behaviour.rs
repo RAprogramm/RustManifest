@@ -21,6 +21,16 @@ pub(super) fn behaviour(sources: &[Source], root: &std::path::Path) -> String {
     }
     for entry in &entries {
         let _ = writeln!(out, "- entry point `{}`", relative(&entry.file, root));
+        for claim in &entry.intake {
+            let _ = writeln!(
+                out,
+                "  - {} takes {} of its {} as {}",
+                certainty(claim.execution),
+                claim.read.selector,
+                claim.read.channel,
+                claim.read.shape
+            );
+        }
         for claim in &entry.claims {
             let _ = writeln!(
                 out,

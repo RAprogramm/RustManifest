@@ -32,10 +32,12 @@ impl FactCollector {
     ///
     /// The record is pushed before the call's own operands are walked, so
     /// the channel keeps body order and an expression written around this
-    /// call can already name it. What the site hands over is filled in
-    /// afterwards by [`Self::settle_arguments`], once the operands have
-    /// records of their own to be named by — reading them first would
-    /// name a value the walk had not reached yet.
+    /// call can already name it. A construct that already answered for
+    /// this very range — a read of the boundary, which is the truer
+    /// origin of the value — keeps its answer. What the site hands over is
+    /// filled in afterwards by [`Self::settle_arguments`], once the
+    /// operands have records of their own to be named by — reading them
+    /// first would name a value the walk had not reached yet.
     pub(super) fn reserve_written_call(
         &mut self,
         owner: Option<&str>,
@@ -48,10 +50,9 @@ impl FactCollector {
             start: u32::try_from(span.start).unwrap_or(u32::MAX),
             end:   u32::try_from(span.end).unwrap_or(u32::MAX)
         };
-        self.produced.insert(
-            (produced.start, produced.end),
-            Provenance::Called(u32::try_from(index).unwrap_or(u32::MAX))
-        );
+        self.produced
+            .entry((produced.start, produced.end))
+            .or_insert_with(|| Provenance::Called(u32::try_from(index).unwrap_or(u32::MAX)));
         index
     }
 
