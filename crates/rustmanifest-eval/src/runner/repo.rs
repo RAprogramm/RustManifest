@@ -81,10 +81,8 @@ pub(super) fn evaluate(
     }
 
     let semantic_start = Instant::now();
-    for analyzer in semantic {
-        for finding in analyzer.analyze(&sources) {
-            *findings.entry(finding.rule_id).or_insert(0) += 1;
-        }
+    for finding in rustmanifest_engine::semantic_findings(semantic, &sources) {
+        *findings.entry(finding.rule_id).or_insert(0) += 1;
     }
     let semantic_ms = semantic_start.elapsed().as_secs_f64() * 1000.0;
 

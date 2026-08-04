@@ -138,12 +138,15 @@ impl SemanticAnalyzer {
         })
     }
 
-    /// Evaluates the check over `sources`, honoring pragma suppression in
-    /// the file each finding anchors to.
-    pub fn analyze(&self, sources: &[Source]) -> Vec<Finding> {
-        let graph = TypeGraph::from_sources(sources);
+    /// Evaluates the check over `sources` against `graph`, honoring pragma
+    /// suppression in the file each finding anchors to.
+    ///
+    /// The graph arrives as an argument rather than being derived here, so
+    /// that a whole rule set derives it once instead of once per rule.
+    /// [`semantic_findings`] is that composition for the common case.
+    pub fn analyze(&self, sources: &[Source], graph: &TypeGraph) -> Vec<Finding> {
         let mut findings = Vec::new();
-        for insight in self.check.insights(sources, &graph) {
+        for insight in self.check.insights(sources, graph) {
             let Some(source) = sources.get(insight.source) else {
                 continue;
             };
@@ -170,6 +173,24 @@ impl SemanticAnalyzer {
         }
         findings
     }
+}
+
+/// Runs every analyzer in `analyzers` over `sources` and returns their
+/// findings in analyzer order.
+///
+/// The workspace type graph is derived once and shared by all of them: it is
+/// a property of the sources, not of the rule asking about them, and building
+/// it per rule made the tier cost scale with the size of the rule set.
+#[must_use]
+pub fn semantic_findings(analyzers: &[SemanticAnalyzer], sources: &[Source]) -> Vec<Finding> {
+    if analyzers.is_empty() {
+        return Vec::new();
+    }
+    let graph = TypeGraph::from_sources(sources);
+    analyzers
+        .iter()
+        .flat_map(|analyzer| analyzer.analyze(sources, &graph))
+        .collect()
 }
 
 #[cfg(test)]
@@ -221,7 +242,7 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        let findings = analyzer.analyze(&sources);
+        let findings = analyzer.analyze(&sources, &TypeGraph::from_sources(&sources));
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("created_at"));
         assert!(findings[0].message.contains("User"));
@@ -246,6 +267,10 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        assert!(analyzer.analyze(&sources).is_empty());
+        assert!(
+            analyzer
+                .analyze(&sources, &TypeGraph::from_sources(&sources))
+                .is_empty()
+        );
     }
 }

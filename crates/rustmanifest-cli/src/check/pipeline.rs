@@ -4,8 +4,6 @@
 //! One pass of the analysis pipeline: configuration, analyzer construction,
 //! discovery, the three tiers, delegation, and the severity filter.
 
-use std::path::PathBuf;
-
 use anyhow::Context;
 use rustmanifest_config::Effective;
 use rustmanifest_engine::{
@@ -90,7 +88,10 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     let mut findings = orchestrator
         .run(&files)
         .context("orchestrator run failed")?;
-    findings.extend(semantic_findings(&semantic, &files, args.max_file_size));
+    findings.extend(rustmanifest_engine::semantic_findings(
+        &semantic,
+        &read_sources(&files, args.max_file_size)
+    ));
     if !effective.invariants().is_empty() {
         let scip = args
             .scip
@@ -110,22 +111,4 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     apply_severity_overrides(&mut findings, &effective);
     findings.retain(|finding| args.severity_filter.admits(finding.severity));
     Ok((findings, effective))
-}
-
-/// Runs the workspace-level semantic tier over every readable Rust source
-/// within the memory budget and returns its findings.
-fn semantic_findings(
-    analyzers: &[SemanticAnalyzer],
-    files: &[PathBuf],
-    max_file_bytes: u64
-) -> Vec<Finding> {
-    if analyzers.is_empty() {
-        return Vec::new();
-    }
-    let sources = read_sources(files, max_file_bytes);
-    let mut findings = Vec::new();
-    for analyzer in analyzers {
-        findings.extend(analyzer.analyze(&sources));
-    }
-    findings
 }

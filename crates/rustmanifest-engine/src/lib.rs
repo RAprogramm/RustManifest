@@ -55,7 +55,8 @@ pub use semantic::{
     TraitNode, TypeGraph, TypeKind, TypeNode, VALUE_ORIGIN_SET, behavior, call_graph,
     call_graph_with, check_invariants, check_invariants_with, completion_rule, coverage,
     coverage_indexed, coverage_with, doc_facts, entry_points, expansion, features,
-    module_overview, program_meaning, role, surface, transitive_effects, unresolved_targets
+    module_overview, program_meaning, role, semantic_findings, surface, transitive_effects,
+    unresolved_targets
 };
 pub use source::Source;
 

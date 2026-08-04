@@ -84,11 +84,7 @@ fn semantic_findings(analyzers: &[SemanticAnalyzer], files: &[PathBuf]) -> Vec<F
                 .map(|text| Source::new(path.clone(), text))
         })
         .collect();
-    let mut findings = Vec::new();
-    for analyzer in analyzers {
-        findings.extend(analyzer.analyze(&sources));
-    }
-    findings
+    rustmanifest_engine::semantic_findings(analyzers, &sources)
 }
 
 #[cfg(test)]
