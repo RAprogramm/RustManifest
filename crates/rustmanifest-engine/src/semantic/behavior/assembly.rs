@@ -11,6 +11,7 @@ use super::{
     declaration::{ItemContext, is_attributed, item_flags},
     extraction::function_facts,
     imports::use_imports,
+    rendering::name_rendered_texts,
     signature::generics_bounds,
     tables::TypeTables,
     trait_default::trait_default_facts,
@@ -94,5 +95,6 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
             }
         }
     }
+    name_rendered_texts(&mut facts);
     facts
 }

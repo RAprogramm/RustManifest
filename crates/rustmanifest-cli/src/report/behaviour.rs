@@ -34,6 +34,13 @@ pub(super) fn behaviour(sources: &[Source], root: &std::path::Path) -> String {
                     ""
                 }
             );
+            for (position, alternatives) in claim.hole_alternatives() {
+                let _ = writeln!(
+                    out,
+                    "    - `<{position}>` is one of {}",
+                    alternatives.join(", ")
+                );
+            }
         }
         let _ = writeln!(
             out,

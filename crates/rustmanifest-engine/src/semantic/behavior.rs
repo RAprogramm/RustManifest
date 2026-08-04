@@ -34,6 +34,7 @@ mod extraction;
 mod folding;
 mod imports;
 mod output;
+mod rendering;
 mod returned;
 mod scoped;
 mod signature;

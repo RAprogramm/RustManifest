@@ -34,6 +34,7 @@ mod invocation;
 mod jumps;
 mod multiplicity;
 mod naming;
+mod outcome;
 mod output_write;
 mod pattern;
 mod process_exit;

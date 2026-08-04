@@ -8,7 +8,7 @@
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS}
+    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
 };
 use crate::semantic::{expr::MUTATING_METHODS, knowledge};
 
@@ -41,7 +41,7 @@ impl FactCollector {
         if method == "clone" || method == "to_owned" || method == "to_string" {
             self.facts.clones += 1;
         }
-        if method == BYTE_WRITE_METHOD {
+        if method == BYTE_WRITE_METHOD || method == TEXT_WRITE_METHOD {
             self.record_byte_output(call);
         }
         if ITERATOR_ADAPTERS.contains(&method.as_str()) {

@@ -38,6 +38,12 @@ pub(super) const WRITER_MACROS: [(&str, Newline); 2] =
 /// is opaque for a different reason than an unreadable format string.
 pub(super) const BYTE_WRITE_METHOD: &str = "write_all";
 
+/// The write-trait method that puts a caller-provided string on a
+/// formatter or writer. Like the byte method it carries its payload as a
+/// value rather than as a format template, and enters no formatting
+/// machinery of its own.
+pub(super) const TEXT_WRITE_METHOD: &str = "write_str";
+
 /// Standard-library constructors handing out a handle to one of the
 /// process's own streams: the full path of the constructor, the stream it
 /// leads to, the handle type it returns, and the guard type the handle's

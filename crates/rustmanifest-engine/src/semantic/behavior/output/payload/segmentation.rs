@@ -87,6 +87,8 @@ fn hole(body: &str, arguments: &[String], positional: &mut u32) -> Hole {
     Hole {
         source,
         spec: spec.to_owned(),
-        expr
+        expr,
+        type_name: None,
+        alternatives: Vec::new()
     }
 }

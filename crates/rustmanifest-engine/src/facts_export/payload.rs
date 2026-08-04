@@ -29,11 +29,11 @@ pub(super) fn payload_json(payload: &crate::semantic::Payload) -> serde_json::Va
                     Segment::Hole(hole) => format!("<{}>", hole_name(hole))
                 })
                 .collect();
-            let holes: Vec<String> = segments
+            let holes: Vec<serde_json::Value> = segments
                 .iter()
                 .filter_map(|segment| match segment {
                     Segment::Text(_) => None,
-                    Segment::Hole(hole) => Some(hole_name(hole))
+                    Segment::Hole(hole) => Some(hole_json(hole))
                 })
                 .collect();
             serde_json::json!({ "kind": "template", "shape": shape, "holes": holes })
@@ -42,6 +42,35 @@ pub(super) fn payload_json(payload: &crate::semantic::Payload) -> serde_json::Va
             serde_json::json!({ "kind": "opaque", "reason": reason_name(*reason) })
         }
     }
+}
+
+/// Renders one unproven position: its name, the type of the value that
+/// fills it where the tables resolved one, and what that type's display
+/// implementation can put there where it was enumerated.
+///
+/// `alternatives` is absent rather than empty where nothing was
+/// enumerated, so a consumer cannot read "not enumerated" as "renders
+/// nothing".
+fn hole_json(hole: &crate::semantic::Hole) -> serde_json::Value {
+    let mut object = serde_json::json!({ "name": hole_name(hole) });
+    let serde_json::Value::Object(fields) = &mut object else {
+        return object;
+    };
+    if let Some(type_name) = &hole.type_name {
+        fields.insert("type".to_owned(), serde_json::json!(type_name));
+    }
+    if !hole.alternatives.is_empty() {
+        fields.insert(
+            "alternatives".to_owned(),
+            serde_json::json!(
+                hole.alternatives
+                    .iter()
+                    .map(payload_json)
+                    .collect::<Vec<_>>()
+            )
+        );
+    }
+    object
 }
 
 /// Names one unproven position by whatever the source gives it, never by

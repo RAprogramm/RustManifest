@@ -54,16 +54,44 @@ impl FactCollector {
         debug_macro: bool
     ) {
         use syn::spanned::Spanned;
+        let payload = self.typed_holes(output::macro_payload(invocation, debug_macro));
         self.push_output(
             invocation.span().byte_range(),
             Destination {
                 stream,
                 acquisition: Acquisition::AtSite
             },
-            output::macro_payload(invocation, debug_macro),
+            payload,
             newline,
             Conduit::Formatting
         );
+    }
+
+    /// Names the type of every position filled by a binding the tables
+    /// resolved, leaving the rest untyped.
+    ///
+    /// Only a position written as a captured name is answered: the name
+    /// is the binding, and the binding's type is already in the tables.
+    /// A positional argument names an expression rather than a binding,
+    /// and typing it would mean evaluating what the source only wrote.
+    fn typed_holes(&self, payload: Payload) -> Payload {
+        let Payload::Template(segments) = payload else {
+            return payload;
+        };
+        Payload::Template(
+            segments
+                .into_iter()
+                .map(|segment| match segment {
+                    output::Segment::Hole(mut hole) => {
+                        if let output::HoleSource::Named(name) = &hole.source {
+                            hole.type_name = self.param_types.get(name).cloned();
+                        }
+                        output::Segment::Hole(hole)
+                    }
+                    text @ output::Segment::Text(_) => text
+                })
+                .collect()
+        )
     }
 
     /// Records one write by a macro that takes its destination as the

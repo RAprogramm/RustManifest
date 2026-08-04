@@ -33,12 +33,25 @@ pub enum HoleSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hole {
     /// Which argument fills this position.
-    pub source: HoleSource,
+    pub source:       HoleSource,
     /// Format specification as written, without the braces.
-    pub spec:   String,
+    pub spec:         String,
     /// Argument expression as written, kept as provenance only — it is
     /// never evaluated, folded, or propagated.
-    pub expr:   Option<String>
+    pub expr:         Option<String>,
+    /// Type of the value filling this position, where the tables
+    /// resolved the name it is written as.
+    pub type_name:    Option<String>,
+    /// What this position can put on the stream, one entry per write
+    /// the display implementation of its own type records, each proven
+    /// exactly as far as that write is.
+    ///
+    /// Empty where the analysis could not enumerate them, which is a
+    /// statement about the analysis and never about the value: an empty
+    /// list means "not enumerated", not "renders nothing". The entries
+    /// carry positions of their own, and those are never enumerated
+    /// again — the list is one level deep by construction.
+    pub alternatives: Vec<Payload>
 }
 
 /// One piece of a format template.
@@ -108,9 +121,11 @@ mod tests {
         let template = Payload::Template(vec![
             Segment::Text("count: ".to_owned()),
             Segment::Hole(Hole {
-                source: HoleSource::Positional(0),
-                spec:   String::new(),
-                expr:   Some("total".to_owned())
+                source:       HoleSource::Positional(0),
+                spec:         String::new(),
+                expr:         Some("total".to_owned()),
+                type_name:    None,
+                alternatives: Vec::new()
             }),
         ]);
         assert_eq!(template.fully_known(), None);

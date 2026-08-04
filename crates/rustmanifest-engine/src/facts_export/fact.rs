@@ -115,7 +115,11 @@ mod tests {
         assert!(write["text"].is_null(), "a template is not fully known");
         assert_eq!(write["payload"]["kind"], "template");
         assert_eq!(write["payload"]["shape"], "credited <amount>");
-        assert_eq!(write["payload"]["holes"][0], "amount");
+        assert_eq!(write["payload"]["holes"][0]["name"], "amount");
+        assert!(
+            write["payload"]["holes"][0]["alternatives"].is_null(),
+            "nothing enumerated the position, and an absent list says so"
+        );
     }
 
     #[test]

@@ -60,6 +60,15 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
                     width = widths[0]
                 );
             }
+            for (position, alternatives) in claim.hole_alternatives() {
+                let _ = writeln!(
+                    out,
+                    "  {:<width$}  <{position}> is one of {}",
+                    "",
+                    alternatives.join(", "),
+                    width = widths[0]
+                );
+            }
         }
         out.push_str(&status_block(entry, root));
         out.push('\n');

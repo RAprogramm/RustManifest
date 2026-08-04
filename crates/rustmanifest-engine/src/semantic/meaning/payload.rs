@@ -64,6 +64,31 @@ pub(super) fn describe(payload: &Payload, newline: Newline) -> String {
     }
 }
 
+/// One alternative rendering, proven exactly as far as the write it came
+/// from was: a text where the text is proven, a shape with its positions
+/// left open where it is not, a stated reason where it could not be read.
+///
+/// The positions of an alternative are never resolved further: the list
+/// they belong to is one level deep, and pretending otherwise would claim
+/// a chain the fact channel never walked.
+pub(super) fn alternative_text(payload: &Payload) -> String {
+    match payload {
+        Payload::Empty => "<nothing>".to_owned(),
+        Payload::Literal(text) => format!("{text:?}"),
+        Payload::Template(segments) => {
+            let shape: String = segments
+                .iter()
+                .map(|segment| match segment {
+                    Segment::Text(text) => text.clone(),
+                    Segment::Hole(hole) => format!("<{}>", hole_name(hole))
+                })
+                .collect();
+            format!("{shape:?}")
+        }
+        Payload::Opaque(reason) => format!("<unreadable: {}>", reason_text(*reason))
+    }
+}
+
 /// Names one hole by whatever the source gives it.
 pub(super) fn hole_name(hole: &Hole) -> String {
     match &hole.source {

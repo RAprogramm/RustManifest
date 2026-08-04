@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 
 use super::{
     EntryMeaning, OutputClaim,
-    payload::{describe, hole_name, reason_text, with_terminator},
+    payload::{alternative_text, describe, hole_name, reason_text, with_terminator},
     weakening::{chain_reason, site_reasons, weakening_of}
 };
 use crate::semantic::behavior::{Grade, Multiplicity, OUTPUT_SINK_SET, Payload, Segment, Stream};
@@ -87,6 +87,30 @@ impl OutputClaim {
             }
             Payload::Opaque(reason) => format!("<unreadable: {}>", reason_text(*reason))
         }
+    }
+
+    /// What each position of this claim can put on the stream, where the
+    /// display implementation of its own type enumerated it: the name of
+    /// the position, and one rendering per write that implementation
+    /// records.
+    ///
+    /// A position nothing enumerated is absent from the list, which says
+    /// the analysis did not enumerate it and nothing about the value.
+    #[must_use]
+    pub fn hole_alternatives(&self) -> Vec<(String, Vec<String>)> {
+        let Payload::Template(segments) = &self.write.payload else {
+            return Vec::new();
+        };
+        segments
+            .iter()
+            .filter_map(|segment| match segment {
+                Segment::Hole(hole) if !hole.alternatives.is_empty() => Some((
+                    hole_name(hole),
+                    hole.alternatives.iter().map(alternative_text).collect()
+                )),
+                _ => None
+            })
+            .collect()
     }
 
     /// The sentence this claim licenses.

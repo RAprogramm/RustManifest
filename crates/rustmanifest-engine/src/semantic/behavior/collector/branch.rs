@@ -30,6 +30,7 @@ impl FactCollector {
     /// Visits a match, each arm under the frame its pattern earns.
     pub(super) fn collect_match(&mut self, matched: &syn::ExprMatch) {
         self.visit_expr(&matched.expr);
+        self.record_outcome_bindings(matched);
         let single = matched.arms.len() == 1;
         for arm in &matched.arms {
             let frame = Guard::MatchArm {
