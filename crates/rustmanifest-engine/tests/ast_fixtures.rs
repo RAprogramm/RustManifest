@@ -15,7 +15,7 @@
 
 use std::{fs, path::PathBuf};
 
-use rustmanifest_engine::{Analyzer, AstAnalyzer, Source};
+use rustmanifest_engine::{Analyzer, AstAnalyzer, ParsedSource, Source};
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::RuleDefinition;
 
@@ -66,13 +66,15 @@ fn ast_fixtures_match_their_rule() {
         let pass_src = fs::read_to_string(dir.join("pass.rs"))
             .unwrap_or_else(|err| panic!("{}: cannot read pass.rs: {err}", rule.id));
 
-        let fail_findings = analyzer.analyze(&Source::new(dir.join("fail.rs"), fail_src));
+        let fail_source = Source::new(dir.join("fail.rs"), fail_src);
+        let fail_findings = analyzer.analyze(&ParsedSource::new(&fail_source));
         assert!(
             !fail_findings.is_empty(),
             "{}: fail.rs MUST trigger the check but did not",
             rule.id
         );
-        let pass_findings = analyzer.analyze(&Source::new(dir.join("pass.rs"), pass_src));
+        let pass_source = Source::new(dir.join("pass.rs"), pass_src);
+        let pass_findings = analyzer.analyze(&ParsedSource::new(&pass_source));
         assert!(
             pass_findings.is_empty(),
             "{}: pass.rs MUST NOT trigger the check but produced {:?}",

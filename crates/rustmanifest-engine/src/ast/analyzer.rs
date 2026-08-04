@@ -8,7 +8,12 @@ use rustmanifest_schema::{Finding, Location, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
 use super::{Occurrence, check::Check};
-use crate::{analyzer::Analyzer, error::EngineError, pragma, source::Source};
+use crate::{
+    analyzer::Analyzer,
+    error::EngineError,
+    pragma,
+    source::{ParsedSource, Source}
+};
 
 /// Tier-2 analyzer that applies one built-in structural check per rule.
 #[derive(Debug)]
@@ -52,9 +57,10 @@ impl Analyzer for AstAnalyzer {
         &self.rule
     }
 
-    fn analyze(&self, source: &Source) -> Vec<Finding> {
+    fn analyze(&self, file: &ParsedSource<'_>) -> Vec<Finding> {
+        let source = file.source();
         let text = source.text();
-        let Ok(file) = syn::parse_file(text) else {
+        let Some(tree) = file.tree() else {
             trace!(
                 rule = %self.rule.id,
                 path = %source.path().display(),
@@ -65,7 +71,7 @@ impl Analyzer for AstAnalyzer {
 
         let pragmas = pragma::collect(text);
         let mut findings = Vec::new();
-        for occurrence in self.check.occurrences(&file) {
+        for occurrence in self.check.occurrences(tree) {
             let start = occurrence.range.start as usize;
             if let Some(active) = pragma::suppressing(text, start, &self.rule.id, &pragmas) {
                 source.record_pragma_use(active.line_index);
@@ -151,7 +157,7 @@ mod tests {
     fn unparsable_source_yields_no_findings() {
         let analyzer = AstAnalyzer::new(ast_rule("entity-naming")).unwrap();
         let source = Source::new(PathBuf::from("src/lib.rs"), "fn broken(".to_owned());
-        assert!(analyzer.analyze(&source).is_empty());
+        assert!(analyzer.analyze(&ParsedSource::new(&source)).is_empty());
     }
 
     #[test]
@@ -161,7 +167,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "pub struct ConfigLoader;\n".to_owned()
         );
-        let findings = analyzer.analyze(&source);
+        let findings = analyzer.analyze(&ParsedSource::new(&source));
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-STRUCT-001");
         assert!(findings[0].location.range.end > findings[0].location.range.start);
@@ -174,7 +180,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "pub struct ConfigLoader;\n".to_owned()
         );
-        let findings = analyzer.analyze(&source);
+        let findings = analyzer.analyze(&ParsedSource::new(&source));
         assert_eq!(findings.len(), 1);
         let trace = &findings[0].trace;
         assert_eq!(trace.len(), 1);
@@ -191,6 +197,6 @@ mod tests {
         let text = "// rustmanifest: allow(RM-STRUCT-001) reason=\"fixture\"\npub struct \
                     ConfigLoader;\n";
         let source = Source::new(PathBuf::from("src/lib.rs"), text.to_owned());
-        assert!(analyzer.analyze(&source).is_empty());
+        assert!(analyzer.analyze(&ParsedSource::new(&source)).is_empty());
     }
 }

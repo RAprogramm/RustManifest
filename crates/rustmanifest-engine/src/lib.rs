@@ -57,7 +57,7 @@ pub use semantic::{
     coverage_indexed, coverage_with, doc_facts, entry_points, expansion, features,
     module_overview, program_meaning, role, surface, transitive_effects, unresolved_targets
 };
-pub use source::Source;
+pub use source::{ParsedSource, Source};
 
 /// Everything the engine derived about the print path of the active
 /// toolchain, each fact carrying the library location that proves it.

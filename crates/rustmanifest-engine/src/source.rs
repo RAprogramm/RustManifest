@@ -12,11 +12,18 @@
 //! suppressed nothing. This side channel keeps the public
 //! `Analyzer::analyze(&self, source: &Source) -> Vec<Finding>` signature
 //! unchanged.
+//!
+//! A [`ParsedSource`] pairs a source with the syntax tree parsed from it, so
+//! the analyzers that need a tree share one instead of parsing per analyzer.
+
+mod parsed;
 
 use std::{
     path::PathBuf,
     sync::{Mutex, OnceLock}
 };
+
+pub use self::parsed::ParsedSource;
 
 /// A single source file under analysis.
 ///
