@@ -58,21 +58,30 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
 }
 
 /// Last segment of the `position`-th angle-bracketed type argument.
+///
+/// Position is counted over the type arguments alone, so a lifetime or a
+/// const argument in front of them shifts nothing. A type that carries no
+/// name — a unit, a tuple, a reference, a slice — occupies its position
+/// and answers `None` for it: the position is taken, and what stands
+/// there simply has no last segment to report. Counting only the named
+/// ones would slide every later position one place forward and hand back
+/// a neighbour's type under this one's name.
 fn type_argument(segment: &syn::PathSegment, position: usize) -> Option<String> {
     let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
         return None;
     };
-    arguments
+    let written = arguments
         .args
         .iter()
-        .filter_map(|argument| {
-            if let syn::GenericArgument::Type(syn::Type::Path(path)) = argument {
-                path.path.segments.last().map(|s| s.ident.to_string())
-            } else {
-                None
-            }
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(written) => Some(written),
+            _ => None
         })
-        .nth(position)
+        .nth(position)?;
+    let syn::Type::Path(path) = written else {
+        return None;
+    };
+    path.path.segments.last().map(|s| s.ident.to_string())
 }
 
 /// Substitutes `Self` with the impl owner when one is known.
@@ -81,5 +90,56 @@ fn resolve_self(name: String, owner: Option<&str>) -> String {
         owner.map_or(name, str::to_owned)
     } else {
         name
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use super::returned_of;
+
+    fn read(signature: &str) -> (String, Option<String>, Option<String>) {
+        let parsed: syn::Signature =
+            syn::parse_str(signature).expect("the signature parses as written");
+        let returned = returned_of(&parsed, None).expect("a written return type is read");
+        (returned.plain, returned.success, returned.error)
+    }
+
+    /// A success type that carries no name still holds its position. Reading
+    /// the failure type in its place is the shape of nearly every binary
+    /// entry point, and would put the error type wherever the success type
+    /// is expected.
+    #[test]
+    fn a_nameless_success_type_does_not_yield_its_place_to_the_failure_type() {
+        assert_eq!(
+            read("fn load() -> Result<(), DbError>"),
+            ("Result".to_owned(), None, Some("DbError".to_owned()))
+        );
+        assert_eq!(
+            read("fn load() -> Result<u8, DbError>"),
+            (
+                "Result".to_owned(),
+                Some("u8".to_owned()),
+                Some("DbError".to_owned())
+            )
+        );
+    }
+
+    /// A lifetime in front of the type arguments shifts none of them.
+    #[test]
+    fn a_lifetime_argument_occupies_no_type_position() {
+        assert_eq!(
+            read("fn borrow<'a>() -> Result<Cow<'a>, DbError>"),
+            (
+                "Result".to_owned(),
+                Some("Cow".to_owned()),
+                Some("DbError".to_owned())
+            )
+        );
     }
 }
