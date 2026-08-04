@@ -43,6 +43,7 @@ mod returned;
 mod scoped;
 mod signature;
 mod tables;
+mod targeting;
 mod trait_default;
 mod types;
 mod value;

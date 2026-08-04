@@ -75,6 +75,15 @@ pub(super) const STREAM_HANDLE_PATHS: [(&[&str], Stream, &str, &str); 2] = [
     )
 ];
 
+/// Adapters changing what a failure carries without changing which value
+/// a success is.
+///
+/// Deliberately narrow. Seeing through one is sound because the value
+/// that comes out on success is the value that went in; a method that
+/// changes that value is not here, and seeing through it would attribute
+/// a value to a site that produced a different one.
+pub(super) const OUTCOME_ADAPTERS: [&str; 3] = ["map_err", "ok_or", "ok_or_else"];
+
 /// The locking call a stream handle answers with a guard held until the
 /// guard is dropped.
 pub(super) const STREAM_LOCK_METHOD: &str = "lock";

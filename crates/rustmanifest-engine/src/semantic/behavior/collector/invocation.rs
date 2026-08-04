@@ -8,7 +8,7 @@
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
+    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, OUTCOME_ADAPTERS, TEXT_WRITE_METHOD}
 };
 use crate::semantic::{expr::MUTATING_METHODS, knowledge};
 
@@ -93,6 +93,28 @@ impl FactCollector {
         if self.record_read_method(call).is_none() && !self.follow_intake(call) {
             self.record_method_operation(call);
         }
+        self.carry_outcome(call, &span);
+    }
+
+    /// Hands on the origin of a receiver through an adapter that changes
+    /// only what a failure carries.
+    ///
+    /// The value such a call answers with on success is the value it was
+    /// given, so naming the call would put a step between a value and
+    /// itself. An adapter changing the value is not seen through.
+    fn carry_outcome(&mut self, call: &syn::ExprMethodCall, span: &std::ops::Range<usize>) {
+        let method = call.method.to_string();
+        if !OUTCOME_ADAPTERS.contains(&method.as_str()) {
+            return;
+        }
+        let carried = self.origin_of(&call.receiver);
+        self.produced.insert(
+            (
+                u32::try_from(span.start).unwrap_or(u32::MAX),
+                u32::try_from(span.end).unwrap_or(u32::MAX)
+            ),
+            carried
+        );
     }
 
     /// Records the poll an awaited future stands for, where the future's

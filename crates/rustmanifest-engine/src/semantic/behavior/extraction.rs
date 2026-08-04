@@ -15,6 +15,7 @@ use super::{
     folding::fold_constants,
     signature::{error_types, param_facts, param_slots, parameter_elements, parameter_types},
     tables::TypeTables,
+    targeting::name_targets,
     types::{Effect, FunctionFacts}
 };
 
@@ -98,6 +99,7 @@ pub(super) fn function_facts(
     collector.facts.effects.dedup();
     collector.facts.calls.sort();
     collector.facts.calls.dedup();
+    name_targets(&mut collector.facts, signature, context.impl_type);
     fold_constants(
         &mut collector.facts,
         block,

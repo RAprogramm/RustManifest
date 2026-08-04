@@ -29,6 +29,12 @@ use crate::semantic::{
 
 impl FactCollector {
     /// Records one operation, answering with its position in the channel.
+    ///
+    /// The record becomes the origin of the value the construct produces,
+    /// displacing the call that performs it: a conversion is a truer
+    /// answer to "where did this value come from" than the method whose
+    /// name happens to perform it. A read of the boundary is truer still
+    /// and is left in place.
     fn push_operation(
         &mut self,
         span: &std::ops::Range<usize>,
@@ -52,9 +58,13 @@ impl FactCollector {
             conditions: self.site_conditions(),
             multiplicity: Multiplicity::Once
         });
-        self.produced
-            .entry((site.start, site.end))
-            .or_insert_with(|| Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX)));
+        let named = Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX));
+        match self.produced.get(&(site.start, site.end)) {
+            Some(Provenance::Read(_)) => {}
+            _ => {
+                self.produced.insert((site.start, site.end), named);
+            }
+        }
         index
     }
 
