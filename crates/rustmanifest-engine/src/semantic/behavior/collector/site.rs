@@ -50,6 +50,7 @@ impl FactCollector {
     pub(super) fn repeating<F: FnOnce(&mut Self)>(&mut self, multiplicity: Multiplicity, body: F) {
         let written = self.facts.output_writes.len();
         let drawn = self.facts.input_reads.len();
+        let computed = self.facts.operations.len();
         body(self);
         if matches!(multiplicity, Multiplicity::Once) {
             return;
@@ -59,6 +60,9 @@ impl FactCollector {
         }
         for read in self.facts.input_reads.iter_mut().skip(drawn) {
             read.multiplicity = multiplicity;
+        }
+        for operation in self.facts.operations.iter_mut().skip(computed) {
+            operation.multiplicity = multiplicity;
         }
     }
 

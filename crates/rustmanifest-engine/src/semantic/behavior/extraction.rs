@@ -53,6 +53,7 @@ pub(super) fn function_facts(
             call_sites: Vec::new(),
             slots: param_slots(signature),
             input_reads: Vec::new(),
+            operations: Vec::new(),
             handbacks: Vec::new(),
             output_writes: Vec::new(),
             exits: Vec::new()

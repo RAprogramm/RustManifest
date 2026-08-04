@@ -11,6 +11,9 @@
 //! ownership rules: a method wrongly listed as consuming makes a rule
 //! stay silent, never fire falsely.
 
+mod arithmetic;
+
+pub(super) use self::arithmetic::operation_method;
 use super::behavior::Effect;
 
 /// Well-known always-`Copy` types by their last path segment.

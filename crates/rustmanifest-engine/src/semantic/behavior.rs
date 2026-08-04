@@ -35,6 +35,7 @@ mod folding;
 mod handback;
 mod imports;
 mod input;
+mod operation;
 mod output;
 mod rendering;
 mod returned;
@@ -51,6 +52,9 @@ pub use self::{
     handback::{HANDBACK_SET, Handback, Outcome},
     input::{
         Channel, INPUT_SOURCE_SET, InputRead, Intake, ReadShape, Selector, SelectorGap, Terminator
+    },
+    operation::{
+        Arithmetic, Comparison, Conversion, Guarding, OPERATION_SET, Operation, OperationSite
     },
     output::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,

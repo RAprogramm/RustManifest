@@ -236,6 +236,9 @@ pub struct FunctionFacts {
     /// not agree with [`Self::effects`], which records that the
     /// environment was touched and can record no more.
     pub input_reads:   Vec<super::input::InputRead>,
+    /// Sites computing a value from other values, in body order, on the
+    /// same terms as every per-site channel here.
+    pub operations:    Vec<super::operation::OperationSite>,
     /// Positions handing a value back to the caller, in body order.
     ///
     /// The tail expression, every written `return`, and every `?`, each

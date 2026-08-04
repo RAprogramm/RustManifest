@@ -1,0 +1,163 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! Recording one operation over values.
+//!
+//! Four shapes compute in the language itself — a binary operator, a
+//! negation, an element taken at a position, a written cast — and one
+//! comes from the library, where a method names both the operation and
+//! what it does with the failure that operation can have.
+//!
+//! An operator is syntax and is read as syntax: the "library semantics
+//! live as data" rule is about the library, and a table of the language's
+//! own operators would restate the grammar. The library's spellings do
+//! live in a table, and a method absent from it is not read as an
+//! operation at all — a namesake of the program's own would otherwise be
+//! credited with the library's behaviour.
+
+use super::FactCollector;
+use crate::semantic::{
+    behavior::{
+        operation::{Arithmetic, Comparison, Conversion, Guarding, Operation, OperationSite},
+        output::Multiplicity,
+        value::{Disposal, Provenance}
+    },
+    std_knowledge::operation_method
+};
+
+impl FactCollector {
+    /// Records one operation, answering with its position in the channel.
+    fn push_operation(
+        &mut self,
+        span: &std::ops::Range<usize>,
+        operation: Operation,
+        operands: Vec<Provenance>,
+        guarding: Guarding
+    ) -> usize {
+        let index = self.facts.operations.len();
+        let site = rustmanifest_schema::Range {
+            start: u32::try_from(span.start).unwrap_or(u32::MAX),
+            end:   u32::try_from(span.end).unwrap_or(u32::MAX)
+        };
+        self.facts.operations.push(OperationSite {
+            operation,
+            operands,
+            produced: None,
+            guarding,
+            disposal: Disposal::NotIdentified,
+            site,
+            guard: self.site_guard(),
+            conditions: self.site_conditions(),
+            multiplicity: Multiplicity::Once
+        });
+        self.produced
+            .entry((site.start, site.end))
+            .or_insert_with(|| Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX)));
+        index
+    }
+
+    /// Records the operation a binary operator performs, where it is one
+    /// this channel recognizes.
+    pub(super) fn record_binary_operation(&mut self, binary: &syn::ExprBinary) {
+        use syn::spanned::Spanned;
+
+        let Some(operation) = binary_operation(binary.op) else {
+            return;
+        };
+        let operands = vec![self.origin_of(&binary.left), self.origin_of(&binary.right)];
+        self.push_operation(
+            &binary.span().byte_range(),
+            operation,
+            operands,
+            Guarding::Unchecked
+        );
+    }
+
+    /// Records the negation a unary operator performs.
+    pub(super) fn record_unary_operation(&mut self, unary: &syn::ExprUnary) {
+        use syn::spanned::Spanned;
+
+        if !matches!(unary.op, syn::UnOp::Neg(_)) {
+            return;
+        }
+        let operand = self.origin_of(&unary.expr);
+        self.push_operation(
+            &unary.span().byte_range(),
+            Operation::Arithmetic(Arithmetic::Negate),
+            vec![operand],
+            Guarding::Unchecked
+        );
+    }
+
+    /// Records the element a sequence is indexed for.
+    pub(super) fn record_selection(&mut self, indexed: &syn::ExprIndex) {
+        use syn::spanned::Spanned;
+
+        let operands = vec![
+            self.origin_of(&indexed.expr),
+            self.origin_of(&indexed.index),
+        ];
+        self.push_operation(
+            &indexed.span().byte_range(),
+            Operation::Selection,
+            operands,
+            Guarding::Unchecked
+        );
+    }
+
+    /// Records the conversion a written cast performs, whose target the
+    /// source writes outright.
+    pub(super) fn record_cast(&mut self, cast: &syn::ExprCast) {
+        use syn::spanned::Spanned;
+
+        let operand = self.origin_of(&cast.expr);
+        let target = crate::semantic::behavior::signature::type_last_segment(&cast.ty);
+        let index = self.push_operation(
+            &cast.span().byte_range(),
+            Operation::Conversion(Conversion {
+                target: target.clone()
+            }),
+            vec![operand],
+            Guarding::Unchecked
+        );
+        if let Some(record) = self.facts.operations.get_mut(index) {
+            record.produced = target;
+        }
+    }
+
+    /// Records the operation a library method performs, where a row names
+    /// one.
+    pub(super) fn record_method_operation(&mut self, call: &syn::ExprMethodCall) -> bool {
+        use syn::spanned::Spanned;
+
+        let method = call.method.to_string();
+        let Some((operation, guarding)) = operation_method(&method) else {
+            return false;
+        };
+        let mut operands = vec![self.origin_of(&call.receiver)];
+        operands.extend(call.args.iter().map(|argument| self.origin_of(argument)));
+        self.push_operation(&call.span().byte_range(), operation, operands, guarding);
+        true
+    }
+}
+
+/// The operation a binary operator performs, where it is one this channel
+/// recognizes. An assignment writes rather than computes, and a logical
+/// connective decides an order of evaluation rather than producing a
+/// value from two.
+const fn binary_operation(operator: syn::BinOp) -> Option<Operation> {
+    Some(match operator {
+        syn::BinOp::Add(_) => Operation::Arithmetic(Arithmetic::Add),
+        syn::BinOp::Sub(_) => Operation::Arithmetic(Arithmetic::Subtract),
+        syn::BinOp::Mul(_) => Operation::Arithmetic(Arithmetic::Multiply),
+        syn::BinOp::Div(_) => Operation::Arithmetic(Arithmetic::Divide),
+        syn::BinOp::Rem(_) => Operation::Arithmetic(Arithmetic::Remainder),
+        syn::BinOp::Eq(_) => Operation::Comparison(Comparison::Equal),
+        syn::BinOp::Ne(_) => Operation::Comparison(Comparison::NotEqual),
+        syn::BinOp::Lt(_) => Operation::Comparison(Comparison::Less),
+        syn::BinOp::Le(_) => Operation::Comparison(Comparison::LessOrEqual),
+        syn::BinOp::Gt(_) => Operation::Comparison(Comparison::Greater),
+        syn::BinOp::Ge(_) => Operation::Comparison(Comparison::GreaterOrEqual),
+        _ => return None
+    })
+}

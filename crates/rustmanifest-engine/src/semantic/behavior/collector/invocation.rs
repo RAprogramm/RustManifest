@@ -90,8 +90,8 @@ impl FactCollector {
         let mut written: Vec<&syn::Expr> = vec![call.receiver.as_ref()];
         written.extend(call.args.iter());
         self.settle_arguments(reserved, &written);
-        if self.record_read_method(call).is_none() {
-            self.follow_intake(call);
+        if self.record_read_method(call).is_none() && !self.follow_intake(call) {
+            self.record_method_operation(call);
         }
     }
 

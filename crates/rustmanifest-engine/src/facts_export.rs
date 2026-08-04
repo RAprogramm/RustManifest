@@ -14,6 +14,7 @@
 
 mod fact;
 mod input_read;
+mod operation;
 mod output_write;
 mod payload;
 mod process_exit;

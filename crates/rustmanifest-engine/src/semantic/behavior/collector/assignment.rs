@@ -23,6 +23,7 @@ impl FactCollector {
             self.record_write_target(&binary.left);
         }
         syn::visit::visit_expr_binary(self, binary);
+        self.record_binary_operation(binary);
     }
 
     /// Records one field read and the use of the parameter it hangs off.

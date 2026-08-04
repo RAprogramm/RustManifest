@@ -86,6 +86,21 @@ impl<'ast> Visit<'ast> for FactCollector {
         self.collect_await(awaited);
     }
 
+    fn visit_expr_unary(&mut self, unary: &'ast syn::ExprUnary) {
+        syn::visit::visit_expr_unary(self, unary);
+        self.record_unary_operation(unary);
+    }
+
+    fn visit_expr_index(&mut self, indexed: &'ast syn::ExprIndex) {
+        syn::visit::visit_expr_index(self, indexed);
+        self.record_selection(indexed);
+    }
+
+    fn visit_expr_cast(&mut self, cast: &'ast syn::ExprCast) {
+        syn::visit::visit_expr_cast(self, cast);
+        self.record_cast(cast);
+    }
+
     fn visit_expr_return(&mut self, returned: &'ast syn::ExprReturn) {
         self.collect_return(returned);
     }
