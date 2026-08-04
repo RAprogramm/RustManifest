@@ -29,6 +29,7 @@ mod assembly;
 mod collector;
 mod conversion;
 mod declaration;
+mod exit;
 mod extraction;
 mod folding;
 mod imports;
@@ -42,6 +43,7 @@ mod types;
 
 pub use self::{
     assembly::behavior,
+    exit::{ExitRoute, ExitStatus, ProcessExit},
     output::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream

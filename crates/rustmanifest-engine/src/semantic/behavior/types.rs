@@ -209,5 +209,11 @@ pub struct FunctionFacts {
     /// Unlike [`Self::effects`], this channel is never sorted and never
     /// deduplicated: two identical writes are two events, and their
     /// order is part of the fact.
-    pub output_writes: Vec<super::output::OutputWrite>
+    pub output_writes: Vec<super::output::OutputWrite>,
+    /// Sites producing a process status, in body order.
+    ///
+    /// A status is observable outside the process exactly as a write is,
+    /// and is recorded the same way: one record per site, never
+    /// deduplicated, each carrying what stands over it.
+    pub exits:         Vec<super::exit::ProcessExit>
 }

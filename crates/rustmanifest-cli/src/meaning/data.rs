@@ -69,9 +69,11 @@ mod tests {
 
     fn silent_entry() -> EntryMeaning {
         EntryMeaning {
-            file:   "src/main.rs".to_owned(),
-            kind:   EntryKind::Plain,
-            claims: Vec::new()
+            file:       "src/main.rs".to_owned(),
+            kind:       EntryKind::Plain,
+            claims:     Vec::new(),
+            completion: rustmanifest_engine::Completion::Nothing,
+            exits:      Vec::new()
         }
     }
 

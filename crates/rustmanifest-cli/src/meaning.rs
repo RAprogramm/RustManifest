@@ -11,6 +11,7 @@
 //! analyzed program are stated once as a footnote, not repeated on every
 //! row. `--format json` emits the same claims as data, for tools.
 
+mod completion;
 mod data;
 mod location;
 mod options;

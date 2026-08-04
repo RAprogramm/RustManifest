@@ -10,6 +10,7 @@ use std::fmt::Write as _;
 use rustmanifest_engine::{EntryMeaning, Multiplicity, OutputClaim};
 
 use super::{
+    completion::status_block,
     location::relative,
     wording::{certainty, entry_kind}
 };
@@ -32,6 +33,7 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
             for sentence in entry.sentences() {
                 let _ = writeln!(out, "  {sentence}");
             }
+            out.push_str(&status_block(entry, root));
             out.push('\n');
             continue;
         }
@@ -59,6 +61,7 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
                 );
             }
         }
+        out.push_str(&status_block(entry, root));
         out.push('\n');
     }
     if standard_stream_seen {
@@ -106,16 +109,26 @@ fn column_widths(rows: &[[String; 4]]) -> [usize; 3] {
 mod tests {
     use std::path::Path;
 
-    use rustmanifest_engine::{EntryKind, EntryMeaning, OUTPUT_SINK_SET};
+    use rustmanifest_engine::{Completion, EntryKind, EntryMeaning, OUTPUT_SINK_SET};
 
     use super::text_report;
 
     fn silent_entry() -> EntryMeaning {
         EntryMeaning {
-            file:   "src/main.rs".to_owned(),
-            kind:   EntryKind::Plain,
-            claims: Vec::new()
+            file:       "src/main.rs".to_owned(),
+            kind:       EntryKind::Plain,
+            claims:     Vec::new(),
+            completion: Completion::Nothing,
+            exits:      Vec::new()
         }
+    }
+
+    /// A program that writes nothing still ends somehow, and the rule its
+    /// signature fixes is stated whether or not any site was recorded.
+    #[test]
+    fn the_status_rule_is_stated_even_where_no_site_produces_one() {
+        let report = text_report(&[silent_entry()], Path::new("."));
+        assert!(report.contains("status:"), "{report}");
     }
 
     #[test]

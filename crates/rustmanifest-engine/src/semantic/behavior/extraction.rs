@@ -50,7 +50,8 @@ pub(super) fn function_facts(
             clones: 0,
             allocations: 0,
             call_sites: Vec::new(),
-            output_writes: Vec::new()
+            output_writes: Vec::new(),
+            exits: Vec::new()
         },
         param_types: parameter_types(signature, context.impl_type),
         elem_types:  parameter_elements(signature),

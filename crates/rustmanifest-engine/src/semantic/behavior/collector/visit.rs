@@ -10,6 +10,7 @@ use super::FactCollector;
 
 impl<'ast> Visit<'ast> for FactCollector {
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        self.record_exit_call(call);
         self.record_called_path(call);
     }
 
@@ -86,6 +87,7 @@ impl<'ast> Visit<'ast> for FactCollector {
     }
 
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
+        self.record_exit_constant(path);
         self.collect_path(path);
     }
 

@@ -13,6 +13,11 @@
 //! module is not an entry point at all, and a crate that declares no
 //! entry has none — a library is not a program.
 
+mod completion;
+mod root;
+
+pub use self::completion::Completion;
+use self::{completion::completion_of, root::binary_root};
 use crate::{semantic::behavior::FunctionFacts, source::Source};
 
 /// Runtime attributes that generate a real entry around an `async main`.
@@ -47,14 +52,16 @@ pub enum EntryKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntryPoint {
     /// Index of the fact describing the entry function.
-    pub fact:    usize,
+    pub fact:       usize,
     /// How it becomes the entry.
-    pub kind:    EntryKind,
+    pub kind:       EntryKind,
     /// Path of the binary root file that declares it.
-    pub file:    String,
+    pub file:       String,
     /// Whether the entry declares a return type, so a failure inside it
     /// can leave as a value instead of ending the process by panic.
-    pub returns: bool
+    pub returns:    bool,
+    /// What the signature decides about the status the process leaves.
+    pub completion: Completion
 }
 
 /// Finds every process entry point among `sources`.
@@ -98,7 +105,8 @@ pub fn entry_points(sources: &[Source], facts: &[FunctionFacts]) -> Vec<EntryPoi
                 fact,
                 kind,
                 file: path.clone(),
-                returns: !matches!(function.sig.output, syn::ReturnType::Default)
+                returns: !matches!(function.sig.output, syn::ReturnType::Default),
+                completion: completion_of(&function.sig.output)
             });
         }
     }
@@ -124,47 +132,6 @@ fn declaring_fact(
             && fact.range.start == start
             && fact.range.end == end
     })
-}
-
-/// Returns whether a path names a file that compiles into a binary.
-///
-/// Position is part of the rule and not only the directory name: cargo
-/// builds `<pkg>/src/bin/*.rs` and `<pkg>/examples/*.rs`, so a `bin`
-/// directory anywhere but directly under `src`, and an `examples`
-/// directory inside `src`, are ordinary module directories.
-fn binary_root(path: &str) -> bool {
-    let components: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
-    let last = ancestor(&components, 1);
-    if !std::path::Path::new(last)
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
-    {
-        return false;
-    }
-    let parent = ancestor(&components, 2);
-    let grandparent = ancestor(&components, 3);
-    match parent {
-        "src" => last == "main.rs",
-        "bin" => grandparent == "src",
-        "examples" => grandparent != "src",
-        _ if last == "main.rs" => match grandparent {
-            "bin" => ancestor(&components, 4) == "src",
-            "examples" => ancestor(&components, 4) != "src",
-            _ => false
-        },
-        _ => false
-    }
-}
-
-/// The component `back` positions from the end, or the empty string when
-/// the path is shorter than that.
-fn ancestor<'path>(components: &[&'path str], back: usize) -> &'path str {
-    components
-        .len()
-        .checked_sub(back)
-        .and_then(|index| components.get(index))
-        .copied()
-        .unwrap_or_default()
 }
 
 /// Classifies a `main` function, refusing anything the build decides.

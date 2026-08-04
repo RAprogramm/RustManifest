@@ -36,6 +36,7 @@ mod multiplicity;
 mod naming;
 mod output_write;
 mod pattern;
+mod process_exit;
 mod repetition;
 mod resolution;
 mod scope;

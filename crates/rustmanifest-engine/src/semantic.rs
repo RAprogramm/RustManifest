@@ -56,9 +56,10 @@ use tracing::trace;
 use self::check::Check;
 pub use self::{
     behavior::{
-        Acquisition, CallSite, Conduit, Effect, FunctionFacts, FunctionFlags, Grade, Guard, Hole,
-        HoleSource, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OutputWrite, ParamFacts,
-        ParamMode, Payload, Segment, SiteGuard, Stream, behavior
+        Acquisition, CallSite, Conduit, Effect, ExitRoute, ExitStatus, FunctionFacts,
+        FunctionFlags, Grade, Guard, Hole, HoleSource, Multiplicity, Newline, OUTPUT_SINK_SET,
+        OpaqueReason, OutputWrite, ParamFacts, ParamMode, Payload, ProcessExit, Segment,
+        SiteGuard, Stream, behavior
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
@@ -67,7 +68,7 @@ pub use self::{
     coverage::{Coverage, coverage, coverage_indexed, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
-    entry::{EntryKind, EntryPoint, entry_points},
+    entry::{Completion, EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
     features::{Feature, features},
     fingerprint::behavior_fingerprint,
@@ -77,7 +78,7 @@ pub use self::{
     invariant::{check_invariants, check_invariants_with},
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
-    meaning::{EntryMeaning, OutputClaim, program_meaning},
+    meaning::{EntryMeaning, ExitClaim, OutputClaim, completion_rule, program_meaning},
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,

@@ -35,6 +35,20 @@ pub(super) fn behaviour(sources: &[Source], root: &std::path::Path) -> String {
                 }
             );
         }
+        let _ = writeln!(
+            out,
+            "  - {}",
+            rustmanifest_engine::completion_rule(entry.completion)
+        );
+        for claim in &entry.exits {
+            let _ = writeln!(
+                out,
+                "  - {} ends the process with {} in `{}`",
+                certainty(claim.execution),
+                claim.exit.status,
+                claim.function
+            );
+        }
     }
     out
 }

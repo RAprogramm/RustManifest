@@ -68,6 +68,22 @@ pub(super) const STREAM_HANDLE_PATHS: [(&[&str], Stream, &str, &str); 2] = [
 /// guard is dropped.
 pub(super) const STREAM_LOCK_METHOD: &str = "lock";
 
+/// The standard-library call that ends the process, taking the number it
+/// hands back.
+pub(super) const PROCESS_EXIT_PATH: [&str; 3] = ["std", "process", "exit"];
+
+/// The standard-library type whose values are process statuses.
+pub(super) const EXIT_CODE_TYPE: &str = "ExitCode";
+
+/// The exit-status constant standing for a run that succeeded.
+pub(super) const EXIT_SUCCESS: &str = "SUCCESS";
+
+/// The exit-status constant standing for a run that failed.
+pub(super) const EXIT_FAILURE: &str = "FAILURE";
+
+/// The conversion turning a written number into an exit status.
+pub(super) const EXIT_FROM: &str = "from";
+
 /// Suffix of the library type names standing for a held stream guard, so
 /// a write through one is known to have taken no lock of its own.
 pub(super) const STREAM_GUARD_SUFFIX: &str = "Lock";

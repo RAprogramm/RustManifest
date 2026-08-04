@@ -15,6 +15,7 @@
 mod fact;
 mod output_write;
 mod payload;
+mod process_exit;
 
 pub use self::fact::fact_json;
 use crate::{

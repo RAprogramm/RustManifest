@@ -21,6 +21,7 @@
 //! be diverted by the library's capture hook, and a failed write panics
 //! rather than writing. A claim is therefore about an attempted write.
 
+mod completion;
 mod payload;
 mod reach;
 mod scope;
@@ -29,11 +30,12 @@ mod weakening;
 
 use std::collections::BTreeSet;
 
+pub use self::completion::{ExitClaim, completion_rule};
 use self::{reach::reachability, scope::qualifiers_by_fact};
 use super::{
     behavior::{FunctionFacts, Grade, OUTPUT_SINK_SET, OutputWrite, behavior},
     calls::{CallGraph, call_graph, resolution_context},
-    entry::{EntryKind, EntryPoint, entry_points}
+    entry::{Completion, EntryKind, EntryPoint, entry_points}
 };
 use crate::source::Source;
 
@@ -63,13 +65,19 @@ pub struct OutputClaim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EntryMeaning {
     /// Path of the binary root declaring the entry.
-    pub file:   String,
+    pub file:       String,
     /// How the entry is declared.
-    pub kind:   EntryKind,
+    pub kind:       EntryKind,
     /// Claims in the order their sites were recorded, one per recorded
     /// write, including the writes no path from this entry reaches —
     /// those carry [`Grade::Unreached`] rather than being dropped.
-    pub claims: Vec<OutputClaim>
+    pub claims:     Vec<OutputClaim>,
+    /// What the entry's own signature decides about the status the
+    /// process leaves behind.
+    pub completion: Completion,
+    /// One claim per recorded site producing a status, on the same terms
+    /// as the write claims.
+    pub exits:      Vec<ExitClaim>
 }
 
 /// Derives what every entry point of `sources` does.
@@ -118,8 +126,34 @@ fn meaning_of(
     EntryMeaning {
         file: entry.file.clone(),
         kind: entry.kind,
-        claims
+        claims,
+        completion: entry.completion,
+        exits: exit_claims(facts, sources, &reach)
     }
+}
+
+/// Builds the status claims of one entry point, one per recorded site.
+///
+/// A site no path from this entry reaches is stated as unreached rather
+/// than dropped, on the same grounds as an unreached write: the absence
+/// of a path is itself the finding.
+fn exit_claims(facts: &[FunctionFacts], sources: &[Source], reach: &[Grade]) -> Vec<ExitClaim> {
+    let mut claims = Vec::new();
+    for (index, fact) in facts.iter().enumerate() {
+        let file = sources.get(fact.source).map_or_else(String::new, |source| {
+            source.path().to_string_lossy().replace('\\', "/")
+        });
+        for exit in &fact.exits {
+            claims.push(ExitClaim {
+                function:  fact.function.clone(),
+                file:      file.clone(),
+                execution: reach[index].min(exit.guard.local_grade()),
+                reach:     reach[index],
+                exit:      exit.clone()
+            });
+        }
+    }
+    claims
 }
 
 #[cfg(test)]
