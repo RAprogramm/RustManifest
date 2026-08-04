@@ -57,11 +57,11 @@ use tracing::trace;
 use self::check::Check;
 pub use self::{
     behavior::{
-        Acquisition, Arguments, CallSite, Conduit, Disposal, Effect, ExitRoute, ExitStatus,
-        FunctionFacts, FunctionFlags, Grade, Guard, HANDBACK_SET, Handback, Hole, HoleSource,
-        Literal, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OriginGap, Outcome,
-        OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload, ProcessExit, Provenance, Segment,
-        SiteGuard, Stream, VALUE_ORIGIN_SET, behavior
+        Acquisition, Arguments, CallSite, Condition, Conduit, Disposal, Effect, ExitRoute,
+        ExitStatus, FunctionFacts, FunctionFlags, Grade, Guard, HANDBACK_SET, Handback, Hole,
+        HoleSource, Literal, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OriginGap,
+        Outcome, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload, ProcessExit, Provenance,
+        Segment, SiteGuard, Stream, VALUE_ORIGIN_SET, behavior
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,

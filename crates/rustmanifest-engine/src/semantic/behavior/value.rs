@@ -19,6 +19,7 @@
 //! value name the same record instead of carrying two copies of it.
 
 mod argument;
+mod condition;
 mod disposal;
 mod gap;
 mod literal;
@@ -26,8 +27,8 @@ mod provenance;
 mod slot;
 
 pub use self::{
-    argument::Arguments, disposal::Disposal, gap::OriginGap, literal::Literal,
-    provenance::Provenance, slot::ParamSlot
+    argument::Arguments, condition::Condition, disposal::Disposal, gap::OriginGap,
+    literal::Literal, provenance::Provenance, slot::ParamSlot
 };
 
 /// Version of the expression shapes the origin reading recognizes.

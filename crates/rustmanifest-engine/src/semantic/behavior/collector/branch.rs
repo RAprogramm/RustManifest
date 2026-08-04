@@ -11,19 +11,34 @@ use super::{
     FactCollector,
     pattern::{arm_condition, irrefutable}
 };
-use crate::semantic::behavior::output::Guard;
+use crate::semantic::behavior::{output::Guard, value::Condition};
 
 impl FactCollector {
     /// Visits a conditional, each branch under its own frame.
     pub(super) fn collect_conditional(&mut self, conditional: &syn::ExprIf) {
         self.visit_expr(&conditional.cond);
-        self.under(Guard::If, |collector| {
-            collector.visit_block(&conditional.then_branch);
-        });
+        let test = self.origin_of(&conditional.cond);
+        self.under(
+            Guard::If,
+            Condition::Branch {
+                test:  test.clone(),
+                taken: true
+            },
+            |collector| {
+                collector.visit_block(&conditional.then_branch);
+            }
+        );
         if let Some((_, otherwise)) = &conditional.else_branch {
-            self.under(Guard::Else, |collector| {
-                collector.visit_expr(otherwise);
-            });
+            self.under(
+                Guard::Else,
+                Condition::Branch {
+                    test,
+                    taken: false
+                },
+                |collector| {
+                    collector.visit_expr(otherwise);
+                }
+            );
         }
     }
 
@@ -32,7 +47,9 @@ impl FactCollector {
         self.visit_expr(&matched.expr);
         self.record_outcome_bindings(matched);
         let single = matched.arms.len() == 1;
-        for arm in &matched.arms {
+        let choice = self.choices;
+        self.choices += 1;
+        for (position, arm) in matched.arms.iter().enumerate() {
             let frame = Guard::MatchArm {
                 irrefutable: irrefutable(&arm.pat),
                 guarded:     arm_condition(&arm.pat).is_some()
@@ -48,9 +65,17 @@ impl FactCollector {
             if binds {
                 self.visit_arm(arm);
             } else {
-                self.under(frame, |collector| {
-                    collector.visit_arm(arm);
-                });
+                let alternative = u32::try_from(position).unwrap_or(u32::MAX);
+                self.under(
+                    frame,
+                    Condition::Arm {
+                        choice,
+                        alternative
+                    },
+                    |collector| {
+                        collector.visit_arm(arm);
+                    }
+                );
             }
         }
     }

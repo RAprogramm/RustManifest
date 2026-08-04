@@ -29,7 +29,8 @@ impl FactCollector {
                 start: u32::try_from(span.start).unwrap_or(u32::MAX),
                 end:   u32::try_from(span.end).unwrap_or(u32::MAX)
             },
-            guard: self.site_guard()
+            guard: self.site_guard(),
+            conditions: self.site_conditions()
         });
     }
 

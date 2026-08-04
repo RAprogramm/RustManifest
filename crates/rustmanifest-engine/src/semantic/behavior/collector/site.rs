@@ -6,15 +6,35 @@
 //! the snapshot both are read off.
 
 use super::FactCollector;
-use crate::semantic::behavior::output::{Guard, Multiplicity, SiteGuard};
+use crate::semantic::behavior::{
+    output::{Guard, Multiplicity, SiteGuard},
+    value::Condition
+};
 
 impl FactCollector {
     /// Visits `body` with one more enclosing construct on the stack, so
     /// every write recorded inside it carries that construct.
-    pub(super) fn under<F: FnOnce(&mut Self)>(&mut self, guard: Guard, body: F) {
+    pub(super) fn under<F: FnOnce(&mut Self)>(
+        &mut self,
+        guard: Guard,
+        condition: Condition,
+        body: F
+    ) {
         self.guards.push(guard);
+        self.conditions.push(condition);
         body(self);
+        self.conditions.pop();
         self.guards.pop();
+    }
+
+    /// What stands over the position being recorded, one entry per guard
+    /// frame, outermost first.
+    ///
+    /// As long as the guard stack, entry for entry: a frame whose test
+    /// was not read contributes a stated hole, never a missing entry that
+    /// would make two unrelated positions read as siblings.
+    pub(super) fn site_conditions(&self) -> Vec<Condition> {
+        self.conditions.clone()
     }
 
     /// Visits `body` as the body of a repeating construct, stamping

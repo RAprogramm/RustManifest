@@ -8,7 +8,7 @@
 use syn::visit::Visit;
 
 use super::{FactCollector, completion::Completion, gate::gated};
-use crate::semantic::behavior::output::Guard;
+use crate::semantic::behavior::{output::Guard, value::Condition};
 
 impl FactCollector {
     /// Visits the statements of a block in written order, updating the
@@ -18,7 +18,7 @@ impl FactCollector {
         let entry_dead = self.dead;
         for statement in &block.stmts {
             if gated(statement) {
-                self.under(Guard::CfgGated, |collector| {
+                self.under(Guard::CfgGated, Condition::NotDerived, |collector| {
                     collector.visit_stmt(statement);
                 });
             } else {

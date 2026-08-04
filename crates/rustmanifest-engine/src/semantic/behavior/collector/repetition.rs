@@ -7,7 +7,7 @@
 use syn::visit::Visit;
 
 use super::{FactCollector, multiplicity::body_multiplicity};
-use crate::semantic::behavior::output::Guard;
+use crate::semantic::behavior::{output::Guard, value::Condition};
 
 impl FactCollector {
     /// Binds the loop pattern against the iterated element type, then
@@ -18,7 +18,7 @@ impl FactCollector {
         let body = self.flow_scope().block_flow(&loop_expr.body);
         let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
         self.repeating(multiplicity, |collector| {
-            collector.under(Guard::For, |collector| {
+            collector.under(Guard::For, Condition::NotDerived, |collector| {
                 collector.visit_block(&loop_expr.body);
             });
         });
@@ -33,7 +33,7 @@ impl FactCollector {
         let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
         self.repeating(multiplicity, |collector| {
             collector.visit_expr(&loop_expr.cond);
-            collector.under(Guard::While, |collector| {
+            collector.under(Guard::While, Condition::NotDerived, |collector| {
                 collector.visit_block(&loop_expr.body);
             });
         });

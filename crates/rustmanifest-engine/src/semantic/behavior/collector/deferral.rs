@@ -6,12 +6,12 @@
 //! anywhere.
 
 use super::FactCollector;
-use crate::semantic::behavior::output::Guard;
+use crate::semantic::behavior::{output::Guard, value::Condition};
 
 impl FactCollector {
     /// Visits a closure body under the frame a deferred body carries.
     pub(super) fn collect_closure(&mut self, closure: &syn::ExprClosure) {
-        self.under(Guard::Closure, |collector| {
+        self.under(Guard::Closure, Condition::NotDerived, |collector| {
             syn::visit::visit_expr_closure(collector, closure);
         });
     }
@@ -21,7 +21,7 @@ impl FactCollector {
     /// has, and it carries the same frame. Without one, a write in a
     /// future that is never polled was graded as running on every path.
     pub(super) fn collect_async_block(&mut self, block: &syn::ExprAsync) {
-        self.under(Guard::Closure, |collector| {
+        self.under(Guard::Closure, Condition::NotDerived, |collector| {
             syn::visit::visit_expr_async(collector, block);
         });
     }
@@ -37,7 +37,7 @@ impl FactCollector {
         let entry_exits = self.prior_exits;
         self.dead = false;
         self.prior_exits = 0;
-        self.under(Guard::NestedItem, |collector| {
+        self.under(Guard::NestedItem, Condition::NotDerived, |collector| {
             syn::visit::visit_item_fn(collector, nested);
         });
         self.dead = entry_dead;

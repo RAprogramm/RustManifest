@@ -152,17 +152,20 @@ impl FunctionFlags {
 pub struct CallSite {
     /// Normalized call candidate, in the notation of
     /// [`FunctionFacts::calls`].
-    pub candidate: String,
+    pub candidate:  String,
     /// What stands between this site and unconditional execution.
-    pub guard:     super::output::SiteGuard,
+    pub guard:      super::output::SiteGuard,
     /// Byte range of the calling construct, so a reading written around
     /// it attaches to exactly this site and to no other.
-    pub site:      Range,
+    pub site:       Range,
     /// What the site hands the callee, in written order, the receiver
     /// first where the call has one.
-    pub arguments: super::value::Arguments,
+    pub arguments:  super::value::Arguments,
     /// What the source does with a failure the call can hand back.
-    pub disposal:  super::value::Disposal
+    pub disposal:   super::value::Disposal,
+    /// What each construct standing over the site tests, outermost first,
+    /// one entry per guard frame.
+    pub conditions: Vec<super::value::Condition>
 }
 
 /// Behavioral facts of one function or method.

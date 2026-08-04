@@ -55,7 +55,12 @@ mod wrapper;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use self::census::name_census;
-use super::{Returned, Scoped, output::Guard, types::FunctionFacts, value::Provenance};
+use super::{
+    Returned, Scoped,
+    output::Guard,
+    types::FunctionFacts,
+    value::{Condition, Provenance}
+};
 
 /// Syntax visitor accumulating facts from one function body.
 pub(super) struct FactCollector {
@@ -104,5 +109,10 @@ pub(super) struct FactCollector {
     pub(super) sole:        BTreeSet<String>,
     /// Origins produced by records the walk has pushed, by the byte range
     /// of the construct that produced them.
-    pub(super) produced:    BTreeMap<(u32, u32), Provenance>
+    pub(super) produced:    BTreeMap<(u32, u32), Provenance>,
+    /// What each enclosing construct tests, outermost first.
+    pub(super) conditions:  Vec<Condition>,
+    /// How many choosing constructs the walk has entered, so each one is
+    /// told from the others by the order the body writes them.
+    pub(super) choices:     u32
 }

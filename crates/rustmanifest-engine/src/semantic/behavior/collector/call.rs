@@ -96,7 +96,8 @@ impl FactCollector {
             guard: self.site_guard(),
             site,
             arguments,
-            disposal: Disposal::NotIdentified
+            disposal: Disposal::NotIdentified,
+            conditions: self.site_conditions()
         });
         self.facts.calls.push(candidate);
     }

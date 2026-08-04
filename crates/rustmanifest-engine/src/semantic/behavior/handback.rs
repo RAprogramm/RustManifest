@@ -17,7 +17,10 @@
 //! restate it in terms of what it handed in — the whole of why a summary
 //! composes.
 
-use super::{output::SiteGuard, value::Provenance};
+use super::{
+    output::SiteGuard,
+    value::{Condition, Provenance}
+};
 
 /// Version of the return positions this channel recognizes. Stamped into
 /// claims so a negative result states which recognizer produced it.
@@ -59,13 +62,16 @@ impl std::fmt::Display for Outcome {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Handback {
     /// Where the value handed back came from.
-    pub value:   Provenance,
+    pub value:      Provenance,
     /// Which half of a fallible return it is.
-    pub outcome: Outcome,
+    pub outcome:    Outcome,
     /// Byte range of the construct handing it back.
-    pub site:    rustmanifest_schema::Range,
+    pub site:       rustmanifest_schema::Range,
     /// What stands between the position and unconditional execution.
-    pub guard:   SiteGuard
+    pub guard:      SiteGuard,
+    /// What each construct standing over the position tests, outermost
+    /// first, one entry per guard frame.
+    pub conditions: Vec<Condition>
 }
 
 #[cfg(test)]

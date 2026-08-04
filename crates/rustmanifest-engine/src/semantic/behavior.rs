@@ -53,7 +53,10 @@ pub use self::{
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
     types::{CallSite, Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode},
-    value::{Arguments, Disposal, Literal, OriginGap, ParamSlot, Provenance, VALUE_ORIGIN_SET}
+    value::{
+        Arguments, Condition, Disposal, Literal, OriginGap, ParamSlot, Provenance,
+        VALUE_ORIGIN_SET
+    }
 };
 use self::{returned::Returned, scoped::Scoped};
 
