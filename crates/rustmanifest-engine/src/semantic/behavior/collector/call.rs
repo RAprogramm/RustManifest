@@ -82,6 +82,7 @@ impl FactCollector {
     /// Records the error conversion a `?` performs where the callee's
     /// error type is not the one the enclosing signature declares.
     pub(super) fn collect_try(&mut self, tried: &syn::ExprTry) {
+        self.record_try_handback(tried);
         if let [enclosing] = self.facts.error_types.clone().as_slice()
             && let Some(key) = self.call_key(&tried.expr)
             && let Some(callee_error) = self.ret(&key).and_then(|r| r.error.clone())

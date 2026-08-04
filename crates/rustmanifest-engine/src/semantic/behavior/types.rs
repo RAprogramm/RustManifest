@@ -225,6 +225,12 @@ pub struct FunctionFacts {
     /// deduplicated: two identical writes are two events, and their
     /// order is part of the fact.
     pub output_writes: Vec<super::output::OutputWrite>,
+    /// Positions handing a value back to the caller, in body order.
+    ///
+    /// The tail expression, every written `return`, and every `?`, each
+    /// naming where the value it hands back came from. Never sorted,
+    /// never deduplicated, one record per position.
+    pub handbacks:     Vec<super::handback::Handback>,
     /// Sites producing a process status, in body order.
     ///
     /// A status is observable outside the process exactly as a write is,

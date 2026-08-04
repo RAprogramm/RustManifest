@@ -52,6 +52,7 @@ pub(super) fn function_facts(
             allocations: 0,
             call_sites: Vec::new(),
             slots: param_slots(signature),
+            handbacks: Vec::new(),
             output_writes: Vec::new(),
             exits: Vec::new()
         },
@@ -81,6 +82,7 @@ pub(super) fn function_facts(
     }
     collector.facts.error_types = error_types(signature);
     collector.visit_block(block);
+    collector.collect_tail(block);
     collector.facts.reads.sort();
     collector.facts.reads.dedup();
     collector.facts.writes.sort();

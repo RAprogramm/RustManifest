@@ -86,6 +86,10 @@ impl<'ast> Visit<'ast> for FactCollector {
         self.collect_await(awaited);
     }
 
+    fn visit_expr_return(&mut self, returned: &'ast syn::ExprReturn) {
+        self.collect_return(returned);
+    }
+
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
         self.record_exit_constant(path);
         self.collect_path(path);
