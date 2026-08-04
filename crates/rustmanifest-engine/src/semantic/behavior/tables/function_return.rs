@@ -23,7 +23,7 @@ use crate::{
 pub(super) fn return_types(sources: &[Source]) -> Scoped<Returned> {
     let mut table = Scoped::default();
     for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         let mut items = Vec::new();

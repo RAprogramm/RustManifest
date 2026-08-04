@@ -13,17 +13,16 @@
 //! `Analyzer::analyze(&self, source: &Source) -> Vec<Finding>` signature
 //! unchanged.
 //!
-//! A [`ParsedSource`] pairs a source with the syntax tree parsed from it, so
-//! the analyzers that need a tree share one instead of parsing per analyzer.
-
-mod parsed;
+//! A source also carries the Rust syntax tree parsed from its text, behind
+//! the same kind of lazy cell. Every tier above the pattern tier reads the
+//! same tree of the same file, so parsing it per reader made one file parsed
+//! dozens of times per run; parsing it on the source parses it once.
 
 use std::{
+    cell::OnceCell,
     path::PathBuf,
     sync::{Mutex, OnceLock}
 };
-
-pub use self::parsed::ParsedSource;
 
 /// A single source file under analysis.
 ///
@@ -31,12 +30,36 @@ pub use self::parsed::ParsedSource;
 /// against `exclude_globs` and for emitting [`Location`]s on findings. `text`
 /// is the file contents loaded into memory.
 ///
+/// The parsed tree is not part of the value's identity: a clone starts with
+/// an empty cell and parses on demand, exactly like a freshly read file.
+///
+/// `syn` trees hold spans that are neither [`Send`] nor [`Sync`], so a
+/// `Source` stays on the thread that built it. The engine's parallelism runs
+/// across files, each with its own source, so nothing needs to cross.
+///
 /// [`Location`]: rustmanifest_schema::Location
-#[derive(Debug)]
 pub struct Source {
+    /// Path the findings of this file are located against.
     path:              PathBuf,
+    /// Contents of the file, loaded into memory.
     text:              String,
+    /// Syntax tree of [`Self::text`], or `None` when it is not Rust. Empty
+    /// until the first reader asks.
+    tree:              OnceCell<Option<syn::File>>,
+    /// Lines of the pragmas that suppressed something during this run.
     used_pragma_lines: OnceLock<Mutex<Vec<usize>>>
+}
+
+impl std::fmt::Debug for Source {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Source")
+            .field("path", &self.path)
+            .field("text", &format_args!("{} bytes", self.text.len()))
+            .field("tree", &self.tree.get().map(Option::is_some))
+            .field("used_pragma_lines", &self.used_pragma_lines)
+            .finish()
+    }
 }
 
 impl Clone for Source {
@@ -56,6 +79,7 @@ impl Source {
         Self {
             path,
             text,
+            tree: OnceCell::new(),
             used_pragma_lines: OnceLock::new()
         }
     }
@@ -86,6 +110,18 @@ impl Source {
     #[must_use]
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Returns the file's text parsed as a Rust syntax tree, or `None` when
+    /// it does not parse as Rust.
+    ///
+    /// The first call parses; every later call returns that same tree. A
+    /// file the pattern tier alone visits is never parsed at all.
+    #[must_use]
+    pub fn tree(&self) -> Option<&syn::File> {
+        self.tree
+            .get_or_init(|| syn::parse_file(&self.text).ok())
+            .as_ref()
     }
 
     /// Returns the size of the file in bytes.
@@ -132,6 +168,53 @@ impl Source {
 )]
 mod tests {
     use super::*;
+
+    fn source(text: &str) -> Source {
+        Source::new(PathBuf::from("src/lib.rs"), text.to_owned())
+    }
+
+    #[test]
+    fn tree_is_returned_for_rust_text() {
+        assert_eq!(
+            source("struct User { id: u64 }")
+                .tree()
+                .unwrap()
+                .items
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn tree_is_none_for_text_that_is_not_rust() {
+        assert!(source("this is not rust at all {{{").tree().is_none());
+    }
+
+    #[test]
+    fn repeated_reads_share_one_tree() {
+        let source = source("struct User { id: u64 }");
+        let first = std::ptr::from_ref(source.tree().unwrap());
+        let second = std::ptr::from_ref(source.tree().unwrap());
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn nothing_is_parsed_before_the_first_read() {
+        let source = source("struct User { id: u64 }");
+        assert!(format!("{source:?}").contains("tree: None"));
+        assert!(source.tree().is_some());
+        assert!(format!("{source:?}").contains("tree: Some(true)"));
+    }
+
+    #[test]
+    fn a_clone_starts_with_an_unparsed_tree() {
+        let source = source("struct User { id: u64 }");
+        assert!(source.tree().is_some());
+        let copy = source.clone();
+        assert!(format!("{copy:?}").contains("tree: None"));
+        assert!(copy.tree().is_some());
+        assert!(format!("{source:?}").contains("tree: Some(true)"));
+    }
 
     #[test]
     fn records_pragma_use_sorted_and_deduplicated() {

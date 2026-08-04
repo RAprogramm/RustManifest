@@ -40,7 +40,7 @@ pub struct DocFacts {
 pub fn doc_facts(sources: &[Source]) -> Vec<DocFacts> {
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         let mut items = Vec::new();

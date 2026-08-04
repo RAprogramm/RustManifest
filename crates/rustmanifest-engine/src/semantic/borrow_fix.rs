@@ -62,12 +62,12 @@ pub(super) fn borrow_fixes(
     for phase in [false, true] {
         scan.collect_calls = phase;
         for (index, source) in sources.iter().enumerate() {
-            let Ok(file) = syn::parse_file(source.text()) else {
+            let Some(file) = source.tree() else {
                 continue;
             };
             scan.source_index = index;
             scan.current_path = source.path().to_path_buf();
-            scan.visit_file(&file);
+            scan.visit_file(file);
         }
     }
     if scan.definitions.len() != 1 || scan.bare_path_refs > 0 {

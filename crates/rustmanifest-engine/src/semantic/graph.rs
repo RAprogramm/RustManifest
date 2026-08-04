@@ -37,7 +37,7 @@ impl TypeGraph {
     pub fn from_sources(sources: &[Source]) -> Self {
         let mut graph = Self::default();
         for (index, source) in sources.iter().enumerate() {
-            let Ok(file) = syn::parse_file(source.text()) else {
+            let Some(file) = source.tree() else {
                 continue;
             };
             let mut items = Vec::new();

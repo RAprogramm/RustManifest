@@ -31,12 +31,12 @@ pub(super) fn sightings(sources: &[Source]) -> Sightings {
     let mut derives = 0u64;
     let mut item_macros = 0u64;
     for source in sources {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         files_parsed += 1;
         let mut counter = MacroCounter::default();
-        counter.visit_file(&file);
+        counter.visit_file(file);
         derives += counter.derives;
         item_macros += counter.item_macros;
     }

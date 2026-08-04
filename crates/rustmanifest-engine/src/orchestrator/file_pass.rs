@@ -8,11 +8,6 @@
 //! [`Source`], appends the unused-pragma post-pass and stores the result
 //! back into the cache. Every IO failure is demoted to a warning and the
 //! file is skipped, so a broken path never fails a whole run.
-//!
-//! The analyzers share one [`ParsedSource`], so the file is parsed at most
-//! once for the whole rule set rather than once per structural rule. The
-//! unit lives and dies inside this pass, which is what lets it hold a `syn`
-//! tree while the surrounding run stays parallel across files.
 
 use std::{fs, path::Path};
 
@@ -20,10 +15,7 @@ use rustmanifest_schema::Finding;
 use tracing::{debug, trace, warn};
 
 use super::Orchestrator;
-use crate::{
-    cache::FindingsCache,
-    source::{ParsedSource, Source}
-};
+use crate::{cache::FindingsCache, source::Source};
 
 /// Default per-file memory budget: 10 MiB.
 pub const DEFAULT_MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
@@ -71,7 +63,6 @@ impl Orchestrator {
         }
 
         let source = Source::new(path.to_path_buf(), text);
-        let file = ParsedSource::new(&source);
         let mut findings = Vec::new();
         for analyzer in self.analyzers.as_ref() {
             if analyzer.is_excluded(path) {
@@ -82,7 +73,7 @@ impl Orchestrator {
                 );
                 continue;
             }
-            findings.extend(analyzer.analyze(&file));
+            findings.extend(analyzer.analyze(&source));
         }
         findings.extend(self.unused_pragma_findings(&source));
         if let (Some(handle), Some(key)) = (&self.cache, &cache_key) {

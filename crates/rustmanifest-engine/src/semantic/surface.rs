@@ -71,7 +71,7 @@ pub fn surface(sources: &[Source]) -> Surface {
     let mut providers: BTreeMap<String, Provider> = BTreeMap::new();
     let mut recovered = Surface::default();
     for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             recovered.unparsed += 1;
             continue;
         };

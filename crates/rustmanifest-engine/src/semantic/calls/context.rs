@@ -45,7 +45,7 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
     let mut ext_traits: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let mut supertraits: BTreeMap<String, String> = BTreeMap::new();
     for source in sources {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         let mut items = Vec::new();

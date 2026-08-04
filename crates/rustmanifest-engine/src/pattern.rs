@@ -10,7 +10,7 @@ use regex::Regex;
 use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition, TraceStep};
 use tracing::trace;
 
-use crate::{analyzer::Analyzer, error::EngineError, pragma, source::ParsedSource};
+use crate::{analyzer::Analyzer, error::EngineError, pragma, source::Source};
 
 /// Tier-1 analyzer that applies a single rule's regex to source text.
 #[derive(Debug)]
@@ -75,8 +75,7 @@ impl Analyzer for PatternAnalyzer {
         &self.rule
     }
 
-    fn analyze(&self, file: &ParsedSource<'_>) -> Vec<Finding> {
-        let source = file.source();
+    fn analyze(&self, source: &Source) -> Vec<Finding> {
         let text = source.text();
         let pragmas = pragma::collect(text);
 
@@ -145,7 +144,6 @@ mod tests {
     use rustmanifest_schema::Severity;
 
     use super::*;
-    use crate::source::Source;
 
     fn sample_rule() -> Rule {
         Rule {
@@ -167,7 +165,7 @@ mod tests {
             PathBuf::from("src/main.rs"),
             r#"let password = "hunter2";"#.to_owned()
         );
-        let findings = analyzer.analyze(&ParsedSource::new(&source));
+        let findings = analyzer.analyze(&source);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-SEC-001");
         assert_eq!(findings[0].trace.len(), 1);
@@ -186,7 +184,7 @@ mod tests {
             PathBuf::from("src/main.rs"),
             "fn validate_password(input: &str) -> bool { !input.is_empty() }".to_owned()
         );
-        assert!(analyzer.analyze(&ParsedSource::new(&source)).is_empty());
+        assert!(analyzer.analyze(&source).is_empty());
     }
 
     #[test]
@@ -195,7 +193,7 @@ mod tests {
         let text = "// rustmanifest: allow(RM-SEC-001) reason=\"intentional fixture\"\nlet password = \
              \"hunter2\";\n";
         let source = Source::new(PathBuf::from("src/main.rs"), text.to_owned());
-        assert!(analyzer.analyze(&ParsedSource::new(&source)).is_empty());
+        assert!(analyzer.analyze(&source).is_empty());
     }
 
     #[test]

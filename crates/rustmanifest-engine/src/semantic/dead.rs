@@ -107,8 +107,8 @@ fn mentioned_names(sources: &[Source]) -> BTreeSet<String> {
         names: BTreeSet::new()
     };
     for source in sources {
-        if let Ok(file) = syn::parse_file(source.text()) {
-            scan.visit_file(&file);
+        if let Some(file) = source.tree() {
+            scan.visit_file(file);
         }
     }
     scan.names

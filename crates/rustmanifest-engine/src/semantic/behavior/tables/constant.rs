@@ -19,14 +19,14 @@ use crate::source::Source;
 pub(super) fn constant_texts(sources: &[Source]) -> Scoped<String> {
     let mut table = Scoped::default();
     for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         let mut harvest = TextConstants {
             source: index,
             table:  &mut table
         };
-        harvest.visit_file(&file);
+        harvest.visit_file(file);
     }
     table
 }

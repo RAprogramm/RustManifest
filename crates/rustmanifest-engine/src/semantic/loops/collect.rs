@@ -28,7 +28,7 @@ use crate::{semantic::expr::impl_type_name, source::Source};
 pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
     let mut found = Vec::new();
     for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         let text = source.text();

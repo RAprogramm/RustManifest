@@ -85,7 +85,7 @@ pub fn entry_points(sources: &[Source], facts: &[FunctionFacts]) -> Vec<EntryPoi
         if !binary_root(&path) {
             continue;
         }
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         for item in &file.items {

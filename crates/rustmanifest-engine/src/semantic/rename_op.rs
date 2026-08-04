@@ -35,11 +35,11 @@ pub fn rename_module_fixes(sources: &[Source], old: &str, new: &str) -> Vec<Fix>
         edits: Vec::new()
     };
     for source in sources {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         scan.current = source.path().to_path_buf();
-        scan.visit_file(&file);
+        scan.visit_file(file);
     }
     let [(declaring_file, inline)] = scan.declarations.as_slice() else {
         return Vec::new();

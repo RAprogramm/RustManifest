@@ -32,7 +32,7 @@ pub(in crate::semantic) fn qualifiers_by_fact(
     }
     let mut qualifiers = vec![BTreeSet::new(); facts.len()];
     for (index, source) in sources.iter().enumerate() {
-        let Ok(file) = syn::parse_file(source.text()) else {
+        let Some(file) = source.tree() else {
             continue;
         };
         let scope = file_scope(&source.path().to_string_lossy());
