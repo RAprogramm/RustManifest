@@ -1,0 +1,115 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! Reading where a written expression's value came from.
+//!
+//! The reading is total: every shape outside the vocabulary answers with
+//! the question it failed on rather than with silence. It records
+//! nothing — it is a lookup over what the walk has already built plus the
+//! index of a record the walk has already pushed, so every site stays
+//! recorded exactly once, by the walk, at the node that owns it.
+
+use super::FactCollector;
+use crate::semantic::behavior::value::{Literal, OriginGap, ParamSlot, Provenance};
+
+impl FactCollector {
+    /// Where the value of `expression` came from.
+    pub(super) fn origin_of(&self, expression: &syn::Expr) -> Provenance {
+        match expression {
+            syn::Expr::Lit(_) => Literal::of(expression).map_or(
+                Provenance::NotDerived(OriginGap::Unreadable),
+                Provenance::Written
+            ),
+            syn::Expr::Reference(borrowed) => self.origin_of(&borrowed.expr),
+            syn::Expr::Paren(inner) => self.origin_of(&inner.expr),
+            syn::Expr::Group(inner) => self.origin_of(&inner.expr),
+            syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+                self.origin_of(&unary.expr)
+            }
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
+                    self.named_origin(&name.to_string())
+                }),
+            syn::Expr::Field(_) => Provenance::NotDerived(OriginGap::Foreign),
+            _ => self.recorded_origin(expression)
+        }
+    }
+
+    /// Where the value a bare name stands for came from.
+    ///
+    /// A name this body gave a value to answers with that value. A name
+    /// the signature declares answers with its own slot, which is the one
+    /// free variable a summary is written in terms of. A name written
+    /// more than once in this body refuses: which writing stands here is a
+    /// question of scopes this tier does not resolve. Anything else
+    /// arrives from outside this body and is decided elsewhere.
+    fn named_origin(&self, name: &str) -> Provenance {
+        if let Some(origin) = self.origins.get(name) {
+            return origin.clone();
+        }
+        if let Some(position) = self
+            .slots
+            .iter()
+            .position(|slot| slot.as_deref() == Some(name))
+        {
+            return Provenance::Parameter(ParamSlot {
+                position: u8::try_from(position).unwrap_or(u8::MAX),
+                name:     Some(name.to_owned())
+            });
+        }
+        if self.rebound(name) {
+            return Provenance::NotDerived(OriginGap::Rebound);
+        }
+        Provenance::NotDerived(OriginGap::Foreign)
+    }
+
+    /// Whether a name is written in this body without being sole, so no
+    /// single value stands behind it.
+    fn rebound(&self, name: &str) -> bool {
+        self.written.contains(name) && !self.sole.contains(name)
+    }
+
+    /// The record the walk pushed for this very expression, by its byte
+    /// range, or the question that reading it failed on.
+    fn recorded_origin(&self, expression: &syn::Expr) -> Provenance {
+        use syn::spanned::Spanned;
+
+        let span = expression.span().byte_range();
+        let start = u32::try_from(span.start).unwrap_or(u32::MAX);
+        let end = u32::try_from(span.end).unwrap_or(u32::MAX);
+        self.produced
+            .get(&(start, end))
+            .cloned()
+            .unwrap_or(Provenance::NotDerived(OriginGap::Unreadable))
+    }
+}
+
+impl FactCollector {
+    /// Records where the value a `let` binds came from, for the one shape
+    /// a single value stands behind: a plain name this body writes once.
+    ///
+    /// A pattern taking a value apart binds several names to parts of it,
+    /// and which part each name holds is a question this tier does not
+    /// answer; a name written more than once stands for no single value.
+    /// Both are left unrecorded, so a later reading of such a name reaches
+    /// the refusal that names the question instead of a stale answer.
+    pub(super) fn record_local_origin(&mut self, local: &syn::Local) {
+        let syn::Pat::Ident(bound) = &local.pat else {
+            return;
+        };
+        if bound.subpat.is_some() {
+            return;
+        }
+        let name = bound.ident.to_string();
+        if !self.sole.contains(&name) {
+            return;
+        }
+        let Some(init) = &local.init else {
+            return;
+        };
+        let origin = self.origin_of(&init.expr);
+        self.origins.insert(name, origin);
+    }
+}

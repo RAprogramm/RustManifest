@@ -10,10 +10,10 @@ use rustmanifest_schema::Range;
 use syn::visit::Visit;
 
 use super::{
-    collector::FactCollector,
+    collector::{FactCollector, name_census},
     declaration::ItemContext,
     folding::fold_constants,
-    signature::{error_types, param_facts, parameter_elements, parameter_types},
+    signature::{error_types, param_facts, param_slots, parameter_elements, parameter_types},
     tables::TypeTables,
     types::{Effect, FunctionFacts}
 };
@@ -29,6 +29,7 @@ pub(super) fn function_facts(
     imports: &std::collections::BTreeMap<String, String>
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
+    let census = name_census(block);
     let params = param_facts(signature, context.impl_type);
     let mut collector = FactCollector {
         facts:       FunctionFacts {
@@ -50,6 +51,7 @@ pub(super) fn function_facts(
             clones: 0,
             allocations: 0,
             call_sites: Vec::new(),
+            slots: param_slots(signature),
             output_writes: Vec::new(),
             exits: Vec::new()
         },
@@ -67,7 +69,12 @@ pub(super) fn function_facts(
         fresh:       std::collections::BTreeSet::new(),
         guards:      Vec::new(),
         prior_exits: 0,
-        dead:        false
+        dead:        false,
+        slots:       param_slots(signature),
+        origins:     std::collections::BTreeMap::new(),
+        written:     census.written,
+        sole:        census.sole,
+        produced:    std::collections::BTreeMap::new()
     };
     if matches!(signature.safety, syn::Safety::Unsafe(_)) {
         collector.facts.effects.push(Effect::Unsafe);

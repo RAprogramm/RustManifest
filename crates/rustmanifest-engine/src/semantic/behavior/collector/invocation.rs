@@ -16,14 +16,18 @@ impl FactCollector {
     /// Records the callee of a call written as a path, qualified by the
     /// owner segment where the path carries one.
     pub(super) fn record_called_path(&mut self, call: &syn::ExprCall) {
+        use syn::spanned::Spanned;
+
         if let syn::Expr::Path(path) = call.func.as_ref() {
             let segments = &path.path.segments;
+            let span = call.span().byte_range();
+            let arguments: Vec<&syn::Expr> = call.args.iter().collect();
             if segments.len() == 1 {
-                self.record_call(None, &segments[0].ident.to_string());
+                self.record_written_call(None, &segments[0].ident.to_string(), &span, &arguments);
             } else if segments.len() >= 2 {
                 let owner = segments[segments.len() - 2].ident.to_string();
                 let callee = segments[segments.len() - 1].ident.to_string();
-                self.record_call(Some(&owner), &callee);
+                self.record_written_call(Some(&owner), &callee, &span, &arguments);
             }
         }
         syn::visit::visit_expr_call(self, call);
@@ -61,6 +65,12 @@ impl FactCollector {
         {
             self.record_call(Some(&inner), &method);
         }
+        let span = {
+            use syn::spanned::Spanned;
+            call.span().byte_range()
+        };
+        let mut written: Vec<&syn::Expr> = vec![call.receiver.as_ref()];
+        written.extend(call.args.iter());
         match self.expr_type(&call.receiver) {
             Some(owner) => {
                 if let Some(effect) = knowledge::method_effect(&owner, &method)
@@ -68,9 +78,9 @@ impl FactCollector {
                 {
                     self.facts.effects.push(effect);
                 }
-                self.record_call(Some(&owner), &method);
+                self.record_written_call(Some(&owner), &method, &span, &written);
             }
-            None => self.record_call(Some("?"), &method)
+            None => self.record_written_call(Some("?"), &method, &span, &written)
         }
         syn::visit::visit_expr_method_call(self, call);
     }

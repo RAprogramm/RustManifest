@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! What a `let` teaches the type tables: the written type of the binding,
-//! the element type of a collection it declares, the wrapped inner type it
-//! inherits, the process stream it holds a handle to, and whether the
-//! value it holds was constructed in this body.
+//! What a `let` teaches the tables: where the bound value came from, the
+//! written type of the binding, the element type of a collection it
+//! declares, the wrapped inner type it inherits, the process stream it
+//! holds a handle to, and whether the value it holds was constructed in
+//! this body.
 
 use super::{FactCollector, typing::initializer_type};
 use crate::semantic::behavior::signature::{element_type, type_last_segment};
@@ -52,6 +53,7 @@ impl FactCollector {
                 }
             }
         }
+        self.record_local_origin(local);
         syn::visit::visit_local(self, local);
     }
 }

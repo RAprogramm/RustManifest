@@ -154,7 +154,15 @@ pub struct CallSite {
     /// [`FunctionFacts::calls`].
     pub candidate: String,
     /// What stands between this site and unconditional execution.
-    pub guard:     super::output::SiteGuard
+    pub guard:     super::output::SiteGuard,
+    /// Byte range of the calling construct, so a reading written around
+    /// it attaches to exactly this site and to no other.
+    pub site:      Range,
+    /// What the site hands the callee, in written order, the receiver
+    /// first where the call has one.
+    pub arguments: super::value::Arguments,
+    /// What the source does with a failure the call can hand back.
+    pub disposal:  super::value::Disposal
 }
 
 /// Behavioral facts of one function or method.
@@ -204,6 +212,13 @@ pub struct FunctionFacts {
     /// same function — one under a branch, one not — differ in exactly
     /// the way certainty depends on.
     pub call_sites:    Vec<CallSite>,
+    /// One entry per declared input, the receiver first, holding the name
+    /// where the input is written as a plain name.
+    ///
+    /// [`Self::params`] drops an input it cannot profile, so its positions
+    /// align with nothing; this list keeps one entry per input so a call
+    /// site's written arguments align with it by position.
+    pub slots:         Vec<Option<String>>,
     /// Write sites to an output stream, in body order.
     ///
     /// Unlike [`Self::effects`], this channel is never sorted and never

@@ -16,6 +16,7 @@ mod bound;
 mod element;
 mod error_type;
 mod parameter;
+mod slot;
 mod type_name;
 mod wrapper;
 
@@ -24,6 +25,7 @@ pub(super) use self::{
     element::element_type,
     error_type::error_types,
     parameter::{param_facts, parameter_elements, parameter_types},
+    slot::param_slots,
     type_name::type_last_segment,
     wrapper::wrapped_type
 };

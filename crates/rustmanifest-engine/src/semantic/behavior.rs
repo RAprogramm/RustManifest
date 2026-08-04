@@ -41,6 +41,7 @@ mod signature;
 mod tables;
 mod trait_default;
 mod types;
+mod value;
 
 pub use self::{
     assembly::behavior,
@@ -49,7 +50,8 @@ pub use self::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
-    types::{CallSite, Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode}
+    types::{CallSite, Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode},
+    value::{Arguments, Disposal, Literal, OriginGap, ParamSlot, Provenance, VALUE_ORIGIN_SET}
 };
 use self::{returned::Returned, scoped::Scoped};
 

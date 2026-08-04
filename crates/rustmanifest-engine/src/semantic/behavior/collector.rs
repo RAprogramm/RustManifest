@@ -17,6 +17,8 @@ mod branch;
 mod branch_flow;
 mod call;
 mod call_type;
+mod census;
+
 mod catalog;
 mod completion;
 mod construction;
@@ -34,6 +36,7 @@ mod invocation;
 mod jumps;
 mod multiplicity;
 mod naming;
+mod origin;
 mod outcome;
 mod output_write;
 mod pattern;
@@ -50,7 +53,8 @@ mod wrapper;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{Returned, Scoped, output::Guard, types::FunctionFacts};
+pub(super) use self::census::name_census;
+use super::{Returned, Scoped, output::Guard, types::FunctionFacts, value::Provenance};
 
 /// Syntax visitor accumulating facts from one function body.
 pub(super) struct FactCollector {
@@ -87,5 +91,17 @@ pub(super) struct FactCollector {
     /// Exits that may leave the function before the visited node.
     pub(super) prior_exits: u32,
     /// Whether the visited node follows an unconditional divergence.
-    pub(super) dead:        bool
+    pub(super) dead:        bool,
+    /// One entry per declared input of the signature, the receiver first.
+    pub(super) slots:       Vec<Option<String>>,
+    /// Where each name this body gave a value to got it.
+    pub(super) origins:     BTreeMap<String, Provenance>,
+    /// Names this body writes at all, by binding or by assignment.
+    pub(super) written:     BTreeSet<String>,
+    /// Names this body writes exactly once, so a reading of one resolves
+    /// to a single value.
+    pub(super) sole:        BTreeSet<String>,
+    /// Origins produced by records the walk has pushed, by the byte range
+    /// of the construct that produced them.
+    pub(super) produced:    BTreeMap<(u32, u32), Provenance>
 }

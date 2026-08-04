@@ -45,16 +45,16 @@ pub use orchestrator::{
 };
 pub use pattern::PatternAnalyzer;
 pub use semantic::{
-    Absorption, CallGraph, Completion, Coverage, DocFacts, Effect, EntryKind, EntryMeaning,
-    EntryPoint, ExitClaim, ExitRoute, ExitStatus, ExpansionReport, Feature, FunctionFacts,
-    FunctionFlags, Grade, Guard, Hole, HoleSource, ImplNode, MethodNode, ModuleEdge, ModuleInfo,
-    ModuleOverview, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason, OutputClaim,
-    OutputWrite, ParamFacts, ParamMode, Payload, ProcessExit, Role, Route, ScipEdges, ScipError,
-    Segment, SemanticAnalyzer, SiteGuard, Stream, Surface, TraitNode, TypeGraph, TypeKind,
-    TypeNode, behavior, call_graph, call_graph_with, check_invariants, check_invariants_with,
-    completion_rule, coverage, coverage_indexed, coverage_with, doc_facts, entry_points,
-    expansion, features, module_overview, program_meaning, role, surface, transitive_effects,
-    unresolved_targets
+    Absorption, Arguments, CallGraph, Completion, Coverage, Disposal, DocFacts, Effect, EntryKind,
+    EntryMeaning, EntryPoint, ExitClaim, ExitRoute, ExitStatus, ExpansionReport, Feature,
+    FunctionFacts, FunctionFlags, Grade, Guard, Hole, HoleSource, ImplNode, Literal, MethodNode,
+    ModuleEdge, ModuleInfo, ModuleOverview, Multiplicity, Newline, OUTPUT_SINK_SET, OpaqueReason,
+    OriginGap, OutputClaim, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload, ProcessExit,
+    Provenance, Role, Route, ScipEdges, ScipError, Segment, SemanticAnalyzer, SiteGuard, Stream,
+    Surface, TraitNode, TypeGraph, TypeKind, TypeNode, VALUE_ORIGIN_SET, behavior, call_graph,
+    call_graph_with, check_invariants, check_invariants_with, completion_rule, coverage,
+    coverage_indexed, coverage_with, doc_facts, entry_points, expansion, features,
+    module_overview, program_meaning, role, surface, transitive_effects, unresolved_targets
 };
 pub use source::Source;
 
