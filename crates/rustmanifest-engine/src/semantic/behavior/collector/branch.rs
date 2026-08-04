@@ -44,11 +44,16 @@ impl FactCollector {
 
     /// Visits a match, each arm under the frame its pattern earns.
     pub(super) fn collect_match(&mut self, matched: &syn::ExprMatch) {
+        use syn::spanned::Spanned;
+
         self.visit_expr(&matched.expr);
         self.record_outcome_bindings(matched);
+        let span = matched.span().byte_range();
+        let scrutinee = self.origin_of(&matched.expr);
         let single = matched.arms.len() == 1;
         let choice = self.choices;
         self.choices += 1;
+        let record = self.reserve_choice(&span, scrutinee);
         for (position, arm) in matched.arms.iter().enumerate() {
             let frame = Guard::MatchArm {
                 irrefutable: irrefutable(&arm.pat),
@@ -64,6 +69,7 @@ impl FactCollector {
                 );
             if binds {
                 self.visit_arm(arm);
+                self.record_alternative(record, arm);
             } else {
                 let alternative = u32::try_from(position).unwrap_or(u32::MAX);
                 self.under(
@@ -74,9 +80,11 @@ impl FactCollector {
                     },
                     |collector| {
                         collector.visit_arm(arm);
+                        collector.record_alternative(record, arm);
                     }
                 );
             }
         }
+        self.settle_choice(record, &span);
     }
 }

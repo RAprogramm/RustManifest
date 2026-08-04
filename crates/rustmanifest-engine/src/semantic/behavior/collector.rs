@@ -20,6 +20,7 @@ mod call_type;
 mod census;
 
 mod catalog;
+mod choice;
 mod completion;
 mod construction;
 mod deferral;

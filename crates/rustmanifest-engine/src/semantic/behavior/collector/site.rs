@@ -51,6 +51,7 @@ impl FactCollector {
         let written = self.facts.output_writes.len();
         let drawn = self.facts.input_reads.len();
         let computed = self.facts.operations.len();
+        let decided = self.facts.choices.len();
         body(self);
         if matches!(multiplicity, Multiplicity::Once) {
             return;
@@ -63,6 +64,9 @@ impl FactCollector {
         }
         for operation in self.facts.operations.iter_mut().skip(computed) {
             operation.multiplicity = multiplicity;
+        }
+        for choice in self.facts.choices.iter_mut().skip(decided) {
+            choice.multiplicity = multiplicity;
         }
     }
 

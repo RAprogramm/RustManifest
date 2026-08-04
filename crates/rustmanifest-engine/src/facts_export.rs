@@ -12,6 +12,7 @@
 //! payload of each write each own a submodule; this module selects which
 //! functions reach the wire and closes their effects over the call graph.
 
+mod choice;
 mod fact;
 mod input_read;
 mod operation;

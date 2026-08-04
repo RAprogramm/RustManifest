@@ -26,6 +26,7 @@
 //! bodies, and the assembly that drives them all.
 
 mod assembly;
+mod choice;
 mod collector;
 mod conversion;
 mod declaration;
@@ -48,6 +49,7 @@ mod value;
 
 pub use self::{
     assembly::behavior,
+    choice::{Alternative, CHOICE_SET, Choice, Closure},
     exit::{ExitRoute, ExitStatus, ProcessExit},
     handback::{HANDBACK_SET, Handback, Outcome},
     input::{
