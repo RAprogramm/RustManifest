@@ -13,9 +13,11 @@
 //! itself has no answer.
 
 mod reqwest;
+mod result;
 mod tempfile;
 mod tokio;
 
+pub(super) use self::result::{MethodResult, Outcome, ReturnForm, converts};
 use super::behavior::Effect;
 
 /// Everything one pack knows about one crate.

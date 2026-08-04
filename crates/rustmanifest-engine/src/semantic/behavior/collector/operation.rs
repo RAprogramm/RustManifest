@@ -15,6 +15,8 @@
 //! operation at all — a namesake of the program's own would otherwise be
 //! credited with the library's behaviour.
 
+mod conversion;
+
 use super::FactCollector;
 use crate::semantic::{
     behavior::{
@@ -131,13 +133,13 @@ impl FactCollector {
         use syn::spanned::Spanned;
 
         let method = call.method.to_string();
-        let Some((operation, guarding)) = operation_method(&method) else {
-            return false;
-        };
         let mut operands = vec![self.origin_of(&call.receiver)];
         operands.extend(call.args.iter().map(|argument| self.origin_of(argument)));
-        self.push_operation(&call.span().byte_range(), operation, operands, guarding);
-        true
+        if let Some((operation, guarding)) = operation_method(&method) {
+            self.push_operation(&call.span().byte_range(), operation, operands, guarding);
+            return true;
+        }
+        self.record_conversion(call, operands)
     }
 }
 
