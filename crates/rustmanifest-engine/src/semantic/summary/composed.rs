@@ -43,6 +43,8 @@ pub enum ComposedOrigin {
     },
     /// One of several values, whichever the taken position produces.
     Choice(Vec<Self>),
+    /// The value a field of a known type holds, named `Owner.field`.
+    Field(String),
     /// Not derived, with the reason.
     NotDerived(OriginGap)
 }
@@ -52,7 +54,7 @@ impl ComposedOrigin {
     #[must_use]
     pub fn derived(&self) -> bool {
         match self {
-            Self::Written(_) | Self::Parameter(_) => true,
+            Self::Written(_) | Self::Parameter(_) | Self::Field(_) => true,
             Self::Call {
                 arguments,
                 carried,
@@ -67,7 +69,7 @@ impl ComposedOrigin {
     #[must_use]
     pub fn gap(&self) -> Option<OriginGap> {
         match self {
-            Self::Written(_) | Self::Parameter(_) => None,
+            Self::Written(_) | Self::Parameter(_) | Self::Field(_) => None,
             Self::Call {
                 arguments,
                 carried,

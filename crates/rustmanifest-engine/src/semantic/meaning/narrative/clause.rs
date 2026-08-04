@@ -33,10 +33,7 @@ pub(super) fn intake_clause(claims: &[IntakeClaim]) -> Result<Option<String>, Or
     }
     Ok(Some(format!(
         "{} {}",
-        opening(
-            strongest(claims.iter().map(|claim| claim.execution)),
-            "takes"
-        ),
+        opening(weakest(claims.iter().map(|claim| claim.execution)), "takes"),
         named.join(", ")
     )))
 }
@@ -63,7 +60,7 @@ pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, 
     Ok(Some(format!(
         "{} {}",
         opening(
-            strongest(claims.iter().map(|claim| claim.execution)),
+            weakest(claims.iter().map(|claim| claim.execution)),
             "computes"
         ),
         named.join(", ")
@@ -94,7 +91,7 @@ pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, Or
     Ok(Some(format!(
         "{} between {}",
         opening(
-            strongest(claims.iter().map(|claim| claim.execution)),
+            weakest(claims.iter().map(|claim| claim.execution)),
             "chooses"
         ),
         named.join(", and between ")
@@ -109,10 +106,13 @@ const fn unsettled(origin: &Provenance) -> Option<OriginGap> {
     }
 }
 
-/// The strongest grade among a set of claims, since a clause speaks of
-/// them together and the whole is as certain as its most certain part is
-/// not.
-fn strongest(grades: impl Iterator<Item = Grade>) -> Grade {
+/// The weakest grade among a set of claims.
+///
+/// A clause speaks of its sites together, and a group of sites is only as
+/// certain as its least certain member: saying "unconditionally" of a set
+/// containing one guarded site would state of all of them what holds of
+/// some.
+fn weakest(grades: impl Iterator<Item = Grade>) -> Grade {
     grades.min().unwrap_or(Grade::Unreached)
 }
 

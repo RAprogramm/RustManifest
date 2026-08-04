@@ -32,8 +32,23 @@ impl FactCollector {
                 .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
                     self.named_origin(&name.to_string())
                 }),
-            syn::Expr::Field(_) => Provenance::NotDerived(OriginGap::Foreign),
+            syn::Expr::Field(field) => self.field_origin(field),
             _ => self.recorded_origin(expression)
+        }
+    }
+
+    /// The field a value is read out of, where the tables name the type
+    /// holding it.
+    ///
+    /// That the value is this field of this type is what the body proves.
+    /// What put it there is decided wherever the type is constructed,
+    /// which no body of this tier reads — so the answer names the field
+    /// and stops, rather than refusing outright or reaching further than
+    /// it can see.
+    fn field_origin(&self, field: &syn::ExprField) -> Provenance {
+        match self.field_key(field) {
+            Some(key) if !key.starts_with("?.") => Provenance::Field(key),
+            _ => Provenance::NotDerived(OriginGap::Foreign)
         }
     }
 

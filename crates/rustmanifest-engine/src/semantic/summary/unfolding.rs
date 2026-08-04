@@ -25,6 +25,7 @@ pub(super) fn unfold(fact: &FunctionFacts, origin: &Provenance, budget: u8) -> C
     match origin {
         Provenance::Written(literal) => ComposedOrigin::Written(literal.clone()),
         Provenance::Parameter(slot) => ComposedOrigin::Parameter(slot.clone()),
+        Provenance::Field(key) => ComposedOrigin::Field(key.clone()),
         Provenance::Called(index) => called(fact, *index, remaining),
         Provenance::Read(_) | Provenance::Computed(_) | Provenance::Chosen(_) => {
             ComposedOrigin::NotDerived(OriginGap::Unreadable)

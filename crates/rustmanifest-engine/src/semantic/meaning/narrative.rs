@@ -162,15 +162,15 @@ mod tests {
     #[test]
     fn a_refused_clause_decomposes_the_statement_and_names_the_question() {
         let said = statement(
-            "struct Pair { left: u32, right: u32 }\nimpl Pair { fn total(&self) -> u32 { \
-             self.left + self.right } }\nfn main() { println!(\"hi\"); }"
+            "fn main() {\n    let mut total = 0;\n    total = 1;\n    let _ = total + 1;\n    \
+             println!(\"hi\");\n}"
         );
         let Narrative::Parts {
             refused: (clause, _),
             licensed
         } = said
         else {
-            panic!("the operands of that sum come from outside the body, which refuses");
+            panic!("a name written twice stands for no single value, which refuses");
         };
         assert_eq!(clause, Clause::Computation);
         assert!(

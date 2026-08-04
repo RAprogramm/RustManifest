@@ -34,6 +34,14 @@ pub enum Provenance {
     /// The value the call at this position of the call-site channel hands
     /// back.
     Called(u32),
+    /// The value a field of a known type holds, named `Owner.field`.
+    ///
+    /// What put it there is decided wherever that type is constructed,
+    /// which is outside this body; that it is this field of this type is
+    /// what the body proves, and it is a fact rather than the absence of
+    /// one. A field whose owning type the tables cannot name is not this
+    /// answer — it is the refusal that says so.
+    Field(String),
     /// Not derived, with the reason.
     NotDerived(OriginGap)
 }
@@ -50,6 +58,7 @@ impl Provenance {
             Self::Computed(_) => "computed",
             Self::Chosen(_) => "chosen",
             Self::Called(_) => "called",
+            Self::Field(_) => "field",
             Self::NotDerived(gap) => gap.label()
         }
     }
@@ -58,5 +67,62 @@ impl Provenance {
     #[must_use]
     pub const fn derived(&self) -> bool {
         !matches!(self, Self::NotDerived(_))
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::Provenance;
+    use crate::{
+        semantic::behavior::{OriginGap, behavior},
+        source::Source
+    };
+
+    fn operands(text: &str, function: &str) -> Vec<Provenance> {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        behavior(&sources)
+            .iter()
+            .find(|fact| fact.function == function)
+            .and_then(|fact| fact.operations.first().map(|site| site.operands.clone()))
+            .expect("the function records an operation")
+    }
+
+    /// A value read out of a field is named by that field, because that
+    /// is what the body proves. Refusing here would call a recorded fact
+    /// an absence.
+    #[test]
+    fn a_value_read_out_of_a_field_is_named_by_the_field() {
+        let recorded = operands(
+            "struct Pair { left: u32, right: u32 }\nimpl Pair { fn total(&self) -> u32 { \
+             self.left + self.right } }",
+            "Pair::total"
+        );
+        assert_eq!(
+            recorded,
+            vec![
+                Provenance::Field("Pair.left".to_owned()),
+                Provenance::Field("Pair.right".to_owned())
+            ]
+        );
+    }
+
+    /// A field whose owning type the tables cannot name is not an answer:
+    /// naming the field alone would state of one type what was read off
+    /// another.
+    #[test]
+    fn a_field_of_an_unnamed_type_refuses() {
+        let recorded = operands(
+            "fn total(holder: impl Sized) -> u32 { holder.left + 1 }",
+            "total"
+        );
+        assert_eq!(recorded[0], Provenance::NotDerived(OriginGap::Foreign));
     }
 }
