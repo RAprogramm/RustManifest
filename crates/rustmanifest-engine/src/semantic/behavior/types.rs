@@ -19,8 +19,9 @@ use rustmanifest_schema::Range;
 pub struct EffectSite {
     /// Effect the path proved.
     pub effect: Effect,
-    /// The written path, joined by `::` as the source spells it.
-    pub path:   String,
+    /// The written text that proved the effect: the call path as the
+    /// source spells it, or the keyword where a keyword proved it.
+    pub proof:  String,
     /// Byte range of that path.
     pub range:  Range
 }

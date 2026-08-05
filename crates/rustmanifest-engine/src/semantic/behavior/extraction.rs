@@ -106,7 +106,7 @@ pub(super) fn function_facts(
         left.effect
             .cmp(&right.effect)
             .then(left.range.start.cmp(&right.range.start))
-            .then(left.path.cmp(&right.path))
+            .then(left.proof.cmp(&right.proof))
     });
     collector.facts.effect_sites.dedup();
     collector.facts.calls.sort();
@@ -128,7 +128,7 @@ fn unsafe_signature_site(signature: &syn::Signature) -> EffectSite {
     let bytes = signature.ident.span().byte_range();
     EffectSite {
         effect: Effect::Unsafe,
-        path:   "unsafe fn".to_owned(),
+        proof:  "unsafe fn".to_owned(),
         range:  Range {
             start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
             end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)

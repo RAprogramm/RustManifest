@@ -268,12 +268,12 @@ mod tests {
         assert_eq!(serve.effects, vec![Effect::Network]);
         assert_eq!(serve.effect_sites.len(), 1);
         assert_eq!(serve.effect_sites[0].effect, Effect::Network);
-        assert_eq!(serve.effect_sites[0].path, "std::net::TcpListener::bind");
+        assert_eq!(serve.effect_sites[0].proof, "std::net::TcpListener::bind");
         assert!(serve.effect_sites[0].range.end > serve.effect_sites[0].range.start);
 
         let configure = named(&all, "configure");
         assert_eq!(configure.effects, vec![Effect::Environment]);
-        assert_eq!(configure.effect_sites[0].path, "std::env::var");
+        assert_eq!(configure.effect_sites[0].proof, "std::env::var");
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
         let sites = &named(&all, "poke").effect_sites;
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].effect, Effect::Unsafe);
-        assert_eq!(sites[0].path, "unsafe");
+        assert_eq!(sites[0].proof, "unsafe");
     }
 
     #[test]

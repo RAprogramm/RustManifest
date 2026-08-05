@@ -17,56 +17,23 @@
 
 mod classify;
 mod evidence;
+mod kind;
 mod reach;
 
-use std::fmt;
-
-pub use self::{evidence::Evidence, reach::Started};
+pub use self::{
+    evidence::Evidence,
+    kind::{Capability, ProvenCapability},
+    reach::Started
+};
 use super::workspace::Workspace;
 
-/// What a module can do to the world outside the process.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Capability {
-    /// Takes a local socket, so something outside can reach it.
-    Serves,
-    /// Dials a socket elsewhere, so it reaches something outside.
-    Fetches,
-    /// Reaches a database.
-    Stores,
-    /// Reads the process environment.
-    Configures,
-    /// Reads or writes the filesystem.
-    Persists,
-    /// Writes to a standard stream.
-    Reports,
-    /// Starts a child process.
-    Spawns
-}
-
-impl fmt::Display for Capability {
-    fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let verb = match self {
-            Self::Serves => "serves",
-            Self::Fetches => "fetches",
-            Self::Stores => "stores",
-            Self::Configures => "configures",
-            Self::Persists => "persists",
-            Self::Reports => "reports",
-            Self::Spawns => "spawns"
-        };
-        out.write_str(verb)
-    }
-}
-
-/// One capability of one module, with the site that proved it.
+/// One module and one thing it can do, with the site that proved it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleCapability {
     /// Module path the capability belongs to, `crate` for a crate root.
-    pub module:     String,
-    /// What the module can do.
-    pub capability: Capability,
-    /// The function and call that proved it.
-    pub evidence:   Evidence
+    pub module: String,
+    /// What the module can do, and what proved it.
+    pub proven: ProvenCapability
 }
 
 /// Derives the capability of every module of `workspace`.
@@ -86,21 +53,23 @@ pub fn capabilities(workspace: &Workspace<'_>) -> Vec<ModuleCapability> {
             };
             if rows
                 .iter()
-                .any(|row| row.module == module && row.capability == capability)
+                .any(|row| row.module == module && row.proven.capability == capability)
             {
                 continue;
             }
             rows.push(ModuleCapability {
                 module: module.clone(),
-                capability,
-                evidence: Evidence::of(fact, site)
+                proven: ProvenCapability {
+                    capability,
+                    evidence: Evidence::of(fact, site)
+                }
             });
         }
     }
     rows.sort_by(|left, right| {
         left.module
             .cmp(&right.module)
-            .then(left.capability.cmp(&right.capability))
+            .then(left.proven.capability.cmp(&right.proven.capability))
     });
     rows
 }
@@ -141,10 +110,10 @@ mod tests {
             sources("pub fn run() { std::net::TcpListener::bind(\"0.0.0.0:80\").ok(); }");
         let rows = capabilities(&Workspace::new(&sources));
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].capability, Capability::Serves);
-        assert_eq!(rows[0].evidence.function, "run");
-        assert_eq!(rows[0].evidence.call, "std::net::TcpListener::bind");
-        assert!(rows[0].evidence.range.end > rows[0].evidence.range.start);
+        assert_eq!(rows[0].proven.capability, Capability::Serves);
+        assert_eq!(rows[0].proven.evidence.function, "run");
+        assert_eq!(rows[0].proven.evidence.call, "std::net::TcpListener::bind");
+        assert!(rows[0].proven.evidence.range.end > rows[0].proven.evidence.range.start);
     }
 
     #[test]
@@ -154,7 +123,7 @@ mod tests {
              std::env::var(\"PORT\").ok(); }"
         );
         let rows = capabilities(&Workspace::new(&sources));
-        let found: Vec<Capability> = rows.iter().map(|row| row.capability).collect();
+        let found: Vec<Capability> = rows.iter().map(|row| row.proven.capability).collect();
         assert_eq!(found, vec![Capability::Serves, Capability::Configures]);
     }
 
@@ -165,7 +134,7 @@ mod tests {
         );
         let rows = capabilities(&Workspace::new(&sources));
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].evidence.function, "a");
+        assert_eq!(rows[0].proven.evidence.function, "a");
     }
 
     #[test]
@@ -178,11 +147,5 @@ mod tests {
     fn unsafe_alone_proves_no_capability() {
         let sources = sources("pub fn poke() { unsafe { } }");
         assert!(capabilities(&Workspace::new(&sources)).is_empty());
-    }
-
-    #[test]
-    fn a_capability_renders_as_the_verb_it_states() {
-        assert_eq!(Capability::Serves.to_string(), "serves");
-        assert_eq!(Capability::Stores.to_string(), "stores");
     }
 }

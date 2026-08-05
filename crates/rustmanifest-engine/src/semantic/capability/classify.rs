@@ -11,7 +11,7 @@
 //! category it cannot separate produces the weaker of the two answers
 //! rather than a guess at the stronger one.
 
-use super::Capability;
+use super::kind::Capability;
 use crate::semantic::behavior::{Effect, EffectSite};
 
 /// Path segments that stand for binding a local socket rather than dialling
@@ -28,7 +28,7 @@ const LISTENING_CALLS: [&str; 2] = ["bind", "listen"];
 pub(super) fn of(site: &EffectSite) -> Option<Capability> {
     match site.effect {
         Effect::Unsafe => None,
-        Effect::Network => Some(if takes_a_local_socket(&site.path) {
+        Effect::Network => Some(if takes_a_local_socket(&site.proof) {
             Capability::Serves
         } else {
             Capability::Fetches
@@ -68,7 +68,7 @@ mod tests {
     fn site(effect: Effect, path: &str) -> EffectSite {
         EffectSite {
             effect,
-            path: path.to_owned(),
+            proof: path.to_owned(),
             range: Range {
                 start: 0, end: 1
             }

@@ -15,19 +15,17 @@
 
 use std::collections::BTreeSet;
 
-use super::{Capability, classify, evidence::Evidence};
+use super::{classify, evidence::Evidence, kind::ProvenCapability};
 use crate::semantic::{entry::entry_points, workspace::Workspace};
 
 /// One capability of a program, and whether an entry point reaches it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Started {
-    /// What the program can do.
-    pub capability: Capability,
+    /// What the program can do, and what proved it.
+    pub proven:  ProvenCapability,
     /// Whether a path of resolved calls runs from an entry point to the
     /// function that proved it.
-    pub reached:    bool,
-    /// The function and call that proved the capability.
-    pub evidence:   Evidence
+    pub reached: bool
 }
 
 /// Derives every capability of `workspace` with whether an entry point
@@ -46,21 +44,26 @@ pub(super) fn started(workspace: &Workspace<'_>) -> Vec<Started> {
                 continue;
             };
             let reached = reachable.contains(&index);
-            match rows.iter_mut().find(|row| row.capability == capability) {
+            match rows
+                .iter_mut()
+                .find(|row| row.proven.capability == capability)
+            {
                 Some(row) if reached && !row.reached => {
                     row.reached = true;
-                    row.evidence = Evidence::of(fact, site);
+                    row.proven.evidence = Evidence::of(fact, site);
                 }
                 Some(_) => {}
                 None => rows.push(Started {
-                    capability,
-                    reached,
-                    evidence: Evidence::of(fact, site)
+                    proven: ProvenCapability {
+                        capability,
+                        evidence: Evidence::of(fact, site)
+                    },
+                    reached
                 })
             }
         }
     }
-    rows.sort_by_key(|row| row.capability);
+    rows.sort_by_key(|row| row.proven.capability);
     rows
 }
 
@@ -93,7 +96,7 @@ fn reachable_facts(workspace: &Workspace<'_>) -> BTreeSet<usize> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::*;
+    use super::{super::kind::Capability, *};
     use crate::source::Source;
 
     fn binary(text: &str) -> Vec<Source> {
@@ -110,9 +113,9 @@ mod tests {
         );
         let rows = started(&Workspace::new(&sources));
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].capability, Capability::Serves);
+        assert_eq!(rows[0].proven.capability, Capability::Serves);
         assert!(rows[0].reached);
-        assert_eq!(rows[0].evidence.function, "serve");
+        assert_eq!(rows[0].proven.evidence.function, "serve");
     }
 
     #[test]
@@ -121,7 +124,7 @@ mod tests {
             binary("fn serve() { std::net::TcpListener::bind(\"0\").ok(); }\nfn main() { }");
         let rows = started(&Workspace::new(&sources));
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].capability, Capability::Serves);
+        assert_eq!(rows[0].proven.capability, Capability::Serves);
         assert!(!rows[0].reached);
     }
 
@@ -134,7 +137,7 @@ mod tests {
         let rows = started(&Workspace::new(&sources));
         assert_eq!(rows.len(), 1);
         assert!(rows[0].reached);
-        assert_eq!(rows[0].evidence.function, "warm");
+        assert_eq!(rows[0].proven.evidence.function, "warm");
     }
 
     #[test]

@@ -70,7 +70,9 @@ pub use self::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
         resolution_segments, transitive_effects
     },
-    capability::{Capability, Evidence, ModuleCapability, Started, capabilities, started},
+    capability::{
+        Capability, Evidence, ModuleCapability, ProvenCapability, Started, capabilities, started
+    },
     coverage::{Coverage, coverage, coverage_indexed, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},

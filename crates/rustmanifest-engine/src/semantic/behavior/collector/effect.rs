@@ -43,7 +43,7 @@ impl FactCollector {
             self.facts.effects.push(effect);
             self.facts.effect_sites.push(EffectSite {
                 effect,
-                path: joined,
+                proof: joined,
                 range: span_range(path.span())
             });
         }
@@ -81,7 +81,7 @@ impl FactCollector {
         self.facts.effects.push(Effect::Unsafe);
         self.facts.effect_sites.push(EffectSite {
             effect: Effect::Unsafe,
-            path:   "unsafe".to_owned(),
+            proof:  "unsafe".to_owned(),
             range:  span_range(block.unsafe_token.span)
         });
         syn::visit::visit_expr_unsafe(self, block);

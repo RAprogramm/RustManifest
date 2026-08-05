@@ -34,7 +34,7 @@ impl Evidence {
     pub(super) fn of(fact: &FunctionFacts, site: &EffectSite) -> Self {
         Self {
             function: fact.function.clone(),
-            call:     site.path.clone(),
+            call:     site.proof.clone(),
             source:   fact.source,
             range:    site.range
         }
