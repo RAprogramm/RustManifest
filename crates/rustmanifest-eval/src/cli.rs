@@ -33,7 +33,10 @@ pub enum Command {
     /// Run the corpus and compare against the committed baseline.
     Check(CheckArgs),
     /// Run the corpus and overwrite the committed baseline.
-    Bless(BlessArgs)
+    Bless(BlessArgs),
+    /// Measure the recovered route table against the one each project
+    /// declares for `OpenAPI` generation.
+    Routes(RoutesArgs)
 }
 
 /// Arguments for the `run` subcommand.
@@ -82,4 +85,20 @@ pub struct BlessArgs {
     /// Baseline location to write.
     #[arg(long, default_value = "eval/baseline.json")]
     pub baseline: PathBuf
+}
+
+/// Arguments for the `routes` subcommand.
+#[derive(Debug, Parser)]
+pub struct RoutesArgs {
+    /// Directory the corpus entry paths are resolved against.
+    #[arg(long)]
+    pub corpus_root: PathBuf,
+
+    /// Corpus manifest location.
+    #[arg(long, default_value = "eval/corpus.toml")]
+    pub corpus: PathBuf,
+
+    /// Measurement output location.
+    #[arg(long, default_value = "eval/routes.json")]
+    pub out: PathBuf
 }

@@ -1110,6 +1110,7 @@ dependencies = [
  "rustmanifest-schema",
  "serde",
  "serde_json",
+ "syn 3.0.3",
  "tempfile",
  "thiserror",
  "toml",

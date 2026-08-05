@@ -18,13 +18,14 @@
 pub mod corpus;
 pub mod error;
 pub mod report;
+pub mod routes;
 pub mod runner;
 
 mod cli;
 mod execution;
 mod exit;
 
-pub use cli::{BlessArgs, CheckArgs, Cli, Command, RunArgs};
+pub use cli::{BlessArgs, CheckArgs, Cli, Command, RoutesArgs, RunArgs};
 pub use error::EvalError;
 pub use execution::{P95_BUDGET_MS, run};
 pub use exit::{EXIT_CLEAN, EXIT_ERROR, EXIT_REGRESSION};
