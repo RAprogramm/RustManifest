@@ -5,14 +5,19 @@
 //!
 //! Every fact category the analysis records for a single function becomes
 //! one stable kebab-case key here: reads, writes, builds, constructs,
-//! error types, effects and the sites that proved them, parameters, calls,
-//! clones, allocations, output writes, the test flag and the behavioral
-//! role. The binarized feature
+//! error types, effects and the sites that proved them, parameters, calls
+//! and the sites that make them, handbacks, clones, allocations, output
+//! writes, the test flag and the behavioral role. The binarized feature
 //! vector is appended on request.
 
 use super::{
-    choice::choice_json, effect_site::effect_site_json, input_read::read_json,
-    operation::operation_json, output_write::output_json, process_exit::exit_json
+    call_site::{call_site_json, handback_json},
+    choice::choice_json,
+    effect_site::effect_site_json,
+    input_read::read_json,
+    operation::operation_json,
+    output_write::output_json,
+    process_exit::exit_json
 };
 use crate::{
     semantic::{FunctionFacts, features, role},
@@ -48,6 +53,8 @@ pub fn fact_json(
             "field-reads": param.field_reads
         })).collect::<Vec<_>>(),
         "calls": entry.calls,
+        "call-sites": entry.call_sites.iter().map(call_site_json).collect::<Vec<_>>(),
+        "handbacks": entry.handbacks.iter().map(handback_json).collect::<Vec<_>>(),
         "clones": entry.clones,
         "allocations": entry.allocations,
         "input-reads": entry.input_reads.iter().map(read_json).collect::<Vec<_>>(),
