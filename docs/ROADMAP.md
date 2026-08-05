@@ -182,7 +182,10 @@ each subsystem is for, deterministically and with evidence per row.
   the recovered route table against the `#[utoipa::path]` endpoints projects declare
   independently of the router chain. Measured 2026-08-05 on the two API workspaces of
   the corpus: `ratma-studio-api` recall 100.0% (139/139) at precision 91.4%,
-  `aura-api` recall 95.7% (89/93) at precision 83.2%. The two rates are never merged
+  `aura-api` recall 98.9% (92/93) at precision 83.6%. The measurement paid for
+  itself immediately: it found three endpoints lost behind a `merge` fold in a
+  method-router chain, which is now fixed, and the single remaining disagreement is
+  a path the two sides spell differently rather than one the engine failed to see. The two rates are never merged
   into one figure, and the disagreeing endpoints are named rather than counted. Both
   sides are named for what they are: an *undeclared* row is recovered and not
   annotated, an *unrecovered* row is declared and not produced — which of the two
