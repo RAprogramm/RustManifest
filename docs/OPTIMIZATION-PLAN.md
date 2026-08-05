@@ -24,6 +24,21 @@ Taken on this repository (466 Rust sources) with a `--release` binary:
 | `facts crates` | 0.8 s |
 | `cargo test --workspace --all-features` | 3.6 s (700 tests) |
 
+## Where it stands
+
+Measured the same way after items 1 to 5 landed:
+
+| Command | Before | After | |
+| --- | --- | --- | --- |
+| `check crates` | 7.6 s | 0.71 s | 10.7x |
+| `report crates` | 15.0 s | 2.85 s | 5.3x |
+| `overview crates` | 3.8 s | 1.28 s | 3.0x |
+| `meaning crates` | 2.3 s | 2.03 s | 1.1x |
+| `coverage crates` | 0.9 s | 0.64 s | 1.4x |
+
+`check` reports the same findings it did before, judged by rule, file and
+message; only byte offsets move, and only in the files this work edited.
+
 State that is already sound and must stay sound: `cargo clippy --workspace
 --all-targets --all-features` is clean under `deny` for `all`, `pedantic`,
 `nursery` and `cargo` with no workspace-level allow overrides; no source file
@@ -32,7 +47,7 @@ exceeds 150 pure code lines (largest is 145); production code carries no
 
 ---
 
-## 1. The toolchain gate is broken
+## 1. The toolchain gate is broken — done
 
 `rust-toolchain.toml` was deleted by `4e4347a chore: up deps`, which in the
 same commit raised `workspace.package.rust-version` from `1.95` to `1.97` and
@@ -58,7 +73,7 @@ without failing, which is the property the original grep was reaching for.
 
 ---
 
-## 2. Every file is parsed by `syn` about thirty times per run
+## 2. Every file is parsed by `syn` about thirty times per run — done
 
 `Source` carries only a path and the file text (`source.rs`). Nothing holds a
 parsed syntax tree, so each pass that needs one calls `syn::parse_file` itself.
@@ -92,36 +107,62 @@ semantic rules:
 Both are internal-signature changes; the public CLI and MCP surfaces do not
 move.
 
+**What landed.** The tree went onto `Source` itself rather than a separate
+wrapper: `Source` never needed to be `Sync`, so a `OnceCell` on it works and
+no signature outside the engine had to move. `Derivations` holds the tree and
+the pragmas beside it, keeping `Source` within the field limit its own rules
+set. Above that, `Workspace` holds what a whole analysis derives — type
+graph, module graph, behavioral facts, resolution context, call graph — each
+lazily and once, and every reader takes it as an argument. That last part is
+what the measurements above are mostly made of: eight of the fourteen checks
+read behavioral facts, and one `report` used to extract them six times.
+
 ---
 
-## 3. The expensive tier runs sequentially
+## 3. The expensive tier runs sequentially — and must stay that way
 
 `check/pipeline.rs` fans tiers 1 and 2 out over the rayon pool through the
 orchestrator, then runs the 14 workspace-wide semantic analyzers in a plain
 `for` loop. The same shape is in the MCP composition (`mcp/src/analysis.rs`).
 
-**Work.** Run the semantic analyzers through `par_iter` once they share one
-prebuilt graph (item 2 must land first — a graph rebuilt per rule inside a
-parallel loop would only multiply the waste).
+**Verdict: not doable, and no longer worth doing.** A `syn::File` is neither
+`Send` nor `Sync` — `proc_macro2::Span` carries a marker that forbids it —
+so a parsed tree, and anything derived while holding one, cannot cross a
+thread boundary. Sharing one parse across rules therefore rules out
+parallelising over rules; the two are alternatives, not additions. Sharing
+won by a wide margin: with the parses and derivations shared, the whole
+semantic tier over this repository takes 0.7 s, where fourteen rules each
+re-deriving everything took 7.5 s. Parallelising the old shape over eight
+cores could not have reached that.
+
+The parallelism that remains is the one that pays: tiers 1 and 2 run across
+files, each file owning its own source and its own tree, so nothing crosses.
 
 ---
 
-## 4. Per-finding work that belongs per file
+## 4. Per-finding work that belongs per file — done
 
 `SemanticAnalyzer::analyze` calls `pragma::collect(text)` inside the loop over
 insights, so a file with *n* findings is scanned for pragmas *n* times.
 
 **Work.** Collect pragmas once per source before the loop.
 
+**What landed.** The pragmas moved onto the source beside the tree, so all
+three tiers share one scan per file instead of one per rule per file.
+
 ---
 
-## 5. Sources are read from disk twice per `check`
+## 5. Sources are read from disk twice per `check` — done
 
 `collect_findings` calls `read_sources` for the semantic tier and again for the
 invariant pass, each time reading every file and allocating a fresh `String`.
 
-**Work.** Read once, share the slice. `read_sources` also re-`stat`s each file
-that the walker already visited; fold the size check into the single read.
+**Work.** Read once, share the slice.
+
+**What landed.** One read, shared by both tiers, and skipped entirely when
+neither tier is enabled. The `metadata` call before each read stays: it is
+what enforces the per-file memory budget, and reading first to measure
+afterwards would defeat the budget it exists for.
 
 ---
 
@@ -177,15 +218,15 @@ Each step is committed on its own once `cargo clippy --workspace --all-targets
 --all-features`, `cargo test --workspace --all-features` and a timed run of
 `check` are green.
 
-| # | Step | Depends on |
+| # | Step | State |
 | --- | --- | --- |
-| 1 | Toolchain pin restored, MSRV gate derived from the manifest | — |
-| 2 | `Source::ast()` — parse each file once | 1 |
-| 3 | One `TypeGraph` per analysis, injected into the checks | 2 |
-| 4 | Semantic tier parallelized | 3 |
-| 5 | Pragmas collected once per source | 3 |
-| 6 | Sources read once per `check` | 3 |
-| 7 | 128-bit cache key with a bounded store | 1 |
-| 8 | Semantic-tier cache entry | 3, 7 |
-| 9 | Eval-corpus and benchmark CI gates | 4, 5, 6 |
-| 10 | Duplication and language cleanups | 1 |
+| 1 | Toolchain pin restored, MSRV gate derived from the manifest | done |
+| 2 | `Source::tree()` — parse each file once | done |
+| 3 | One workspace derivation per analysis, injected into every reader | done |
+| 4 | Semantic tier parallelized | dropped — see item 3 |
+| 5 | Pragmas collected once per source | done |
+| 6 | Sources read once per `check` | done |
+| 7 | 128-bit cache key with a bounded store | open |
+| 8 | Semantic-tier cache entry | open |
+| 9 | Eval-corpus and benchmark CI gates | open |
+| 10 | Duplication and language cleanups | open |
