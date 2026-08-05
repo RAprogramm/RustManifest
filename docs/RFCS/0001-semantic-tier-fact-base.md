@@ -2,12 +2,18 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Active |
 | Author | @RAprogramm |
 | Created | 2026-07-31 |
-| Last updated | 2026-07-31 |
+| Last updated | 2026-08-06 |
 | Affected crates | `rustmanifest-schema`, `rustmanifest-engine`, `rustmanifest-rules-core`, `rustmanifest-cli` |
 | SemVer impact | minor (new `RuleDefinition::Semantic` implementation; schema already reserves the variant) |
+
+**Status note (2026-08-06).** Shipped as Phase 2S, with one part of the design
+still open: the fact base is populated and queried by hand-written passes, not by
+the Datalog engine this RFC names, so the derivation trace is assembled rather
+than read off a solver. The SCIP frontend shipped as an opt-in overlay. `Active`
+records exactly that: the rest is in `main`, the solver is not.
 
 ## Summary
 

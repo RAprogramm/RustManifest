@@ -7,12 +7,21 @@ SPDX-License-Identifier: MIT
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Final |
 | Author | @RAprogramm |
 | Created | 2026-08-04 |
-| Last updated | 2026-08-04 |
+| Last updated | 2026-08-06 |
 | Affected crates | `rustmanifest-engine`, `rustmanifest-cli` |
 | SemVer impact | minor (four new fact channels, one new tier, new report surface; existing channels unchanged) |
+
+**Status note (2026-08-06).** All eight stages shipped, recorded as Phase 2V in
+[the roadmap](../ROADMAP.md). Two things landed differently from what is written
+below and the roadmap states them there: the method rows of stage 6 ship as
+standard-library knowledge only, so a conversion performed by an ecosystem pack is
+not yet recorded as one; and closure gained a third ground — every variant of a
+standard type named — which is weaker than a catch-all, says so, and does not read
+a scrutinee's type. Everything the `Unresolved questions` section lists is still
+open.
 
 ## Summary
 

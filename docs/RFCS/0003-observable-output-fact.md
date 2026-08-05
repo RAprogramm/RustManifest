@@ -7,10 +7,10 @@ SPDX-License-Identifier: MIT
 
 | Field | Value |
 |-------|-------|
-| Status | Draft |
+| Status | Final |
 | Author | @RAprogramm |
 | Created | 2026-08-03 |
-| Last updated | 2026-08-03 |
+| Last updated | 2026-08-06 |
 | Affected crates | `rustmanifest-engine`, `rustmanifest-cli`, `rustmanifest-mcp` |
 | SemVer impact | minor (new fact channel, new report surface; existing channels unchanged) |
 
