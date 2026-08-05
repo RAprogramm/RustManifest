@@ -69,8 +69,28 @@ impl FactCollector {
     }
 
     /// Names the value a reserved choice produces, once its alternatives
-    /// are recorded.
+    /// are recorded, and settles how its set is closed.
+    ///
+    /// A catch-all already answered while the alternatives were recorded
+    /// and outranks this: it proves the set closed whatever the type is.
+    /// Only where none was written does the written variant set get a
+    /// chance to prove it.
     pub(super) fn settle_choice(&mut self, choice: usize, span: &std::ops::Range<usize>) {
+        if let Some(record) = self.facts.choices.get_mut(choice)
+            && record.closure == Closure::Unproven
+        {
+            let patterns: Vec<&str> = record
+                .alternatives
+                .iter()
+                .filter(|alternative| !alternative.conditional)
+                .filter_map(|alternative| alternative.pattern.as_deref())
+                .collect();
+            if patterns.len() == record.alternatives.len()
+                && super::super::choice::cover_a_standard_type(&patterns)
+            {
+                record.closure = Closure::StandardVariants;
+            }
+        }
         self.produced
             .entry((
                 u32::try_from(span.start).unwrap_or(u32::MAX),

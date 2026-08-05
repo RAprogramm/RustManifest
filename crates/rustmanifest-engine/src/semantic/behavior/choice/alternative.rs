@@ -28,6 +28,14 @@ pub enum Closure {
     /// An alternative accepts every remaining value and carries no
     /// condition of its own, so exactly one alternative runs.
     CatchAll,
+    /// Every variant of a standard type is named, so exactly one
+    /// alternative runs.
+    ///
+    /// A weaker proof than a catch-all and kept apart from it: it rests on
+    /// the written constructor names, not on the scrutinee's type, which
+    /// this tier does not read. A program spelling its own type's variants
+    /// the same way would be credited by it.
+    StandardVariants,
     /// No alternative accepts every remaining value, and the type of the
     /// value being chosen on is not read here, so the set is recorded as
     /// it stands rather than claimed closed.
@@ -44,6 +52,7 @@ impl std::fmt::Display for Closure {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         out.write_str(match self {
             Self::CatchAll => "closed by a catch-all",
+            Self::StandardVariants => "closed by naming every variant of a standard type",
             Self::Unproven => "not proven closed"
         })
     }

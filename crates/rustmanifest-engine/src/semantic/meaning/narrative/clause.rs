@@ -103,10 +103,12 @@ pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, Or
             named.push(format!(
                 "{} written alternatives {}",
                 claim.choice.alternatives.len(),
-                if matches!(claim.choice.closure, Closure::CatchAll) {
-                    "of which one accepts every remaining value"
-                } else {
-                    "not proven to be all of them"
+                match claim.choice.closure {
+                    Closure::CatchAll => "of which one accepts every remaining value",
+                    Closure::StandardVariants => {
+                        "which name every variant of a standard type"
+                    }
+                    Closure::Unproven => "not proven to be all of them"
                 }
             ));
         }

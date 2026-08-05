@@ -14,7 +14,8 @@
 pub(super) fn choice_json(choice: &crate::semantic::Choice) -> serde_json::Value {
     serde_json::json!({
         "chosen-on": choice.scrutinee.label(),
-        "closed": matches!(choice.closure, crate::semantic::Closure::CatchAll),
+        "closed": !matches!(choice.closure, crate::semantic::Closure::Unproven),
+        "closure": choice.closure.to_string(),
         "alternatives": choice.alternatives.iter().map(|alternative| serde_json::json!({
             "pattern": alternative.pattern,
             "accepts-everything": alternative.irrefutable,

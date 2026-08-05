@@ -17,7 +17,9 @@
 
 mod alternative;
 mod site;
+mod variants;
 
+pub(in crate::semantic::behavior) use self::variants::cover_a_standard_type;
 pub use self::{
     alternative::{Alternative, Closure},
     site::Choice
