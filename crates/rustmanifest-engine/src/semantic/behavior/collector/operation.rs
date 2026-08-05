@@ -149,6 +149,15 @@ impl FactCollector {
             self.push_operation(&call.span().byte_range(), operation, operands, guarding);
             return true;
         }
+        if crate::semantic::std_knowledge::selects_an_element(&method) {
+            self.push_operation(
+                &call.span().byte_range(),
+                Operation::Selection,
+                operands,
+                Guarding::Unchecked
+            );
+            return true;
+        }
         if let Some(question) = crate::semantic::std_knowledge::presence_method(&method) {
             self.push_operation(
                 &call.span().byte_range(),

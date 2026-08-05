@@ -14,11 +14,13 @@
 mod arithmetic;
 mod presence;
 mod result;
+mod selection;
 
 pub(super) use self::{
     arithmetic::operation_method,
     presence::{Presence, presence_method},
-    result::method_result
+    result::method_result,
+    selection::selects_an_element
 };
 use super::behavior::Effect;
 

@@ -141,18 +141,22 @@ fn the_calculator_states_its_choices_are_closed_and_that_one_arm_leaves() {
 }
 
 /// The written value reaches the handle-taking macro exactly as it reaches
-/// the stream macro, and a library predicate keeps the origin of its
-/// receiver.
+/// the stream macro, a library predicate keeps the origin of its receiver,
+/// and a library access keeps the collection the element came out of. The
+/// whole chain is derived: no link is a refusal.
 #[test]
-fn the_store_traces_the_written_value_through_a_library_predicate() {
+fn the_store_traces_the_written_value_to_the_collection_it_came_from() {
     let said = stated(&[("app/src/main.rs", STORE)]);
     assert!(
-        said.contains("the result of a check that a value is held"),
-        "the predicate is not read as a question about its receiver: {said}"
+        said.contains(
+            "the result of a check that a value is held over the result of selection over the \
+             field `Store.tasks` and the written value 1"
+        ),
+        "the chain from the write to the collection is broken: {said}"
     );
     assert!(
-        said.contains("BTreeMap::get"),
-        "the origin stops before the call that produced the receiver: {said}"
+        !said.contains("did not derive"),
+        "the sentence still refuses somewhere: {said}"
     );
 }
 
