@@ -116,8 +116,13 @@ impl FactCollector {
     /// answer; a name written more than once stands for no single value.
     /// Both are left unrecorded, so a later reading of such a name reaches
     /// the refusal that names the question instead of a stale answer.
+    ///
+    /// A written type is not such a pattern. `let args: Vec<String> = ..`
+    /// binds one name to one value exactly as `let args = ..` does, and
+    /// reading only the bare form left every annotated binding foreign —
+    /// which is most of them in ordinary code.
     pub(super) fn record_local_origin(&mut self, local: &syn::Local) {
-        let syn::Pat::Ident(bound) = &local.pat else {
+        let syn::Pat::Ident(bound) = bound_name(&local.pat) else {
             return;
         };
         if bound.subpat.is_some() {
@@ -132,5 +137,14 @@ impl FactCollector {
         };
         let origin = self.origin_of(&init.expr);
         self.origins.insert(name, origin);
+    }
+}
+
+/// The pattern under any written type, so an annotated binding reads like
+/// the bare one it is.
+fn bound_name(pattern: &syn::Pat) -> &syn::Pat {
+    match pattern {
+        syn::Pat::Type(typed) => bound_name(&typed.pat),
+        other => other
     }
 }

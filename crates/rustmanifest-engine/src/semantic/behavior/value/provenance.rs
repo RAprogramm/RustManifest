@@ -95,6 +95,23 @@ mod tests {
             .expect("the function records an operation")
     }
 
+    /// A written type does not change which value a name stands for.
+    /// Reading only the bare binding left `let args: Vec<String> = ..`
+    /// foreign, and with it every clause resting on that value.
+    #[test]
+    fn a_binding_with_a_written_type_keeps_its_origin() {
+        let bare = operands(
+            "fn go(seed: u32) -> u32 { let start = seed; start + 1 }",
+            "go"
+        );
+        let annotated = operands(
+            "fn go(seed: u32) -> u32 { let start: u32 = seed; start + 1 }",
+            "go"
+        );
+        assert_eq!(bare, annotated);
+        assert!(annotated[0].derived());
+    }
+
     /// A value read out of a field is named by that field, because that
     /// is what the body proves. Refusing here would call a recorded fact
     /// an absence.
