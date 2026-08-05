@@ -2,11 +2,11 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-08-05):** Phases 1C, 1D, 1E, 2, 2S and 2M shipped. The rules pack holds 25 rules — `RM-SEC-001`..`003`, `RM-STRUCT-001`..`011`, `RM-MEM-001`..`003`, `RM-IO-001`..`004`, `RM-QUAL-001`..`004` — and tier-2 AST rules cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, call graph with transitive effects. The stdio MCP server ships eight tools — `review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`, `project_overview`, `function_facts`, `learn_conventions` — and nine bundled methodology resources, so agents read the same project understanding the CLI prints. The CLI ships ten commands: `check`, `coverage`, `explain`, `facts`, `graph`, `learn`, `meaning`, `overview`, `prescribe`, `report`.
+**Current status (2026-08-06):** Phases 1C, 1D, 1E, 2, 2S, 2M and 2V shipped. The rules pack holds 25 rules — `RM-SEC-001`..`003`, `RM-STRUCT-001`..`011`, `RM-MEM-001`..`003`, `RM-IO-001`..`004`, `RM-QUAL-001`..`004` — and tier-2 AST rules cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, call graph with transitive effects. The stdio MCP server ships eight tools — `review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`, `project_overview`, `function_facts`, `learn_conventions` — and nine bundled methodology resources, so agents read the same project understanding the CLI prints. The CLI ships ten commands: `check`, `coverage`, `explain`, `facts`, `graph`, `learn`, `meaning`, `overview`, `prescribe`, `report`. Phase 2V (value tier, per [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md)) adds the inward half of the fact base — what a program reads, what it computes, what it chooses among, what it hands back — and the per-function summary that carries a value's origin across a call; `rustmanifest-resolve` is a second binary writing the resolution overlay every value-reading command accepts through `--resolution`.
 
 **Landed since the semantic tier closed:** the resolved-name extractor as an opt-in SCIP overlay (`--scip`) reaching `facts`, `coverage`, `check` and the invariant surface, with edge provenance in traces; call resolution confined to cargo build-target boundaries; error-conversion edges synthesized from `From` implementations at `?` sites; macro expansion promoted to a standard analysis mode; multi-implementor dispatch over-approximated with the modality stated in the trace; ecosystem knowledge packs (`reqwest`, `tempfile`, `tokio`) plus standard-library knowledge, quoted in findings from the library's own documentation with the cost of a deviation counted rather than described; machine-applicable fixes applied by `check --fix`.
 
-**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`) and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
+**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`), the value tier's own follow-ons (the four unresolved questions of [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md), and the answered-versus-refused origin count the report's honesty section still lacks), and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
 
 **Source layout:** no source file exceeds 150 pure code lines (blank lines, `//`/`///`/`//!` and `#[cfg(test)]` blocks excluded); oversized modules are split into nested single-responsibility submodules, with the parent as `X.rs` beside the directory `X/` and never a `mod.rs`.
 
@@ -197,6 +197,100 @@ each subsystem is for, deterministically and with evidence per row.
   payload, and certainty, and every weakening of that program (a branch, a loop, a
   computed string, an early exit) degrades the claim field by field instead of
   collapsing it.
+
+### Phase 2V — Value tier: the inward boundary, what is computed, where a value came from ✅ done (local)
+
+Executes [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md), all
+eight stages. The meaning tier states what a program writes out; this phase states
+what it takes in, what it computes from it, what it chooses among, what it hands
+back — and, through the per-function summary, where a written value came from when
+the answer lies past a call.
+
+- ✅ **The value term** (`semantic/behavior/value/`): where a value came from, as a
+  written literal, one of the function's own input slots, an index into a recorded
+  read, operation, choice or call, or a named refusal. Inside one body it is an
+  index and never a subtree, so two consumers of one value name one record instead
+  of carrying two copies. `FunctionFacts` gains `slots` — one entry per declared
+  input, receiver first — so a call site's written arguments align with the
+  callee's parameters even where the profiled parameter list drops an input it
+  cannot read.
+- ✅ **Handbacks and enriched call sites** (`semantic/behavior/handback.rs`,
+  `collector/site.rs`): every site handing a value back to the caller, `?`
+  included; every call carrying the arguments it hands over, the disposal written
+  around it, its byte range and the conditions standing over it. Disposal is
+  stamped post-hoc by an exact byte-range match — zero or several matches is
+  `NotIdentified` rather than a guess.
+- ✅ **The inward boundary** (`semantic/behavior/input.rs`, `collector/input_read.rs`,
+  `collector/intake_chain.rs`): per read site — channel, selector, intake (text
+  validated or raw bytes), terminator, shape, guard stack, conditions. Sources are
+  recognized on the whole expanded path, so a configuration crate's own lookup is
+  never credited to the process environment. An adapter table says which adapters
+  keep positions; one that does not degrades the selector to unidentified while the
+  channel stays proven.
+- ✅ **Operations and choices** (`semantic/behavior/operation.rs`, `choice/`):
+  language operators as a `const fn` over syn's operator enums; library methods
+  that operate through a table stating what they hand back and whether they can
+  fail, with the guarding recorded (unchecked, checked, saturating, wrapping,
+  reported) and integer arithmetic never called panicking, because the build
+  decides. A choice records its scrutinee and one alternative per written arm.
+  Closure is proven three ways and the ground is stated: a catch-all, every variant
+  of a standard type named — the weaker proof, resting on written constructor
+  names — or unproven, which is where a `match` over a workspace enum with one arm
+  per variant lands, since nothing in the fact base enumerates a type's variants.
+- ✅ **Conversions as knowledge rows** (`semantic/knowledge/result.rs`,
+  `std_knowledge/result.rs`): a row states what a method hands back and whether it
+  can fail. Sixteen standard-library rows ship; the target is read only where the
+  source writes it as the call's own type argument, never off the type a consumer
+  declares. **Deviation from the RFC, deliberate**: the ecosystem packs
+  (`reqwest`, `tempfile`, `tokio`) carry no method rows yet, so a conversion
+  performed by one of them is not recorded as a conversion.
+- ✅ **The condition stack** (`semantic/behavior/value/condition.rs`): which
+  construct each enclosing frame is, one entry per guard frame, outermost first,
+  with equal lengths asserted. This yields arm identity without touching `Guard`,
+  its `const fn` export contract, or a single golden file.
+- ✅ **The summary tier** (`semantic/summary/`): Tarjan condensation over the call
+  graph emits callee-first in one pass — no fixpoint and no convergence argument —
+  then substitutes a call's written arguments for the callee's slots. Every
+  composition failure is named at the leaf rather than swallowed: recursion,
+  unresolved or external callee, dispatch over several implementors, unwritten
+  arguments, and a depth budget of 14 that emits its own refusal, so termination
+  rests on the budget and not on an acyclicity argument.
+- ✅ **The resolution overlay** (`rustmanifest-resolve`, `--resolution` on every
+  value-reading command): which function a call reaches, what it hands back, and
+  what type a receiver has, read from a loaded cargo workspace. A binary of its
+  own so the rust-analyzer libraries — weekly `0.0.x`, no API stability — stay out
+  of the tool a user runs on every save, and the engine takes the answers as plain
+  data. A position the resolver cannot settle is absent from the overlay, so the
+  engine reaches its own refusal instead of being handed a guess; a named overlay
+  that cannot be read is an error and never a silent fallback.
+- ✅ **Claims and the compound statement** (`semantic/meaning/intake.rs`,
+  `claim.rs`, `narrative/`): intake, compute, choice and handback claims field for
+  field like the write claim, every recorded site becoming one, unreached ones
+  included. The statement decomposes instead of weakening — a clause resting on a
+  refusal is named together with the question it failed on, while the licensed
+  clauses still read as sentences. A grade below certain degrades the wording and
+  names the weakener; it does not refuse.
+- ✅ **Export** (`facts_export/`): reads, operations, choices, call sites and
+  summaries ship on their own channels, each stamped with its recognizer-set
+  version, so an empty channel reads as "the recognizer found none" and not as an
+  absence of the thing.
+- ✅ **Acceptance (the ladder)** (`crates/rustmanifest-engine/tests/ladder.rs`,
+  seven tests): a calculator traces its printed result back to the argument it was
+  read from and states its choice is closed and which arm leaves; a create-read-
+  update-delete store traces the written value back to the collection it came from
+  and claims nothing about the status beyond what it leaves; a tutorial program
+  keeps the position it read through later adapters, states both sides of its
+  fallback, and reads through the closure written beside a combinator. Every
+  assertion failed before the work it guards.
+- **What this tier refuses, by design**: a name bound or assigned more than once
+  yields a named refusal, so an accumulator in a loop is stated as underived rather
+  than guessed; there is no type inference, so a binding typed by a later use
+  records no produced type; there is no rules tier over these facts — deriving
+  comes first, cataloguing later.
+- ⏳ **Not shipped**: the per-entry answered-versus-refused origin count belongs in
+  the report's honesty section, which today reports parse and call-resolution
+  coverage only — until it lands, a reader can infer breadth from the shape of the
+  vocabulary, which is far wider than the coverage.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
