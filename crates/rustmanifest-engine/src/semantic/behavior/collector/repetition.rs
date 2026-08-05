@@ -13,8 +13,15 @@ impl FactCollector {
     /// Binds the loop pattern against the iterated element type, then
     /// visits the iterable and the body.
     pub(super) fn collect_for_loop(&mut self, loop_expr: &syn::ExprForLoop) {
+        use syn::spanned::Spanned;
+
         self.bind_element(&loop_expr.pat, &loop_expr.expr);
         self.visit_expr(&loop_expr.expr);
+        self.record_iterated_element(
+            &loop_expr.pat,
+            &loop_expr.expr,
+            &loop_expr.pat.span().byte_range()
+        );
         let body = self.flow_scope().block_flow(&loop_expr.body);
         let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
         self.repeating(multiplicity, |collector| {

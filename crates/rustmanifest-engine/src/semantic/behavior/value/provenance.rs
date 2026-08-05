@@ -117,6 +117,35 @@ mod tests {
     /// Reading only the bare binding left `let args: Vec<String> = ..`
     /// foreign, and with it every clause resting on that value.
     #[test]
+    fn a_loop_binding_stands_for_an_element_of_what_it_iterates() {
+        let text = "fn total(values: Vec<u32>) -> u32 { let mut sum = 0; for value in values { \
+                    sum += value; } sum }\n";
+        let sources = [crate::source::Source::new(
+            PathBuf::from("src/lib.rs"),
+            text.to_owned()
+        )];
+        let facts = behavior(&sources);
+        let selections = facts
+            .iter()
+            .flat_map(|fact| fact.operations.iter())
+            .filter(|operation| {
+                matches!(
+                    operation.operation,
+                    crate::semantic::behavior::Operation::Selection
+                )
+            })
+            .count();
+        assert_eq!(selections, 1);
+        let operands: Vec<Provenance> = facts
+            .iter()
+            .flat_map(|fact| fact.operations.iter())
+            .flat_map(|operation| operation.operands.clone())
+            .collect();
+        assert!(operands.iter().any(|origin| matches!(origin, Provenance::Parameter(slot) if slot.name.as_deref() == Some("values"))));
+        assert!(operands.iter().any(Provenance::derived));
+    }
+
+    #[test]
     fn a_library_path_standing_for_a_value_is_settled_not_foreign() {
         let text = "fn limit() -> u32 { u32::MAX }\nfn absent() -> Option<u8> { None }\n";
         let sources = [crate::source::Source::new(

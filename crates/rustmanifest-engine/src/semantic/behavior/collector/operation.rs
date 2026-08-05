@@ -117,6 +117,35 @@ impl FactCollector {
         );
     }
 
+    /// Records the element a loop takes out of the value it iterates,
+    /// and lets the name the loop binds stand for that element.
+    ///
+    /// Each iteration's value is one element of the iterated value, which
+    /// is the same fact an index at a written position records, so it is
+    /// recorded as the same operation. The name is only bound where the
+    /// body writes it once: a loop that reassigns its own binding stands
+    /// for no single value, and the refusal that says so is the honest
+    /// answer.
+    pub(super) fn record_iterated_element(
+        &mut self,
+        pattern: &syn::Pat,
+        iterable: &syn::Expr,
+        span: &std::ops::Range<usize>
+    ) {
+        let Some(name) = super::naming::binding_name(pattern) else {
+            return;
+        };
+        if !self.sole.contains(&name) {
+            return;
+        }
+        let operands = vec![self.origin_of(iterable)];
+        let index = self.push_operation(span, Operation::Selection, operands, Guarding::Unchecked);
+        self.origins.insert(
+            name,
+            Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX))
+        );
+    }
+
     /// Records the conversion a written cast performs, whose target the
     /// source writes outright.
     pub(super) fn record_cast(&mut self, cast: &syn::ExprCast) {
