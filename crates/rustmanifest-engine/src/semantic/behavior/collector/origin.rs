@@ -28,6 +28,7 @@ impl FactCollector {
             }
             syn::Expr::Path(path) => self.path_origin(&path.path),
             syn::Expr::Field(field) => self.field_origin(field),
+            syn::Expr::Try(fallible) => self.propagated_origin(fallible),
             syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => {
                 Provenance::Leaves
             }
@@ -58,6 +59,19 @@ impl FactCollector {
             },
             Provenance::Constant
         )
+    }
+
+    /// The value a propagating operator leaves standing where it does not
+    /// leave the function.
+    ///
+    /// `x?` and `x` stand for the same value: the operator removes the
+    /// failure half and hands on the success half, and which value that
+    /// is was decided by whatever produced `x`. The propagation itself is
+    /// already a fact of its own — the disposal recorded around the site
+    /// says the failure leaves — so reading the origin through it states
+    /// nothing the site does not prove.
+    fn propagated_origin(&self, fallible: &syn::ExprTry) -> Provenance {
+        self.origin_of(&fallible.expr)
     }
 
     /// The field a value is read out of, where the tables name the type
