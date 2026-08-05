@@ -56,6 +56,7 @@ pub fn origin_text(origin: &ComposedOrigin) -> String {
             }
             settled => origin_text(settled)
         },
+        ComposedOrigin::Leaves => "no value, because control leaves there".to_owned(),
         ComposedOrigin::NotDerived(gap) => format!("a value this analysis did not derive ({gap})")
     }
 }

@@ -59,6 +59,8 @@ pub enum ComposedOrigin {
         /// Where each operand came from, in written order.
         operands:  Vec<Self>
     },
+    /// No value: control leaves the position instead of producing one.
+    Leaves,
     /// Not derived, with the reason.
     NotDerived(OriginGap)
 }
@@ -75,10 +77,19 @@ impl ComposedOrigin {
     /// one function choosing among values another function chose among —
     /// and not a fact about the program: what can stand in that position
     /// is one set, however many steps led to it.
+    ///
+    /// An alternative that leaves contributes nothing to the set: it
+    /// produces no value, so it is not one of the values the position can
+    /// hold. That it leaves is recorded on the choice itself, where it is
+    /// a fact about control rather than about this value.
     #[must_use]
     pub fn flattened(&self) -> Vec<Self> {
         match self {
-            Self::Choice(alternatives) => alternatives.iter().flat_map(Self::flattened).collect(),
+            Self::Choice(alternatives) => alternatives
+                .iter()
+                .filter(|alternative| !matches!(alternative, Self::Leaves))
+                .flat_map(Self::flattened)
+                .collect(),
             Self::Call {
                 carried, ..
             } if !matches!(carried.as_ref(), Self::NotDerived(_)) => carried.flattened(),
@@ -93,6 +104,7 @@ impl ComposedOrigin {
             Self::Written(_)
             | Self::Parameter(_)
             | Self::Field(_)
+            | Self::Leaves
             | Self::Boundary {
                 ..
             } => true,
@@ -116,6 +128,7 @@ impl ComposedOrigin {
             Self::Written(_)
             | Self::Parameter(_)
             | Self::Field(_)
+            | Self::Leaves
             | Self::Boundary {
                 ..
             } => None,

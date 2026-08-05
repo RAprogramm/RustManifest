@@ -42,6 +42,13 @@ pub enum Provenance {
     /// one. A field whose owning type the tables cannot name is not this
     /// answer — it is the refusal that says so.
     Field(String),
+    /// No value: control leaves this position instead of producing one.
+    ///
+    /// A settled answer and not a refusal. `Err(_) => return code` hands
+    /// nothing back to the choice standing over it, and the language
+    /// guarantees that — reading it as a value whose origin failed would
+    /// call a certainty an unknown.
+    Leaves,
     /// Not derived, with the reason.
     NotDerived(OriginGap)
 }
@@ -59,6 +66,7 @@ impl Provenance {
             Self::Chosen(_) => "chosen",
             Self::Called(_) => "called",
             Self::Field(_) => "field",
+            Self::Leaves => "leaves",
             Self::NotDerived(gap) => gap.label()
         }
     }

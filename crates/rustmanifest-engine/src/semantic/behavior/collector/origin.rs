@@ -33,6 +33,9 @@ impl FactCollector {
                     self.named_origin(&name.to_string())
                 }),
             syn::Expr::Field(field) => self.field_origin(field),
+            syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => {
+                Provenance::Leaves
+            }
             _ => self.recorded_origin(expression)
         }
     }

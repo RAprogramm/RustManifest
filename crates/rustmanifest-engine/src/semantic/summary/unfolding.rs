@@ -30,6 +30,7 @@ pub(super) fn unfold(fact: &FunctionFacts, origin: &Provenance, budget: u8) -> C
         Provenance::Read(index) => drawn(fact, *index),
         Provenance::Computed(index) => computed(fact, *index, remaining),
         Provenance::Chosen(index) => chosen(fact, *index, remaining),
+        Provenance::Leaves => ComposedOrigin::Leaves,
         Provenance::NotDerived(gap) => ComposedOrigin::NotDerived(*gap)
     }
 }
