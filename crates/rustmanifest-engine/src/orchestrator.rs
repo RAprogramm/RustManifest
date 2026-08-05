@@ -411,8 +411,9 @@ mod tests {
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-SEC-001");
 
-        let repaired: Vec<Finding> =
-            serde_json::from_slice(&fs::read(&entries[0]).unwrap()).unwrap();
+        let repaired = cached_orchestrator(cache_dir.path())
+            .run(std::slice::from_ref(&file))
+            .unwrap();
         assert_eq!(repaired, findings);
     }
 

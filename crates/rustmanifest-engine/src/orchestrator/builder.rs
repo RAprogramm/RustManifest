@@ -101,9 +101,10 @@ impl OrchestratorBuilder {
                 .iter()
                 .map(|analyzer| analyzer.rule())
                 .collect();
+            let fingerprint: Arc<[u8]> = Arc::from(cache::rules_fingerprint(&rules));
             CacheHandle {
-                store,
-                fingerprint: Arc::from(cache::rules_fingerprint(&rules))
+                store: store.under(&fingerprint),
+                fingerprint
             }
         });
         Orchestrator {

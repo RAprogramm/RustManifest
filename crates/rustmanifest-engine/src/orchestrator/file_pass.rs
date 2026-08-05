@@ -15,7 +15,7 @@ use rustmanifest_schema::Finding;
 use tracing::{debug, trace, warn};
 
 use super::Orchestrator;
-use crate::{cache::FindingsCache, source::Source};
+use crate::{cache, source::Source};
 
 /// Default per-file memory budget: 10 MiB.
 pub const DEFAULT_MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
@@ -54,9 +54,9 @@ impl Orchestrator {
         let cache_key = self
             .cache
             .as_ref()
-            .map(|handle| FindingsCache::key(text.as_bytes(), &handle.fingerprint));
+            .map(|handle| cache::key(text.as_bytes(), &handle.fingerprint));
         if let (Some(handle), Some(key)) = (&self.cache, &cache_key)
-            && let Some(findings) = handle.store.lookup(key, path)
+            && let Some(findings) = handle.store.lookup(key, path, text.len())
         {
             debug!(path = %path.display(), findings = findings.len(), "served from cache");
             return findings;
@@ -77,7 +77,7 @@ impl Orchestrator {
         }
         findings.extend(self.unused_pragma_findings(&source));
         if let (Some(handle), Some(key)) = (&self.cache, &cache_key) {
-            handle.store.store(key, &findings);
+            handle.store.store(key, source.text().len(), &findings);
         }
         debug!(path = %path.display(), findings = findings.len(), "file analyzed");
         findings
