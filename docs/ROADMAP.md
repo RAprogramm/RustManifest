@@ -6,7 +6,7 @@ Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
 **Landed since the semantic tier closed:** the resolved-name extractor as an opt-in SCIP overlay (`--scip`) reaching `facts`, `coverage`, `check` and the invariant surface, with edge provenance in traces; call resolution confined to cargo build-target boundaries; error-conversion edges synthesized from `From` implementations at `?` sites; macro expansion promoted to a standard analysis mode; multi-implementor dispatch over-approximated with the modality stated in the trace; ecosystem knowledge packs (`reqwest`, `tempfile`, `tokio`) plus standard-library knowledge, quoted in findings from the library's own documentation with the cost of a deviation counted rather than described; machine-applicable fixes applied by `check --fix`.
 
-**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`), the value tier's own follow-ons (the four unresolved questions of [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md), and the answered-versus-refused origin count the report's honesty section still lacks), and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
+**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`), the value tier's own follow-ons (the four unresolved questions of [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md), now that the derived-versus-refused origin rate is measured and stands at 68.5% on the engine's own sources), and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
 
 **Source layout:** no source file exceeds 150 pure code lines (blank lines, `//`/`///`/`//!` and `#[cfg(test)]` blocks excluded); oversized modules are split into nested single-responsibility submodules, with the parent as `X.rs` beside the directory `X/` and never a `mod.rs`.
 
@@ -287,10 +287,14 @@ the answer lies past a call.
   than guessed; there is no type inference, so a binding typed by a later use
   records no produced type; there is no rules tier over these facts — deriving
   comes first, cataloguing later.
-- ⏳ **Not shipped**: the per-entry answered-versus-refused origin count belongs in
-  the report's honesty section, which today reports parse and call-resolution
-  coverage only — until it lands, a reader can infer breadth from the shape of the
-  vocabulary, which is far wider than the coverage.
+- ✅ **The derived-versus-refused count** (`semantic/coverage/origin.rs`,
+  `rustmanifest coverage`, the honesty section of `rustmanifest report`): how many
+  value positions were recorded and how many were settled, with the refusals broken
+  down by the question each one failed on. Measured on the engine's own sources:
+  20895 positions, 14321 derived (68.5%), refused as foreign 3770, unreadable 2334,
+  rebound 470. The counter exists because the tier records a position whether or
+  not it can answer for it — without the rate, a page of named refusals reads like
+  understanding, and no generation gate can state the share of facts it fires on.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 
