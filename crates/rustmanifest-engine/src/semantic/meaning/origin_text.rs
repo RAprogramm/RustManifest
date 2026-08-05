@@ -21,6 +21,7 @@ pub fn origin_text(origin: &ComposedOrigin) -> String {
             |name| format!("the value handed in as `{name}`")
         ),
         ComposedOrigin::Field(key) => format!("the field `{key}`"),
+        ComposedOrigin::Constant(named) => format!("the value `{named}`"),
         ComposedOrigin::Boundary {
             channel,
             selector

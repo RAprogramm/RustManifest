@@ -16,13 +16,15 @@ mod flow;
 mod presence;
 mod result;
 mod selection;
+mod value_path;
 
 pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
     presence::{Presence, presence_method},
     result::method_result,
-    selection::selects_an_element
+    selection::selects_an_element,
+    value_path::value_path
 };
 use super::behavior::Effect;
 

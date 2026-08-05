@@ -42,6 +42,15 @@ pub enum Provenance {
     /// one. A field whose owning type the tables cannot name is not this
     /// answer — it is the refusal that says so.
     Field(String),
+    /// The value a path of the standard library stands for, named as
+    /// written: a unit variant like `None`, or an associated constant
+    /// like `u32::MAX`.
+    ///
+    /// Not a name this body bound and not a refusal: what the path holds
+    /// is fixed by the library, so the position is as settled as a
+    /// written literal. Only paths the library tables answer for land
+    /// here — a workspace constant of the same spelling does not.
+    Constant(String),
     /// No value: control leaves this position instead of producing one.
     ///
     /// A settled answer and not a refusal. `Err(_) => return code` hands
@@ -66,6 +75,7 @@ impl Provenance {
             Self::Chosen(_) => "chosen",
             Self::Called(_) => "called",
             Self::Field(_) => "field",
+            Self::Constant(_) => "constant",
             Self::Leaves => "leaves",
             Self::NotDerived(gap) => gap.label()
         }
@@ -106,6 +116,23 @@ mod tests {
     /// A written type does not change which value a name stands for.
     /// Reading only the bare binding left `let args: Vec<String> = ..`
     /// foreign, and with it every clause resting on that value.
+    #[test]
+    fn a_library_path_standing_for_a_value_is_settled_not_foreign() {
+        let text = "fn limit() -> u32 { u32::MAX }\nfn absent() -> Option<u8> { None }\n";
+        let sources = [crate::source::Source::new(
+            PathBuf::from("src/lib.rs"),
+            text.to_owned()
+        )];
+        let facts = behavior(&sources);
+        let handbacks: Vec<Provenance> = facts
+            .iter()
+            .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
+            .collect();
+        assert!(handbacks.contains(&Provenance::Constant("u32::MAX".to_owned())));
+        assert!(handbacks.contains(&Provenance::Constant("None".to_owned())));
+        assert!(handbacks.iter().all(Provenance::derived));
+    }
+
     #[test]
     fn a_binding_with_a_written_type_keeps_its_origin() {
         let bare = operands(

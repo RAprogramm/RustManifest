@@ -26,18 +26,38 @@ impl FactCollector {
             syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
                 self.origin_of(&unary.expr)
             }
-            syn::Expr::Path(path) => path
-                .path
-                .get_ident()
-                .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
-                    self.named_origin(&name.to_string())
-                }),
+            syn::Expr::Path(path) => self.path_origin(&path.path),
             syn::Expr::Field(field) => self.field_origin(field),
             syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => {
                 Provenance::Leaves
             }
             _ => self.recorded_origin(expression)
         }
+    }
+
+    /// Where the value a written path stands for came from.
+    ///
+    /// A bare name is read as a binding of this body first, because a
+    /// body's own name is what the body proves. A path the library
+    /// tables answer for stands for the value it names, which is settled
+    /// wherever it is written. Anything else arrives from outside this
+    /// body and is decided elsewhere.
+    fn path_origin(&self, path: &syn::Path) -> Provenance {
+        if let Some(name) = path.get_ident() {
+            let bound = self.named_origin(&name.to_string());
+            if bound.derived() {
+                return bound;
+            }
+        }
+        crate::semantic::std_knowledge::value_path(path).map_or_else(
+            || {
+                path.get_ident()
+                    .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
+                        self.named_origin(&name.to_string())
+                    })
+            },
+            Provenance::Constant
+        )
     }
 
     /// The field a value is read out of, where the tables name the type

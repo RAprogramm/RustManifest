@@ -34,6 +34,7 @@ pub(super) fn unfold(
         Provenance::Written(literal) => ComposedOrigin::Written(literal.clone()),
         Provenance::Parameter(slot) => ComposedOrigin::Parameter(slot.clone()),
         Provenance::Field(key) => ComposedOrigin::Field(key.clone()),
+        Provenance::Constant(named) => ComposedOrigin::Constant(named.clone()),
         Provenance::Called(index) => called(settled, fact, *index, remaining),
         Provenance::Read(index) => drawn(fact, *index),
         Provenance::Computed(index) => computed(settled, fact, *index, remaining),

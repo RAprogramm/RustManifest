@@ -52,6 +52,8 @@ pub enum ComposedOrigin {
     Choice(Vec<Self>),
     /// The value a field of a known type holds, named `Owner.field`.
     Field(String),
+    /// The value a standard-library path stands for, named as written.
+    Constant(String),
     /// A value drawn from outside the process.
     Boundary {
         /// Where it comes from.
@@ -111,6 +113,7 @@ impl ComposedOrigin {
             Self::Written(_)
             | Self::Parameter(_)
             | Self::Field(_)
+            | Self::Constant(_)
             | Self::Leaves
             | Self::Boundary {
                 ..
@@ -135,6 +138,7 @@ impl ComposedOrigin {
             Self::Written(_)
             | Self::Parameter(_)
             | Self::Field(_)
+            | Self::Constant(_)
             | Self::Leaves
             | Self::Boundary {
                 ..
