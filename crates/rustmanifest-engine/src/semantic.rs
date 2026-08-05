@@ -15,6 +15,7 @@ mod analyzer;
 mod behavior;
 mod borrow_fix;
 mod calls;
+mod capability;
 mod check;
 mod composition;
 mod coverage;
@@ -57,18 +58,19 @@ pub use self::{
     analyzer::{SemanticAnalyzer, semantic_findings},
     behavior::{
         Acquisition, Alternative, Arguments, Arithmetic, CHOICE_SET, CallSite, Channel, Choice,
-        Closure, Comparison, Condition, Conduit, Conversion, Disposal, Effect, ExitRoute,
-        ExitStatus, FunctionFacts, FunctionFlags, Grade, Guard, Guarding, HANDBACK_SET, Handback,
-        Hole, HoleSource, INPUT_SOURCE_SET, InputRead, Intake, Literal, Multiplicity, Newline,
-        OPERATION_SET, OUTPUT_SINK_SET, OpaqueReason, Operation, OperationSite, OriginGap,
-        Outcome, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload, ProcessExit, Provenance,
-        ReadShape, Segment, Selector, SelectorGap, SiteGuard, Stream, Terminator,
+        Closure, Comparison, Condition, Conduit, Conversion, Disposal, Effect, EffectSite,
+        ExitRoute, ExitStatus, FunctionFacts, FunctionFlags, Grade, Guard, Guarding, HANDBACK_SET,
+        Handback, Hole, HoleSource, INPUT_SOURCE_SET, InputRead, Intake, Literal, Multiplicity,
+        Newline, OPERATION_SET, OUTPUT_SINK_SET, OpaqueReason, Operation, OperationSite,
+        OriginGap, Outcome, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload, ProcessExit,
+        Provenance, ReadShape, Segment, Selector, SelectorGap, SiteGuard, Stream, Terminator,
         VALUE_ORIGIN_SET, behavior
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,
         resolution_segments, transitive_effects
     },
+    capability::{Capability, Evidence, ModuleCapability, Started, capabilities, started},
     coverage::{Coverage, coverage, coverage_indexed, coverage_with, percent, unresolved_targets},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},

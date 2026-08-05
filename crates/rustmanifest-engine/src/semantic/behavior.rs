@@ -63,7 +63,7 @@ pub use self::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
-    types::{CallSite, Effect, FunctionFacts, FunctionFlags, ParamFacts, ParamMode},
+    types::{CallSite, Effect, EffectSite, FunctionFacts, FunctionFlags, ParamFacts, ParamMode},
     value::{
         Arguments, Condition, Disposal, Literal, OriginGap, ParamSlot, Provenance,
         VALUE_ORIGIN_SET
