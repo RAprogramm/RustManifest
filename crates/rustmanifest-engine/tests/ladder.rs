@@ -79,9 +79,10 @@ const TUTORIAL: &str = "use std::{env, fs, io::{self, Write}, process::ExitCode}
     fn main() -> ExitCode {\n\
     \x20   let args: Vec<String> = env::args().collect();\n\
     \x20   let command = args.get(1).map(String::as_str).unwrap_or(\"list\");\n\
+    \x20   let id = args.get(2).and_then(|raw| raw.parse::<usize>().ok()).unwrap_or(0);\n\
     \x20   let stdout = io::stdout();\n\
     \x20   let mut handle = stdout.lock();\n\
-    \x20   let _ = writeln!(handle, \"{command}\");\n\
+    \x20   let _ = writeln!(handle, \"{command} {id}\");\n\
     \x20   match save(\"todo.txt\", true) {\n\
     \x20       Ok(()) => ExitCode::SUCCESS,\n\
     \x20       Err(_) => ExitCode::from(2),\n\
@@ -212,5 +213,18 @@ fn the_tutorial_states_both_sides_of_its_fallback() {
     assert!(
         said.contains("the written value \"list\""),
         "the fallback the source writes is not named: {said}"
+    );
+}
+
+/// A combinator answers with what the closure written beside it hands
+/// back, and that closure's own input stands for what the receiver holds.
+/// Both steps are the library's guarantee, so the chain from the command
+/// line through the conversion is stated whole.
+#[test]
+fn the_tutorial_reads_through_the_closure_written_beside_a_combinator() {
+    let said = stated(&[("app/src/main.rs", TUTORIAL)]);
+    assert!(
+        said.contains("conversion to usize over position 2 of the command-line"),
+        "the chain through the closure is broken: {said}"
     );
 }

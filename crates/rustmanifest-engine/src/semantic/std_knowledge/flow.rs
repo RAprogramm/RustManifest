@@ -16,10 +16,9 @@
 //! A method whose answer is derived rather than carried is simply absent
 //! here, and the reading refuses at it by name.
 //!
-//! What a row cannot say, it does not say. `map` hands back whatever the
-//! closure given to it returns, which is a fact about that closure and not
-//! about `map`; no row here reaches into an argument's own body, so `map`
-//! has none.
+//! What a row cannot say, it does not say. A method whose answer depends
+//! on something written nowhere — a type's own default, an element chosen
+//! at run time — has no row, and the reading refuses at it by name.
 
 /// Which input a library call hands back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,14 +29,22 @@ pub(in crate::semantic) enum Carried {
     Held,
     /// Whatever the receiver holds, or the argument at this position
     /// where it holds nothing.
-    HeldOrArgument(u8)
+    HeldOrArgument(u8),
+    /// Whatever the closure written at this position hands back, applied
+    /// to what the receiver holds.
+    ///
+    /// Two steps of one row: what the receiver holds reaches the closure's
+    /// input, and what the closure hands back reaches the call's answer.
+    /// Both are guaranteed by the library, and neither is an
+    /// approximation.
+    ClosureOver(u8)
 }
 
 /// Library methods whose answer carries one of their inputs, with which.
 ///
 /// Read as one row of a models-as-data table: the input named here, the
 /// return value as the output, and value preservation as the kind.
-const FLOW_METHODS: [(&str, Carried); 14] = [
+const FLOW_METHODS: [(&str, Carried); 16] = [
     ("map_err", Carried::Receiver),
     ("ok_or", Carried::Receiver),
     ("ok_or_else", Carried::Receiver),
@@ -51,7 +58,9 @@ const FLOW_METHODS: [(&str, Carried); 14] = [
     ("to_owned", Carried::Receiver),
     ("unwrap", Carried::Held),
     ("expect", Carried::Held),
-    ("unwrap_or", Carried::HeldOrArgument(0))
+    ("unwrap_or", Carried::HeldOrArgument(0)),
+    ("and_then", Carried::ClosureOver(0)),
+    ("map", Carried::ClosureOver(0))
 ];
 
 /// What a library call hands back, where a row names it.
@@ -93,9 +102,13 @@ mod tests {
     /// has no row: the sentence must refuse at it rather than credit it
     /// with a value it never handed on.
     #[test]
-    fn a_method_that_derives_its_answer_has_no_row() {
-        assert_eq!(carried_by("map"), None);
-        assert_eq!(carried_by("and_then"), None);
+    fn a_combinator_answers_with_what_its_closure_hands_back() {
+        assert_eq!(carried_by("and_then"), Some(Carried::ClosureOver(0)));
+        assert_eq!(carried_by("map"), Some(Carried::ClosureOver(0)));
+    }
+
+    #[test]
+    fn a_method_whose_answer_is_written_nowhere_has_no_row() {
         assert_eq!(carried_by("filter"), None);
         assert_eq!(carried_by("unwrap_or_default"), None);
         assert_eq!(carried_by("len"), None);

@@ -39,6 +39,11 @@ impl FactCollector {
     /// receiver, so a chain of any length is followed one link at a time
     /// and nothing is searched for.
     ///
+    /// Two constructs singling out different positions of one source are
+    /// two reads, not one narrowed twice. Folding the second into the
+    /// first would report the position the first asked for and call it the
+    /// second's — a false statement, which is worse than a refusal.
+    ///
     /// An adapter that does not keep positions costs the read its proven
     /// selector — but only while the read still stands for a sequence.
     /// Once a written position singled one element out, there is no
@@ -46,40 +51,62 @@ impl FactCollector {
     /// cannot change which one it was. Degrading the selector there would
     /// throw away a fact the source had already settled.
     pub(super) fn follow_intake(&mut self, call: &syn::ExprMethodCall) -> bool {
-        use syn::spanned::Spanned;
-
         let method = call.method.to_string();
         let Provenance::Read(index) = self.origin_of(&call.receiver) else {
             return false;
         };
         let Some(read) = usize::try_from(index)
             .ok()
-            .and_then(|at| self.facts.input_reads.get_mut(at))
+            .and_then(|at| self.facts.input_reads.get(at))
+            .cloned()
         else {
             return false;
         };
+        let mut narrowed = read;
+        let mut settled = index;
         if let Some((_, keeps)) = BOUNDARY_ADAPTERS
             .iter()
             .find(|(named, _)| *named == method.as_str())
         {
-            if !keeps && read.shape != ReadShape::Element {
-                read.selector = Selector::NotIdentified(SelectorGap::Advanced);
+            if !keeps && narrowed.shape != ReadShape::Element {
+                narrowed.selector = Selector::NotIdentified(SelectorGap::Advanced);
             }
         } else if ELEMENT_ADAPTERS.contains(&method.as_str()) {
-            if read.selector == Selector::Whole {
-                read.selector = position_of(call.args.first());
+            let asked = position_of(call.args.first());
+            if narrowed.shape == ReadShape::Element && narrowed.selector != asked {
+                narrowed.selector = asked;
+                settled = u32::try_from(self.facts.input_reads.len()).unwrap_or(u32::MAX);
+                self.facts.input_reads.push(narrowed);
+                return self.settle_intake(call, settled);
             }
-            read.shape = ReadShape::Element;
+            if narrowed.selector == Selector::Whole {
+                narrowed.selector = asked;
+            }
+            narrowed.shape = ReadShape::Element;
         } else {
             return false;
         }
+        if let Some(record) = usize::try_from(index)
+            .ok()
+            .and_then(|at| self.facts.input_reads.get_mut(at))
+        {
+            *record = narrowed;
+        }
+        self.settle_intake(call, settled)
+    }
+
+    /// Names the read a folded construct stands for, at that construct's
+    /// own position.
+    fn settle_intake(&mut self, call: &syn::ExprMethodCall, read: u32) -> bool {
+        use syn::spanned::Spanned;
+
         let span = call.span().byte_range();
         self.produced.insert(
             (
                 u32::try_from(span.start).unwrap_or(u32::MAX),
                 u32::try_from(span.end).unwrap_or(u32::MAX)
             ),
-            Provenance::Read(index)
+            Provenance::Read(read)
         );
         true
     }
