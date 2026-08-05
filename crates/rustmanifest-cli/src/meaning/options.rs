@@ -4,25 +4,18 @@
 //! Command surface of the `meaning` subcommand: the paths to analyze and
 //! the rendering the caller asks for.
 
-use std::path::PathBuf;
-
 use clap::{Parser, ValueEnum};
 
 /// Arguments for the `meaning` subcommand.
 #[derive(Debug, Parser)]
 pub struct MeaningArgs {
-    /// Files or directories to analyze. Defaults to the current directory.
-    #[arg(default_value = ".")]
-    pub paths: Vec<PathBuf>,
+    /// The program under analysis.
+    #[command(flatten)]
+    pub analyzed: crate::analyzed::Analyzed,
 
     /// Output format.
     #[arg(long, value_enum, default_value_t = MeaningFormat::Text)]
-    pub format: MeaningFormat,
-
-    /// Resolution overlay written by `rustmanifest-resolve`, so a call
-    /// into a library states the type it hands back instead of a refusal.
-    #[arg(long)]
-    pub resolution: Option<PathBuf>
+    pub format: MeaningFormat
 }
 
 /// Rendering of the meaning report.

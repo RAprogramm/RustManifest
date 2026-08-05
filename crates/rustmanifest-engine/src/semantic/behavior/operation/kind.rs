@@ -82,7 +82,9 @@ pub enum Operation {
     /// A conversion from one representation to another.
     Conversion(Conversion),
     /// One element taken out of a sequence at a written position.
-    Selection
+    Selection,
+    /// A question asked of a value that may or may not be there.
+    Presence(crate::semantic::std_knowledge::Presence)
 }
 
 impl std::fmt::Display for Operation {
@@ -94,7 +96,8 @@ impl std::fmt::Display for Operation {
                 Some(target) => write!(out, "conversion to {target}"),
                 None => out.write_str("conversion to a type written nowhere")
             },
-            Self::Selection => out.write_str("selection")
+            Self::Selection => out.write_str("selection"),
+            Self::Presence(question) => write!(out, "{question}")
         }
     }
 }

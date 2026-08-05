@@ -22,9 +22,13 @@ use crate::EXIT_CLEAN;
 /// Arguments for the `facts` subcommand.
 #[derive(Debug, Parser)]
 pub struct FactsArgs {
-    /// Files or directories to analyze. Defaults to the current directory.
-    #[arg(default_value = ".")]
-    pub paths: Vec<PathBuf>,
+    /// The program under analysis.
+    #[command(flatten)]
+    pub analyzed: crate::analyzed::Analyzed,
+
+    /// What the run is handed beside the sources.
+    #[command(flatten)]
+    pub overlays: crate::overlays::Overlays,
 
     /// Only print functions whose qualified name contains this substring.
     #[arg(long)]
@@ -38,48 +42,29 @@ pub struct FactsArgs {
     /// Additionally print each function's binarized feature vector — the
     /// fixed-order named binary features the learning layer trains on.
     #[arg(long)]
-    pub features: bool,
-
-    /// SCIP index file (`rust-analyzer scip .`) overlaying name-resolved
-    /// call edges onto the graph before the transitive-effect closure.
-    #[arg(long, value_name = "INDEX")]
-    pub scip: Option<PathBuf>,
-
-    /// Resolution overlay written by `rustmanifest-resolve`, so a call
-    /// into a library states the type it hands back instead of a refusal.
-    #[arg(long)]
-    pub resolution: Option<PathBuf>,
-
-    /// Expand every discovered crate via `cargo +nightly rustc -- \
-    /// -Zunpretty=expanded` (all features, falling back to default);
-    /// a successfully expanded crate's stream replaces its `src`
-    /// files, so macro-generated functions become facts. The expanded
-    /// universe is the compiled library: `#[cfg(test)]` modules are
-    /// absent from it. Crates that fail to expand keep their plain
-    /// sources.
-    #[arg(long)]
-    pub expand: bool
+    pub features: bool
 }
 
 /// Runs the `facts` subcommand: discovers files, extracts behavioral
 /// facts, and prints them as a JSON array.
 pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
-    let files = walker::discover(&args.paths).context("file discovery failed")?;
+    let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let mut sources = crate::read_sources(
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    if args.expand {
-        let summary = crate::expand::expand_paths(&args.paths);
+    if args.overlays.expand {
+        let summary = crate::expand::expand_paths(&args.analyzed.paths);
         sources = merge_expansions(sources, summary.streams);
     }
     let scip = args
+        .overlays
         .scip
         .as_deref()
         .map(rustmanifest_engine::ScipEdges::from_file)
         .transpose()
         .context("loading SCIP index")?;
-    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let resolution = args.analyzed.resolution()?;
     let rendered =
         serde_json::to_string_pretty(&rustmanifest_engine::facts_export::facts_json_with(
             &sources,

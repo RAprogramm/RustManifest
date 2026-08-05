@@ -30,14 +30,14 @@ use crate::EXIT_CLEAN;
 
 /// Runs the `report` subcommand.
 pub(crate) fn run_report(args: &ReportArgs) -> anyhow::Result<ExitCode> {
-    let files =
-        rustmanifest_engine::walker::discover(&args.paths).context("file discovery failed")?;
+    let files = rustmanifest_engine::walker::discover(&args.analyzed.paths)
+        .context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let root = args.paths.first().cloned().unwrap_or_default();
-    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let root = args.analyzed.paths.first().cloned().unwrap_or_default();
+    let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
         |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)

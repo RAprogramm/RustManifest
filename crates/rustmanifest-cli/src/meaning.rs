@@ -29,18 +29,18 @@ use crate::EXIT_CLEAN;
 
 /// Runs the `meaning` subcommand.
 pub(crate) fn run_meaning(args: &MeaningArgs) -> anyhow::Result<ExitCode> {
-    let files = walker::discover(&args.paths).context("file discovery failed")?;
+    let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
         |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
     );
     let entries = rustmanifest_engine::program_meaning(&workspace);
-    let root = args.paths.first().cloned().unwrap_or_default();
+    let root = args.analyzed.paths.first().cloned().unwrap_or_default();
     let rendered = match args.format {
         MeaningFormat::Text => text_report(&entries, &root),
         MeaningFormat::Json => serde_json::to_string_pretty(&json_report(&entries, &root))

@@ -32,7 +32,7 @@ pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
     );
     let declared = declared_dependencies(&args.paths);
     let workspace = rustmanifest_engine::Workspace::new(&sources);
-    let report = match args.scip.as_deref() {
+    let report = match args.overlays.scip.as_deref() {
         Some(index) => {
             let edges =
                 rustmanifest_engine::ScipEdges::from_file(index).context("loading SCIP index")?;

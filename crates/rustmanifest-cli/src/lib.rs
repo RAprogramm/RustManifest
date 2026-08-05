@@ -14,6 +14,7 @@
               zerocopy-derive are still on syn 2 — not deduplicable from this crate"
 )]
 
+pub mod analyzed;
 pub mod check;
 pub mod coverage;
 pub mod expand;
@@ -23,6 +24,7 @@ pub mod graph;
 pub mod learn;
 pub mod manifests;
 pub mod meaning;
+pub mod overlays;
 pub mod overview;
 pub mod prescribe;
 pub mod report;

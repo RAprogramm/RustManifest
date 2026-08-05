@@ -7,7 +7,7 @@
 //! convention clauses, and prints the engine's deterministic Markdown
 //! knowledge report to stdout.
 
-use std::{io::Write, path::PathBuf, process::ExitCode};
+use std::{io::Write, process::ExitCode};
 
 use anyhow::Context;
 use clap::Parser;
@@ -19,30 +19,25 @@ use crate::EXIT_CLEAN;
 /// Arguments for the `overview` subcommand.
 #[derive(Debug, Parser)]
 pub struct OverviewArgs {
-    /// Files or directories to analyze. Defaults to the current directory.
-    #[arg(default_value = ".")]
-    pub paths: Vec<PathBuf>,
+    /// The program under analysis.
+    #[command(flatten)]
+    pub analyzed: crate::analyzed::Analyzed,
 
     /// Cap for every ranked list in the report.
     #[arg(long, default_value_t = 10)]
-    pub top: usize,
-
-    /// Resolution overlay written by `rustmanifest-resolve`, so a call
-    /// into a library states the type it hands back instead of a refusal.
-    #[arg(long)]
-    pub resolution: Option<PathBuf>
+    pub top: usize
 }
 
 /// Runs the `overview` subcommand: analyzes the paths and prints the
 /// aggregated knowledge report.
 pub(crate) fn run_overview(args: &OverviewArgs) -> anyhow::Result<ExitCode> {
-    let files =
-        rustmanifest_engine::walker::discover(&args.paths).context("file discovery failed")?;
+    let files = rustmanifest_engine::walker::discover(&args.analyzed.paths)
+        .context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
         |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)

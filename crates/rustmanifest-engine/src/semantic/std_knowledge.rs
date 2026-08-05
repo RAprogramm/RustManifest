@@ -12,9 +12,14 @@
 //! stay silent, never fire falsely.
 
 mod arithmetic;
+mod presence;
 mod result;
 
-pub(super) use self::{arithmetic::operation_method, result::method_result};
+pub(super) use self::{
+    arithmetic::operation_method,
+    presence::{Presence, presence_method},
+    result::method_result
+};
 use super::behavior::Effect;
 
 /// Well-known always-`Copy` types by their last path segment.

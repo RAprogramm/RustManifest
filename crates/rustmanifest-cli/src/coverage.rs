@@ -44,7 +44,7 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
             &measured.declared
         )));
     }
-    if args.expand {
+    if args.overlays.expand {
         let summary = crate::expand::expand_paths(&args.paths);
         lines.extend(expand_lines(&summary));
         lines.push(integration_line(&measured.sources, &summary));
