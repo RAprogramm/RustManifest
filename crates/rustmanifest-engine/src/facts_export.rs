@@ -21,6 +21,7 @@ mod operation;
 mod output_write;
 mod payload;
 mod process_exit;
+mod summary;
 
 pub use self::fact::fact_json;
 use crate::{
@@ -53,6 +54,7 @@ pub fn facts_json(
         overlay.as_deref()
     );
     let transitive = transitive_effects(&facts, &graph);
+    let summaries = crate::semantic::summaries(sources, &facts, &graph);
     let selected: Vec<serde_json::Value> = facts
         .iter()
         .enumerate()
@@ -65,6 +67,12 @@ pub fn facts_json(
         })
         .map(|(index, entry)| {
             let mut object = fact_json(entry, sources, with_features);
+            if let (Some(record), serde_json::Value::Object(fields)) = (
+                summaries.iter().find(|summary| summary.fact == index),
+                &mut object
+            ) {
+                fields.insert("summary".to_owned(), summary::summary_json(record));
+            }
             if let serde_json::Value::Object(fields) = &mut object {
                 fields.insert(
                     "transitive-effects".to_owned(),
