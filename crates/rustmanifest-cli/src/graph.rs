@@ -30,7 +30,10 @@ pub(crate) fn run_graph(args: &GraphArgs) -> anyhow::Result<ExitCode> {
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let lines = match args.kind {
-        GraphKind::Modules => module_lines(&module_overview(&sources), args.format),
+        GraphKind::Modules => module_lines(
+            &module_overview(&rustmanifest_engine::Workspace::new(&sources)),
+            args.format
+        ),
         GraphKind::Types => type_lines(&TypeGraph::from_sources(&sources), args.format)
     };
     let stdout = std::io::stdout();

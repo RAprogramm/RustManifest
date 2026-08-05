@@ -7,15 +7,15 @@
 use std::fmt::Write as _;
 
 use rustmanifest_engine::{
-    Source,
+    Workspace,
     overview::{Convention, overview_markdown}
 };
 use rustmanifest_learn::{LearnOptions, learn_roles};
 
 /// What the sources hold: modules, types, roles, boundaries, layers, the
 /// external surface, and the learned conventions.
-pub(super) fn structure(sources: &[Source], top: usize) -> String {
-    let conventions: Vec<Convention> = learn_roles(sources, LearnOptions::default())
+pub(super) fn structure(workspace: &Workspace<'_>, top: usize) -> String {
+    let conventions: Vec<Convention> = learn_roles(workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {
             role:     clause.role,
@@ -23,7 +23,7 @@ pub(super) fn structure(sources: &[Source], top: usize) -> String {
             excludes: clause.excludes
         })
         .collect();
-    let rendered = overview_markdown(sources, top, &conventions);
+    let rendered = overview_markdown(workspace, top, &conventions);
     let mut out = String::from("\n## structure\n");
     for block in rendered.split("\n## ").skip(1) {
         let Some((heading, body)) = block.split_once('\n') else {

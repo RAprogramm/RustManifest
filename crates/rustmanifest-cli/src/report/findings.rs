@@ -5,12 +5,12 @@
 //! what they find in the sources.
 
 use rustmanifest_config::Effective;
-use rustmanifest_engine::Source;
+use rustmanifest_engine::Workspace;
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::{Finding, RuleDefinition};
 
 /// Runs every enabled rule of the bundled pack over the sources.
-pub(super) fn analyze(sources: &[Source]) -> Vec<Finding> {
+pub(super) fn analyze(workspace: &Workspace<'_>) -> Vec<Finding> {
     let Ok(config) = rustmanifest_config::load(None) else {
         return Vec::new();
     };
@@ -23,5 +23,5 @@ pub(super) fn analyze(sources: &[Source]) -> Vec<Finding> {
         .filter(|rule| matches!(rule.definition, RuleDefinition::Semantic { .. }))
         .filter_map(|rule| rustmanifest_engine::SemanticAnalyzer::new(rule.clone()).ok())
         .collect();
-    rustmanifest_engine::semantic_findings(&analyzers, sources)
+    rustmanifest_engine::semantic_findings(&analyzers, workspace)
 }

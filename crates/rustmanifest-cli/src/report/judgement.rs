@@ -6,14 +6,14 @@
 
 use std::fmt::Write as _;
 
-use rustmanifest_engine::Source;
+use rustmanifest_engine::Workspace;
 
 use super::{findings::analyze, location::relative};
 
 /// Judgements against the canonical forms, each with its own evidence.
-pub(super) fn judgement(sources: &[Source], root: &std::path::Path) -> String {
+pub(super) fn judgement(workspace: &Workspace<'_>, root: &std::path::Path) -> String {
     let mut out = String::from("\n## deviations\n\n");
-    let findings = analyze(sources);
+    let findings = analyze(workspace);
     if findings.is_empty() {
         out.push_str("- no rule of the enabled pack applies\n");
         return out;

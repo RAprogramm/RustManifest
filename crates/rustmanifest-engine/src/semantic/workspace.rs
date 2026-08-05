@@ -3,53 +3,44 @@
 
 //! The analyzed sources and everything the tier derives from them.
 //!
-//! A type graph, the behavioral facts of every function, a module graph —
-//! each is a property of the sources, not of the rule asking about it.
-//! Deriving them inside each check made a run's cost scale with the size of
-//! the rule set: eight of the fourteen bundled checks read behavioral facts,
-//! so the workspace was walked for facts eight times over. This module
-//! derives each one at most once per analysis and hands the same value to
-//! every reader.
+//! A type graph, the behavioral facts of every function, a module graph, a
+//! call graph — each is a property of the sources, not of the reader asking
+//! about it. Deriving them inside each reader made a run's cost scale with
+//! the number of readers: eight of the fourteen bundled checks read
+//! behavioral facts, and a single `report` derived them six times over.
+//! This module derives each one at most once per analysis and hands the
+//! same value to every reader.
 //!
-//! Each derivation stays lazy, so a run of one cheap rule never pays for a
-//! derivation nobody reads.
+//! Each derivation stays lazy, so a run that reads one of them never pays
+//! for the rest.
+//!
+//! The derivations split by what they speak about: [`Declared`] holds what
+//! the sources declare — types and modules — and [`Performed`] holds what
+//! they do: per-function facts, the names a call resolves against, and the
+//! call graph over them.
 
-use std::cell::OnceCell;
+mod declared;
+mod performed;
 
+use self::{declared::Declared, performed::Performed};
 use super::{
-    behavior::{FunctionFacts, behavior},
-    graph::TypeGraph,
-    module_graph::ModuleGraph
+    behavior::FunctionFacts, calls::CallGraph, graph::TypeGraph, module_graph::ModuleGraph
 };
 use crate::source::Source;
 
-/// The sources under semantic analysis, with the workspace-wide derivations
-/// taken from them.
+/// The sources under analysis, with the workspace-wide derivations taken
+/// from them.
 ///
-/// Held by reference to the sources and by value for each derivation; the
-/// derivations hold `syn`-derived data, so a workspace stays on the thread
-/// that built it.
+/// The derivations hold `syn`-derived data, so a workspace stays on the
+/// thread that built it.
+#[derive(Debug)]
 pub struct Workspace<'source> {
     /// Sources this analysis covers, in the order insights index into.
-    sources: &'source [Source],
-    /// Structures, enums, traits and impl blocks across the sources.
-    types:   OnceCell<TypeGraph>,
-    /// Behavioral facts of every function across the sources.
-    facts:   OnceCell<Vec<FunctionFacts>>,
-    /// Crate roots, module tree and per-module `use` targets.
-    modules: OnceCell<ModuleGraph>
-}
-
-impl std::fmt::Debug for Workspace<'_> {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("Workspace")
-            .field("sources", &self.sources.len())
-            .field("types", &self.types.get().is_some())
-            .field("facts", &self.facts.get().map(Vec::len))
-            .field("modules", &self.modules.get().is_some())
-            .finish()
-    }
+    sources:   &'source [Source],
+    /// What the sources declare: the type graph and the module graph.
+    declared:  Declared,
+    /// What the sources do: function facts, name resolution, call graph.
+    performed: Performed
 }
 
 impl<'source> Workspace<'source> {
@@ -59,9 +50,8 @@ impl<'source> Workspace<'source> {
     pub const fn new(sources: &'source [Source]) -> Self {
         Self {
             sources,
-            types: OnceCell::new(),
-            facts: OnceCell::new(),
-            modules: OnceCell::new()
+            declared: Declared::new(),
+            performed: Performed::new()
         }
     }
 
@@ -74,21 +64,25 @@ impl<'source> Workspace<'source> {
     /// Returns the workspace type graph, deriving it on the first call.
     #[must_use]
     pub fn types(&self) -> &TypeGraph {
-        self.types
-            .get_or_init(|| TypeGraph::from_sources(self.sources))
+        self.declared.types(self.sources)
     }
 
     /// Returns the behavioral facts of every function, deriving them on the
     /// first call.
     #[must_use]
     pub fn facts(&self) -> &[FunctionFacts] {
-        self.facts.get_or_init(|| behavior(self.sources))
+        self.performed.facts(self.sources)
     }
 
     /// Returns the module graph, deriving it on the first call.
-    pub(super) fn modules(&self) -> &ModuleGraph {
-        self.modules
-            .get_or_init(|| ModuleGraph::from_sources(self.sources))
+    pub(in crate::semantic) fn modules(&self) -> &ModuleGraph {
+        self.declared.modules(self.sources)
+    }
+
+    /// Returns the call graph over the workspace facts, deriving it — and
+    /// the name resolution it needs — on the first call.
+    pub(crate) fn calls(&self) -> &CallGraph {
+        self.performed.calls(self.sources)
     }
 }
 
@@ -111,14 +105,22 @@ mod tests {
         )]
     }
 
+    /// Laziness is asserted against a freshly built workspace rather than
+    /// an exact rendering, so the test states the property and not the
+    /// wording the standard library happens to use.
     #[test]
     fn nothing_is_derived_before_the_first_read() {
         let sources = sources();
         let workspace = Workspace::new(&sources);
-        let rendered = format!("{workspace:?}");
-        assert!(rendered.contains("types: false"));
-        assert!(rendered.contains("facts: None"));
-        assert!(rendered.contains("modules: false"));
+        assert_eq!(
+            format!("{workspace:?}"),
+            format!("{:?}", Workspace::new(&sources))
+        );
+        assert_eq!(workspace.types().types().len(), 1);
+        assert_ne!(
+            format!("{workspace:?}"),
+            format!("{:?}", Workspace::new(&sources))
+        );
     }
 
     #[test]
@@ -135,26 +137,24 @@ mod tests {
     fn repeated_reads_share_one_fact_set() {
         let sources = sources();
         let workspace = Workspace::new(&sources);
-        let first = workspace.facts().as_ptr();
-        let second = workspace.facts().as_ptr();
-        assert_eq!(first, second);
+        assert_eq!(workspace.facts().as_ptr(), workspace.facts().as_ptr());
         assert_eq!(workspace.facts().len(), 1);
     }
 
     #[test]
     fn the_analyzed_sources_are_handed_back() {
         let sources = sources();
-        let workspace = Workspace::new(&sources);
-        assert_eq!(workspace.sources().len(), 1);
+        assert_eq!(Workspace::new(&sources).sources().len(), 1);
     }
 
     #[test]
     fn reading_one_derivation_leaves_the_others_underived() {
         let sources = sources();
-        let workspace = Workspace::new(&sources);
-        assert_eq!(workspace.types().types().len(), 1);
-        let rendered = format!("{workspace:?}");
-        assert!(rendered.contains("types: true"));
-        assert!(rendered.contains("facts: None"));
+        let types_only = Workspace::new(&sources);
+        assert_eq!(types_only.types().types().len(), 1);
+        let both = Workspace::new(&sources);
+        assert_eq!(both.types().types().len(), 1);
+        assert_eq!(both.facts().len(), 1);
+        assert_ne!(format!("{types_only:?}"), format!("{both:?}"));
     }
 }

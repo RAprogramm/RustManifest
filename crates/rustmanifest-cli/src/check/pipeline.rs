@@ -99,7 +99,10 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     } else {
         read_sources(&files, args.max_file_size)
     };
-    findings.extend(rustmanifest_engine::semantic_findings(&semantic, &sources));
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    findings.extend(rustmanifest_engine::semantic_findings(
+        &semantic, &workspace
+    ));
     if !effective.invariants().is_empty() {
         let scip = args
             .scip

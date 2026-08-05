@@ -37,11 +37,12 @@ pub(crate) fn run_report(args: &ReportArgs) -> anyhow::Result<ExitCode> {
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let root = args.paths.first().cloned().unwrap_or_default();
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
     let mut out = String::new();
-    out.push_str(&behaviour(&sources, &root));
-    out.push_str(&judgement(&sources, &root));
-    out.push_str(&structure(&sources, args.top));
-    out.push_str(&honesty(&sources));
+    out.push_str(&behaviour(&workspace, &root));
+    out.push_str(&judgement(&workspace, &root));
+    out.push_str(&structure(&workspace, args.top));
+    out.push_str(&honesty(&workspace));
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     write!(handle, "{out}").context("writing report output")?;

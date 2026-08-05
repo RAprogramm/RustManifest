@@ -54,7 +54,7 @@ pub(crate) fn run_learn(args: &LearnArgs) -> anyhow::Result<ExitCode> {
         seed: args.seed,
         ..LearnOptions::default()
     };
-    let learned = learn_roles(&sources, options);
+    let learned = learn_roles(&rustmanifest_engine::Workspace::new(&sources), options);
     let rendered = serde_json::to_string_pretty(
         &learned
             .iter()

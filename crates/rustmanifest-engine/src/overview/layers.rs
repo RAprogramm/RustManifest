@@ -8,12 +8,12 @@
 use std::collections::BTreeMap;
 
 use super::fragment::push;
-use crate::source::Source;
+use crate::semantic::Workspace;
 
 /// Prints the inferred module stratification.
-pub(super) fn layer_section(out: &mut String, sources: &[Source], top: usize) {
+pub(super) fn layer_section(out: &mut String, workspace: &Workspace<'_>, top: usize) {
     push(out, "## Inferred layers\n\n");
-    let all = crate::semantic::layers(sources);
+    let all = crate::semantic::layers(workspace);
     let mut by_depth: BTreeMap<u32, Vec<&str>> = BTreeMap::new();
     let mut entangled: Vec<&str> = Vec::new();
     for layer in &all {

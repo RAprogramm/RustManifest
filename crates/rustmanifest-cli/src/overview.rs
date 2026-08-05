@@ -37,7 +37,8 @@ pub(crate) fn run_overview(args: &OverviewArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let conventions: Vec<Convention> = learn_roles(&sources, LearnOptions::default())
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let conventions: Vec<Convention> = learn_roles(&workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {
             role:     clause.role,
@@ -45,7 +46,7 @@ pub(crate) fn run_overview(args: &OverviewArgs) -> anyhow::Result<ExitCode> {
             excludes: clause.excludes
         })
         .collect();
-    let report = overview_markdown(&sources, args.top, &conventions);
+    let report = overview_markdown(&workspace, args.top, &conventions);
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     write!(handle, "{report}").context("writing overview output")?;

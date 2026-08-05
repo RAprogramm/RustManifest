@@ -101,7 +101,7 @@ pub use self::{
     surface::{FrameworkModel, Route, Surface, surface},
     workspace::Workspace
 };
-use crate::{error::EngineError, pragma, source::Source};
+use crate::{error::EngineError, pragma};
 
 /// Tier-3 analyzer evaluating one semantic check over the whole workspace.
 #[derive(Debug)]
@@ -186,14 +186,13 @@ impl SemanticAnalyzer {
 /// sources, not of the rule asking about them, and deriving them per rule
 /// made the tier's cost scale with the size of the rule set.
 #[must_use]
-pub fn semantic_findings(analyzers: &[SemanticAnalyzer], sources: &[Source]) -> Vec<Finding> {
-    if analyzers.is_empty() {
-        return Vec::new();
-    }
-    let workspace = Workspace::new(sources);
+pub fn semantic_findings(
+    analyzers: &[SemanticAnalyzer],
+    workspace: &Workspace<'_>
+) -> Vec<Finding> {
     analyzers
         .iter()
-        .flat_map(|analyzer| analyzer.analyze(&workspace))
+        .flat_map(|analyzer| analyzer.analyze(workspace))
         .collect()
 }
 
@@ -210,6 +209,7 @@ mod tests {
     use rustmanifest_schema::Severity;
 
     use super::*;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn semantic_rule(check: &str) -> Rule {
         Rule {

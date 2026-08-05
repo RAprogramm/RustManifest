@@ -12,7 +12,7 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use super::{module_cycle, module_graph::ModuleGraph};
-use crate::source::Source;
+use crate::{semantic::workspace::Workspace, source::Source};
 
 /// One module of the overview.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,10 +65,18 @@ impl ModuleOverview {
 /// crate, and cycle membership follows the check's cycle detection,
 /// including its exemption for ancestor-descendant two-module cycles.
 #[must_use]
-pub fn module_overview(sources: &[Source]) -> ModuleOverview {
-    let graph = ModuleGraph::from_sources(sources);
-    let edges = module_cycle::dependency_edges(&graph);
-    let cyclic: HashSet<usize> = module_cycle::cycles(&graph, &edges)
+pub fn module_overview(workspace: &Workspace<'_>) -> ModuleOverview {
+    of(workspace.modules(), workspace.sources())
+}
+
+/// Builds the overview from an already-built module graph.
+///
+/// Name resolution builds its own graph here rather than reading one off a
+/// workspace: resolution is itself one of the workspace's derivations, and
+/// asking the workspace for it from inside would re-enter it.
+pub(in crate::semantic) fn of(graph: &ModuleGraph, sources: &[Source]) -> ModuleOverview {
+    let edges = module_cycle::dependency_edges(graph);
+    let cyclic: HashSet<usize> = module_cycle::cycles(graph, &edges)
         .into_iter()
         .flatten()
         .collect();
@@ -114,7 +122,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::module_overview;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -127,7 +135,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item;"),
             source("src/b.rs", "")
         ];
-        let overview = module_overview(&sources);
+        let overview = module_overview(&Workspace::new(&sources));
         let paths: Vec<&str> = overview
             .modules()
             .iter()
@@ -148,7 +156,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
         )];
-        let overview = module_overview(&sources);
+        let overview = module_overview(&Workspace::new(&sources));
         let flagged: Vec<(&str, bool)> = overview
             .modules()
             .iter()
@@ -166,7 +174,7 @@ mod tests {
             "src/lib.rs",
             "use crate::child::Item; mod child { use crate::Error; }"
         )];
-        let overview = module_overview(&sources);
+        let overview = module_overview(&Workspace::new(&sources));
         assert!(overview.modules().iter().all(|module| !module.in_cycle));
         assert_eq!(overview.edges().len(), 2);
     }
@@ -178,8 +186,8 @@ mod tests {
             source("src/a.rs", "use crate::b::Item;"),
             source("src/b.rs", "use crate::a::Other;")
         ];
-        let first = module_overview(&sources);
-        let second = module_overview(&sources);
+        let first = module_overview(&Workspace::new(&sources));
+        let second = module_overview(&Workspace::new(&sources));
         assert_eq!(first.modules(), second.modules());
         assert_eq!(first.edges(), second.edges());
     }

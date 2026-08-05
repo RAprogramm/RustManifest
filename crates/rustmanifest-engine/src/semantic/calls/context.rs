@@ -9,10 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::target::Target;
-use crate::{
-    semantic::{expr::impl_type_name, module_overview::module_overview},
-    source::Source
-};
+use crate::{semantic::expr::impl_type_name, source::Source};
 
 /// Everything call resolution knows about the workspace beyond the
 /// facts themselves.
@@ -134,12 +131,15 @@ fn first_supertrait(definition: &syn::ItemTrait) -> Option<String> {
 /// function.
 #[must_use]
 pub fn resolution_segments(sources: &[Source]) -> BTreeSet<String> {
-    let mut segments: BTreeSet<String> = module_overview(sources)
-        .modules()
-        .iter()
-        .filter_map(|module| module.path.rsplit("::").next())
-        .map(ToOwned::to_owned)
-        .collect();
+    let mut segments: BTreeSet<String> = crate::semantic::module_overview::of(
+        &crate::semantic::module_graph::ModuleGraph::from_sources(sources),
+        sources
+    )
+    .modules()
+    .iter()
+    .filter_map(|module| module.path.rsplit("::").next())
+    .map(ToOwned::to_owned)
+    .collect();
     for source in sources {
         let mut components = source.path().components().peekable();
         let mut previous: Option<String> = None;

@@ -36,7 +36,7 @@ pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
         }
     }
     let mentioned = mentioned_names(sources);
-    let overview = module_overview(sources);
+    let overview = module_overview::of(graph, sources);
     let module_of = |source: usize| -> String {
         sources
             .get(source)

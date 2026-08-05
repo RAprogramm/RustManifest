@@ -31,13 +31,14 @@ pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let declared = declared_dependencies(&args.paths);
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
     let report = match args.scip.as_deref() {
         Some(index) => {
             let edges =
                 rustmanifest_engine::ScipEdges::from_file(index).context("loading SCIP index")?;
-            rustmanifest_engine::coverage_indexed(&sources, &declared, &edges)
+            rustmanifest_engine::coverage_indexed(&workspace, &declared, &edges)
         }
-        None => coverage_with(&sources, &declared)
+        None => coverage_with(&workspace, &declared)
     };
     Ok(Measurement {
         sources,

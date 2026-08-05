@@ -38,7 +38,8 @@ use self::{
 use super::{
     behavior::behavior,
     calls::{call_graph_with, transitive_effects},
-    module_overview::module_overview,
+    module_graph::ModuleGraph,
+    module_overview,
     scip::ScipEdges
 };
 use crate::{pragma, source::Source};
@@ -70,7 +71,7 @@ pub fn check_invariants_with(
         return Vec::new();
     }
     let facts = behavior(sources);
-    let overview = module_overview(sources);
+    let overview = module_overview::of(&ModuleGraph::from_sources(sources), sources);
     let overlay = scip.map(|edges| edges.candidates(&facts, sources));
     let graph = call_graph_with(
         &facts,

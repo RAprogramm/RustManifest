@@ -7,12 +7,12 @@
 
 use std::fmt::Write as _;
 
-use rustmanifest_engine::Source;
+use rustmanifest_engine::Workspace;
 
 /// How much of the sources the engine could read, printed last so the
 /// reader learns what the rest of the report is worth.
-pub(super) fn honesty(sources: &[Source]) -> String {
-    let coverage = rustmanifest_engine::coverage(sources);
+pub(super) fn honesty(workspace: &Workspace<'_>) -> String {
+    let coverage = rustmanifest_engine::coverage(workspace);
     let mut out = format!(
         "\n## coverage\n\n- files parsed: {}/{} ({:.1}%)\n",
         coverage.files_parsed,

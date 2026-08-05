@@ -20,7 +20,7 @@
               zerocopy-derive are still on syn 2 — not deduplicable from this crate"
 )]
 
-use rustmanifest_engine::{Source, behavior, features, role};
+use rustmanifest_engine::{Workspace, features, role};
 use tsetlin_rs::TsetlinMachine;
 
 /// Fixed role order used for training and output.
@@ -82,8 +82,8 @@ impl Default for LearnOptions {
 /// with no literal (always true) and exact duplicates are dropped; the
 /// result is sorted by role order, then lexicographically.
 #[must_use]
-pub fn learn_roles(sources: &[Source], options: LearnOptions) -> Vec<LearnedClause> {
-    let facts = behavior(sources);
+pub fn learn_roles(workspace: &Workspace<'_>, options: LearnOptions) -> Vec<LearnedClause> {
+    let facts = workspace.facts();
     if facts.len() < options.min_functions.max(1) {
         return Vec::new();
     }
@@ -159,7 +159,7 @@ fn feature_names(names: &[&'static str], indices: &[usize]) -> Vec<String> {
 mod tests {
     use std::{fmt::Write, path::PathBuf};
 
-    use rustmanifest_engine::Source;
+    use rustmanifest_engine::{Source, Workspace};
 
     use super::{LearnOptions, learn_roles};
 
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn io_clauses_mention_the_console_effect() {
-        let learned = learn_roles(&corpus(), LearnOptions::default());
+        let learned = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
         let io_clauses: Vec<_> = learned
             .iter()
             .filter(|clause| clause.role == "io")
@@ -192,14 +192,14 @@ mod tests {
 
     #[test]
     fn training_is_deterministic() {
-        let first = learn_roles(&corpus(), LearnOptions::default());
-        let second = learn_roles(&corpus(), LearnOptions::default());
+        let first = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
+        let second = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
         assert_eq!(first, second);
     }
 
     #[test]
     fn empty_sources_learn_nothing() {
-        assert!(learn_roles(&[], LearnOptions::default()).is_empty());
+        assert!(learn_roles(&Workspace::new(&[]), LearnOptions::default()).is_empty());
     }
 
     #[test]
@@ -210,12 +210,12 @@ mod tests {
              2 }"
             .to_owned()
         )];
-        assert!(learn_roles(&source, LearnOptions::default()).is_empty());
+        assert!(learn_roles(&Workspace::new(&source), LearnOptions::default()).is_empty());
     }
 
     #[test]
     fn absent_roles_are_skipped() {
-        let learned = learn_roles(&corpus(), LearnOptions::default());
+        let learned = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
         assert!(learned.iter().all(|clause| clause.role != "mutator"));
     }
 }

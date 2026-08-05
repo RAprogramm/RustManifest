@@ -31,7 +31,7 @@ use self::{
     layers::layer_section, memory_shape::shape_section, module_map::module_section,
     roles::role_section, size::size_section, state::state_section, surface::surface_section
 };
-use crate::{semantic::TypeGraph, source::Source};
+use crate::semantic::Workspace;
 
 /// Renders the whole knowledge report for the analyzed sources.
 ///
@@ -39,22 +39,27 @@ use crate::{semantic::TypeGraph, source::Source};
 /// silent. Output is deterministic: same sources, same conventions, same
 /// report.
 #[must_use]
-pub fn overview_markdown(sources: &[Source], top: usize, conventions: &[Convention]) -> String {
+pub fn overview_markdown(
+    workspace: &Workspace<'_>,
+    top: usize,
+    conventions: &[Convention]
+) -> String {
     let mut out = String::new();
-    let graph = TypeGraph::from_sources(sources);
-    let modules = crate::semantic::module_overview(sources);
-    let stats = crate::semantic::coverage(sources);
-    let facts = crate::semantic::behavior(sources);
+    let sources = workspace.sources();
+    let graph = workspace.types();
+    let modules = crate::semantic::module_overview(workspace);
+    let stats = crate::semantic::coverage(workspace);
+    let facts = workspace.facts();
     out.push_str("# Project overview\n\n");
     size_section(&mut out, &stats, facts.len());
     module_section(&mut out, &modules);
-    type_section(&mut out, &graph, top);
-    role_section(&mut out, &facts);
+    type_section(&mut out, graph, top);
+    role_section(&mut out, facts);
     surface_section(&mut out, sources, top);
-    boundary_section(&mut out, sources, &facts, top);
-    state_section(&mut out, &facts, top);
+    boundary_section(&mut out, sources, facts, top);
+    state_section(&mut out, facts, top);
     shape_section(&mut out, sources, top);
-    layer_section(&mut out, sources, top);
+    layer_section(&mut out, workspace, top);
     convention_section(&mut out, conventions, top);
     out.push_str("\nFindings are a separate concern: run `rustmanifest check` for them.\n");
     out
@@ -71,7 +76,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Convention, overview_markdown};
-    use crate::source::Source;
+    use crate::{semantic::Workspace, source::Source};
 
     fn sources() -> [Source; 1] {
         [Source::new(
@@ -91,7 +96,7 @@ mod tests {
             includes: vec!["effect-console".to_owned()],
             excludes: Vec::new()
         }];
-        let report = overview_markdown(&sources(), 10, &conventions);
+        let report = overview_markdown(&Workspace::new(&sources()), 10, &conventions);
         for heading in [
             "## Size and understanding",
             "## Modules",
@@ -111,8 +116,8 @@ mod tests {
     #[test]
     fn report_is_deterministic() {
         assert_eq!(
-            overview_markdown(&sources(), 10, &[]),
-            overview_markdown(&sources(), 10, &[])
+            overview_markdown(&Workspace::new(&sources()), 10, &[]),
+            overview_markdown(&Workspace::new(&sources()), 10, &[])
         );
     }
 }

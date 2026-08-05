@@ -81,7 +81,8 @@ pub(super) fn evaluate(
     }
 
     let semantic_start = Instant::now();
-    for finding in rustmanifest_engine::semantic_findings(semantic, &sources) {
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    for finding in rustmanifest_engine::semantic_findings(semantic, &workspace) {
         *findings.entry(finding.rule_id).or_insert(0) += 1;
     }
     let semantic_ms = semantic_start.elapsed().as_secs_f64() * 1000.0;

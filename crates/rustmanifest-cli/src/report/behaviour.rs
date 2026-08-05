@@ -6,15 +6,15 @@
 
 use std::fmt::Write as _;
 
-use rustmanifest_engine::Source;
+use rustmanifest_engine::Workspace;
 
 use super::location::relative;
 
 /// What the program does for an observer outside the process, per entry
 /// point, in the words the recorded facts license.
-pub(super) fn behaviour(sources: &[Source], root: &std::path::Path) -> String {
+pub(super) fn behaviour(workspace: &Workspace<'_>, root: &std::path::Path) -> String {
     let mut out = String::from("## behaviour\n\n");
-    let entries = rustmanifest_engine::program_meaning(sources);
+    let entries = rustmanifest_engine::program_meaning(workspace);
     if entries.is_empty() {
         out.push_str("- no process entry point\n");
         return out;

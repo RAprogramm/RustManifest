@@ -13,8 +13,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{behavior::behavior, calls::call_graph, module_overview::module_overview};
-use crate::source::Source;
+use super::module_overview::module_overview;
+use crate::semantic::workspace::Workspace;
 
 /// One module's inferred position in the architecture.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,10 +30,11 @@ pub struct ModuleLayer {
 
 /// Infers the layer of every module that owns at least one function.
 #[must_use]
-pub fn layers(sources: &[Source]) -> Vec<ModuleLayer> {
-    let facts = behavior(sources);
-    let overview = module_overview(sources);
-    let graph = call_graph(&facts, &super::calls::resolution_context(sources));
+pub fn layers(workspace: &Workspace<'_>) -> Vec<ModuleLayer> {
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let overview = module_overview(workspace);
+    let graph = workspace.calls();
     let module_of: Vec<String> = facts
         .iter()
         .map(|fact| {
@@ -134,7 +135,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::layers;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -158,7 +159,7 @@ mod tests {
             ),
             source("src/storage.rs", "pub fn save() {}")
         ];
-        let all = layers(&sources);
+        let all = layers(&Workspace::new(&sources));
         assert_eq!(depth_of(&all, "crate::storage"), Some(0));
         assert_eq!(depth_of(&all, "crate::domain"), Some(1));
         assert_eq!(depth_of(&all, "crate::api"), Some(2));
@@ -171,7 +172,7 @@ mod tests {
             source("src/a.rs", "pub fn ping() { crate::b::pong(); }"),
             source("src/b.rs", "pub fn pong() { crate::a::ping(); }")
         ];
-        let all = layers(&sources);
+        let all = layers(&Workspace::new(&sources));
         assert_eq!(depth_of(&all, "crate::a"), None);
         assert_eq!(depth_of(&all, "crate::b"), None);
     }
@@ -183,6 +184,9 @@ mod tests {
             source("src/api.rs", "pub fn handle() { crate::storage::save(); }"),
             source("src/storage.rs", "pub fn save() {}")
         ];
-        assert_eq!(layers(&sources), layers(&sources));
+        assert_eq!(
+            layers(&Workspace::new(&sources)),
+            layers(&Workspace::new(&sources))
+        );
     }
 }

@@ -106,11 +106,14 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Clause, Narrative};
-    use crate::{semantic::meaning::program_meaning, source::Source};
+    use crate::{
+        semantic::{meaning::program_meaning, workspace::Workspace},
+        source::Source
+    };
 
     fn statement(text: &str) -> Narrative {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        program_meaning(&sources)
+        program_meaning(&Workspace::new(&sources))
             .into_iter()
             .next()
             .map(|entry| entry.narrative)

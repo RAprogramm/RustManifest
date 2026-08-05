@@ -17,21 +17,17 @@ use super::{
     report::{Coverage, count},
     sighting, use_target
 };
-use crate::{
-    semantic::{
-        behavior::behavior,
-        calls::{call_graph_with, resolution_context},
-        module_graph::ModuleGraph,
-        scip::ScipEdges
-    },
-    source::Source
+use crate::semantic::{
+    calls::{call_graph_with, resolution_context},
+    scip::ScipEdges,
+    workspace::Workspace
 };
 
 /// Measures `sources` like [`coverage_with`] with no declared
 /// dependencies: only the standard-library family counts as external.
 #[must_use]
-pub fn coverage(sources: &[Source]) -> Coverage {
-    coverage_with(sources, &BTreeSet::new())
+pub fn coverage(workspace: &Workspace<'_>) -> Coverage {
+    coverage_with(workspace, &BTreeSet::new())
 }
 
 /// Measures how much of `sources` the engine's parsing, module graph, and
@@ -46,8 +42,8 @@ pub fn coverage(sources: &[Source]) -> Coverage {
 /// Macro and derive expansions are never analyzed; they are only counted
 /// as sightings.
 #[must_use]
-pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> Coverage {
-    measure(sources, external_crates, None)
+pub fn coverage_with(workspace: &Workspace<'_>, external_crates: &BTreeSet<String>) -> Coverage {
+    measure(workspace, external_crates, None)
 }
 
 /// Measures `sources` like [`coverage_with`] with a SCIP index overlay:
@@ -55,27 +51,28 @@ pub fn coverage_with(sources: &[Source], external_crates: &BTreeSet<String>) -> 
 /// counted separately, so the report states what the index added.
 #[must_use]
 pub fn coverage_indexed(
-    sources: &[Source],
+    workspace: &Workspace<'_>,
     external_crates: &BTreeSet<String>,
     edges: &ScipEdges
 ) -> Coverage {
-    measure(sources, external_crates, Some(edges))
+    measure(workspace, external_crates, Some(edges))
 }
 
 /// Shared measurement behind [`coverage_with`] and [`coverage_indexed`].
 fn measure(
-    sources: &[Source],
+    workspace: &Workspace<'_>,
     external_crates: &BTreeSet<String>,
     scip: Option<&ScipEdges>
 ) -> Coverage {
+    let sources = workspace.sources();
     let seen = sighting::sightings(sources);
-    let graph = ModuleGraph::from_sources(sources);
+    let graph = workspace.modules();
     let modules = graph.modules();
     let files = reach::reach(modules);
     let uses = use_target::use_targets(modules, external_crates);
-    let facts = behavior(sources);
-    let overlay = scip.map(|edges| edges.candidates(&facts, sources));
-    let calls = call_graph_with(&facts, &resolution_context(sources), overlay.as_deref());
+    let facts = workspace.facts();
+    let overlay = scip.map(|edges| edges.candidates(facts, sources));
+    let calls = call_graph_with(facts, &resolution_context(sources), overlay.as_deref());
     let captured = capture::capture(sources);
     Coverage {
         files_total:                count(sources.len()),
@@ -116,7 +113,7 @@ mod tests {
     use std::{collections::BTreeSet, path::PathBuf};
 
     use super::{super::unresolved_targets, coverage, coverage_with};
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -132,7 +129,7 @@ mod tests {
             source("src/lib.rs", "pub struct Ok;"),
             source("src/broken.rs", "fn broken(")
         ];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.files_total, 2);
         assert_eq!(report.files_parsed, 1);
         assert!(close(report.parse_rate(), 50.0));
@@ -145,7 +142,7 @@ mod tests {
             source("src/util.rs", ""),
             source("src/orphan.rs", "")
         ];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.files_total, 3);
         assert_eq!(report.modules_total, 3);
         assert_eq!(report.files_reachable, 2);
@@ -156,7 +153,7 @@ mod tests {
     #[test]
     fn inline_modules_count_as_modules_of_one_file() {
         let sources = [source("src/lib.rs", "mod a {} mod b {}")];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.modules_total, 3);
         assert_eq!(report.files_reachable, 1);
     }
@@ -164,7 +161,7 @@ mod tests {
     #[test]
     fn lone_files_become_standalone_roots() {
         let sources = [source("rules/one.rs", ""), source("rules/two.rs", "")];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.modules_total, 2);
         assert_eq!(report.files_reachable, 0);
         assert_eq!(report.files_standalone, 2);
@@ -177,7 +174,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item; use std::fmt;"),
             source("src/b.rs", "")
         ];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.use_targets_total, 2);
         assert_eq!(report.use_targets_resolved, 1);
         assert_eq!(report.use_targets_external, 1);
@@ -196,7 +193,7 @@ mod tests {
             ),
             source("src/handlers/account.rs", "")
         ];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.use_targets_resolved, 2);
         assert_eq!(report.use_targets_unresolved, 1);
         let targets = unresolved_targets(&sources, &BTreeSet::new());
@@ -210,11 +207,11 @@ mod tests {
             "src/lib.rs",
             "use serde::Serialize; use unknown_crate::Thing;"
         )];
-        let bare = coverage(&sources);
+        let bare = coverage(&Workspace::new(&sources));
         assert_eq!(bare.use_targets_external, 0);
         assert_eq!(bare.use_targets_unresolved, 2);
         let declared = BTreeSet::from(["serde".to_owned()]);
-        let informed = coverage_with(&sources, &declared);
+        let informed = coverage_with(&Workspace::new(&sources), &declared);
         assert_eq!(informed.use_targets_external, 1);
         assert_eq!(informed.use_targets_unresolved, 1);
         assert!(close(informed.accounted_rate(), 50.0));
@@ -229,7 +226,7 @@ mod tests {
                 "pub struct User { pub identity: Identity, pub age: u8 }"
             )
         ];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.structs_captured, 2);
         assert_eq!(report.fields_captured, 3);
         assert_eq!(report.aggregation_edges_resolved, 1);
@@ -242,14 +239,14 @@ mod tests {
             "#[derive(Debug, Clone)]\npub struct A;\nmacro_rules! noise { () => {} }\nmod inner \
              { #[derive(Default)] pub struct B; }"
         )];
-        let report = coverage(&sources);
+        let report = coverage(&Workspace::new(&sources));
         assert_eq!(report.derives_seen, 2);
         assert_eq!(report.item_macros_seen, 1);
     }
 
     #[test]
     fn empty_slice_yields_zero_rates() {
-        let report = coverage(&[]);
+        let report = coverage(&Workspace::new(&[]));
         assert_eq!(report.files_total, 0);
         assert!(close(report.parse_rate(), 0.0));
         assert!(close(report.resolution_rate(), 0.0));
@@ -265,6 +262,9 @@ mod tests {
             ),
             source("src/a.rs", "use crate::S; use std::fmt;")
         ];
-        assert_eq!(coverage(&sources), coverage(&sources));
+        assert_eq!(
+            coverage(&Workspace::new(&sources)),
+            coverage(&Workspace::new(&sources))
+        );
     }
 }

@@ -48,7 +48,8 @@ pub(crate) fn run_prescribe(args: &PrescribeArgs) -> anyhow::Result<ExitCode> {
 
 /// Builds every prescription the recorded facts license.
 fn prescriptions(sources: &[Source], why: bool) -> String {
-    let entries = rustmanifest_engine::program_meaning(sources);
+    let entries =
+        rustmanifest_engine::program_meaning(&rustmanifest_engine::Workspace::new(sources));
     if entries.is_empty() {
         return "- no process entry point\n".to_owned();
     }

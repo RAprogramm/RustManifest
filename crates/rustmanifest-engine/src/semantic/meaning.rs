@@ -44,13 +44,14 @@ pub use self::{
     origin_text::origin_text
 };
 use super::{
-    behavior::{
-        FunctionFacts, Grade, HoleSource, OUTPUT_SINK_SET, OutputWrite, Payload, Segment, behavior
-    },
-    calls::{CallGraph, call_graph, resolution_context},
+    behavior::{FunctionFacts, Grade, HoleSource, OUTPUT_SINK_SET, OutputWrite, Payload, Segment},
+    calls::CallGraph,
     entry::{Completion, EntryKind, EntryPoint, entry_points}
 };
-use crate::{semantic::summary::ComposedOrigin, source::Source};
+use crate::{
+    semantic::{summary::ComposedOrigin, workspace::Workspace},
+    source::Source
+};
 
 /// One statement about what the program writes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,16 +138,16 @@ pub struct EntryMeaning {
     pub exits:        Vec<ExitClaim>
 }
 
-/// Derives what every entry point of `sources` does.
+/// Derives what every entry point of `workspace` does.
 #[must_use]
-pub fn program_meaning(sources: &[Source]) -> Vec<EntryMeaning> {
-    let facts = behavior(sources);
-    let context = resolution_context(sources);
-    let graph = call_graph(&facts, &context);
-    let qualifiers = qualifiers_by_fact(sources, &facts);
-    entry_points(sources, &facts)
+pub fn program_meaning(workspace: &Workspace<'_>) -> Vec<EntryMeaning> {
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let graph = workspace.calls();
+    let qualifiers = qualifiers_by_fact(sources, facts);
+    entry_points(sources, facts)
         .into_iter()
-        .map(|entry| meaning_of(&entry, &facts, &graph, &qualifiers, sources))
+        .map(|entry| meaning_of(&entry, facts, graph, &qualifiers, sources))
         .collect()
 }
 
@@ -233,7 +234,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::program_meaning;
-    use crate::source::Source;
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     fn sentences(body: &str) -> Vec<String> {
         sentences_of(&[("src/main.rs", body)])
@@ -247,7 +248,7 @@ mod tests {
             .iter()
             .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
             .collect();
-        program_meaning(&sources)
+        program_meaning(&Workspace::new(&sources))
             .first()
             .map(super::EntryMeaning::sentences)
             .unwrap_or_default()

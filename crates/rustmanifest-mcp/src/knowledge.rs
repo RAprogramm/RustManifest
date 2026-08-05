@@ -24,7 +24,8 @@ use rustmanifest_learn::{LearnOptions, learn_roles};
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
     let sources = sources_for(target)?;
-    let conventions: Vec<Convention> = learn_roles(&sources, LearnOptions::default())
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let conventions: Vec<Convention> = learn_roles(&workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {
             role:     clause.role,
@@ -32,7 +33,7 @@ pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
             excludes: clause.excludes
         })
         .collect();
-    Ok(overview_markdown(&sources, top, &conventions))
+    Ok(overview_markdown(&workspace, top, &conventions))
 }
 
 /// Returns behavioral facts of every function under `target` as a JSON
@@ -68,14 +69,17 @@ pub struct ConventionClause {
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn conventions(target: &Path) -> Result<Vec<ConventionClause>, EngineError> {
     let sources = sources_for(target)?;
-    Ok(learn_roles(&sources, LearnOptions::default())
-        .into_iter()
-        .map(|clause| ConventionClause {
-            role:   clause.role,
-            when:   clause.includes.join(" AND "),
-            unless: clause.excludes.join(" AND ")
-        })
-        .collect())
+    Ok(learn_roles(
+        &rustmanifest_engine::Workspace::new(&sources),
+        LearnOptions::default()
+    )
+    .into_iter()
+    .map(|clause| ConventionClause {
+        role:   clause.role,
+        when:   clause.includes.join(" AND "),
+        unless: clause.excludes.join(" AND ")
+    })
+    .collect())
 }
 
 /// Expands `target` into readable Rust sources within the memory budget.
