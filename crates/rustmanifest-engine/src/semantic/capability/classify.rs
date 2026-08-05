@@ -21,6 +21,10 @@ const LISTENING_TYPES: [&str; 2] = ["TcpListener", "UdpSocket"];
 /// Final segments that name the act of taking a local socket.
 const LISTENING_CALLS: [&str; 2] = ["bind", "listen"];
 
+/// Path segments of `std::process` that end *this* process rather than
+/// start another one.
+const OWN_EXIT: [&str; 3] = ["ExitCode", "exit", "abort"];
+
 /// Returns the capability `site` proves, or `None` when it proves none.
 ///
 /// `unsafe` proves no capability: it is a statement about how the code is
@@ -37,8 +41,22 @@ pub(super) fn of(site: &EffectSite) -> Option<Capability> {
         Effect::Environment => Some(Capability::Configures),
         Effect::FileSystem => Some(Capability::Persists),
         Effect::ConsoleIo => Some(Capability::Reports),
+        Effect::Process if ends_this_process(&site.proof) => None,
         Effect::Process => Some(Capability::Spawns)
     }
+}
+
+/// Returns whether `proof` names this process ending itself rather than a
+/// child starting.
+///
+/// The behavioral tier files everything under `std::process` as one
+/// category, so `ExitCode`, `exit` and `abort` arrive alongside `Command`.
+/// Reading the proof separates them: leaving is not spawning, and a
+/// capability row claiming otherwise would be false. The category itself is
+/// left as it is — narrowing it is a change to shared vocabulary, not to
+/// this classification.
+fn ends_this_process(proof: &str) -> bool {
+    proof.split("::").any(|segment| OWN_EXIT.contains(&segment))
 }
 
 /// Returns whether `path` takes a local socket, by naming a listening
@@ -122,9 +140,25 @@ mod tests {
             Some(Capability::Reports)
         );
         assert_eq!(
-            of(&site(Effect::Process, "std::process::Command")),
+            of(&site(Effect::Process, "std::process::Command::new")),
             Some(Capability::Spawns)
         );
+    }
+
+    /// `std::process` covers both starting a child and ending this
+    /// process; only the first is a capability to spawn.
+    #[test]
+    fn leaving_this_process_is_not_spawning_another() {
+        assert_eq!(
+            of(&site(Effect::Process, "std::process::Command::new")),
+            Some(Capability::Spawns)
+        );
+        assert_eq!(
+            of(&site(Effect::Process, "std::process::ExitCode::from")),
+            None
+        );
+        assert_eq!(of(&site(Effect::Process, "std::process::exit")), None);
+        assert_eq!(of(&site(Effect::Process, "std::process::abort")), None);
     }
 
     #[test]
