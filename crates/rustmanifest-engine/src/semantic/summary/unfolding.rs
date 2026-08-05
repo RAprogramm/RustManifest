@@ -10,7 +10,10 @@
 //! stack.
 
 use super::composed::ComposedOrigin;
-use crate::semantic::behavior::{Arguments, FunctionFacts, OriginGap, Provenance};
+use crate::semantic::{
+    behavior::{Arguments, FunctionFacts, OriginGap, Provenance},
+    settled::Settled
+};
 
 /// Unfolds one origin of `fact` into a term that names no index.
 ///
@@ -18,7 +21,12 @@ use crate::semantic::behavior::{Arguments, FunctionFacts, OriginGap, Provenance}
 /// hands back is the composition tier's question, and answering it here
 /// would mean reading another function's facts from inside one function's
 /// own unfolding.
-pub(super) fn unfold(fact: &FunctionFacts, origin: &Provenance, budget: u8) -> ComposedOrigin {
+pub(super) fn unfold(
+    settled: Settled<'_>,
+    fact: &FunctionFacts,
+    origin: &Provenance,
+    budget: u8
+) -> ComposedOrigin {
     let Some(remaining) = budget.checked_sub(1) else {
         return ComposedOrigin::NotDerived(OriginGap::Deeper);
     };
@@ -26,10 +34,10 @@ pub(super) fn unfold(fact: &FunctionFacts, origin: &Provenance, budget: u8) -> C
         Provenance::Written(literal) => ComposedOrigin::Written(literal.clone()),
         Provenance::Parameter(slot) => ComposedOrigin::Parameter(slot.clone()),
         Provenance::Field(key) => ComposedOrigin::Field(key.clone()),
-        Provenance::Called(index) => called(fact, *index, remaining),
+        Provenance::Called(index) => called(settled, fact, *index, remaining),
         Provenance::Read(index) => drawn(fact, *index),
-        Provenance::Computed(index) => computed(fact, *index, remaining),
-        Provenance::Chosen(index) => chosen(fact, *index, remaining),
+        Provenance::Computed(index) => computed(settled, fact, *index, remaining),
+        Provenance::Chosen(index) => chosen(settled, fact, *index, remaining),
         Provenance::Leaves => ComposedOrigin::Leaves,
         Provenance::NotDerived(gap) => ComposedOrigin::NotDerived(*gap)
     }
@@ -49,7 +57,7 @@ fn drawn(fact: &FunctionFacts, index: u32) -> ComposedOrigin {
 }
 
 /// Unfolds the operation at one position of the operation channel.
-fn computed(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
+fn computed(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
     let Some(site) = usize::try_from(index)
         .ok()
         .and_then(|at| fact.operations.get(at))
@@ -61,13 +69,13 @@ fn computed(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
         operands:  site
             .operands
             .iter()
-            .map(|operand| unfold(fact, operand, budget))
+            .map(|operand| unfold(settled, fact, operand, budget))
             .collect()
     }
 }
 
 /// Unfolds the choice at one position of the choice channel.
-fn chosen(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
+fn chosen(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
     let Some(site) = usize::try_from(index)
         .ok()
         .and_then(|at| fact.choices.get(at))
@@ -77,13 +85,13 @@ fn chosen(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
     ComposedOrigin::Choice(
         site.alternatives
             .iter()
-            .map(|alternative| unfold(fact, &alternative.value, budget))
+            .map(|alternative| unfold(settled, fact, &alternative.value, budget))
             .collect()
     )
 }
 
 /// Unfolds the call at one position of the call channel.
-fn called(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
+fn called(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
     let Some(site) = usize::try_from(index)
         .ok()
         .and_then(|at| fact.call_sites.get(at))
@@ -93,7 +101,7 @@ fn called(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
     let arguments = match &site.arguments {
         Arguments::Written(written) => written
             .iter()
-            .map(|argument| unfold(fact, argument, budget))
+            .map(|argument| unfold(settled, fact, argument, budget))
             .collect(),
         Arguments::Unwritten => Vec::new()
     };
@@ -103,6 +111,7 @@ fn called(fact: &FunctionFacts, index: u32, budget: u8) -> ComposedOrigin {
         carried: Box::new(ComposedOrigin::NotDerived(match site.arguments {
             Arguments::Written(_) => OriginGap::CalleeUnresolved,
             Arguments::Unwritten => OriginGap::Unwritten
-        }))
+        })),
+        returns: settled.returns(fact, site.site)
     }
 }

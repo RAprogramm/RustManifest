@@ -50,19 +50,32 @@ use crate::{
     source::Source
 };
 
+/// What every function is and how the calls between them resolve.
+///
+/// The trio travels as one value because it is one: the facts, the graph
+/// built over them, and the scopes those names are read in. Three
+/// structures declared it separately before.
+#[derive(Clone, Copy)]
+pub(super) struct Material<'facts> {
+    /// Every function's facts.
+    pub(super) facts:      &'facts [FunctionFacts],
+    /// The call graph the candidates were resolved against.
+    pub(super) graph:      &'facts CallGraph,
+    /// Scopes owning each function.
+    pub(super) qualifiers: &'facts [std::collections::BTreeSet<String>]
+}
+
 /// Every function's summary, with the machinery to restate one value of
 /// one function in terms that name nothing of any callee's.
 pub struct Composition<'facts> {
-    /// Every function's facts.
-    facts:      &'facts [FunctionFacts],
+    /// What every function is and how the calls between them resolve.
+    material:   Material<'facts>,
     /// What each function hands back, by fact index.
     settled:    BTreeMap<usize, FunctionSummary>,
-    /// The call graph the candidates were resolved against.
-    graph:      &'facts CallGraph,
-    /// Scopes owning each function.
-    qualifiers: &'facts [std::collections::BTreeSet<String>],
     /// Which functions share a recursion cycle.
-    components: component::Components
+    components: component::Components,
+    /// The analyzed sources with what a resolver settled about them.
+    settled_at: crate::semantic::settled::Settled<'facts>
 }
 
 impl Composition<'_> {
@@ -70,16 +83,16 @@ impl Composition<'_> {
     /// followed and every call it passes through restated.
     #[must_use]
     pub fn of(&self, fact: usize, origin: &Provenance) -> ComposedOrigin {
-        let Some(own) = self.facts.get(fact) else {
+        let Some(own) = self.material.facts.get(fact) else {
             return ComposedOrigin::NotDerived(crate::semantic::behavior::OriginGap::Unreadable);
         };
+        let resolved = self.settled_at;
         let bindings = Bindings {
-            facts:      self.facts,
-            graph:      self.graph,
-            qualifiers: self.qualifiers,
-            components: &self.components
+            material:   self.material,
+            components: &self.components,
+            settled:    resolved
         };
-        let term = unfold(own, origin, composed::ORIGIN_DEPTH);
+        let term = unfold(resolved, own, origin, composed::ORIGIN_DEPTH);
         carry(
             &bindings,
             fact,
@@ -98,12 +111,30 @@ pub fn composition<'facts>(
     graph: &'facts CallGraph,
     qualifiers: &'facts [std::collections::BTreeSet<String>]
 ) -> Composition<'facts> {
+    composition_with(&[], None, facts, graph, qualifiers)
+}
+
+/// Composes as [`composition`] does, reading what a resolver settled about
+/// `sources` where one ran.
+#[must_use]
+pub fn composition_with<'facts>(
+    sources: &'facts [Source],
+    resolution: Option<&'facts rustmanifest_schema::Resolution>,
+    facts: &'facts [FunctionFacts],
+    graph: &'facts CallGraph,
+    qualifiers: &'facts [std::collections::BTreeSet<String>]
+) -> Composition<'facts> {
     let components = components(graph, facts.len());
-    let bindings = Bindings {
+    let material = Material {
         facts,
         graph,
-        qualifiers,
-        components: &components
+        qualifiers
+    };
+    let settled_at = crate::semantic::settled::Settled::new(resolution, sources);
+    let bindings = Bindings {
+        material,
+        components: &components,
+        settled: settled_at
     };
     let mut settled: BTreeMap<usize, FunctionSummary> = BTreeMap::new();
     for &fact in components.order() {
@@ -111,11 +142,10 @@ pub fn composition<'facts>(
         settled.insert(fact, summary);
     }
     Composition {
-        facts,
+        material,
         settled,
-        graph,
-        qualifiers,
-        components
+        components,
+        settled_at
     }
 }
 
@@ -129,13 +159,28 @@ pub fn summaries(
     facts: &[FunctionFacts],
     graph: &CallGraph
 ) -> Vec<FunctionSummary> {
+    summaries_with(sources, None, facts, graph)
+}
+
+/// Derives summaries as [`summaries`] does, reading what a resolver
+/// settled about `sources` where one ran.
+#[must_use]
+pub fn summaries_with(
+    sources: &[Source],
+    resolution: Option<&rustmanifest_schema::Resolution>,
+    facts: &[FunctionFacts],
+    graph: &CallGraph
+) -> Vec<FunctionSummary> {
     let qualifiers = qualifiers_by_fact(sources, facts);
     let components = components(graph, facts.len());
     let bindings = Bindings {
-        facts,
-        graph,
-        qualifiers: &qualifiers,
-        components: &components
+        material:   Material {
+            facts,
+            graph,
+            qualifiers: &qualifiers
+        },
+        components: &components,
+        settled:    crate::semantic::settled::Settled::new(resolution, sources)
     };
     let mut settled: BTreeMap<usize, FunctionSummary> = BTreeMap::new();
     for &fact in components.order() {

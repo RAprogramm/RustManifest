@@ -35,8 +35,9 @@ use crate::source::Source;
 /// thread that built it.
 #[derive(Debug)]
 pub struct Workspace<'source> {
-    /// Sources this analysis covers, in the order insights index into.
-    sources:   &'source [Source],
+    /// Sources this analysis covers, with what a resolver settled about
+    /// them, in the order insights index into.
+    settled:   crate::semantic::settled::Settled<'source>,
     /// What the sources declare: the type graph and the module graph.
     declared:  Declared,
     /// What the sources do: function facts, name resolution, call graph.
@@ -48,41 +49,69 @@ impl<'source> Workspace<'source> {
     /// until a reader asks for it.
     #[must_use]
     pub const fn new(sources: &'source [Source]) -> Self {
+        Self::over(crate::semantic::settled::Settled::new(None, sources))
+    }
+
+    /// Takes `sources` together with what a resolver settled about them.
+    ///
+    /// The resolution answers what the written text cannot: which function
+    /// a call reaches and what it hands back. Nothing else changes — a
+    /// position the resolver left out is refused exactly as before.
+    #[must_use]
+    pub const fn resolved(
+        sources: &'source [Source],
+        resolution: &'source rustmanifest_schema::Resolution
+    ) -> Self {
+        Self::over(crate::semantic::settled::Settled::new(
+            Some(resolution),
+            sources
+        ))
+    }
+
+    /// The one constructor that assembles the value; the two above name
+    /// what they hand it and delegate here.
+    const fn over(settled: crate::semantic::settled::Settled<'source>) -> Self {
         Self {
-            sources,
+            settled,
             declared: Declared::new(),
             performed: Performed::new()
         }
     }
 
+    /// Returns what a resolver settled about these sources, where one ran.
+    #[must_use]
+    pub const fn resolution(&self) -> Option<&'source rustmanifest_schema::Resolution> {
+        self.settled.resolution()
+    }
+
     /// Returns the analyzed sources.
     #[must_use]
     pub const fn sources(&self) -> &'source [Source] {
-        self.sources
+        self.settled.sources()
     }
 
     /// Returns the workspace type graph, deriving it on the first call.
     #[must_use]
     pub fn types(&self) -> &TypeGraph {
-        self.declared.types(self.sources)
+        self.declared.types(self.settled.sources())
     }
 
     /// Returns the behavioral facts of every function, deriving them on the
     /// first call.
     #[must_use]
     pub fn facts(&self) -> &[FunctionFacts] {
-        self.performed.facts(self.sources)
+        self.performed.facts(self.settled.sources())
     }
 
     /// Returns the module graph, deriving it on the first call.
     pub(in crate::semantic) fn modules(&self) -> &ModuleGraph {
-        self.declared.modules(self.sources)
+        self.declared.modules(self.settled.sources())
     }
 
     /// Returns the call graph over the workspace facts, deriving it — and
     /// the name resolution it needs — on the first call.
     pub(crate) fn calls(&self) -> &CallGraph {
-        self.performed.calls(self.sources)
+        self.performed.calls(self.settled.sources())
     }
 }
 

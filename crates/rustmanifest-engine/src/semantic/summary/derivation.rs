@@ -20,21 +20,16 @@ use super::{
     substitution::substitute,
     unfolding::unfold
 };
-use crate::semantic::{
-    behavior::{FunctionFacts, OriginGap},
-    calls::CallGraph
-};
+use crate::semantic::behavior::{FunctionFacts, OriginGap};
 
 /// Everything one pass needs to settle a call.
 pub(super) struct Bindings<'facts> {
-    /// Every function's facts.
-    pub(super) facts:      &'facts [FunctionFacts],
-    /// The call graph the candidates were resolved against.
-    pub(super) graph:      &'facts CallGraph,
-    /// Scopes owning each function, for the qualified binding rule.
-    pub(super) qualifiers: &'facts [std::collections::BTreeSet<String>],
+    /// What every function is and how the calls between them resolve.
+    pub(super) material:   super::Material<'facts>,
     /// Which functions share a recursion cycle.
-    pub(super) components: &'facts Components
+    pub(super) components: &'facts Components,
+    /// What a resolver settled about the sources, where one ran.
+    pub(super) settled:    crate::semantic::settled::Settled<'facts>
 }
 
 /// Derives the summary of one function, settling every call it makes
@@ -44,11 +39,11 @@ pub(super) fn summary_of(
     fact: usize,
     settled: &BTreeMap<usize, FunctionSummary>
 ) -> FunctionSummary {
-    let facts = bindings.facts;
+    let facts = bindings.material.facts;
     let Some(own) = facts.get(fact) else {
         return refused(fact, String::new(), Vec::new(), OriginGap::Unreadable);
     };
-    let result = handed_back(own);
+    let result = handed_back(bindings.settled, own);
     let carried = carry(bindings, fact, &result, settled, ORIGIN_DEPTH);
     FunctionSummary {
         function: own.function.clone(),
@@ -64,11 +59,14 @@ pub(super) fn summary_of(
 /// No position at all is a refusal, not an answer: the reading found no
 /// return position, which is a statement about the reading. Several
 /// positions are alternatives of one another, and are kept as such.
-fn handed_back(own: &FunctionFacts) -> ComposedOrigin {
+fn handed_back(
+    settled: crate::semantic::settled::Settled<'_>,
+    own: &FunctionFacts
+) -> ComposedOrigin {
     let mut terms: Vec<ComposedOrigin> = own
         .handbacks
         .iter()
-        .map(|handback| unfold(own, &handback.value, ORIGIN_DEPTH))
+        .map(|handback| unfold(settled, own, &handback.value, ORIGIN_DEPTH))
         .collect();
     match terms.len() {
         0 => ComposedOrigin::NotDerived(OriginGap::Unreadable),
@@ -92,6 +90,7 @@ pub(super) fn carry(
         ComposedOrigin::Call {
             candidate,
             arguments,
+            returns,
             ..
         } => {
             let written: Vec<ComposedOrigin> = arguments
@@ -102,7 +101,8 @@ pub(super) fn carry(
             ComposedOrigin::Call {
                 candidate: candidate.clone(),
                 arguments: written,
-                carried:   Box::new(answer)
+                carried:   Box::new(answer),
+                returns:   returns.clone()
             }
         }
         ComposedOrigin::Computed {
@@ -134,11 +134,11 @@ fn callee_answer(
     settled: &BTreeMap<usize, FunctionSummary>,
     budget: u8
 ) -> ComposedOrigin {
-    let by_name = sole_by_name(bindings.facts);
-    let Some(reached) = bound_callee(&by_name, bindings.qualifiers, candidate) else {
+    let by_name = sole_by_name(bindings.material.facts);
+    let Some(reached) = bound_callee(&by_name, bindings.material.qualifiers, candidate) else {
         return ComposedOrigin::NotDerived(OriginGap::CalleeUnresolved);
     };
-    if bindings.graph.possibilistic(caller, reached) {
+    if bindings.material.graph.possibilistic(caller, reached) {
         return ComposedOrigin::NotDerived(OriginGap::Dispatched);
     }
     if bindings.components.together(caller, reached) {

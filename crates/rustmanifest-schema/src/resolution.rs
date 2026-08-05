@@ -1,27 +1,29 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! What a resolution states, as plain data.
+//! What a name-and-type resolver settled about a workspace, as plain data.
 //!
-//! The overlay is deliberately dull: a list of positions, each with the
-//! function the call reaches and the type it hands back. Nothing here knows
-//! how the answers were produced, which is what lets the engine consume
-//! them without taking on the resolver.
+//! The shape lives here, in the crate every part of the engine already
+//! depends on, so that the engine can read a resolution without depending
+//! on whatever produced it. The producer is a separate crate carrying the
+//! rust-analyzer libraries; nothing of that reaches this far.
 //!
 //! A position the resolver could not settle is **absent**. Absence is the
 //! only encoding of "not answered" this shape has, so a consumer cannot
 //! read an empty string as a resolved name.
 
-use rustmanifest_schema::Location;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// One call the resolver settled.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+use crate::Location;
+
+/// One call a resolver settled.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedCall {
     /// File and byte range of the call expression.
     pub at:       Location,
-    /// Fully qualified path of the function the call reaches.
+    /// Name of the function the call reaches.
     pub callee:   String,
     /// Type the call hands back, as the resolver renders it.
     pub returns:  String,
@@ -31,7 +33,7 @@ pub struct ResolvedCall {
 }
 
 /// Everything one resolution run settled about one workspace.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Resolution {
     /// Version of the resolver that produced it, so a stale overlay is
@@ -49,8 +51,8 @@ impl Resolution {
         self.calls.iter().find(|call| &call.at == location)
     }
 
-    /// Sorts the calls into the order the shape promises, so two runs over
-    /// the same workspace produce the same bytes.
+    /// Sorts the calls into the order the shape promises and drops exact
+    /// repeats, so two runs over the same workspace produce the same bytes.
     pub fn settle(&mut self) {
         self.calls.sort_by(|left, right| {
             left.at
@@ -72,12 +74,15 @@ impl Resolution {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
+    use crate::Range;
 
     fn located(file: &str, start: u32) -> Location {
         Location {
-            file:  std::path::PathBuf::from(file),
-            range: rustmanifest_schema::Range {
+            file:  PathBuf::from(file),
+            range: Range {
                 start,
                 end: start + 4
             }
@@ -94,15 +99,15 @@ mod tests {
     }
 
     #[test]
-    fn a_settled_call_is_found_by_its_position() {
+    fn a_settled_call_is_found_by_its_location() {
         let resolution = Resolution {
             resolver: "test".to_owned(),
-            calls:    vec![call("src/lib.rs", 10, "core::option::Option::is_some")]
+            calls:    vec![call("src/lib.rs", 10, "is_some")]
         };
         let found = resolution
             .at(&located("src/lib.rs", 10))
             .expect("the call is settled");
-        assert_eq!(found.callee, "core::option::Option::is_some");
+        assert_eq!(found.callee, "is_some");
         assert_eq!(found.returns, "bool");
     }
 

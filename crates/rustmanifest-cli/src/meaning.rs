@@ -34,8 +34,12 @@ pub(crate) fn run_meaning(args: &MeaningArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let entries =
-        rustmanifest_engine::program_meaning(&rustmanifest_engine::Workspace::new(&sources));
+    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let workspace = resolution.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
+    let entries = rustmanifest_engine::program_meaning(&workspace);
     let root = args.paths.first().cloned().unwrap_or_default();
     let rendered = match args.format {
         MeaningFormat::Text => text_report(&entries, &root),

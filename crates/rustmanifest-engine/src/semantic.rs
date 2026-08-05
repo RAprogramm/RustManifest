@@ -48,6 +48,7 @@ mod rename_detect;
 mod rename_op;
 mod role;
 mod scip;
+mod settled;
 mod std_derive;
 mod std_knowledge;
 mod summary;
@@ -98,7 +99,7 @@ pub use self::{
     std_derive::{StdFact, StdOutputKnowledge, output_knowledge, std_source_root},
     summary::{
         ComposedOrigin, Composition, FunctionSummary, ORIGIN_DEPTH, SUMMARY_SET, composition,
-        summaries
+        composition_with, summaries, summaries_with
     },
     surface::{FrameworkModel, Route, Surface, surface},
     workspace::Workspace

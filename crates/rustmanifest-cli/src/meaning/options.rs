@@ -17,7 +17,12 @@ pub struct MeaningArgs {
 
     /// Output format.
     #[arg(long, value_enum, default_value_t = MeaningFormat::Text)]
-    pub format: MeaningFormat
+    pub format: MeaningFormat,
+
+    /// Resolution overlay written by `rustmanifest-resolve`, so a call
+    /// into a library states the type it hands back instead of a refusal.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>
 }
 
 /// Rendering of the meaning report.

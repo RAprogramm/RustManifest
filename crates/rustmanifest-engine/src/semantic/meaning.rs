@@ -145,9 +145,16 @@ pub fn program_meaning(workspace: &Workspace<'_>) -> Vec<EntryMeaning> {
     let facts = workspace.facts();
     let graph = workspace.calls();
     let qualifiers = qualifiers_by_fact(sources, facts);
+    let composed = crate::semantic::summary::composition_with(
+        sources,
+        workspace.resolution(),
+        facts,
+        graph,
+        &qualifiers
+    );
     entry_points(sources, facts)
         .into_iter()
-        .map(|entry| meaning_of(&entry, facts, graph, &qualifiers, sources))
+        .map(|entry| meaning_of(&entry, facts, graph, &qualifiers, sources, &composed))
         .collect()
 }
 
@@ -162,10 +169,10 @@ fn meaning_of(
     facts: &[FunctionFacts],
     graph: &CallGraph,
     qualifiers: &[BTreeSet<String>],
-    sources: &[Source]
+    sources: &[Source],
+    composed: &crate::semantic::summary::Composition<'_>
 ) -> EntryMeaning {
     let reach = reachability(facts, graph, qualifiers, entry.fact);
-    let composed = crate::semantic::summary::composition(facts, graph, qualifiers);
     let mut claims = Vec::new();
     for (index, fact) in facts.iter().enumerate() {
         let file = sources.get(fact.source).map_or_else(String::new, |source| {
@@ -178,7 +185,7 @@ fn meaning_of(
                 execution: reach[index].min(write.guard.local_grade()),
                 reach:     reach[index],
                 write:     write.clone(),
-                sources:   hole_sources(&composed, index, write),
+                sources:   hole_sources(composed, index, write),
                 sink_set:  OUTPUT_SINK_SET
             });
         }

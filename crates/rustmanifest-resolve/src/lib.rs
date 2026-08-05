@@ -29,11 +29,8 @@
 )]
 
 mod error;
-mod overlay;
 mod workspace;
 
-pub use self::{
-    error::ResolveError,
-    overlay::{Resolution, ResolvedCall},
-    workspace::resolve
-};
+pub use rustmanifest_schema::{Resolution, ResolvedCall};
+
+pub use self::{error::ResolveError, workspace::resolve};

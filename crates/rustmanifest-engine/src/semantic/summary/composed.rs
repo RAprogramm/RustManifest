@@ -39,7 +39,14 @@ pub enum ComposedOrigin {
         arguments: Vec<Self>,
         /// Where the callee's own handback comes from, with this site's
         /// arguments substituted for the callee's inputs.
-        carried:   Box<Self>
+        carried:   Box<Self>,
+        /// Type the callee hands back, where a resolver settled it.
+        ///
+        /// A type is not an origin: knowing that a call answers with a
+        /// `bool` says nothing about which `bool`. It is carried anyway
+        /// because a reader stuck at a refusal is better served by the
+        /// type than by nothing, and because stating it costs no claim.
+        returns:   Option<String>
     },
     /// One of several values, whichever the taken position produces.
     Choice(Vec<Self>),

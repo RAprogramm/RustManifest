@@ -49,11 +49,13 @@ pub fn origin_text(origin: &ComposedOrigin) -> String {
         ComposedOrigin::Call {
             candidate,
             carried,
+            returns,
             ..
         } => match carried.as_ref() {
-            ComposedOrigin::NotDerived(gap) => {
-                format!("the value `{candidate}` hands back ({gap})")
-            }
+            ComposedOrigin::NotDerived(gap) => returns.as_ref().map_or_else(
+                || format!("the value `{candidate}` hands back ({gap})"),
+                |named| format!("the `{named}` that `{candidate}` hands back ({gap})")
+            ),
             settled => origin_text(settled)
         },
         ComposedOrigin::Leaves => "no value, because control leaves there".to_owned(),

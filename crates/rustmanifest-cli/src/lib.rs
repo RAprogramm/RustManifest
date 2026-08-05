@@ -127,6 +127,26 @@ fn init_tracing(verbose: u8) {
 
 /// Reads every readable Rust source within the per-file memory budget into
 /// memory; unreadable and oversized files are skipped silently.
+/// Reads a resolution overlay from `path`, where one was named.
+///
+/// A named file that cannot be read or parsed is an error and never a
+/// silent fallback to no resolution: a caller who asked for resolved
+/// answers must not be handed unresolved ones without being told.
+fn resolution(
+    path: Option<&std::path::Path>
+) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
+    use anyhow::Context as _;
+
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("reading the resolution overlay at {}", path.display()))?;
+    let settled: rustmanifest_schema::Resolution = serde_json::from_str(&text)
+        .with_context(|| format!("parsing the resolution overlay at {}", path.display()))?;
+    Ok(Some(settled))
+}
+
 fn read_sources(files: &[PathBuf], max_file_bytes: u64) -> Vec<rustmanifest_engine::Source> {
     files
         .iter()

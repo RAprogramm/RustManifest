@@ -23,13 +23,10 @@ use ra_ap_ide_db::RootDatabase;
 use ra_ap_load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use ra_ap_project_model::{CargoConfig, RustLibSource};
 use ra_ap_syntax::{AstNode, ast};
-use rustmanifest_schema::{Location, Range};
+use rustmanifest_schema::{Location, Range, Resolution, ResolvedCall};
 use tracing::debug;
 
-use crate::{
-    error::ResolveError,
-    overlay::{Resolution, ResolvedCall}
-};
+use crate::error::ResolveError;
 
 /// Resolves every method call written in the workspace rooted at `root`.
 ///
@@ -47,7 +44,7 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
         |path| path.display().to_string()
     );
     let mut resolution = Resolution {
-        resolver: format!("ra_ap {}", env!("CARGO_PKG_VERSION")),
+        resolver: format!("rustmanifest-resolve {}", env!("CARGO_PKG_VERSION")),
         calls:    Vec::new()
     };
     attach_db(&database, || {

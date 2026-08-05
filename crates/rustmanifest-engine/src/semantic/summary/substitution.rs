@@ -33,14 +33,16 @@ pub(super) fn substitute(
         ComposedOrigin::Call {
             candidate,
             arguments: written,
-            carried
+            carried,
+            returns
         } => ComposedOrigin::Call {
             candidate: candidate.clone(),
             arguments: written
                 .iter()
                 .map(|inner| substitute(inner, arguments, remaining))
                 .collect(),
-            carried:   Box::new(substitute(carried, arguments, remaining))
+            carried:   Box::new(substitute(carried, arguments, remaining)),
+            returns:   returns.clone()
         },
         ComposedOrigin::Computed {
             operation,
