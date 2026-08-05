@@ -23,15 +23,20 @@ pub(super) struct Measurement {
 
 /// Discovers files under the requested paths, reads their sources within
 /// the default per-file memory budget, and measures coverage, overlaying
-/// name-resolved call edges when a SCIP index was given.
+/// name-resolved call edges when a SCIP index was given and what a
+/// resolver settled when a resolution was given.
 pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
-    let files = walker::discover(&args.paths).context("file discovery failed")?;
+    let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let declared = declared_dependencies(&args.paths);
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let declared = declared_dependencies(&args.analyzed.paths);
+    let settled = args.analyzed.resolution()?;
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution)
+    );
     let report = match args.overlays.scip.as_deref() {
         Some(index) => {
             let edges =
