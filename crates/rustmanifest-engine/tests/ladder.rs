@@ -71,6 +71,23 @@ const CALCULATOR: &str = "use std::{env, num::ParseIntError, process::ExitCode};
     \x20   ExitCode::SUCCESS\n\
     }\n";
 
+/// The same store as a tutorial actually writes it: commands off the
+/// command line, a fallback where none was given, a file behind it.
+const TUTORIAL: &str = "use std::{env, fs, io::{self, Write}, process::ExitCode};\n\
+    fn save(path: &str, done: bool) -> io::Result<()> { fs::write(path, \
+    \x20   format!(\"{done}\")) }\n\
+    fn main() -> ExitCode {\n\
+    \x20   let args: Vec<String> = env::args().collect();\n\
+    \x20   let command = args.get(1).map(String::as_str).unwrap_or(\"list\");\n\
+    \x20   let stdout = io::stdout();\n\
+    \x20   let mut handle = stdout.lock();\n\
+    \x20   let _ = writeln!(handle, \"{command}\");\n\
+    \x20   match save(\"todo.txt\", true) {\n\
+    \x20       Ok(()) => ExitCode::SUCCESS,\n\
+    \x20       Err(_) => ExitCode::from(2),\n\
+    \x20   }\n\
+    }\n";
+
 /// A store with the four operations of a tutorial, written to a handle
 /// rather than to the stream macro.
 const STORE: &str = "use std::{collections::BTreeMap, io::{self, Write}, process::ExitCode};\n\
@@ -172,5 +189,28 @@ fn the_store_states_the_status_it_leaves_and_claims_nothing_further() {
     assert!(
         !said.contains("command-line"),
         "an intake nothing performs is claimed: {said}"
+    );
+}
+
+/// A written position singles one element out; what follows transforms
+/// that element and cannot change which one it was. Degrading the
+/// selector there cost the whole intake clause its licence.
+#[test]
+fn the_tutorial_keeps_the_position_it_read_through_later_adapters() {
+    let said = stated(&[("app/src/main.rs", TUTORIAL)]);
+    assert!(
+        said.contains("takes position 1 of its command-line"),
+        "the position the source settled is lost: {said}"
+    );
+}
+
+/// A fallback is a choice the source really makes, and the side it falls
+/// back to is written right there.
+#[test]
+fn the_tutorial_states_both_sides_of_its_fallback() {
+    let said = stated(&[("app/src/main.rs", TUTORIAL)]);
+    assert!(
+        said.contains("the written value \"list\""),
+        "the fallback the source writes is not named: {said}"
     );
 }

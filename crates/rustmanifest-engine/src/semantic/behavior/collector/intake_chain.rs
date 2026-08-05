@@ -38,6 +38,13 @@ impl FactCollector {
     /// The record the construct stands over is found by the origin of its
     /// receiver, so a chain of any length is followed one link at a time
     /// and nothing is searched for.
+    ///
+    /// An adapter that does not keep positions costs the read its proven
+    /// selector — but only while the read still stands for a sequence.
+    /// Once a written position singled one element out, there is no
+    /// sequence left to re-order: what follows transforms that element and
+    /// cannot change which one it was. Degrading the selector there would
+    /// throw away a fact the source had already settled.
     pub(super) fn follow_intake(&mut self, call: &syn::ExprMethodCall) -> bool {
         use syn::spanned::Spanned;
 
@@ -55,7 +62,7 @@ impl FactCollector {
             .iter()
             .find(|(named, _)| *named == method.as_str())
         {
-            if !keeps {
+            if !keeps && read.shape != ReadShape::Element {
                 read.selector = Selector::NotIdentified(SelectorGap::Advanced);
             }
         } else if ELEMENT_ADAPTERS.contains(&method.as_str()) {
