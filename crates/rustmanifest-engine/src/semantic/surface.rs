@@ -184,6 +184,48 @@ mod tests {
         assert_eq!(recovered.dynamic, 0);
     }
 
+    /// A method-router folded into another with `merge` carries verbs of
+    /// its own. Reading only the outermost chain lost every one of them —
+    /// three real endpoints of one corpus workspace were missing from the
+    /// recovered table for exactly this reason.
+    #[test]
+    fn verbs_folded_into_a_method_router_are_recovered() {
+        let recovered = surface(&source(
+            "pub fn routes() -> Router {\n    Router::new().route(\"/api/me\", \
+             get(read).merge(put(write).route_layer(guard())))\n}"
+        ));
+        let rows: Vec<(&str, &str, &str)> = recovered
+            .routes
+            .iter()
+            .map(|route| {
+                (
+                    route.method.as_str(),
+                    route.path.as_str(),
+                    route.handler.as_str()
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            [("GET", "/api/me", "read"), ("PUT", "/api/me", "write")]
+        );
+    }
+
+    #[test]
+    fn a_chain_behind_a_fold_keeps_every_verb_it_writes() {
+        let recovered = surface(&source(
+            "pub fn routes() -> Router {\n    Router::new().route(\"/api/x/{id}\", \
+             get(read).merge(patch(update).delete(drop_it).route_layer(guard())))\n}"
+        ));
+        let mut methods: Vec<&str> = recovered
+            .routes
+            .iter()
+            .map(|route| route.method.as_str())
+            .collect();
+        methods.sort_unstable();
+        assert_eq!(methods, ["DELETE", "GET", "PATCH"]);
+    }
+
     #[test]
     fn nesting_composes_prefixes_and_merging_keeps_paths() {
         let recovered = surface(&source(

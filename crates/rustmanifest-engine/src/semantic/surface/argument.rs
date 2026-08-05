@@ -22,6 +22,12 @@ pub(super) fn literal(expression: &Expr) -> Option<String> {
 
 /// Reads the `(method, handler)` pairs of a method-router argument,
 /// following `get(h).post(other)` chains.
+///
+/// A method-router can also be assembled by folding one into another —
+/// `get(h).merge(put(other).route_layer(l))` — so a call whose name is not
+/// a method wrapper has its arguments read as method-routers too. Without
+/// that, only the verbs written on the outermost chain were recovered and
+/// every verb behind a fold was lost.
 pub(super) fn method_router(model: &FrameworkModel, expression: &Expr) -> Vec<(String, String)> {
     match expression {
         Expr::Call(call) => {
@@ -39,10 +45,14 @@ pub(super) fn method_router(model: &FrameworkModel, expression: &Expr) -> Vec<(S
         Expr::MethodCall(call) => {
             let verb = call.method.to_string();
             let mut pairs = method_router(model, &call.receiver);
-            if model.methods.contains(&verb.as_str())
-                && let Some(handler) = call.args.first().and_then(handler_name)
-            {
-                pairs.push((verb.to_uppercase(), handler));
+            if model.methods.contains(&verb.as_str()) {
+                if let Some(handler) = call.args.first().and_then(handler_name) {
+                    pairs.push((verb.to_uppercase(), handler));
+                }
+            } else {
+                for argument in &call.args {
+                    pairs.extend(method_router(model, argument));
+                }
             }
             pairs
         }
