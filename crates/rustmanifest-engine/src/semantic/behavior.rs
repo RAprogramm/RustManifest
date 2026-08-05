@@ -256,6 +256,41 @@ mod tests {
         assert!(named(&all, "poke").reads.is_empty());
     }
 
+    /// An effect category on its own is an assertion; the site says what
+    /// proved it, so a reader can go to the byte range and check.
+    #[test]
+    fn an_effect_cites_the_path_that_proved_it() {
+        let all = facts(
+            "fn serve() { std::net::TcpListener::bind(\"0.0.0.0:80\").ok(); }\nfn configure() { \
+             std::env::var(\"PORT\").ok(); }"
+        );
+        let serve = named(&all, "serve");
+        assert_eq!(serve.effects, vec![Effect::Network]);
+        assert_eq!(serve.effect_sites.len(), 1);
+        assert_eq!(serve.effect_sites[0].effect, Effect::Network);
+        assert_eq!(serve.effect_sites[0].path, "std::net::TcpListener::bind");
+        assert!(serve.effect_sites[0].range.end > serve.effect_sites[0].range.start);
+
+        let configure = named(&all, "configure");
+        assert_eq!(configure.effects, vec![Effect::Environment]);
+        assert_eq!(configure.effect_sites[0].path, "std::env::var");
+    }
+
+    #[test]
+    fn an_unsafe_block_cites_itself() {
+        let all = facts("fn poke() { unsafe { } }");
+        let sites = &named(&all, "poke").effect_sites;
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].effect, Effect::Unsafe);
+        assert_eq!(sites[0].path, "unsafe");
+    }
+
+    #[test]
+    fn a_function_touching_nothing_cites_nothing() {
+        let all = facts("fn add(left: u8, right: u8) -> u8 { left + right }");
+        assert!(named(&all, "add").effect_sites.is_empty());
+    }
+
     #[test]
     fn colliding_type_names_resolve_by_consumer_proximity() {
         let sources = vec![

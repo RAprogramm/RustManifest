@@ -4,8 +4,14 @@
 //! Side-effect categories and allocations read off a written path, and
 //! the effect an `unsafe` block marks the function with.
 
+use rustmanifest_schema::Range;
+use syn::spanned::Spanned as _;
+
 use super::FactCollector;
-use crate::semantic::{behavior::types::Effect, knowledge};
+use crate::semantic::{
+    behavior::types::{Effect, EffectSite},
+    knowledge
+};
 
 impl FactCollector {
     /// Classifies a call path against the effect sink patterns, seen
@@ -35,6 +41,11 @@ impl FactCollector {
         };
         if let Some(effect) = effect {
             self.facts.effects.push(effect);
+            self.facts.effect_sites.push(EffectSite {
+                effect,
+                path: joined,
+                range: span_range(path.span())
+            });
         }
     }
 
@@ -64,9 +75,25 @@ impl FactCollector {
         syn::visit::visit_expr_path(self, path);
     }
 
-    /// Marks the function as carrying the unsafe effect.
+    /// Marks the function as carrying the unsafe effect, citing the block
+    /// itself as what proved it.
     pub(super) fn collect_unsafe_block(&mut self, block: &syn::ExprUnsafe) {
         self.facts.effects.push(Effect::Unsafe);
+        self.facts.effect_sites.push(EffectSite {
+            effect: Effect::Unsafe,
+            path:   "unsafe".to_owned(),
+            range:  span_range(block.unsafe_token.span)
+        });
         syn::visit::visit_expr_unsafe(self, block);
+    }
+}
+
+/// Converts a span to the byte range the fact base records, saturating
+/// rather than wrapping on a file larger than a `u32` can address.
+fn span_range(span: proc_macro2::Span) -> Range {
+    let bytes = span.byte_range();
+    Range {
+        start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+        end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
     }
 }

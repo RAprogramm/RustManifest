@@ -16,7 +16,7 @@ use super::{
     signature::{error_types, param_facts, param_slots, parameter_elements, parameter_types},
     tables::TypeTables,
     targeting::name_targets,
-    types::{Effect, FunctionFacts}
+    types::{Effect, EffectSite, FunctionFacts}
 };
 
 /// Extracts the facts of one function body against its signature.
@@ -46,6 +46,7 @@ pub(super) fn function_facts(
             constructs: Vec::new(),
             error_types: Vec::new(),
             effects: Vec::new(),
+            effect_sites: Vec::new(),
             params,
             flags: context.flags,
             calls: Vec::new(),
@@ -85,6 +86,10 @@ pub(super) fn function_facts(
     };
     if matches!(signature.safety, syn::Safety::Unsafe(_)) {
         collector.facts.effects.push(Effect::Unsafe);
+        collector
+            .facts
+            .effect_sites
+            .push(unsafe_signature_site(signature));
     }
     collector.facts.error_types = error_types(signature);
     collector.visit_block(block);
@@ -97,6 +102,13 @@ pub(super) fn function_facts(
     collector.facts.constructs.dedup();
     collector.facts.effects.sort();
     collector.facts.effects.dedup();
+    collector.facts.effect_sites.sort_by(|left, right| {
+        left.effect
+            .cmp(&right.effect)
+            .then(left.range.start.cmp(&right.range.start))
+            .then(left.path.cmp(&right.path))
+    });
+    collector.facts.effect_sites.dedup();
     collector.facts.calls.sort();
     collector.facts.calls.dedup();
     name_targets(&mut collector.facts, signature, context.impl_type);
@@ -108,4 +120,18 @@ pub(super) fn function_facts(
         &tables.crates
     );
     collector.facts
+}
+
+/// Cites an `unsafe fn` signature as what proved the unsafe effect: the
+/// keyword stands in the declaration, not in any call the body makes.
+fn unsafe_signature_site(signature: &syn::Signature) -> EffectSite {
+    let bytes = signature.ident.span().byte_range();
+    EffectSite {
+        effect: Effect::Unsafe,
+        path:   "unsafe fn".to_owned(),
+        range:  Range {
+            start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+            end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+        }
+    }
 }

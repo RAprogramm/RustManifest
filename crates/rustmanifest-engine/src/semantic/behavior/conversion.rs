@@ -88,6 +88,7 @@ fn conversion_fact(source: usize, owner: &str, source_type: String) -> FunctionF
         builds: Vec::new(),
         constructs: vec![owner.to_owned()],
         error_types: Vec::new(),
+        effect_sites: Vec::new(),
         effects: Vec::new(),
         params: vec![ParamFacts {
             name:        "source".to_owned(),

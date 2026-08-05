@@ -10,6 +10,21 @@ use std::fmt;
 
 use rustmanifest_schema::Range;
 
+/// One written path that proved a side effect, with where it stands.
+///
+/// [`FunctionFacts::effects`] states *what* a function touches; this states
+/// *what proved it*, so a claim about a function's capability can cite the
+/// call it rests on instead of asserting the category on its own authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EffectSite {
+    /// Effect the path proved.
+    pub effect: Effect,
+    /// The written path, joined by `::` as the source spells it.
+    pub path:   String,
+    /// Byte range of that path.
+    pub range:  Range
+}
+
 /// Side-effect category observed in a function body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Effect {
@@ -194,6 +209,9 @@ pub struct FunctionFacts {
     pub error_types:   Vec<String>,
     /// Side-effect categories observed, deduplicated and sorted.
     pub effects:       Vec<Effect>,
+    /// The paths that proved those categories, one entry per proving site,
+    /// sorted by effect then by position.
+    pub effect_sites:  Vec<EffectSite>,
     /// Ownership profile of each parameter, in declaration order.
     pub params:        Vec<ParamFacts>,
     /// Declaration flags: trait-impl membership, test marker, external
