@@ -13,6 +13,7 @@
 //! functions reach the wire and closes their effects over the call graph.
 
 mod choice;
+mod effect_site;
 mod fact;
 mod input_read;
 mod operation;
