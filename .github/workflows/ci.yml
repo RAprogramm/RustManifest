@@ -55,8 +55,45 @@ jobs:
           shared-key: test-${{ matrix.os }}
       - name: cargo test
         run: cargo test --workspace --all-features --locked
+      - name: Benchmarks still compile
+        run: cargo bench --workspace --no-run --locked
       - name: cargo build --release
         run: cargo build --workspace --release --locked
+
+  self-analysis:
+    name: self-analysis
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: self-analysis
+      - name: Build the release binary
+        run: cargo build --release --bin rustmanifest --locked
+      # The engine analyzing its own sources is the only corpus CI can
+      # reach: `eval/corpus.toml` names local and private checkouts, so the
+      # evaluation harness stays a gate the maintainer runs, not this one.
+      # Exit code 1 means findings were reported and is expected; 2 means
+      # the run itself failed. The ceiling is deliberately far above the
+      # sub-second time this takes, so it catches an order-of-magnitude
+      # regression without depending on how loaded a shared runner is.
+      - name: Analyze this workspace
+        run: |
+          set +e
+          timeout 120 ./target/release/rustmanifest check crates --format json > findings.json
+          status=$?
+          set -e
+          if [ "$status" -ge 2 ]; then
+            echo "self-analysis failed with exit status $status"
+            exit 1
+          fi
+          echo "findings reported: $(python3 -c 'import json;print(len(json.load(open("findings.json"))))')"
+      - name: Every command answers about this workspace
+        run: |
+          for command in overview coverage facts graph learn meaning report; do
+            timeout 300 ./target/release/rustmanifest "$command" crates > /dev/null \
+              || { echo "$command failed"; exit 1; }
+          done
 
   msrv:
     name: msrv
