@@ -8,21 +8,20 @@
 use super::FactCollector;
 
 impl FactCollector {
-    /// Renders a field expression as `Owner.field` when the base is a
-    /// typed parameter or `self`, or `?.field` otherwise.
+    /// Renders a field expression as `Owner.field` where the tables name
+    /// the type holding it, or `?.field` where they do not.
+    ///
+    /// The owner is read by the same typing the rest of the collector
+    /// uses, so a field of a field, of an element, or of a local typed by
+    /// its own constructor is named exactly where that typing answers.
+    /// Reading only a bare parameter name here made the two readings of
+    /// one question disagree, and left every nested chain unnamed.
     pub(super) fn field_key(&self, field: &syn::ExprField) -> Option<String> {
         let syn::Member::Named(name) = &field.member else {
             return None;
         };
-        let owner = match field.base.as_ref() {
-            syn::Expr::Path(path) => path
-                .path
-                .get_ident()
-                .and_then(|ident| self.param_types.get(&ident.to_string()))
-                .map_or("?", String::as_str),
-            _ => "?"
-        };
-        Some(format!("{owner}.{name}"))
+        let owner = self.expr_type(&field.base);
+        Some(format!("{}.{name}", owner.as_deref().unwrap_or("?")))
     }
 
     /// Records the outermost field of an assignment target as a write —
