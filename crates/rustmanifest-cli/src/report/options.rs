@@ -17,5 +17,10 @@ pub struct ReportArgs {
 
     /// Cap for every ranked list in the report.
     #[arg(long, default_value_t = 10)]
-    pub top: usize
+    pub top: usize,
+
+    /// Resolution overlay written by `rustmanifest-resolve`, so a call
+    /// into a library states the type it hands back instead of a refusal.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>
 }

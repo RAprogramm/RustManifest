@@ -25,7 +25,12 @@ pub struct OverviewArgs {
 
     /// Cap for every ranked list in the report.
     #[arg(long, default_value_t = 10)]
-    pub top: usize
+    pub top: usize,
+
+    /// Resolution overlay written by `rustmanifest-resolve`, so a call
+    /// into a library states the type it hands back instead of a refusal.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>
 }
 
 /// Runs the `overview` subcommand: analyzes the paths and prints the
@@ -37,7 +42,11 @@ pub(crate) fn run_overview(args: &OverviewArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let workspace = resolution.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
     let conventions: Vec<Convention> = learn_roles(&workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {

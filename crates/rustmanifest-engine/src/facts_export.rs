@@ -46,6 +46,20 @@ pub fn facts_json(
     with_features: bool,
     scip: Option<&ScipEdges>
 ) -> serde_json::Value {
+    facts_json_with(sources, None, filter, active, with_features, scip)
+}
+
+/// Renders the facts as [`facts_json`] does, reading what a resolver
+/// settled about the sources where one ran.
+#[must_use]
+pub fn facts_json_with(
+    sources: &[Source],
+    resolution: Option<&rustmanifest_schema::Resolution>,
+    filter: Option<&str>,
+    active: bool,
+    with_features: bool,
+    scip: Option<&ScipEdges>
+) -> serde_json::Value {
     let facts = crate::semantic::behavior(sources);
     let overlay = scip.map(|edges| edges.candidates(&facts, sources));
     let graph = call_graph_with(
@@ -54,7 +68,7 @@ pub fn facts_json(
         overlay.as_deref()
     );
     let transitive = transitive_effects(&facts, &graph);
-    let summaries = crate::semantic::summaries(sources, &facts, &graph);
+    let summaries = crate::semantic::summaries_with(sources, resolution, &facts, &graph);
     let selected: Vec<serde_json::Value> = facts
         .iter()
         .enumerate()

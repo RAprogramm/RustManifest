@@ -37,7 +37,11 @@ pub(crate) fn run_report(args: &ReportArgs) -> anyhow::Result<ExitCode> {
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let root = args.paths.first().cloned().unwrap_or_default();
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let workspace = resolution.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
     let mut out = String::new();
     out.push_str(&behaviour(&workspace, &root));
     out.push_str(&judgement(&workspace, &root));

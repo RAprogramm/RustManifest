@@ -45,6 +45,11 @@ pub struct FactsArgs {
     #[arg(long, value_name = "INDEX")]
     pub scip: Option<PathBuf>,
 
+    /// Resolution overlay written by `rustmanifest-resolve`, so a call
+    /// into a library states the type it hands back instead of a refusal.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>,
+
     /// Expand every discovered crate via `cargo +nightly rustc -- \
     /// -Zunpretty=expanded` (all features, falling back to default);
     /// a successfully expanded crate's stream replaces its `src`
@@ -74,14 +79,17 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
         .map(rustmanifest_engine::ScipEdges::from_file)
         .transpose()
         .context("loading SCIP index")?;
-    let rendered = serde_json::to_string_pretty(&rustmanifest_engine::facts_export::facts_json(
-        &sources,
-        args.filter.as_deref(),
-        args.active,
-        args.features,
-        scip.as_ref()
-    ))
-    .context("serializing facts")?;
+    let resolution = crate::resolution(args.resolution.as_deref())?;
+    let rendered =
+        serde_json::to_string_pretty(&rustmanifest_engine::facts_export::facts_json_with(
+            &sources,
+            resolution.as_ref(),
+            args.filter.as_deref(),
+            args.active,
+            args.features,
+            scip.as_ref()
+        ))
+        .context("serializing facts")?;
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     writeln!(handle, "{rendered}").context("writing facts output")?;
