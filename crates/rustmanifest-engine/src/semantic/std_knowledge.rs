@@ -13,6 +13,7 @@
 
 mod arithmetic;
 mod flow;
+mod method_effect;
 mod presence;
 mod result;
 mod selection;
@@ -21,12 +22,12 @@ mod value_path;
 pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
+    method_effect::method_effect,
     presence::{Presence, presence_method},
     result::method_result,
     selection::selects_an_element,
     value_path::value_path
 };
-use super::behavior::Effect;
 
 /// Well-known always-`Copy` types by their last path segment.
 pub(super) const COPY_TYPES: [&str; 26] = [
@@ -125,70 +126,6 @@ pub(super) fn is_copy_type(name: &str) -> bool {
 pub(super) const EXTERNAL_CONSTRUCTORS: [(&str, &str); 2] =
     [("tempdir", "TempDir"), ("temp_dir", "PathBuf")];
 
-/// `(type, method, effect)` rows for std methods that perform the
-/// effect when called on an instance — the axiom floor under derived
-/// effect chains. Path-pattern sinks catch associated calls like
-/// `File::open`; these rows catch the instance calls path patterns
-/// cannot see. Only rows the std documentation guarantees; accessors
-/// stay out.
-pub(super) const METHOD_EFFECTS: [(&str, &str, Effect); 47] = [
-    ("Child", "kill", Effect::Process),
-    ("Child", "wait", Effect::Process),
-    ("Child", "wait_with_output", Effect::Process),
-    ("Command", "output", Effect::Process),
-    ("Command", "spawn", Effect::Process),
-    ("Command", "status", Effect::Process),
-    ("DirBuilder", "create", Effect::FileSystem),
-    ("File", "flush", Effect::FileSystem),
-    ("File", "metadata", Effect::FileSystem),
-    ("File", "read", Effect::FileSystem),
-    ("File", "read_exact", Effect::FileSystem),
-    ("File", "read_to_end", Effect::FileSystem),
-    ("File", "read_to_string", Effect::FileSystem),
-    ("File", "set_len", Effect::FileSystem),
-    ("File", "set_permissions", Effect::FileSystem),
-    ("File", "sync_all", Effect::FileSystem),
-    ("File", "sync_data", Effect::FileSystem),
-    ("File", "try_clone", Effect::FileSystem),
-    ("File", "write", Effect::FileSystem),
-    ("File", "write_all", Effect::FileSystem),
-    ("OpenOptions", "open", Effect::FileSystem),
-    ("Stderr", "flush", Effect::ConsoleIo),
-    ("Stderr", "write", Effect::ConsoleIo),
-    ("Stderr", "write_all", Effect::ConsoleIo),
-    ("Stdin", "read_line", Effect::ConsoleIo),
-    ("Stdin", "read_to_string", Effect::ConsoleIo),
-    ("Stdout", "flush", Effect::ConsoleIo),
-    ("Stdout", "write", Effect::ConsoleIo),
-    ("Stdout", "write_all", Effect::ConsoleIo),
-    ("TcpListener", "accept", Effect::Network),
-    ("TcpListener", "incoming", Effect::Network),
-    ("TcpStream", "flush", Effect::Network),
-    ("TcpStream", "peek", Effect::Network),
-    ("TcpStream", "read", Effect::Network),
-    ("TcpStream", "read_exact", Effect::Network),
-    ("TcpStream", "read_to_end", Effect::Network),
-    ("TcpStream", "read_to_string", Effect::Network),
-    ("TcpStream", "shutdown", Effect::Network),
-    ("TcpStream", "write", Effect::Network),
-    ("TcpStream", "write_all", Effect::Network),
-    ("UdpSocket", "connect", Effect::Network),
-    ("UdpSocket", "peek", Effect::Network),
-    ("UdpSocket", "peek_from", Effect::Network),
-    ("UdpSocket", "recv", Effect::Network),
-    ("UdpSocket", "recv_from", Effect::Network),
-    ("UdpSocket", "send", Effect::Network),
-    ("UdpSocket", "send_to", Effect::Network)
-];
-
-/// Looks up the effect a std method performs on its receiver type.
-pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
-    METHOD_EFFECTS
-        .iter()
-        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
-        .map(|(_, _, effect)| *effect)
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -197,7 +134,7 @@ pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{Effect, MUTATING_METHODS, consuming_method, is_copy_type, method_effect};
+    use super::{MUTATING_METHODS, consuming_method, is_copy_type};
 
     #[test]
     fn scalars_and_known_std_types_are_copy() {
@@ -219,26 +156,5 @@ mod tests {
         let mut sorted = MUTATING_METHODS;
         sorted.sort_unstable();
         assert_eq!(sorted, MUTATING_METHODS);
-    }
-
-    #[test]
-    fn std_method_axioms_cover_io_and_spare_accessors() {
-        assert_eq!(method_effect("File", "write_all"), Some(Effect::FileSystem));
-        assert_eq!(method_effect("TcpStream", "read"), Some(Effect::Network));
-        assert_eq!(method_effect("Command", "spawn"), Some(Effect::Process));
-        assert_eq!(method_effect("Stdout", "flush"), Some(Effect::ConsoleIo));
-        assert_eq!(method_effect("File", "path"), None);
-        assert_eq!(method_effect("Vec", "push"), None);
-    }
-
-    #[test]
-    fn method_effect_table_is_sorted_for_review() {
-        let rows: Vec<(&str, &str)> = super::METHOD_EFFECTS
-            .iter()
-            .map(|(owner, method, _)| (*owner, *method))
-            .collect();
-        let mut sorted = rows.clone();
-        sorted.sort_unstable();
-        assert_eq!(sorted, rows);
     }
 }

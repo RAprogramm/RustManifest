@@ -3,17 +3,27 @@
 
 //! Tiered analysis engine for `rustmanifest`.
 //!
-//! The engine exposes three tiers selectable per-rule:
+//! Rules are checked at one of three tiers, chosen per rule: a
+//! [`PatternAnalyzer`] scanning file text, an [`AstAnalyzer`] walking the
+//! `syn` tree of one file, and the [`semantic`] tier reading the whole
+//! workspace. An [`Orchestrator`] runs them in parallel over the files
+//! [`walker::discover`] finds, emits byte-precise findings, and honours
+//! the [`pragma`] suppressions written in the source.
 //!
-//! - **Pattern** — fast regex / aho-corasick scan over file text.
-//! - **AST** — `syn`-based traversal for structural and local semantic checks.
-//! - **Semantic** — full semantic analysis via `rust-analyzer` or cargo
-//!   integrations (off by default).
+//! Above the rules sits what the engine *derives* rather than checks, all
+//! of it in [`semantic`] and none of it requiring a compiler: the type and
+//! module graphs, per-function behavioral facts, the call graph, the
+//! external surface a service exposes, what each subsystem can do to the
+//! world, what a program writes out and reads in, and where a value came
+//! from — across calls, through the per-function summary. Every one of
+//! those answers is a record with the site that proves it, and every
+//! position the reading could not settle is a named refusal rather than a
+//! silence, counted by [`coverage`] so a reader can tell the share that
+//! was answered from the share that was merely recorded.
 //!
-//! Phase 1B implements the **pattern** tier end-to-end: a [`PatternAnalyzer`]
-//! per rule, an [`Orchestrator`] coordinating parallel execution across files
-//! discovered through [`walker::discover`], plus byte-precise [`Finding`]s
-//! and a [`pragma`] suppression mechanism.
+//! What a resolver settles about a workspace — which function a call
+//! reaches, what it hands back — arrives as a plain-data overlay from the
+//! `rustmanifest-resolve` binary; nothing here links a compiler frontend.
 
 #![allow(
     clippy::multiple_crate_versions,
