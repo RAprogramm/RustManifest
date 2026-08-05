@@ -2,11 +2,11 @@
 
 Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
-**Current status (2026-08-04):** Phases 1C, 1D, 1E, 2, and 2S shipped; Phase 2M is landing in parts. The rules pack holds 25 rules — `RM-SEC-001`..`003`, `RM-STRUCT-001`..`011`, `RM-MEM-001`..`003`, `RM-IO-001`..`004`, `RM-QUAL-001`..`004` — and tier-2 AST rules cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, call graph with transitive effects. The stdio MCP server ships eight tools — `review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`, `project_overview`, `function_facts`, `learn_conventions` — and nine bundled methodology resources, so agents read the same project understanding the CLI prints. The CLI ships ten commands: `check`, `coverage`, `explain`, `facts`, `graph`, `learn`, `meaning`, `overview`, `prescribe`, `report`.
+**Current status (2026-08-05):** Phases 1C, 1D, 1E, 2, 2S and 2M shipped. The rules pack holds 25 rules — `RM-SEC-001`..`003`, `RM-STRUCT-001`..`011`, `RM-MEM-001`..`003`, `RM-IO-001`..`004`, `RM-QUAL-001`..`004` — and tier-2 AST rules cover every `STRUCTURE.md` section. Phase 2S (semantic tier, per [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RESEARCH-2026-07](./RESEARCH-2026-07-behavioral-tier.md)): workspace type graph with derive/macro expansion absorption, module graph with cycle detection, behavioral facts (reads/writes/constructs/errors/effects), user-declared invariants, ownership facts, call graph with transitive effects. The stdio MCP server ships eight tools — `review_file`, `review_path`, `check_rule`, `lint_structure`, `explain_rule`, `project_overview`, `function_facts`, `learn_conventions` — and nine bundled methodology resources, so agents read the same project understanding the CLI prints. The CLI ships ten commands: `check`, `coverage`, `explain`, `facts`, `graph`, `learn`, `meaning`, `overview`, `prescribe`, `report`.
 
 **Landed since the semantic tier closed:** the resolved-name extractor as an opt-in SCIP overlay (`--scip`) reaching `facts`, `coverage`, `check` and the invariant surface, with edge provenance in traces; call resolution confined to cargo build-target boundaries; error-conversion edges synthesized from `From` implementations at `?` sites; macro expansion promoted to a standard analysis mode; multi-implementor dispatch over-approximated with the modality stated in the trace; ecosystem knowledge packs (`reqwest`, `tempfile`, `tokio`) plus standard-library knowledge, quoted in findings from the library's own documentation with the cost of a deviation counted rather than described; machine-applicable fixes applied by `check --fix`.
 
-**Next:** finish Phase 2M (subsystem capability, and the route-table acceptance measurement), then Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`) and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
+**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`) and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
 
 **Source layout:** no source file exceeds 150 pure code lines (blank lines, `//`/`///`/`//!` and `#[cfg(test)]` blocks excluded); oversized modules are split into nested single-responsibility submodules, with the parent as `X.rs` beside the directory `X/` and never a `mod.rs`.
 
@@ -122,7 +122,7 @@ Executes the plan in [RFC 0001](./RFCS/0001-semantic-tier-fact-base.md) and [RES
 - **Interpretable learning layer** (`rustmanifest-learn`, `rustmanifest learn`): one deterministic Tsetlin machine per role over the binarized features, dumped as an auditable clause list (research doc §5, admitted by the §8 gate result: +17pp macro-F1 over logistic regression). Clauses describe the codebase; they are never a source of findings.
 - Precision ceiling documented: move/borrow flow approximated by use-shape at the syntactic tier; real dataflow lands with the MIR refiner (research plan phase 6).
 
-### Phase 2M — Meaning tier: framework models, external surface, subsystem capabilities ⏳ in progress
+### Phase 2M — Meaning tier: framework models, external surface, subsystem capabilities ✅ done (local)
 
 Executes [RFC 0002](./RFCS/0002-meaning-tier-framework-models.md). The semantic tier
 answers structure and behavior; this phase answers what the program exposes and what
@@ -178,9 +178,17 @@ each subsystem is for, deterministically and with evidence per row.
   it can do. The proof channel itself is new fact-base surface
   (`FunctionFacts::effect_sites`), so an effect category is no longer an assertion
   without a citation.
-- ⏳ **Acceptance (route table)**: precision and recall of the recovered route table
-  against the OpenAPI paths projects declare independently of the router chain,
-  measured on real workspaces in the style of the SCIP ground-truth experiment.
+- ✅ **Acceptance (route table)** (`rustmanifest-eval routes`): precision and recall of
+  the recovered route table against the `#[utoipa::path]` endpoints projects declare
+  independently of the router chain. Measured 2026-08-05 on the two API workspaces of
+  the corpus: `ratma-studio-api` recall 100.0% (139/139) at precision 91.4%,
+  `aura-api` recall 95.7% (89/93) at precision 83.2%. The two rates are never merged
+  into one figure, and the disagreeing endpoints are named rather than counted. Both
+  sides are named for what they are: an *undeclared* row is recovered and not
+  annotated, an *unrecovered* row is declared and not produced — which of the two
+  tables is wrong is the question the measurement asks, not one it answers. The
+  measurement reports and never gates: turning it into a threshold before anyone has
+  read what it says would invite the numbers to be chosen rather than measured.
 - ✅ **Acceptance (output)**: the smallest program in the language — a single
   unconditional greeting — yields exactly one claim naming the stream, the literal
   payload, and certainty, and every weakening of that program (a branch, a loop, a
