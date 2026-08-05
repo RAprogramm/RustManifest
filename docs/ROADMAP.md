@@ -165,8 +165,19 @@ each subsystem is for, deterministically and with evidence per row.
 - ✅ **One-pass reports** (`rustmanifest overview`, `rustmanifest report`):
   everything the engine knows about a project, behaviour first, absent sections
   dropped rather than printed empty.
-- ⏳ **Subsystem capability**: per-module capability with the function and call that
-  proved it, plus the set of subsystems reachable from the entry point. Not started.
+- ✅ **Subsystem capability** (`semantic/capability/`): what each module can do to the
+  world outside the process — serves, fetches, stores, configures, persists, reports,
+  spawns — read from the behavioral effect set and, where the category alone cannot
+  tell a listening socket from a dialled one, from the written call that proved it.
+  Each row names the function, that call, and its byte range, so a reader checks
+  instead of believing. `capabilities` states it per module; `started` states which
+  capabilities an entry point reaches through the call graph, keeping an unreached
+  one as a row marked unreached rather than dropping it. A module whose functions
+  touch nothing outside the process gets no row: silence means "no proof", never
+  "no capability". `unsafe` proves none — it says how the code is checked, not what
+  it can do. The proof channel itself is new fact-base surface
+  (`FunctionFacts::effect_sites`), so an effect category is no longer an assertion
+  without a citation.
 - ⏳ **Acceptance (route table)**: precision and recall of the recovered route table
   against the OpenAPI paths projects declare independently of the router chain,
   measured on real workspaces in the style of the SCIP ground-truth experiment.
