@@ -166,7 +166,7 @@ afterwards would defeat the budget it exists for.
 
 ---
 
-## 6. The findings cache addresses the cheap half and is unsafe at scale
+## 6. The findings cache addresses the cheap half and is unsafe at scale — done, except the last part
 
 `FindingsCache` keys entries on a 64-bit FNV-1a hash of the file bytes plus a
 rules fingerprint (`cache.rs`).
@@ -178,20 +178,47 @@ rules fingerprint (`cache.rs`).
 | The semantic tier is deliberately excluded from the cache | the cache covers the cheap per-file half and misses the half that dominates the runtime |
 
 **Work.** Widen the key to 128 bits, bound the store, and add a workspace-level
-cache entry for the semantic tier keyed on the whole analyzed file set. The
-last part lands after items 2 and 3, since a per-rule graph rebuild would make
-the cached and uncached paths disagree on cost but not on content.
+cache entry for the semantic tier keyed on the whole analyzed file set.
+
+**What landed.** The key is a 128-bit FNV-1a, and the entry now records the
+byte lengths of the file and of the rule-set fingerprint it was built from.
+A lookup whose lengths disagree is a miss, so an address collision costs a
+re-analysis instead of answering about a file it never saw. The store prunes
+its least recently modified entries down to a capacity when it is opened —
+one directory read per run rather than one per file. A run with the cache
+enabled produces byte-identical output to a run without it.
+
+**The semantic-tier cache is dropped.** It was justified when that tier took
+7.5 s; it takes 0.65 s now, and its key would be the whole analyzed file set,
+so any edit to any file misses. In the loop the cache exists for — edit,
+re-check — it would miss every time and add a write of the whole result set
+for nothing. Reintroduce it only if a future tier makes the workspace pass
+expensive again.
 
 ---
 
-## 7. Nothing guards the gains
+## 7. Nothing guards the gains — done, differently than planned
 
 `eval/baseline.json` and `eval/corpus.toml` exist and `rustmanifest-eval` runs
 them, but no CI job does. `crates/rustmanifest-engine/benches/orchestrator.rs`
 exists with no regression gate.
 
-**Work.** A CI job that runs the eval corpus against the committed baseline and
-fails on drift, and a benchmark job so items 2 to 6 cannot silently regress.
+**The eval corpus cannot be that gate.** Its six entries are paths to local
+checkouts, and two of them are private repositories; CI has no way to
+materialize them. The harness stays a gate the maintainer runs, and this is a
+property of the corpus, not an omission to fix later.
+
+**What landed instead**, built out of what CI can actually reach:
+
+| Gate | What it catches |
+| --- | --- |
+| `cargo bench --workspace --no-run` in the test job | benchmarks silently rotting out of compilation |
+| a `self-analysis` job running `check` over this workspace | the engine failing outright on a real workspace, on every push |
+| the same job running `overview`, `coverage`, `facts`, `graph`, `learn`, `meaning` and `report` | a command that answers for the small fixtures but not for a real one |
+
+Each analysis step carries a timeout far above the sub-second time it takes,
+so an order-of-magnitude regression fails the build while ordinary runner
+load does not.
 
 ---
 
@@ -204,11 +231,16 @@ fails on drift, and a benchmark job so items 2 to 6 cannot silently regress.
 | 113 identical `#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]` blocks with one shared reason string sit above the test modules — roughly 550 lines of duplication | workspace-wide |
 | `Makefile.toml` holds a single task and is written in Russian, against the repository's own rule that every artifact is English | `Makefile.toml` |
 
-**Work.** Lift the crate-version allow to the workspace lint table, translate
-`Makefile.toml`, and collapse the test-module allow blocks behind one macro
-exported for test use. `rustmanifest-lsp` stays a member until Phase 5 unless
-explicitly dropped — removing a published crate name is not a cleanup decision
-to take silently.
+**Work and verdicts.**
+
+`Makefile.toml` is translated. The other three are deliberately left alone,
+each for a reason worth recording:
+
+| Item | Verdict |
+| --- | --- |
+| `multiple_crate_versions` in two crates | **keep.** Lifting it to `[workspace.lints.clippy]` would be a workspace-level allow override, which this repository does not permit. The duplication is two attributes; the alternative is a hole in the lint wall for every crate. |
+| the 113 test-module allow blocks | **keep.** Collapsing them needs a macro wrapping each `mod tests` body, which costs every test module its plain-Rust shape and its IDE navigation. The repetition is the honest price of denying `unwrap_used` in production code while letting tests fail loudly. |
+| `rustmanifest-lsp` | **keep.** Removing a crate is not a cleanup decision to take silently; it stays a member until Phase 5 or an explicit call to drop it. |
 
 ---
 
@@ -226,7 +258,7 @@ Each step is committed on its own once `cargo clippy --workspace --all-targets
 | 4 | Semantic tier parallelized | dropped — see item 3 |
 | 5 | Pragmas collected once per source | done |
 | 6 | Sources read once per `check` | done |
-| 7 | 128-bit cache key with a bounded store | open |
-| 8 | Semantic-tier cache entry | open |
-| 9 | Eval-corpus and benchmark CI gates | open |
-| 10 | Duplication and language cleanups | open |
+| 7 | 128-bit cache key with a bounded store | done |
+| 8 | Semantic-tier cache entry | dropped — see item 6 |
+| 9 | CI gates over what CI can reach | done |
+| 10 | Language cleanup; three items kept, with reasons | done |
