@@ -19,11 +19,13 @@
 //! One module per source of counters: [`sighting`] for what the parser
 //! accepted and what it left unexpanded, [`reach`] for which files a crate
 //! root reaches, [`use_target`] for where imports point, [`capture`] for
-//! what the type graph recorded. [`measurement`] runs them all and fills
-//! the record [`report`] defines.
+//! what the type graph recorded, [`origin`] for how many recorded value
+//! positions were actually settled. [`measurement`] runs them all and
+//! fills the record [`report`] defines.
 
 mod capture;
 mod measurement;
+mod origin;
 mod reach;
 mod report;
 mod sighting;
@@ -31,6 +33,7 @@ mod use_target;
 
 pub use self::{
     measurement::{coverage, coverage_indexed, coverage_with},
+    origin::origin_gaps,
     report::{Coverage, percent},
     use_target::unresolved_targets
 };

@@ -78,6 +78,17 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
             )
         ),
         line(
+            "value origins",
+            &report.origins_total.to_string(),
+            &format!(
+                "derived {derived}  {origin_rate:.1}%   refused {refused}   (a refusal is \
+                 recorded and named, so a count of records is not a count of answers)",
+                derived = report.origins_derived,
+                origin_rate = report.origin_rate(),
+                refused = report.origins_total - report.origins_derived
+            )
+        ),
+        line(
             "derives seen",
             &report.derives_seen.to_string(),
             &format!("item macros seen {macros}   (expansions not analyzed)")
@@ -123,10 +134,12 @@ mod tests {
             call_candidates_resolved:   1066,
             call_candidates_external:   3600,
             call_candidates_unknown:    200,
-            call_candidates_scip:       0
+            call_candidates_scip:       0,
+            origins_total:              1400,
+            origins_derived:            1050
         };
         let lines = report_lines(&report);
-        assert_eq!(lines.len(), 7);
+        assert_eq!(lines.len(), 8);
         assert_eq!(lines[0], "files parsed        318/318   100.0%");
         assert_eq!(
             lines[1],
@@ -154,6 +167,11 @@ mod tests {
         );
         assert_eq!(
             lines[6],
+            "value origins       1400      derived 1050  75.0%   refused 350   (a refusal is \
+             recorded and named, so a count of records is not a count of answers)"
+        );
+        assert_eq!(
+            lines[7],
             "derives seen        233       item macros seen 12   (expansions not analyzed)"
         );
     }

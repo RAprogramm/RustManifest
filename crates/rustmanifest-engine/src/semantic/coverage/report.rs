@@ -80,7 +80,16 @@ pub struct Coverage {
     pub call_candidates_unknown:    u64,
     /// Call edges added by a SCIP index overlay beyond the syntactic
     /// candidates; zero when no index was supplied.
-    pub call_candidates_scip:       u64
+    pub call_candidates_scip:       u64,
+    /// Value positions recorded across the value tier's channels: the
+    /// operands of an operation, the scrutinee and alternatives of a
+    /// choice, the value of a handback, the written arguments of a call
+    /// site, the origin of a payload hole.
+    pub origins_total:              u64,
+    /// Value positions whose origin the engine settled. The rest are
+    /// recorded refusals, each naming the question it failed on, which
+    /// [`origin_gaps`](super::origin_gaps) counts by name.
+    pub origins_derived:            u64
 }
 
 impl Coverage {
@@ -131,6 +140,17 @@ impl Coverage {
             self.call_candidates_resolved + self.call_candidates_external,
             self.call_candidates_total
         )
+    }
+
+    /// Share of recorded value positions whose origin was settled, in
+    /// percent of `origins_total`.
+    ///
+    /// The rate the value tier is honest by: the vocabulary records a
+    /// position whether or not it could answer for it, so a reader who
+    /// sees only the records infers a breadth the engine does not have.
+    #[must_use]
+    pub const fn origin_rate(&self) -> f64 {
+        percent(self.origins_derived, self.origins_total)
     }
 }
 

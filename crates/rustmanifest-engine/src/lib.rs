@@ -55,8 +55,9 @@ pub use semantic::{
     SemanticAnalyzer, SiteGuard, Started, Stream, Surface, TraitNode, TypeGraph, TypeKind,
     TypeNode, VALUE_ORIGIN_SET, Workspace, behavior, call_graph, call_graph_with, capabilities,
     check_invariants, check_invariants_with, completion_rule, coverage, coverage_indexed,
-    coverage_with, doc_facts, entry_points, expansion, features, module_overview, program_meaning,
-    role, semantic_findings, started, surface, transitive_effects, unresolved_targets
+    coverage_with, doc_facts, entry_points, expansion, features, module_overview, origin_gaps,
+    program_meaning, role, semantic_findings, started, surface, transitive_effects,
+    unresolved_targets
 };
 pub use source::Source;
 

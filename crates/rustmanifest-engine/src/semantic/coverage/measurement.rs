@@ -13,7 +13,7 @@
 use std::collections::BTreeSet;
 
 use super::{
-    capture, reach,
+    capture, origin, reach,
     report::{Coverage, count},
     sighting, use_target
 };
@@ -74,6 +74,7 @@ fn measure(
     let overlay = scip.map(|edges| edges.candidates(facts, sources));
     let calls = call_graph_with(facts, &resolution_context(sources), overlay.as_deref());
     let captured = capture::capture(sources);
+    let settled = origin::origins(facts);
     Coverage {
         files_total:                count(sources.len()),
         files_parsed:               seen.files_parsed,
@@ -98,7 +99,9 @@ fn measure(
         call_candidates_resolved:   calls.resolved(),
         call_candidates_external:   calls.external(),
         call_candidates_unknown:    calls.unknown_receiver(),
-        call_candidates_scip:       calls.scip_resolved()
+        call_candidates_scip:       calls.scip_resolved(),
+        origins_total:              settled.total,
+        origins_derived:            settled.derived
     }
 }
 

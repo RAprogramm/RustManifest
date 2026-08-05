@@ -74,7 +74,10 @@ pub use self::{
     capability::{
         Capability, Evidence, ModuleCapability, ProvenCapability, Started, capabilities, started
     },
-    coverage::{Coverage, coverage, coverage_indexed, coverage_with, percent, unresolved_targets},
+    coverage::{
+        Coverage, coverage, coverage_indexed, coverage_with, origin_gaps, percent,
+        unresolved_targets
+    },
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
