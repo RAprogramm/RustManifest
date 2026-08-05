@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+# SPDX-License-Identifier: MIT
+
+[package]
+name = "rustmanifest-resolve"
+description = "Name and type resolution overlay for the rustmanifest engine, read from a loaded cargo workspace."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+categories = ["development-tools"]
+keywords = ["rust", "static-analysis", "types", "resolution"]
+
+[dependencies]
+ra_ap_hir = { workspace = true }
+ra_ap_ide_db = { workspace = true }
+ra_ap_load-cargo = { workspace = true }
+ra_ap_project_model = { workspace = true }
+ra_ap_syntax = { workspace = true }
+ra_ap_vfs = { workspace = true }
+rustmanifest-schema = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
