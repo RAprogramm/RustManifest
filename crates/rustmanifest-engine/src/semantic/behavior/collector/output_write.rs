@@ -67,8 +67,14 @@ impl FactCollector {
         );
     }
 
-    /// Names the type of every position filled by a binding the tables
-    /// resolved, leaving the rest untyped.
+    /// Names the type and the origin of every position filled by a
+    /// binding the tables resolved, leaving the rest untyped.
+    ///
+    /// Every formatting write goes through here, whichever macro wrote it.
+    /// Running it on only the stream macros left the same hole readable
+    /// when written with `println!` and unreadable when written with
+    /// `writeln!` to a handle — a difference in how the write is spelled,
+    /// never in what it says.
     ///
     /// Only a position written as a captured name is answered: the name
     /// is the binding, and the binding's type is already in the tables.
@@ -120,7 +126,7 @@ impl FactCollector {
             return;
         };
         let resolved = self.write_destination(destination);
-        let payload = output::argument_payload(rest);
+        let payload = self.typed_holes(output::argument_payload(rest));
         self.push_output(span, resolved, payload, newline, Conduit::Formatting);
     }
 

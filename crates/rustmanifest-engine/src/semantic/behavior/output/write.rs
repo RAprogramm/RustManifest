@@ -52,7 +52,51 @@ pub struct OutputWrite {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use crate::semantic::behavior::output::{Grade, Guard, OpaqueReason, Payload, Stream};
+    use std::path::PathBuf;
+
+    use crate::{
+        semantic::behavior::{
+            FunctionFacts, Provenance, behavior,
+            output::{Grade, Guard, OpaqueReason, Payload, Segment, Stream}
+        },
+        source::Source
+    };
+
+    /// Behavioral facts of one written snippet.
+    fn facts(text: &str) -> Vec<FunctionFacts> {
+        behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
+    }
+
+    /// A hole is a hole whichever macro wrote it. Reading holes on the
+    /// stream macros alone left the same binding readable through
+    /// `println!` and unreadable through `writeln!` to a handle.
+    #[test]
+    fn a_hole_written_to_a_handle_reads_like_one_written_to_the_stream() {
+        let through_stream = facts("fn go() { let value = 7_u32; println!(\"{value}\"); }");
+        let through_handle = facts(
+            "use std::io::Write;\nfn go(handle: &mut dyn Write) { let value = 7_u32; let _ = \
+             writeln!(handle, \"{value}\"); }"
+        );
+        let hole_origin = |facts: &[FunctionFacts]| -> Option<Provenance> {
+            facts
+                .iter()
+                .find(|fact| fact.function == "go")
+                .and_then(|fact| fact.output_writes.first())
+                .and_then(|write| match &write.payload {
+                    Payload::Template(segments) => {
+                        segments.iter().find_map(|segment| match segment {
+                            Segment::Hole(hole) => Some(hole.origin.clone()),
+                            Segment::Text(_) => None
+                        })
+                    }
+                    _ => None
+                })
+        };
+        let stream_origin = hole_origin(&through_stream).expect("the stream write holds a hole");
+        let handle_origin = hole_origin(&through_handle).expect("the handle write holds a hole");
+        assert!(stream_origin.derived());
+        assert_eq!(stream_origin, handle_origin);
+    }
 
     #[test]
     fn a_greeting_records_one_stdout_write_with_its_proven_text() {
