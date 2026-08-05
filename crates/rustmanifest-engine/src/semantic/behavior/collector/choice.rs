@@ -47,6 +47,37 @@ impl FactCollector {
         index
     }
 
+    /// Records the choice a fallback call makes: whichever value the
+    /// receiver holds, or the one written beside it where it holds none.
+    ///
+    /// A recorded choice and not a silent pick of one side: the source
+    /// really does choose here, and stating only one of the two would put
+    /// a certainty in the sentence the program does not have.
+    pub(super) fn either(
+        &mut self,
+        span: &std::ops::Range<usize>,
+        held: Provenance,
+        fallback: Provenance
+    ) -> Provenance {
+        let index = self.reserve_choice(span, held.clone());
+        if let Some(record) = self.facts.choices.get_mut(index) {
+            record.closure = Closure::CatchAll;
+            record.alternatives.push(Alternative {
+                pattern:     None,
+                irrefutable: false,
+                conditional: false,
+                value:       held
+            });
+            record.alternatives.push(Alternative {
+                pattern:     None,
+                irrefutable: true,
+                conditional: false,
+                value:       fallback
+            });
+        }
+        Provenance::Chosen(u32::try_from(index).unwrap_or(u32::MAX))
+    }
+
     /// Records one alternative of a reserved choice.
     pub(super) fn record_alternative(&mut self, choice: usize, arm: &syn::Arm) {
         use quote::ToTokens;

@@ -8,11 +8,9 @@
 
 use super::{
     FactCollector,
-    catalog::{
-        BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, OUTCOME_ADAPTERS, TEXT_WRITE_METHOD, VALUE_WRAPPERS
-    }
+    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD, VALUE_WRAPPERS}
 };
-use crate::semantic::{expr::MUTATING_METHODS, knowledge};
+use crate::semantic::{expr::MUTATING_METHODS, knowledge, std_knowledge::Carried};
 
 impl FactCollector {
     /// Records the callee of a call written as a path, qualified by the
@@ -129,24 +127,37 @@ impl FactCollector {
         self.carry_outcome(call, &span);
     }
 
-    /// Hands on the origin of a receiver through an adapter that changes
-    /// only what a failure carries.
+    /// Hands on the origin a library call carries, where a row says which
+    /// of its inputs it carries.
     ///
-    /// The value such a call answers with on success is the value it was
-    /// given, so naming the call would put a step between a value and
-    /// itself. An adapter changing the value is not seen through.
+    /// The value such a call answers with is a value it was given, so
+    /// naming the call would put a step between a value and itself. A
+    /// method whose answer is derived rather than carried has no row and
+    /// is not seen through.
     fn carry_outcome(&mut self, call: &syn::ExprMethodCall, span: &std::ops::Range<usize>) {
         let method = call.method.to_string();
-        if !OUTCOME_ADAPTERS.contains(&method.as_str()) {
+        let Some(carried) = crate::semantic::std_knowledge::carried_by(&method) else {
             return;
-        }
-        let carried = self.origin_of(&call.receiver);
+        };
+        let origin = match carried {
+            Carried::Receiver | Carried::Held => self.origin_of(&call.receiver),
+            Carried::HeldOrArgument(position) => {
+                let held = self.origin_of(&call.receiver);
+                match call.args.iter().nth(position.into()) {
+                    Some(argument) => {
+                        let fallback = self.origin_of(argument);
+                        self.either(span, held, fallback)
+                    }
+                    None => held
+                }
+            }
+        };
         self.produced.insert(
             (
                 u32::try_from(span.start).unwrap_or(u32::MAX),
                 u32::try_from(span.end).unwrap_or(u32::MAX)
             ),
-            carried
+            origin
         );
     }
 

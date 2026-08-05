@@ -12,12 +12,14 @@
 //! stay silent, never fire falsely.
 
 mod arithmetic;
+mod flow;
 mod presence;
 mod result;
 mod selection;
 
 pub(super) use self::{
     arithmetic::operation_method,
+    flow::{Carried, carried_by},
     presence::{Presence, presence_method},
     result::method_result,
     selection::selects_an_element
