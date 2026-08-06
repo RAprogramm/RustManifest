@@ -82,9 +82,8 @@ impl FactCollector {
         let span = matched.span().byte_range();
         let scrutinee = self.origin_of(&matched.expr);
         let single = matched.arms.len() == 1;
-        let choice = self.choices;
-        self.choices += 1;
         let record = self.reserve_choice(&span, scrutinee.clone());
+        let choice = u32::try_from(record).unwrap_or(u32::MAX);
         for (position, arm) in matched.arms.iter().enumerate() {
             let frame = Guard::MatchArm {
                 irrefutable: irrefutable(&arm.pat),

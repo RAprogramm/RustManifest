@@ -134,8 +134,5 @@ pub(super) struct FactCollector {
     /// of the construct that produced them.
     pub(super) produced:    BTreeMap<(u32, u32), Provenance>,
     /// What each enclosing construct tests, outermost first.
-    pub(super) conditions:  Vec<Condition>,
-    /// How many choosing constructs the walk has entered, so each one is
-    /// told from the others by the order the body writes them.
-    pub(super) choices:     u32
+    pub(super) conditions:  Vec<Condition>
 }

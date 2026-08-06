@@ -102,8 +102,7 @@ pub(super) fn function_facts(
         written:     census.written,
         sole:        census.sole,
         produced:    std::collections::BTreeMap::new(),
-        conditions:  Vec::new(),
-        choices:     0
+        conditions:  Vec::new()
     };
     if matches!(signature.safety, syn::Safety::Unsafe(_)) {
         collector.facts.effects.push(Effect::Unsafe);
