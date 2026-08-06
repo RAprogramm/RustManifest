@@ -120,6 +120,27 @@ const STORE: &str = "use std::{collections::BTreeMap, io::{self, Write}, process
 /// a written type and through a helper call. Either link broken, the
 /// sentence falls back to naming a value it did not derive.
 #[test]
+fn a_name_the_body_rewrites_refuses_while_its_neighbour_traces_home() {
+    let stated = stated(&[(
+        "src/main.rs",
+        "fn source() -> Result<u8, u8> { Ok(1) }\n\nfn after_loop(values: Vec<u8>) -> u8 {\n    \
+         let mut last = 0;\n    for value in values {\n        last = value;\n    }\n    \
+         last\n}\n\nfn after_condition(fallback: u8) -> u8 {\n    if let Ok(value) = source() \
+         {\n        return value;\n    }\n    fallback\n}\n\nfn main() {\n    let taken = \
+         after_loop(vec![1, 2]);\n    let chosen = after_condition(7);\n    println!(\"{taken} \
+         {chosen}\");\n}\n"
+    )]);
+    assert!(
+        stated.contains("(rebound)"),
+        "a name the body rewrites must refuse by name: {stated}"
+    );
+    assert!(
+        stated.contains("one of the written value 1 and the written value 7"),
+        "a value taken out of a callee's answer must trace to what the callee wrote: {stated}"
+    );
+}
+
+#[test]
 fn the_calculator_traces_its_result_back_to_the_command_line() {
     let said = stated(&[("app/src/main.rs", CALCULATOR)]);
     assert!(
