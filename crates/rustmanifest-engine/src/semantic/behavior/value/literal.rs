@@ -18,6 +18,8 @@ pub enum Literal {
     Text(String),
     /// A byte literal.
     Byte(u8),
+    /// A byte-string literal, kept as the parser resolved it.
+    Bytes(Vec<u8>),
     /// A boolean.
     Bool(bool),
     /// A character.
@@ -34,6 +36,7 @@ impl Literal {
             Self::Integer(digits) | Self::Float(digits) => digits.clone(),
             Self::Text(text) => format!("{text:?}"),
             Self::Byte(byte) => format!("{byte}"),
+            Self::Bytes(bytes) => format!("{bytes:?}"),
             Self::Bool(value) => format!("{value}"),
             Self::Char(value) => format!("{value:?}"),
             Self::Unit => "()".to_owned()
@@ -51,6 +54,7 @@ impl Literal {
             syn::Lit::Float(number) => Self::Float(number.to_string()),
             syn::Lit::Str(text) => Self::Text(text.value()),
             syn::Lit::Byte(byte) => Self::Byte(byte.value()),
+            syn::Lit::ByteStr(bytes) => Self::Bytes(bytes.value()),
             syn::Lit::Bool(value) => Self::Bool(value.value),
             syn::Lit::Char(value) => Self::Char(value.value()),
             _ => return None
