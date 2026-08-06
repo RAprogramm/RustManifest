@@ -45,6 +45,18 @@ impl FactCollector {
             if EXPRESSION_MACROS.contains(&name.as_str()) {
                 self.visit_macro_arguments(invocation);
             }
+            if OUTPUT_MACROS
+                .iter()
+                .any(|(macro_name, _, _)| *macro_name == name)
+            {
+                self.settle_hole_origins(invocation, 1);
+            }
+            if WRITER_MACROS
+                .iter()
+                .any(|(macro_name, _)| *macro_name == name)
+            {
+                self.settle_hole_origins(invocation, 2);
+            }
         }
         syn::visit::visit_macro(self, invocation);
     }

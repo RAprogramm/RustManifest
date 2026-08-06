@@ -85,6 +85,34 @@ impl FactCollector {
     /// `writeln!` to a handle — a difference in how the write is spelled,
     /// never in what it says.
     ///
+    /// Re-reads the positions of the write recorded last, now that the
+    /// values written inside its arguments have records of their own.
+    ///
+    /// A write is recorded where it stands, before the walk descends
+    /// into what it prints; a position filled by a construct — a choice,
+    /// a call, an operation — therefore has nothing to name at that
+    /// moment. Reading the positions again once the walk has come back
+    /// out costs one lookup and turns those positions from unreadable
+    /// into what they are.
+    pub(super) fn settle_hole_origins(&mut self, invocation: &syn::Macro, skipped: usize) {
+        let Some(index) = self.facts.output_writes.len().checked_sub(1) else {
+            return;
+        };
+        let Ok(parsed) = invocation.parse_body_with(
+            syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
+        ) else {
+            return;
+        };
+        let written: Vec<&syn::Expr> = parsed.iter().skip(skipped).collect();
+        let Some(recorded) = self.facts.output_writes.get(index) else {
+            return;
+        };
+        let settled = self.typed_holes(recorded.payload.clone(), &written);
+        if let Some(recorded) = self.facts.output_writes.get_mut(index) {
+            recorded.payload = settled;
+        }
+    }
+
     /// A position written as a captured name is answered from the
     /// tables, which hold the binding it names. A position written as an
     /// expression is answered by reading that expression's own origin —

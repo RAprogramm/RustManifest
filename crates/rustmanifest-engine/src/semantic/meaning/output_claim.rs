@@ -30,10 +30,12 @@ pub struct OutputClaim {
     /// Where the value filling each named position of the payload came
     /// from, with every reference followed and every call restated.
     ///
-    /// One entry per named position of the payload. A term the reading
-    /// could not settle is kept and says which question it failed on:
-    /// dropping it would leave the claim silent about a position the
-    /// program certainly fills.
+    /// One entry per position the payload fills, named by the binding it
+    /// captures or, where the position was written as an expression, by
+    /// that expression as the source wrote it. A term the reading could
+    /// not settle is kept and says which question it failed on: dropping
+    /// it would leave the claim silent about a position the program
+    /// certainly fills.
     pub sources:   Vec<(String, ComposedOrigin)>,
     /// Version of the recognizer list that produced this claim.
     pub sink_set:  u32
@@ -54,7 +56,7 @@ pub(super) fn hole_sources(
             Segment::Hole(hole) => {
                 let named = match &hole.source {
                     HoleSource::Named(name) => name.clone(),
-                    _ => return None
+                    HoleSource::Positional(_) | HoleSource::Indexed(_) => hole.expr.clone()?
                 };
                 Some((named, composed.of(fact, &hole.origin)))
             }
