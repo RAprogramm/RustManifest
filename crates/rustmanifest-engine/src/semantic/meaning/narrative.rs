@@ -71,7 +71,7 @@ pub(super) fn narrative_of(entry: &EntryMeaning) -> Narrative {
     for (clause, built) in [
         (Clause::Intake, intake_clause(&entry.intake)),
         (Clause::Computation, compute_clause(&entry.computations)),
-        (Clause::Choice, choice_clause(&entry.choices)),
+        (Clause::Choice, Ok(choice_clause(&entry.choices))),
         (Clause::Write, Ok(write_clause(&entry.claims))),
         (Clause::Handback, Ok(handback_clause(&entry.handbacks)))
     ] {

@@ -24,7 +24,7 @@ use super::super::{
     claim::{ChoiceClaim, ComputeClaim},
     intake::IntakeClaim
 };
-use crate::semantic::behavior::{Closure, Grade, Operation, OriginGap, Provenance, Selector};
+use crate::semantic::behavior::{Closure, Grade, Operation, OriginGap, Selector};
 
 /// A site no path from the entry reaches says nothing about what the
 /// process does, so a refusal standing there cannot break a statement
@@ -114,7 +114,7 @@ pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, 
 /// The clause names how many alternatives are written and on what ground
 /// the set is closed, both of which the record proves whatever the
 /// scrutinee's origin turned out to be.
-pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, OriginGap> {
+pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Option<String> {
     let groups = by_function(
         claims,
         |claim| claim.function.as_str(),
@@ -149,21 +149,13 @@ pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, Or
             held.function
         ));
     }
-    Ok(sentence(&parts))
+    sentence(&parts)
 }
 
 /// The clause a set of per-function parts amounts to, or nothing where
 /// the channel recorded no site at all.
 fn sentence(parts: &[String]) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join("; "))
-}
-
-/// The question an origin failed on, where it failed on one.
-const fn unsettled(origin: &Provenance) -> Option<OriginGap> {
-    match origin {
-        Provenance::NotDerived(gap) => Some(*gap),
-        _ => None
-    }
 }
 
 /// The opening words of one part, fixed by how certainly it happens.
