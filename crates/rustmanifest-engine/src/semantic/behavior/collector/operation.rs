@@ -182,6 +182,7 @@ impl FactCollector {
         taken: &Provenance,
         span: &std::ops::Range<usize>
     ) -> bool {
+        let pattern = through_wrappers(pattern);
         if let syn::Pat::Ident(bound) = pattern
             && bound.subpat.is_none()
         {
@@ -448,4 +449,19 @@ const fn binary_operation(operator: syn::BinOp) -> Option<Operation> {
         syn::BinOp::Or(_) => Operation::Junction(Junction::Either),
         _ => return None
     })
+}
+
+/// The pattern under the wrappers that change how it is written but not
+/// what it binds: a guard, a parenthesis, a borrow, a written type.
+///
+/// A guarded arm is one of these: the language writes `value if test`,
+/// and the parser hands back a pattern wrapping the one that binds.
+fn through_wrappers(pattern: &syn::Pat) -> &syn::Pat {
+    match pattern {
+        syn::Pat::Guard(guarded) => through_wrappers(&guarded.pat),
+        syn::Pat::Paren(inner) => through_wrappers(&inner.pat),
+        syn::Pat::Reference(borrowed) => through_wrappers(&borrowed.pat),
+        syn::Pat::Type(typed) => through_wrappers(&typed.pat),
+        other => other
+    }
 }
