@@ -81,6 +81,11 @@ impl FactCollector {
     /// A block whose last statement carries a semicolon produces the unit
     /// value and names nothing; a block ending in an expression stands for
     /// exactly that expression's value, and the language guarantees it.
+    pub(super) fn block_value(&self, block: &syn::Block) -> Provenance {
+        self.block_origin(block)
+    }
+
+    /// The value a block stands for, as the reading itself uses it.
     fn block_origin(&self, block: &syn::Block) -> Provenance {
         match block.stmts.last() {
             Some(syn::Stmt::Expr(last, None)) => self.origin_of(last),

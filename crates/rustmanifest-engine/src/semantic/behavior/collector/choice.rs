@@ -99,6 +99,28 @@ impl FactCollector {
         }
     }
 
+    /// Records one branch of a conditional as an alternative of its
+    /// choice.
+    ///
+    /// A branch has no pattern: what selects it is the condition already
+    /// recorded as the choice's scrutinee. The else branch accepts every
+    /// remaining value and carries no test of its own, which is what
+    /// closes the set — the same proof a catch-all arm gives.
+    pub(super) fn record_branch(&mut self, choice: usize, value: Provenance, otherwise: bool) {
+        let alternative = Alternative {
+            pattern: None,
+            irrefutable: otherwise,
+            conditional: !otherwise,
+            value
+        };
+        if let Some(record) = self.facts.choices.get_mut(choice) {
+            if otherwise {
+                record.closure = Closure::CatchAll;
+            }
+            record.alternatives.push(alternative);
+        }
+    }
+
     /// Names the value a reserved choice produces, once its alternatives
     /// are recorded, and settles how its set is closed.
     ///

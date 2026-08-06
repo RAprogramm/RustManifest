@@ -15,9 +15,23 @@ use crate::semantic::behavior::{output::Guard, value::Condition};
 
 impl FactCollector {
     /// Visits a conditional, each branch under its own frame.
+    ///
+    /// A conditional with an else chooses between two written
+    /// alternatives exactly as a match does, so it is recorded as one
+    /// choice: the condition is what it chooses on, the else accepts
+    /// every remaining value, and the value of the whole is whichever
+    /// branch runs. Without an else there is no second written
+    /// alternative, and the construct is left as the statement it is.
     pub(super) fn collect_conditional(&mut self, conditional: &syn::ExprIf) {
+        use syn::spanned::Spanned;
+
         self.visit_expr(&conditional.cond);
         let test = self.origin_of(&conditional.cond);
+        let span = conditional.span().byte_range();
+        let record = conditional
+            .else_branch
+            .is_some()
+            .then(|| self.reserve_choice(&span, test.clone()));
         self.under(
             Guard::If,
             Condition::Branch {
@@ -27,6 +41,10 @@ impl FactCollector {
             |collector| {
                 collector.scoped(|collector| {
                     collector.visit_block(&conditional.then_branch);
+                    if let Some(choice) = record {
+                        let taken = collector.block_value(&conditional.then_branch);
+                        collector.record_branch(choice, taken, false);
+                    }
                 });
             }
         );
@@ -40,9 +58,16 @@ impl FactCollector {
                 |collector| {
                     collector.scoped(|collector| {
                         collector.visit_expr(otherwise);
+                        if let Some(choice) = record {
+                            let left = collector.origin_of(otherwise);
+                            collector.record_branch(choice, left, true);
+                        }
                     });
                 }
             );
+        }
+        if let Some(choice) = record {
+            self.settle_choice(choice, &span);
         }
     }
 
