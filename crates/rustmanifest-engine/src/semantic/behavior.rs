@@ -57,7 +57,8 @@ pub use self::{
         Channel, INPUT_SOURCE_SET, InputRead, Intake, ReadShape, Selector, SelectorGap, Terminator
     },
     operation::{
-        Arithmetic, Comparison, Conversion, Guarding, OPERATION_SET, Operation, OperationSite
+        Arithmetic, Comparison, Conversion, Guarding, Junction, OPERATION_SET, Operation,
+        OperationSite
     },
     output::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,

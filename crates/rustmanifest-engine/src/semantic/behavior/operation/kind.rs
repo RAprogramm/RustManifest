@@ -78,6 +78,24 @@ pub struct Conversion {
     pub target: Option<String>
 }
 
+/// How two truth values are joined.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Junction {
+    /// Both must hold.
+    Both,
+    /// Either may hold.
+    Either
+}
+
+impl std::fmt::Display for Junction {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.write_str(match self {
+            Self::Both => "conjunction",
+            Self::Either => "disjunction"
+        })
+    }
+}
+
 /// What an operation does to its operands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
@@ -90,7 +108,11 @@ pub enum Operation {
     /// One element taken out of a sequence at a written position.
     Selection,
     /// A question asked of a value that may or may not be there.
-    Presence(crate::semantic::std_knowledge::Presence)
+    Presence(crate::semantic::std_knowledge::Presence),
+    /// Two truth values joined, the second read only where the first
+    /// leaves the answer open — which this tier records as an operation
+    /// over both, because both are written.
+    Junction(Junction)
 }
 
 impl std::fmt::Display for Operation {
@@ -103,6 +125,7 @@ impl std::fmt::Display for Operation {
                 None => out.write_str("conversion to a type written nowhere")
             },
             Self::Selection => out.write_str("selection"),
+            Self::Junction(kind) => write!(out, "{kind}"),
             Self::Presence(question) => write!(out, "{question}")
         }
     }

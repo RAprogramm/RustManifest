@@ -20,7 +20,9 @@ mod conversion;
 use super::FactCollector;
 use crate::semantic::{
     behavior::{
-        operation::{Arithmetic, Comparison, Conversion, Guarding, Operation, OperationSite},
+        operation::{
+            Arithmetic, Comparison, Conversion, Guarding, Junction, Operation, OperationSite
+        },
         output::Multiplicity,
         value::{Disposal, Literal, Provenance}
     },
@@ -410,6 +412,8 @@ const fn binary_operation(operator: syn::BinOp) -> Option<Operation> {
         syn::BinOp::Le(_) => Operation::Comparison(Comparison::LessOrEqual),
         syn::BinOp::Gt(_) => Operation::Comparison(Comparison::Greater),
         syn::BinOp::Ge(_) => Operation::Comparison(Comparison::GreaterOrEqual),
+        syn::BinOp::And(_) => Operation::Junction(Junction::Both),
+        syn::BinOp::Or(_) => Operation::Junction(Junction::Either),
         _ => return None
     })
 }

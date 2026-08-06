@@ -24,7 +24,7 @@ mod site;
 
 pub use self::{
     guarding::Guarding,
-    kind::{Arithmetic, Comparison, Conversion, Operation},
+    kind::{Arithmetic, Comparison, Conversion, Junction, Operation},
     site::OperationSite
 };
 
