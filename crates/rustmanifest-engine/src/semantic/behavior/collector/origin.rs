@@ -42,6 +42,7 @@ impl FactCollector {
             syn::Expr::ForLoop(_) | syn::Expr::While(_) => Provenance::Written(Literal::Unit),
             syn::Expr::Let(_) => Provenance::Constructed("bool".to_owned()),
             syn::Expr::Const(block) => self.block_origin(&block.block),
+            syn::Expr::TryBlock(block) => self.block_origin(&block.block),
             syn::Expr::Macro(invocation)
                 if crate::semantic::std_knowledge::macro_leaves(&invocation.mac.path) =>
             {
