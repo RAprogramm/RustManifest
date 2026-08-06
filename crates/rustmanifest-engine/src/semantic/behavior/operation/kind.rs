@@ -17,7 +17,12 @@ pub enum Arithmetic {
     /// Remainder of a division.
     Remainder,
     /// Negation of one operand.
-    Negate
+    Negate,
+    /// Complement of one operand: the logical negation of a truth value,
+    /// the bitwise complement of a number. One name because the operator
+    /// is one operator, and which of the two it performs is decided by
+    /// the type — which this tier does not read.
+    Complement
 }
 
 impl std::fmt::Display for Arithmetic {
@@ -28,7 +33,8 @@ impl std::fmt::Display for Arithmetic {
             Self::Multiply => "multiplication",
             Self::Divide => "division",
             Self::Remainder => "remainder",
-            Self::Negate => "negation"
+            Self::Negate => "negation",
+            Self::Complement => "complement"
         })
     }
 }

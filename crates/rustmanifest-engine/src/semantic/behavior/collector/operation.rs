@@ -85,17 +85,19 @@ impl FactCollector {
         );
     }
 
-    /// Records the negation a unary operator performs.
+    /// Records the operation a unary operator performs.
     pub(super) fn record_unary_operation(&mut self, unary: &syn::ExprUnary) {
         use syn::spanned::Spanned;
 
-        if !matches!(unary.op, syn::UnOp::Neg(_)) {
-            return;
-        }
+        let performed = match unary.op {
+            syn::UnOp::Neg(_) => Arithmetic::Negate,
+            syn::UnOp::Not(_) => Arithmetic::Complement,
+            _ => return
+        };
         let operand = self.origin_of(&unary.expr);
         self.push_operation(
             &unary.span().byte_range(),
-            Operation::Arithmetic(Arithmetic::Negate),
+            Operation::Arithmetic(performed),
             vec![operand],
             Guarding::Unchecked
         );
