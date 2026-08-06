@@ -31,14 +31,15 @@ impl FactCollector {
         if let Some(key) = self.field_key(field) {
             self.facts.reads.push(key);
         }
-        self.record_indexed_part(field);
         if let syn::Expr::Path(path) = field.base.as_ref()
             && let Some(ident) = path.path.get_ident()
         {
             let named = matches!(field.member, syn::Member::Named(_));
             self.bump_param(&ident.to_string(), named);
+            self.record_indexed_part(field);
             return;
         }
         syn::visit::visit_expr_field(self, field);
+        self.record_indexed_part(field);
     }
 }
