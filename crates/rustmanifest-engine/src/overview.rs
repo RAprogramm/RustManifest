@@ -18,6 +18,7 @@ mod capability;
 mod central_types;
 mod conventions;
 mod fragment;
+mod keeping;
 mod layers;
 mod memory_shape;
 mod module_map;
@@ -29,9 +30,9 @@ mod surface;
 pub use self::conventions::Convention;
 use self::{
     boundaries::boundary_section, capability::capability_section, central_types::type_section,
-    conventions::convention_section, layers::layer_section, memory_shape::shape_section,
-    module_map::module_section, roles::role_section, size::size_section, state::state_section,
-    surface::surface_section
+    conventions::convention_section, keeping::keeping_section, layers::layer_section,
+    memory_shape::shape_section, module_map::module_section, roles::role_section,
+    size::size_section, state::state_section, surface::surface_section
 };
 use crate::semantic::Workspace;
 
@@ -63,6 +64,7 @@ pub fn overview_markdown(
     shape_section(&mut out, sources, top);
     layer_section(&mut out, workspace, top);
     capability_section(&mut out, workspace, top);
+    keeping_section(&mut out, workspace);
     convention_section(&mut out, conventions, top);
     out.push_str("\nFindings are a separate concern: run `rustmanifest check` for them.\n");
     out

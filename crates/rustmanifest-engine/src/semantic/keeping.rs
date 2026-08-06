@@ -17,12 +17,14 @@
 
 mod asking;
 mod outliving;
+mod said;
 mod store;
 mod verb;
 
 pub use self::{
     asking::{Command, commands},
     outliving::{Direction, Outliving, outliving},
+    said::purpose,
     store::{Store, stores},
     verb::{Keeping, Verb, keeping}
 };
@@ -37,7 +39,7 @@ pub use self::{
 mod tests {
     use std::path::PathBuf;
 
-    use super::{Direction, Verb, commands, keeping, outliving, stores};
+    use super::{Direction, Verb, commands, keeping, outliving, purpose, stores};
     use crate::{semantic::workspace::Workspace, source::Source};
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
@@ -84,6 +86,34 @@ impl Store {
 
     fn workspace_of(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]
+    }
+
+    #[test]
+    fn the_sentence_names_the_records_the_verbs_and_whether_they_outlive_the_run() {
+        let asking = r#"
+pub fn run(store: &mut Store, asked: &str) {
+    match asked {
+        "add" => {
+            store.add(String::new());
+        }
+        _ => {}
+    }
+}
+"#;
+        let sources = workspace_of(&format!("{TASK_STORE}{asking}"));
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            said[0].contains("keeps `Task` records in `tasks` of `Store`"),
+            "{said:?}"
+        );
+        assert!(said[0].contains("adds a record"), "{said:?}");
+        assert!(said[0].contains("a run asks by name"), "{said:?}");
+        assert!(
+            said[0].contains("nothing carries them past the end of the run"),
+            "{said:?}"
+        );
     }
 
     #[test]

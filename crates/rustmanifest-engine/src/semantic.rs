@@ -90,7 +90,8 @@ pub use self::{
     },
     invariant::{check_invariants, check_invariants_with},
     keeping::{
-        Command, Direction, Keeping, Outliving, Store, Verb, commands, keeping, outliving, stores
+        Command, Direction, Keeping, Outliving, Store, Verb, commands, keeping, outliving,
+        purpose, stores
     },
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},

@@ -62,6 +62,9 @@ pub fn commands(workspace: &Workspace<'_>) -> Vec<Command> {
             let Some(written) = written_alternative(fact, choice, alternative) else {
                 continue;
             };
+            if !asked_for_by_name(&written) {
+                continue;
+            }
             asked.push(Command {
                 asked_in: fact.function.clone(),
                 written,
@@ -106,6 +109,17 @@ fn written_alternative(fact: &FunctionFacts, choice: u32, alternative: u32) -> O
         .alternatives
         .get(usize::try_from(alternative).ok()?)?;
     written.pattern.clone()
+}
+
+/// Whether an alternative is something a run can write to ask for.
+///
+/// A command is named by a value the source writes down — a text, a
+/// number — and matched against what the run supplied. An alternative
+/// that binds a name instead is taking a value apart, which is how a
+/// program reads an answer rather than how it is asked a question.
+fn asked_for_by_name(written: &str) -> bool {
+    let trimmed = written.trim();
+    trimmed.starts_with('"') || trimmed.chars().all(|letter| letter.is_ascii_digit())
 }
 
 /// Byte range of the choosing construct a call site stands under.
