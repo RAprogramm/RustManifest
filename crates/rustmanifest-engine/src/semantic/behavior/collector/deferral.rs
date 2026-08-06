@@ -29,6 +29,7 @@ fn supplied_names(pattern: &syn::Pat, bind: &mut impl FnMut(&str)) {
         syn::Pat::Type(typed) => supplied_names(&typed.pat, bind),
         syn::Pat::Reference(borrowed) => supplied_names(&borrowed.pat, bind),
         syn::Pat::Paren(inner) => supplied_names(&inner.pat, bind),
+        syn::Pat::Guard(guarded) => supplied_names(&guarded.pat, bind),
         syn::Pat::Tuple(tuple) => {
             for part in &tuple.elems {
                 supplied_names(part, bind);

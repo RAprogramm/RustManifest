@@ -376,6 +376,7 @@ fn written_path(path: &syn::Path) -> String {
 fn bound_name(pattern: &syn::Pat) -> &syn::Pat {
     match pattern {
         syn::Pat::Type(typed) => bound_name(&typed.pat),
+        syn::Pat::Paren(inner) => bound_name(&inner.pat),
         other => other
     }
 }

@@ -46,6 +46,8 @@ pub(super) fn binding_name(pattern: &syn::Pat) -> Option<String> {
         syn::Pat::Ident(ident) => Some(ident.ident.to_string()),
         syn::Pat::Reference(reference) => binding_name(&reference.pat),
         syn::Pat::Type(typed) => binding_name(&typed.pat),
+        syn::Pat::Paren(inner) => binding_name(&inner.pat),
+        syn::Pat::Guard(guarded) => binding_name(&guarded.pat),
         _ => None
     }
 }
