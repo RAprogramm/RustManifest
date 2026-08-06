@@ -56,6 +56,13 @@ pub enum ComposedOrigin {
     Constant(String),
     /// A value of a named type built at the position.
     Constructed(String),
+    /// The value a call to something outside this program hands back.
+    ///
+    /// A settled answer and not a refusal: what such a call produces is
+    /// decided outside the sources being read, exactly as the content of
+    /// a field is decided wherever its type is constructed. Naming the
+    /// callee states everything the program itself proves.
+    Beyond(String),
     /// A value drawn from outside the process.
     Boundary {
         /// Where it comes from.
@@ -117,6 +124,7 @@ impl ComposedOrigin {
             | Self::Field(_)
             | Self::Constant(_)
             | Self::Constructed(_)
+            | Self::Beyond(_)
             | Self::Leaves
             | Self::Boundary {
                 ..
@@ -143,6 +151,7 @@ impl ComposedOrigin {
             | Self::Field(_)
             | Self::Constant(_)
             | Self::Constructed(_)
+            | Self::Beyond(_)
             | Self::Leaves
             | Self::Boundary {
                 ..

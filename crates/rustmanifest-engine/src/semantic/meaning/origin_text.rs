@@ -23,6 +23,9 @@ pub fn origin_text(origin: &ComposedOrigin) -> String {
         ComposedOrigin::Field(key) => format!("the field `{key}`"),
         ComposedOrigin::Constant(named) => format!("the value `{named}`"),
         ComposedOrigin::Constructed(type_name) => format!("the `{type_name}` built here"),
+        ComposedOrigin::Beyond(candidate) => {
+            format!("the value `{candidate}` hands back from outside this program")
+        }
         ComposedOrigin::Boundary {
             channel,
             selector

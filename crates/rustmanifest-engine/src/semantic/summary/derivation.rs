@@ -136,7 +136,7 @@ fn callee_answer(
 ) -> ComposedOrigin {
     let by_name = sole_by_name(bindings.material.facts);
     let Some(reached) = bound_callee(&by_name, bindings.material.qualifiers, candidate) else {
-        return ComposedOrigin::NotDerived(OriginGap::CalleeUnresolved);
+        return outside_or_unresolved(bindings, candidate);
     };
     if bindings.material.graph.possibilistic(caller, reached) {
         return ComposedOrigin::NotDerived(OriginGap::Dispatched);
@@ -148,6 +148,29 @@ fn callee_answer(
         return ComposedOrigin::NotDerived(OriginGap::Recursion);
     };
     substitute(&summary.result, arguments, budget)
+}
+
+/// Whether a candidate names something the workspace declares at all.
+///
+/// A name no function of the workspace carries is a call out of the
+/// program: what it hands back is decided outside the sources being
+/// read, which is a settled answer. A name the workspace does carry but
+/// the binding rule could not tie to one definition is the engine's own
+/// gap, and stays a refusal.
+fn outside_or_unresolved(bindings: &Bindings<'_>, candidate: &str) -> ComposedOrigin {
+    let named = candidate.rsplit("::").next().unwrap_or(candidate);
+    let declared = bindings.material.facts.iter().any(|fact| {
+        fact.function == named
+            || fact
+                .function
+                .rsplit("::")
+                .next()
+                .is_some_and(|own| own == named)
+    });
+    if declared {
+        return ComposedOrigin::NotDerived(OriginGap::CalleeUnresolved);
+    }
+    ComposedOrigin::Beyond(candidate.to_owned())
 }
 
 /// A summary of a function whose facts could not be read.

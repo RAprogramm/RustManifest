@@ -302,9 +302,22 @@ mod tests {
     /// A callee no single workspace function answers for is refused, not
     /// assumed transparent.
     #[test]
-    fn an_unresolved_callee_is_refused() {
-        let carried = result("fn caller() -> u32 { elsewhere::compute(1) }", "caller");
+    fn a_callee_of_this_workspace_the_binding_rule_cannot_tie_down_is_refused() {
+        let carried = result(
+            "fn compute(one: u32) -> u32 { one }\nfn other() -> u32 { compute(1) }\nfn caller() \
+             -> u32 { elsewhere::compute(1) }",
+            "caller"
+        );
         assert_eq!(carried.gap(), Some(OriginGap::CalleeUnresolved));
+    }
+
+    /// A call naming nothing the workspace declares leaves the program,
+    /// and what it hands back is decided outside it — a settled answer.
+    #[test]
+    fn a_callee_outside_the_workspace_is_named_rather_than_refused() {
+        let carried = result("fn caller() -> u32 { elsewhere::compute(1) }", "caller");
+        assert_eq!(carried.gap(), None);
+        assert!(carried.derived());
     }
 
     /// A function writing no return position says the reading found none,

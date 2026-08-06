@@ -67,7 +67,8 @@ mod tests {
     #[test]
     fn a_summary_that_failed_on_a_question_names_it() {
         let json = summary_json(&summary_of(
-            "pub fn go(handle: &Thing) -> u32 { handle.unknown_call() }",
+            "pub fn unknown_call(one: u32) -> u32 { one }\npub fn go(handle: &Thing) -> u32 { \
+             handle.unknown_call() }",
             "go"
         ));
         assert_eq!(json["derived"], false);
