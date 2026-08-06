@@ -240,8 +240,11 @@ impl FactCollector {
     /// A name nothing in the body binds, which the workspace declares as
     /// a constant or a static, is that constant: the declaration proves
     /// what the name stands for, and where it is declared settles what it
-    /// holds. The order matters — a binding of the same name shadows the
-    /// declaration, so the body is asked first. Anything else arrives
+    /// holds. A name the file imports is likewise an item and not a
+    /// binding — the import is what brought it into scope, and the answer
+    /// names it by the path it was imported under. The order matters — a
+    /// binding of the same name shadows both, so the body is asked
+    /// first. Anything else arrives
     /// from outside this body and is decided elsewhere.
     fn named_origin(&self, name: &str) -> Provenance {
         if let Some(origin) = self.origins.get(name) {
@@ -266,6 +269,9 @@ impl FactCollector {
             .is_some()
         {
             return Provenance::Constant(name.to_owned());
+        }
+        if let Some(path) = self.imports.get(name) {
+            return Provenance::Constant(path.clone());
         }
         Provenance::NotDerived(OriginGap::Foreign)
     }
