@@ -262,9 +262,11 @@ the answer lies past a call.
   workspace. The field rows are what a syntactic reading cannot reach at all: a
   value read out of a type another crate declares. Measured on the engine's own
   sources on 2026-08-06, after the reading rules had taken the syntactic tier as far
-  as it goes: **91.8% without the overlay, 96.3% with it** (25497 of 26475). The
-  difference is almost entirely field reads on types another crate declares, which
-  written text cannot name at all. A binary of its
+  as it goes: **92.3% without the overlay, 98.0% with it**. Three silences of the
+  resolver closed most of the difference once they were lifted — the test
+  configuration, under which a well-tested workspace hides most of its code; field
+  reads written inside a macro argument, which are exactly the positions a format
+  string prints; and the calls written beside them. A binary of its
   own so the rust-analyzer libraries — weekly `0.0.x`, no API stability — stay out
   of the tool a user runs on every save, and the engine takes the answers as plain
   data. A position the resolver cannot settle is absent from the overlay, so the
