@@ -11,6 +11,48 @@ use crate::semantic::behavior::{
     value::{Condition, Provenance}
 };
 
+/// Hands every plain name a closure input binds to `bind`, however deep
+/// the pattern takes the input apart.
+///
+/// A name bound at any depth of the pattern still stands for something
+/// handed in from outside, and a pattern that takes the input apart is
+/// the ordinary way of writing a closure over a pair.
+fn supplied_names(pattern: &syn::Pat, bind: &mut impl FnMut(&str)) {
+    match pattern {
+        syn::Pat::Ident(named) if named.subpat.is_none() => bind(&named.ident.to_string()),
+        syn::Pat::Ident(named) => {
+            bind(&named.ident.to_string());
+            if let Some((_, inner)) = &named.subpat {
+                supplied_names(inner, bind);
+            }
+        }
+        syn::Pat::Type(typed) => supplied_names(&typed.pat, bind),
+        syn::Pat::Reference(borrowed) => supplied_names(&borrowed.pat, bind),
+        syn::Pat::Paren(inner) => supplied_names(&inner.pat, bind),
+        syn::Pat::Tuple(tuple) => {
+            for part in &tuple.elems {
+                supplied_names(part, bind);
+            }
+        }
+        syn::Pat::TupleStruct(variant) => {
+            for part in &variant.elems {
+                supplied_names(part, bind);
+            }
+        }
+        syn::Pat::Struct(written) => {
+            for field in &written.fields {
+                supplied_names(&field.pat, bind);
+            }
+        }
+        syn::Pat::Slice(slice) => {
+            for part in &slice.elems {
+                supplied_names(part, bind);
+            }
+        }
+        _ => {}
+    }
+}
+
 impl FactCollector {
     /// Visits a closure body under the frame a deferred body carries,
     /// with its own inputs standing for what whoever runs it hands in.
@@ -24,15 +66,14 @@ impl FactCollector {
         self.under(Guard::Closure, Condition::NotDerived, |collector| {
             collector.scoped(|collector| {
                 for input in &closure.inputs {
-                    let Some(named) = super::naming::binding_name(input) else {
-                        continue;
-                    };
-                    if collector.origins.contains_key(&named) {
-                        continue;
-                    }
-                    collector
-                        .origins
-                        .insert(named.clone(), Provenance::Supplied(named));
+                    supplied_names(input, &mut |named| {
+                        if collector.origins.contains_key(named) {
+                            return;
+                        }
+                        collector
+                            .origins
+                            .insert(named.to_owned(), Provenance::Supplied(named.to_owned()));
+                    });
                 }
                 syn::visit::visit_expr_closure(collector, closure);
             });
