@@ -309,11 +309,16 @@ the answer lies past a call.
   the positions a program actually prints, how many have their value traced all the
   way through the composition. The strict number, and the one a generation gate
   would stand on — the whole-statement rate saturates once no clause has to speak a
-  refusal, and cannot stand in for it. Measured on 2026-08-06: `masterror` 51.2%
-  (1166 of 2233 with the resolution overlay, 1144 without), `fork-hyper` 31.2% (360
-  of 1152), the ordinary task list 5 of 8. What stops the rest is almost entirely
-  one question — which function a call reaches, where the receiver types to nothing
-  — so the overlay is where the remainder lives.
+  refusal, and cannot stand in for it. Measured on 2026-08-06: `masterror` 52.7%
+  (1177 of 2233), `fork-hyper` 31.2% without the overlay and 32.8% with it, the
+  ordinary task list 5 of 8. What stops the rest is one question and almost nothing
+  else — which function a call reaches. It splits in two: a name the workspace does
+  not declare at all now answers (the call leaves the program), and what remains is
+  a name several workspace functions share, which only a receiver type settles. The
+  overlay settles the receivers it can — 1609 calls of `fork-hyper`, 1860 of
+  `masterror` — and the rest are generic-heavy sites it renders as unknown. That is
+  where the remainder lives, and it is the resolver's coverage rather than the
+  reading rules.
 - ✅ **A call that leaves the program is an answer, not a gap**: what a function no
   workspace source declares hands back is decided outside the sources being read,
   which is as settled as the content of a field. Naming the callee states
