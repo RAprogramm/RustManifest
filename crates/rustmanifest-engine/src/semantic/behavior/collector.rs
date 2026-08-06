@@ -83,6 +83,8 @@ pub(super) struct FactCollector {
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
     pub(super) field_wraps: Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
+    /// Every name the workspace declares as a constant or a static.
+    pub(super) declared:    super::scoped::Scoped<()>,
     pub(super) crates:      Vec<String>,
     /// Source index of the function under analysis.
     pub(super) src:         usize,

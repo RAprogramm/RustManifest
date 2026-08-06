@@ -30,6 +30,9 @@ pub(super) struct TypeTables {
     pub(super) field_wraps: Scoped<String>,
     /// Names of string constants to the literal each is written as.
     pub(super) constants:   Scoped<String>,
+    /// Every name the workspace declares as a constant or a static,
+    /// whatever its value.
+    pub(super) declared:    Scoped<()>,
     /// Crate identity of every source, for crate-proximity resolution.
     pub(super) crates:      Vec<String>
 }
@@ -44,6 +47,7 @@ impl TypeTables {
             field_elems,
             field_wraps,
             constants: constant::constant_texts(sources),
+            declared: constant::constant_names(sources),
             crates: crate_ids(sources)
         }
     }

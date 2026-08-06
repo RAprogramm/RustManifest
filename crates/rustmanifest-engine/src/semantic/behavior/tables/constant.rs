@@ -15,6 +15,53 @@ use syn::visit::Visit;
 use super::super::scoped::Scoped;
 use crate::source::Source;
 
+/// Reads the name of every constant and static the workspace declares,
+/// whatever its value is written as.
+///
+/// A name, not a value: that a path names a constant is what the
+/// declaration proves, and what the constant holds is settled where it is
+/// declared. Reading the value would mean evaluating the initializer,
+/// which this tier does not do.
+pub(super) fn constant_names(sources: &[Source]) -> Scoped<()> {
+    let mut table = Scoped::default();
+    for (index, source) in sources.iter().enumerate() {
+        let Some(file) = source.tree() else {
+            continue;
+        };
+        let mut harvest = ConstantNames {
+            source: index,
+            table:  &mut table
+        };
+        harvest.visit_file(file);
+    }
+    table
+}
+
+/// Walk collecting the declared names of one source.
+struct ConstantNames<'table> {
+    /// Source the declarations being read belong to.
+    source: usize,
+    /// Table under construction.
+    table:  &'table mut Scoped<()>
+}
+
+impl<'ast> Visit<'ast> for ConstantNames<'_> {
+    fn visit_item_const(&mut self, item: &'ast syn::ItemConst) {
+        self.table.note(item.ident.to_string(), self.source, ());
+        syn::visit::visit_item_const(self, item);
+    }
+
+    fn visit_item_static(&mut self, item: &'ast syn::ItemStatic) {
+        self.table.note(item.ident.to_string(), self.source, ());
+        syn::visit::visit_item_static(self, item);
+    }
+
+    fn visit_impl_item_const(&mut self, item: &'ast syn::ImplItemConst) {
+        self.table.note(item.ident.to_string(), self.source, ());
+        syn::visit::visit_impl_item_const(self, item);
+    }
+}
+
 /// Reads every string constant whose value is written as a literal.
 pub(super) fn constant_texts(sources: &[Source]) -> Scoped<String> {
     let mut table = Scoped::default();

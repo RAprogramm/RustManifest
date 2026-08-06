@@ -131,8 +131,14 @@ impl FactCollector {
     /// the signature declares answers with its own slot, which is the one
     /// free variable a summary is written in terms of. A name written
     /// more than once in this body refuses: which writing stands here is a
-    /// question of scopes this tier does not resolve. Anything else
-    /// arrives from outside this body and is decided elsewhere.
+    /// question of scopes this tier does not resolve.
+    ///
+    /// A name nothing in the body binds, which the workspace declares as
+    /// a constant or a static, is that constant: the declaration proves
+    /// what the name stands for, and where it is declared settles what it
+    /// holds. The order matters — a binding of the same name shadows the
+    /// declaration, so the body is asked first. Anything else arrives
+    /// from outside this body and is decided elsewhere.
     fn named_origin(&self, name: &str) -> Provenance {
         if let Some(origin) = self.origins.get(name) {
             return origin.clone();
@@ -149,6 +155,13 @@ impl FactCollector {
         }
         if self.rebound(name) {
             return Provenance::NotDerived(OriginGap::Rebound);
+        }
+        if self
+            .declared
+            .resolve(name, self.src, &self.crates)
+            .is_some()
+        {
+            return Provenance::Constant(name.to_owned());
         }
         Provenance::NotDerived(OriginGap::Foreign)
     }
