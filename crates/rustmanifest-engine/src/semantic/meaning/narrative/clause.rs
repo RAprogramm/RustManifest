@@ -51,6 +51,9 @@ pub(super) fn intake_clause(claims: &[IntakeClaim]) -> Result<Option<String>, Or
                 settled => named.push(format!("{} of its {}", settled, claim.read.channel))
             }
         }
+        if named.is_empty() {
+            continue;
+        }
         parts.push(format!(
             "{} {} in `{}`",
             opening(held.grade, "takes"),
@@ -87,6 +90,9 @@ pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, 
         }
         named.sort_unstable();
         named.dedup();
+        if named.is_empty() {
+            continue;
+        }
         parts.push(format!(
             "{} {} in `{}`",
             opening(held.grade, "computes"),
@@ -126,6 +132,9 @@ pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, Or
                     Closure::Unproven => "not proven to be all of them"
                 }
             ));
+        }
+        if named.is_empty() {
+            continue;
         }
         parts.push(format!(
             "{} between {} in `{}`",
