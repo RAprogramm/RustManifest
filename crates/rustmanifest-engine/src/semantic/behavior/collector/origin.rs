@@ -79,12 +79,19 @@ impl FactCollector {
         if let Some(named) = self.function_path(path) {
             return Provenance::Constant(named);
         }
-        path.get_ident()
-            .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
-                self.named_origin(&name.to_string())
-            })
+        if let Some(name) = path.get_ident() {
+            return self.named_origin(&name.to_string());
+        }
+        Provenance::Constant(written_path(path))
     }
 
+    /// A path of several segments written where a value is expected names
+    /// an item and never a binding, because a binding has one segment.
+    /// Which item it is — a constant, a variant carrying nothing, a
+    /// static, a function — the reading does not need to settle to state
+    /// that the value is the one that path names. What it holds is fixed
+    /// where the item is declared, exactly as for a field.
+    ///
     /// The name a written path stands for, where the workspace declares
     /// it as a value: a constant, a static, or a variant carrying
     /// nothing.
@@ -316,6 +323,15 @@ impl FactCollector {
         let origin = self.origin_of(&init.expr);
         self.origins.insert(name, origin);
     }
+}
+
+/// A path as the source writes it, segments joined.
+fn written_path(path: &syn::Path) -> String {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
 }
 
 /// The pattern under any written type, so an annotated binding reads like
