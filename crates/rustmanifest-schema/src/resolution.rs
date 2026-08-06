@@ -130,6 +130,7 @@ mod tests {
     fn a_settled_call_is_found_by_its_location() {
         let resolution = Resolution {
             resolver: "test".to_owned(),
+            fields:   Vec::new(),
             calls:    vec![call("src/lib.rs", 10, "is_some")]
         };
         let found = resolution
@@ -143,6 +144,7 @@ mod tests {
     fn a_position_the_resolver_did_not_settle_is_absent() {
         let resolution = Resolution {
             resolver: "test".to_owned(),
+            fields:   Vec::new(),
             calls:    vec![call("src/lib.rs", 10, "go")]
         };
         assert!(resolution.at(&located("src/lib.rs", 99)).is_none());
@@ -152,6 +154,7 @@ mod tests {
     fn settling_orders_by_file_then_position_and_drops_repeats() {
         let mut resolution = Resolution {
             resolver: "test".to_owned(),
+            fields:   Vec::new(),
             calls:    vec![
                 call("src/z.rs", 1, "z"),
                 call("src/a.rs", 20, "b"),
