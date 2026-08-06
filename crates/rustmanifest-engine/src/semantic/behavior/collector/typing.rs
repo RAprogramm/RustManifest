@@ -31,6 +31,9 @@ impl FactCollector {
                 .and_then(|ident| self.param_types.get(&ident.to_string()))
                 .map(|name| self.bounds.get(name).unwrap_or(name).clone()),
             syn::Expr::Field(field) => {
+                if let Some(settled) = self.settled_field_type(field) {
+                    return Some(settled);
+                }
                 let owner = self.expr_type(&field.base)?;
                 self.field(&format!(
                     "{owner}.{}",

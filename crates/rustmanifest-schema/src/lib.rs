@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::resolution::{Resolution, ResolvedCall};
+pub use self::resolution::{Resolution, ResolvedCall, ResolvedField};
 
 /// A single review rule definition produced by the rules pack.
 ///

@@ -8,6 +8,33 @@
 use super::FactCollector;
 
 impl FactCollector {
+    /// The type a resolver settled for the value a field is read out of.
+    ///
+    /// A type outside the workspace is one the written text cannot name,
+    /// and naming it is the whole of what a field answer needs. The
+    /// resolver's answer therefore outranks the reading below, which can
+    /// only name what the workspace declares.
+    pub(super) fn settled_owner(&self, field: &syn::ExprField) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = field.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.held.get(&(start, end)).map(|(owner, _)| owner.clone())
+    }
+
+    /// The type a resolver settled for the field read at a position.
+    pub(super) fn settled_field_type(&self, field: &syn::ExprField) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = field.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.held
+            .get(&(start, end))
+            .map(|(_, produced)| produced.clone())
+    }
+
     /// Renders a field expression as `Owner.field` where the tables name
     /// the type holding it, or `?.field` where they do not.
     ///
@@ -20,7 +47,9 @@ impl FactCollector {
         let syn::Member::Named(name) = &field.member else {
             return None;
         };
-        let owner = self.expr_type(&field.base);
+        let owner = self
+            .settled_owner(field)
+            .or_else(|| self.expr_type(&field.base));
         Some(format!("{}.{name}", owner.as_deref().unwrap_or("?")))
     }
 

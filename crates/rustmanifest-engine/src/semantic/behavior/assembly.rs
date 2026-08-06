@@ -126,7 +126,10 @@ pub(super) struct Settled {
     /// Type each call at a position hands back.
     pub(super) produced:  std::collections::BTreeMap<(u32, u32), String>,
     /// Type of the receiver each call at a position was called on.
-    pub(super) receivers: std::collections::BTreeMap<(u32, u32), String>
+    pub(super) receivers: std::collections::BTreeMap<(u32, u32), String>,
+    /// Type holding the field read at a position, and the type that
+    /// field itself has.
+    pub(super) fields:    std::collections::BTreeMap<(u32, u32), (String, String)>
 }
 
 /// The name the tables speak: the outermost type of a written type, with
@@ -170,6 +173,19 @@ fn settled_types(
         if let Some(named) = call.receiver.as_deref().and_then(outermost) {
             settled.receivers.insert(at, named);
         }
+    }
+    for field in &resolution.fields {
+        if field.at.file != source.path() {
+            continue;
+        }
+        let (Some(owner), Some(produced)) = (outermost(&field.owner), outermost(&field.produced))
+        else {
+            continue;
+        };
+        settled.fields.insert(
+            (field.at.range.start, field.at.range.end),
+            (owner, produced)
+        );
     }
     settled
 }

@@ -32,6 +32,23 @@ pub struct ResolvedCall {
     pub receiver: Option<String>
 }
 
+/// One field access a resolver settled.
+///
+/// The engine reads a field by naming the type that holds it, and a type
+/// outside the workspace is one the written text cannot name. This row
+/// answers exactly that: which type the value being read from has, and
+/// which type the field itself has.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct ResolvedField {
+    /// File and byte range of the field expression.
+    pub at:       Location,
+    /// Type of the value the field is read out of.
+    pub owner:    String,
+    /// Type the field itself has, as the resolver renders it.
+    pub produced: String
+}
+
 /// Everything one resolution run settled about one workspace.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -40,7 +57,10 @@ pub struct Resolution {
     /// recognisable rather than silently trusted.
     pub resolver: String,
     /// Calls the resolver settled, in file then position order.
-    pub calls:    Vec<ResolvedCall>
+    pub calls:    Vec<ResolvedCall>,
+    /// Field accesses the resolver settled, in file then position order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields:   Vec<ResolvedField>
 }
 
 impl Resolution {
@@ -54,6 +74,14 @@ impl Resolution {
     /// Sorts the calls into the order the shape promises and drops exact
     /// repeats, so two runs over the same workspace produce the same bytes.
     pub fn settle(&mut self) {
+        self.fields.sort_by(|left, right| {
+            left.at
+                .file
+                .cmp(&right.at.file)
+                .then(left.at.range.start.cmp(&right.at.range.start))
+                .then(left.at.range.end.cmp(&right.at.range.end))
+        });
+        self.fields.dedup();
         self.calls.sort_by(|left, right| {
             left.at
                 .file

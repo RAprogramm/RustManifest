@@ -86,6 +86,7 @@ pub(super) fn function_facts(
         payloads:    known.tables.payloads.clone(),
         settled:     known.settled.produced.clone(),
         receivers:   known.settled.receivers.clone(),
+        held:        known.settled.fields.clone(),
         src:         source,
         bounds:      context.bounds.clone(),
         local_wraps: std::collections::BTreeMap::new(),

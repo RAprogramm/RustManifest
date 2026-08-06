@@ -23,7 +23,7 @@ use ra_ap_ide_db::RootDatabase;
 use ra_ap_load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
 use ra_ap_project_model::{CargoConfig, RustLibSource};
 use ra_ap_syntax::{AstNode, ast};
-use rustmanifest_schema::{Location, Range, Resolution, ResolvedCall};
+use rustmanifest_schema::{Location, Range, Resolution, ResolvedCall, ResolvedField};
 use tracing::debug;
 
 use crate::error::ResolveError;
@@ -45,7 +45,8 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
     );
     let mut resolution = Resolution {
         resolver: format!("rustmanifest-resolve {}", env!("CARGO_PKG_VERSION")),
-        calls:    Vec::new()
+        calls:    Vec::new(),
+        fields:   Vec::new()
     };
     attach_db(&database, || {
         let semantics = Semantics::new(&database);
@@ -62,6 +63,15 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
             {
                 if let Some(settled) = settled_call(&semantics, &database, &name, &call) {
                     resolution.calls.push(settled);
+                }
+            }
+            for field in parsed
+                .syntax()
+                .descendants()
+                .filter_map(ast::FieldExpr::cast)
+            {
+                if let Some(settled) = settled_field(&semantics, &database, &name, &field) {
+                    resolution.fields.push(settled);
                 }
             }
         }
@@ -98,6 +108,46 @@ fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), ResolveError> {
             reason: source.to_string()
         })
     }
+}
+
+/// Reads one field access, answering `None` where the resolver settled
+/// nothing.
+///
+/// Both types are asked for: the one holding the field, which is what
+/// the engine names a field by, and the one the field itself has, which
+/// is what a reading standing on it needs. Either coming back unknown
+/// leaves the position out, because a half-answer here would be read as
+/// a whole one.
+fn settled_field(
+    semantics: &Semantics<'_, RootDatabase>,
+    database: &RootDatabase,
+    file: &str,
+    field: &ast::FieldExpr
+) -> Option<ResolvedField> {
+    let base = field.expr()?;
+    let owner_type = semantics.type_of_expr(&base)?.original();
+    let target = DisplayTarget::from_crate(database, owner_type.krate(database).into());
+    let owner = owner_type.display(database, target).to_string();
+    let produced = semantics
+        .type_of_expr(&ast::Expr::FieldExpr(field.clone()))?
+        .original()
+        .display(database, target)
+        .to_string();
+    if owner.contains("{unknown}") || produced.contains("{unknown}") {
+        return None;
+    }
+    let span = field.syntax().text_range();
+    Some(ResolvedField {
+        at: Location {
+            file:  std::path::PathBuf::from(file),
+            range: Range {
+                start: u32::from(span.start()),
+                end:   u32::from(span.end())
+            }
+        },
+        owner,
+        produced
+    })
 }
 
 /// Reads one method call, answering `None` where the resolver settled
