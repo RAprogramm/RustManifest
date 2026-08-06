@@ -155,6 +155,10 @@ impl FactCollector {
     /// Records each part a pattern takes out of one value, and lets the
     /// name bound at each position stand for that part.
     ///
+    /// A pattern that is a plain name takes nothing apart: it binds the
+    /// whole value it was matched against, and that value is what the
+    /// name stands for.
+    ///
     /// A part that is itself a pattern is taken apart in turn, against
     /// the part it stands for: `(Some(one), Some(two))` names position
     /// zero of the pair, then position zero of what that carries, and
@@ -178,6 +182,15 @@ impl FactCollector {
         taken: &Provenance,
         span: &std::ops::Range<usize>
     ) -> bool {
+        if let syn::Pat::Ident(bound) = pattern
+            && bound.subpat.is_none()
+        {
+            let name = bound.ident.to_string();
+            if self.sole.contains(&name) && !self.origins.contains_key(&name) {
+                self.origins.insert(name, taken.clone());
+            }
+            return true;
+        }
         if let syn::Pat::Struct(written) = pattern {
             return self.record_named_parts(written);
         }
