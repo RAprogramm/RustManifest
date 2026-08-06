@@ -31,6 +31,7 @@ impl FactCollector {
         if let Some(key) = self.field_key(field) {
             self.facts.reads.push(key);
         }
+        self.record_indexed_part(field);
         if let syn::Expr::Path(path) = field.base.as_ref()
             && let Some(ident) = path.path.get_ident()
         {

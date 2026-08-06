@@ -263,6 +263,30 @@ impl FactCollector {
         true
     }
 
+    /// Records the element a written tuple position takes out of a value.
+    ///
+    /// `pair.0` names position zero of `pair`, which is the selection an
+    /// index at a written position already is, and the language
+    /// guarantees the correspondence. A named field is not this: it is
+    /// answered by the field reading, which names the type holding it.
+    pub(super) fn record_indexed_part(&mut self, field: &syn::ExprField) {
+        use syn::spanned::Spanned;
+
+        let syn::Member::Unnamed(position) = &field.member else {
+            return;
+        };
+        let operands = vec![
+            self.origin_of(&field.base),
+            Provenance::Written(Literal::Integer(position.index.to_string())),
+        ];
+        self.push_operation(
+            &field.span().byte_range(),
+            Operation::Selection,
+            operands,
+            Guarding::Unchecked
+        );
+    }
+
     /// Records the conversion a written cast performs, whose target the
     /// source writes outright.
     pub(super) fn record_cast(&mut self, cast: &syn::ExprCast) {
