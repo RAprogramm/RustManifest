@@ -7,6 +7,25 @@ use super::{super::FactCollector, carrying::closure_input};
 use crate::semantic::std_knowledge::Carried;
 
 impl FactCollector {
+    /// Walks a call whose closure runs over the elements of its receiver,
+    /// binding those elements only after the receiver itself is recorded.
+    ///
+    /// The binding names the value the receiver stands for, and that
+    /// value has no record until the walk reaches it. Binding first left
+    /// every such input standing for a position the walk had not yet
+    /// written down.
+    pub(in crate::semantic::behavior::collector) fn walk_adapter_call(
+        &mut self,
+        call: &syn::ExprMethodCall,
+        span: &std::ops::Range<usize>
+    ) {
+        syn::visit::visit_expr(self, &call.receiver);
+        self.bind_adapter_inputs(call, span);
+        for argument in &call.args {
+            syn::visit::visit_expr(self, argument);
+        }
+    }
+
     /// Walks a method call, binding a closure's own input to what the
     /// receiver holds before the closure's body is read.
     ///

@@ -84,10 +84,13 @@ impl FactCollector {
             call.span().byte_range()
         };
         let reserved = self.reserve_method_call(call, &method, &span);
-        if ITERATOR_ADAPTERS.contains(&method.as_str()) {
+        let carried = matches!(
+            crate::semantic::std_knowledge::carried_by(&method),
+            Some(crate::semantic::std_knowledge::Carried::ClosureOver(_))
+        );
+        if ITERATOR_ADAPTERS.contains(&method.as_str()) && !carried {
             self.scoped(|collector| {
-                collector.bind_adapter_inputs(call, &span);
-                collector.walk_method_call(call);
+                collector.walk_adapter_call(call, &span);
             });
         } else {
             self.walk_method_call(call);
