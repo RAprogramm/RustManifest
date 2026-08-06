@@ -256,8 +256,14 @@ the answer lies past a call.
   arguments, and a depth budget of 14 that emits its own refusal, so termination
   rests on the budget and not on an acyclicity argument.
 - ✅ **The resolution overlay** (`rustmanifest-resolve`, `--resolution` on every
-  value-reading command): which function a call reaches, what it hands back, and
-  what type a receiver has, read from a loaded cargo workspace. A binary of its
+  value-reading command): which function a call reaches, what it hands back, what
+  type a receiver has, and — since the fact base learned to read it — which type
+  holds each field read and what type that field has, all from a loaded cargo
+  workspace. The field rows are what a syntactic reading cannot reach at all: a
+  value read out of a type another crate declares. Measured on the engine's own
+  sources on 2026-08-06: 88.3% of value positions derived without the overlay,
+  **92.8% with it** (23240 of 25045), the difference being almost entirely field
+  reads on library types. A binary of its
   own so the rust-analyzer libraries — weekly `0.0.x`, no API stability — stay out
   of the tool a user runs on every save, and the engine takes the answers as plain
   data. A position the resolver cannot settle is absent from the overlay, so the

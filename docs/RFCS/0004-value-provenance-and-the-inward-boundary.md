@@ -29,7 +29,9 @@ the workspace declares), a value built at the position (a written structure, a
 standard macro), and the element a loop or an adapter hands out — and the
 single-binding census now counts sibling branches as alternatives rather than
 as repetitions, with the origins map restored on the way out of each branch so
-the two readings cannot disagree. The roadmap records the measured effect.
+the two readings cannot disagree. The resolution overlay, which this RFC does
+not mention, now reaches the fact base as well as the composition tier and
+carries field rows of its own. The roadmap records the measured effect.
 
 ## Summary
 
