@@ -15,14 +15,14 @@
 //! the same spelling is not credited — the owner must match a primitive
 //! this table lists, or the path is not read here at all.
 
-/// Primitive types whose associated constants this table answers for.
-const OWNERS: [&str; 16] = [
+/// Types whose associated constants this table answers for.
+const OWNERS: [&str; 17] = [
     "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f32",
-    "f64", "char", "bool"
+    "f64", "char", "bool", "Duration"
 ];
 
 /// Associated constants those types define.
-const CONSTANTS: [&str; 9] = [
+const CONSTANTS: [&str; 11] = [
     "MAX",
     "MIN",
     "BITS",
@@ -31,12 +31,26 @@ const CONSTANTS: [&str; 9] = [
     "NEG_INFINITY",
     "NAN",
     "MIN_POSITIVE",
-    "RADIX"
+    "RADIX",
+    "ZERO",
+    "ONE"
 ];
 
 /// Unit variants of standard types, written bare or through their own
 /// type, each standing for one value with no payload.
-const UNIT_VARIANTS: [&str; 4] = ["None", "Less", "Equal", "Greater"];
+const UNIT_VARIANTS: [&str; 11] = [
+    "None",
+    "Less",
+    "Equal",
+    "Greater",
+    "Pending",
+    "Unbounded",
+    "Relaxed",
+    "Acquire",
+    "Release",
+    "AcqRel",
+    "SeqCst"
+];
 
 /// The value a path stands for, named as written, or nothing where the
 /// path is not one this table answers for.
@@ -67,7 +81,7 @@ pub(in crate::semantic) fn value_path(path: &syn::Path) -> Option<String> {
 /// Whether a segment names the standard type whose unit variants this
 /// table lists.
 fn variant_owner(owner: &str) -> bool {
-    matches!(owner, "Option" | "Ordering")
+    matches!(owner, "Option" | "Ordering" | "Poll" | "Bound")
 }
 
 #[cfg(test)]
