@@ -153,6 +153,137 @@ fn main() {
 }
 "#;
 
+/// The first program anyone writes.
+const GREETING: &str = r#"fn main() {
+    println!("hello world");
+}
+"#;
+
+/// The task list a junior writes: read the command line, load a file,
+/// add, complete, list, save.
+const TODO: &str = r#"use std::{collections::BTreeMap, env, fs, io, process::ExitCode};
+
+struct Task {
+    title: String,
+    done:  bool
+}
+
+struct Store {
+    path:  String,
+    tasks: BTreeMap<u64, Task>
+}
+
+impl Store {
+    fn load(path: String) -> io::Result<Self> {
+        let text = fs::read_to_string(&path)?;
+        let mut tasks = BTreeMap::new();
+        for line in text.lines() {
+            let mut parts = line.splitn(3, '\t');
+            let id = parts.next().unwrap_or("0");
+            let done = parts.next().unwrap_or("0");
+            let title = parts.next().unwrap_or("");
+            let number = id.parse::<u64>().unwrap_or(0);
+            tasks.insert(number, Task {
+                title: title.to_owned(),
+                done:  done == "1"
+            });
+        }
+        Ok(Self { path, tasks })
+    }
+
+    fn add(&mut self, title: String) -> u64 {
+        let next = self.tasks.keys().last().copied().unwrap_or(0) + 1;
+        self.tasks.insert(next, Task { title, done: false });
+        next
+    }
+
+    fn complete(&mut self, id: u64) -> bool {
+        match self.tasks.get_mut(&id) {
+            Some(task) => {
+                task.done = true;
+                true
+            }
+            None => false
+        }
+    }
+
+    fn save(&self) -> io::Result<()> {
+        let mut out = String::new();
+        for (id, task) in &self.tasks {
+            out.push_str(&format!("{id}\t{}\t{}\n", u8::from(task.done), task.title));
+        }
+        fs::write(&self.path, out)
+    }
+}
+
+fn main() -> ExitCode {
+    let args: Vec<String> = env::args().collect();
+    let command = args.get(1).map(String::as_str).unwrap_or("list");
+    let mut store = match Store::load("tasks.tsv".to_owned()) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("cannot read the task file: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match command {
+        "add" => {
+            let title = args.get(2).cloned().unwrap_or_default();
+            let id = store.add(title);
+            println!("added task {id}");
+        }
+        "done" => {
+            let id = args.get(2).and_then(|text| text.parse::<u64>().ok()).unwrap_or(0);
+            if store.complete(id) {
+                println!("task {id} is done");
+            } else {
+                println!("no task {id}");
+            }
+        }
+        _ => {
+            for (id, task) in &store.tasks {
+                println!("{id} {} {}", if task.done { "x" } else { " " }, task.title);
+            }
+        }
+    }
+    if let Err(error) = store.save() {
+        eprintln!("cannot write the task file: {error}");
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}
+"#;
+
+#[test]
+fn the_greeting_states_what_it_writes_and_nothing_more() {
+    let stated = stated(&[("src/main.rs", GREETING)]);
+    assert!(
+        stated.contains("unconditionally writes \"hello world\\n\" to stdout"),
+        "the greeting is not stated: {stated}"
+    );
+    assert!(
+        !stated.contains("did not derive"),
+        "the greeting refuses somewhere: {stated}"
+    );
+}
+
+#[test]
+fn the_task_list_traces_every_position_it_prints() {
+    let stated = stated(&[("src/main.rs", TODO)]);
+    assert!(
+        !stated.contains("did not derive"),
+        "the task list refuses somewhere: {stated}"
+    );
+    assert!(
+        stated.contains("conversion to u64 over position 2 of the command-line"),
+        "the identifier is not traced to the command line: {stated}"
+    );
+    assert!(
+        stated.contains("takes position 1 of its command-line"),
+        "the command it was asked for is not stated: {stated}"
+    );
+}
+
 #[test]
 fn a_refusal_nothing_reaches_leaves_the_statement_whole() {
     let stated = stated(&[("src/main.rs", UNREACHED_HELPER)]);
