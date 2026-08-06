@@ -57,6 +57,10 @@ impl FactCollector {
 
     /// Records the failure a `?` hands back.
     ///
+    /// What leaves is the failure half of the value the operator stands
+    /// on, never that value itself: handing the whole answer back would
+    /// let the success half stand where an error was propagated.
+    ///
     /// The value is the origin of the operand, which is the fallible value
     /// itself: what leaves the function is that value's failure half, and
     /// naming the operand is the closest the source licenses without
@@ -65,7 +69,8 @@ impl FactCollector {
         use syn::spanned::Spanned;
 
         let span = tried.span().byte_range();
-        let value = self.origin_of(&tried.expr);
+        let taken = self.origin_of(&tried.expr);
+        let value = self.failure_half(&taken, &span);
         self.push_handback(&span, value, Outcome::Failure);
     }
 

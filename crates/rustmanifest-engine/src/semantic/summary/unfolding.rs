@@ -72,9 +72,6 @@ fn computed(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) 
         .iter()
         .map(|operand| unfold(settled, fact, operand, budget))
         .collect();
-    if let Some(half) = taken_half(&site.operation, &operands) {
-        return half;
-    }
     ComposedOrigin::Computed {
         operation: site.operation.clone(),
         operands
@@ -84,12 +81,19 @@ fn computed(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) 
 /// The half of a fallible answer a selection takes, where that is what
 /// the selection does.
 ///
+/// Read after the call it stands on has been settled and never before:
+/// until then both halves are the same refusal, and collapsing to one
+/// would keep that refusal after the answer arrived.
+///
 /// Taking a value apart with `Ok(value)` selects position zero of the
 /// answer, and with `Err(error)` position one: the pattern names the
 /// half, and the call already carries both. Restating it as a selection
 /// over a call would put a step between a value and itself and lose
 /// which half was taken.
-fn taken_half(operation: &Operation, operands: &[ComposedOrigin]) -> Option<ComposedOrigin> {
+pub(super) fn taken_half(
+    operation: &Operation,
+    operands: &[ComposedOrigin]
+) -> Option<ComposedOrigin> {
     if !matches!(operation, Operation::Selection) {
         return None;
     }

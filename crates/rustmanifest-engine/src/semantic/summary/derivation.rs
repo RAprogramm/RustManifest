@@ -137,13 +137,16 @@ pub(super) fn carry(
         ComposedOrigin::Computed {
             operation,
             operands
-        } => ComposedOrigin::Computed {
-            operation: operation.clone(),
-            operands:  operands
+        } => {
+            let carried: Vec<ComposedOrigin> = operands
                 .iter()
                 .map(|operand| carry(bindings, caller, operand, settled, remaining))
-                .collect()
-        },
+                .collect();
+            super::unfolding::taken_half(operation, &carried).unwrap_or(ComposedOrigin::Computed {
+                operation: operation.clone(),
+                operands:  carried
+            })
+        }
         ComposedOrigin::Choice(alternatives) => ComposedOrigin::Choice(
             alternatives
                 .iter()

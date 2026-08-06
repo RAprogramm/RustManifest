@@ -283,8 +283,8 @@ fn the_task_list_traces_every_position_it_prints() {
         "the command it was asked for is not stated: {stated}"
     );
     assert!(
-        stated.contains("`<error>` is a value this analysis did not derive"),
-        "the failure half is claimed rather than refused: {stated}"
+        stated.contains("`<error>` is the value `fs::read_to_string` hands back"),
+        "the failure it prints is not traced to the call that failed: {stated}"
     );
 }
 

@@ -152,6 +152,22 @@ impl FactCollector {
         }
     }
 
+    /// The failure half of a value, recorded as the selection that takes
+    /// it: position one of a fallible answer, the same position a
+    /// pattern writing `Err` takes.
+    pub(super) fn failure_half(
+        &mut self,
+        taken: &Provenance,
+        span: &std::ops::Range<usize>
+    ) -> Provenance {
+        let operands = vec![
+            taken.clone(),
+            Provenance::Written(Literal::Integer("1".to_owned())),
+        ];
+        let index = self.push_operation(span, Operation::Selection, operands, Guarding::Unchecked);
+        Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX))
+    }
+
     /// Records each part a pattern takes out of one value, and lets the
     /// name bound at each position stand for that part.
     ///
