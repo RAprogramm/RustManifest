@@ -119,6 +119,39 @@ const STORE: &str = "use std::{collections::BTreeMap, io::{self, Write}, process
 /// The command line reaches the arithmetic through a binding that carries
 /// a written type and through a helper call. Either link broken, the
 /// sentence falls back to naming a value it did not derive.
+/// A task list printing every entry of a map it iterates.
+const TASK_LIST: &str = r#"use std::collections::BTreeMap;
+
+struct Task {
+    title: String,
+    done:  bool
+}
+
+struct Store {
+    tasks: BTreeMap<u64, Task>
+}
+
+fn main() {
+    let store = Store { tasks: BTreeMap::new() };
+    for (id, task) in &store.tasks {
+        println!("{id} {} {}", task.done, task.title);
+    }
+}
+"#;
+
+#[test]
+fn the_task_list_states_what_it_prints_without_refusing_anywhere() {
+    let stated = stated(&[("src/main.rs", TASK_LIST)]);
+    assert!(
+        !stated.contains("did not derive"),
+        "the statement refuses somewhere: {stated}"
+    );
+    assert!(
+        stated.contains("the result of selection over the field `Store.tasks`"),
+        "the key a map iteration hands out must trace to the map it came from: {stated}"
+    );
+}
+
 #[test]
 fn a_name_the_body_rewrites_refuses_while_its_neighbour_traces_home() {
     let stated = stated(&[(
