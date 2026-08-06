@@ -148,25 +148,28 @@ impl FactCollector {
         }
     }
 
-    /// Records each part a tuple pattern takes out of one value, and lets
-    /// the name bound at each position stand for that part.
+    /// Records each part a pattern takes out of one value, and lets the
+    /// name bound at each position stand for that part.
     ///
     /// Which part a name holds is written in the pattern itself: the name
-    /// at position `k` holds the element at position `k`, and the
-    /// language guarantees it. That is the same fact an index at a
-    /// written position records, so it is recorded as the same operation
-    /// over the same two operands — the value taken apart, and the
-    /// position taken from it.
+    /// at position `k` holds what stands at position `k` of the value
+    /// taken apart — an element of a tuple, or the payload a variant
+    /// carries at that position — and the language guarantees it. That is the
+    /// same fact an index at a written position records, so it is recorded
+    /// as the same operation over the same two operands — the value taken
+    /// apart, and the position taken from it.
     pub(super) fn record_tuple_parts(
         &mut self,
         pattern: &syn::Pat,
         taken: &Provenance,
         span: &std::ops::Range<usize>
     ) -> bool {
-        let syn::Pat::Tuple(tuple) = pattern else {
-            return false;
+        let parts: Vec<&syn::Pat> = match pattern {
+            syn::Pat::Tuple(tuple) => tuple.elems.iter().collect(),
+            syn::Pat::TupleStruct(variant) => variant.elems.iter().collect(),
+            _ => return false
         };
-        for (position, part) in tuple.elems.iter().enumerate() {
+        for (position, part) in parts.into_iter().enumerate() {
             let Some(name) = super::naming::binding_name(part) else {
                 continue;
             };

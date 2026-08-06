@@ -83,7 +83,7 @@ impl FactCollector {
         let single = matched.arms.len() == 1;
         let choice = self.choices;
         self.choices += 1;
-        let record = self.reserve_choice(&span, scrutinee);
+        let record = self.reserve_choice(&span, scrutinee.clone());
         for (position, arm) in matched.arms.iter().enumerate() {
             let frame = Guard::MatchArm {
                 irrefutable: irrefutable(&arm.pat),
@@ -98,6 +98,7 @@ impl FactCollector {
                     }
                 );
             if binds {
+                self.record_tuple_parts(&arm.pat, &scrutinee, &span);
                 self.visit_arm(arm);
                 self.record_alternative(record, arm);
             } else {
@@ -110,6 +111,7 @@ impl FactCollector {
                     },
                     |collector| {
                         collector.scoped(|collector| {
+                            collector.record_tuple_parts(&arm.pat, &scrutinee, &span);
                             collector.visit_arm(arm);
                             collector.record_alternative(record, arm);
                         });
