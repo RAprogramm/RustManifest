@@ -261,9 +261,10 @@ the answer lies past a call.
   holds each field read and what type that field has, all from a loaded cargo
   workspace. The field rows are what a syntactic reading cannot reach at all: a
   value read out of a type another crate declares. Measured on the engine's own
-  sources on 2026-08-06: 88.3% of value positions derived without the overlay,
-  **92.8% with it** (23240 of 25045), the difference being almost entirely field
-  reads on library types. A binary of its
+  sources on 2026-08-06, after the reading rules had taken the syntactic tier as far
+  as it goes: **91.8% without the overlay, 96.3% with it** (25497 of 26475). The
+  difference is almost entirely field reads on types another crate declares, which
+  written text cannot name at all. A binary of its
   own so the rust-analyzer libraries — weekly `0.0.x`, no API stability — stay out
   of the tool a user runs on every save, and the engine takes the answers as plain
   data. A position the resolver cannot settle is absent from the overlay, so the
