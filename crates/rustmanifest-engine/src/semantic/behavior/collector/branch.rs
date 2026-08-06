@@ -78,6 +78,7 @@ impl FactCollector {
 
         self.visit_expr(&matched.expr);
         self.record_outcome_bindings(matched);
+        self.record_present_bindings(matched);
         let span = matched.span().byte_range();
         let scrutinee = self.origin_of(&matched.expr);
         let single = matched.arms.len() == 1;

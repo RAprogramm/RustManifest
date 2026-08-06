@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 //! Field typing tables: every named and positional field of every
-//! struct in the workspace, keyed `Type.field`, read three ways — the
-//! field's own type, the element type of a collection field, and the
-//! inner type of a single-generic wrapper field.
+//! struct in the workspace, keyed `Type.field`, read four ways — the
+//! field's own type, the type a lookup into it hands out (for a map that
+//! is its value type, for a sequence its element), the key and value
+//! types of a map, and the inner type of a single-generic wrapper.
 
 use crate::{
     semantic::behavior::{
@@ -54,7 +55,9 @@ pub(super) fn field_tables(sources: &[Source]) -> FieldTables {
                 if let Some(type_name) = type_last_segment(&field.ty) {
                     plain.note(key.clone(), index, type_name);
                 }
-                if let Some(element) = element_type(&field.ty) {
+                if let Some(element) =
+                    element_type(&field.ty).or_else(|| pair_types(&field.ty).map(|pair| pair.1))
+                {
                     elems.note(key.clone(), index, element);
                 }
                 if let Some(pair) = pair_types(&field.ty) {

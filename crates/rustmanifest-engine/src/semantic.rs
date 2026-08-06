@@ -33,6 +33,7 @@ mod graph;
 mod insight;
 mod invariant;
 mod io_forms;
+mod keeping;
 mod knowledge;
 mod layers;
 mod layout;
@@ -88,6 +89,7 @@ pub use self::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
     invariant::{check_invariants, check_invariants_with},
+    keeping::{Keeping, Store, Verb, keeping, stores},
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
     meaning::{

@@ -27,6 +27,21 @@ const RESULT_VARIANTS: [(&str, bool); 2] = [("Ok", true), ("Err", false)];
 
 impl FactCollector {
     /// Records the type each arm of a match over a result binds.
+    pub(super) fn record_present_bindings(&mut self, matched: &syn::ExprMatch) {
+        let Some(element) = self.optional_element(&matched.expr) else {
+            return;
+        };
+        for arm in &matched.arms {
+            let Some((variant, bound)) = variant_binding(&arm.pat) else {
+                continue;
+            };
+            if variant == "Some" {
+                self.param_types.insert(bound, element.clone());
+            }
+        }
+    }
+
+    /// Records the type each arm of a match over a result binds.
     pub(super) fn record_outcome_bindings(&mut self, matched: &syn::ExprMatch) {
         let Some(key) = self.call_key(&matched.expr) else {
             return;

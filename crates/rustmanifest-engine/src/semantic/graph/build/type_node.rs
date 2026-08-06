@@ -17,7 +17,8 @@ pub(in crate::semantic::graph) fn node(source: usize, definition: &syn::ItemStru
             .filter_map(|field| {
                 field.ident.as_ref().map(|ident| FieldNode {
                     name:      ident.to_string(),
-                    type_name: last_segment(&field.ty)
+                    type_name: last_segment(&field.ty),
+                    element:   held_element(&field.ty)
                 })
             })
             .collect(),
@@ -79,7 +80,8 @@ pub(in crate::semantic::graph) fn enum_node(
             );
             fields.push(FieldNode {
                 name,
-                type_name: last_segment(&field.ty)
+                type_name: last_segment(&field.ty),
+                element: held_element(&field.ty)
             });
         }
     }
@@ -96,6 +98,35 @@ pub(in crate::semantic::graph) fn enum_node(
 
 /// Renders the last path segment of a type, or a placeholder for non-path
 /// types such as references, tuples, and slices.
+/// The type a collection field holds, read off the written type
+/// arguments: the last one, so a map answers with its values and a
+/// sequence with its elements.
+///
+/// A type carrying no arguments holds nothing, and a type argument that
+/// is not a plain path — a reference, a tuple, a slice — is not named
+/// here, because what it holds has no single name to give.
+fn held_element(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    let written: Vec<&syn::Type> = arguments
+        .args
+        .iter()
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(inner) => Some(inner),
+            _ => None
+        })
+        .collect();
+    let syn::Type::Path(inner) = written.last()? else {
+        return None;
+    };
+    Some(inner.path.segments.last()?.ident.to_string())
+}
+
 fn last_segment(ty: &syn::Type) -> String {
     match ty {
         syn::Type::Path(path) => path

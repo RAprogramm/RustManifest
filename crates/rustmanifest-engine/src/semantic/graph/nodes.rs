@@ -24,7 +24,11 @@ pub struct FieldNode {
     /// variant name for unnamed payloads.
     pub name:      String,
     /// Last path segment of the field's type (`Vec<Credentials>` → `Vec`).
-    pub type_name: String
+    pub type_name: String,
+    /// Type of the values the field's collection holds, where the field
+    /// declares a collection (`Vec<Credentials>` → `Credentials`,
+    /// `BTreeMap<u64, Task>` → `Task`).
+    pub element:   Option<String>
 }
 
 /// One structure or enum definition found in the workspace.

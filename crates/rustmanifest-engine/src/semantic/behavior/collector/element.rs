@@ -38,7 +38,10 @@ impl FactCollector {
         let syn::Expr::MethodCall(call) = expression else {
             return None;
         };
-        if !matches!(call.method.to_string().as_str(), "get" | "first" | "last") {
+        if !matches!(
+            call.method.to_string().as_str(),
+            "get" | "get_mut" | "first" | "first_mut" | "last" | "last_mut"
+        ) {
             return None;
         }
         self.element_of(&call.receiver)
