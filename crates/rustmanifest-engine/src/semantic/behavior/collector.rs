@@ -87,6 +87,10 @@ pub(super) struct FactCollector {
     pub(super) declared:    super::scoped::Scoped<()>,
     /// The single payload type of every variant that carries one.
     pub(super) payloads:    super::scoped::Scoped<String>,
+    /// What a resolver settled about this source, by byte range: the type
+    /// the expression at that position hands back. Empty where no
+    /// resolver ran.
+    pub(super) settled:     std::collections::BTreeMap<(u32, u32), String>,
     pub(super) crates:      Vec<String>,
     /// Source index of the function under analysis.
     pub(super) src:         usize,

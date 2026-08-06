@@ -48,6 +48,17 @@ impl Performed {
         self.facts.get_or_init(|| behavior(sources))
     }
 
+    /// Returns the facts of `sources` read with what a resolver settled
+    /// about them, deriving them on the first call.
+    pub(super) fn resolved_facts(
+        &self,
+        sources: &[Source],
+        resolution: Option<&rustmanifest_schema::Resolution>
+    ) -> &[FunctionFacts] {
+        self.facts
+            .get_or_init(|| crate::semantic::behavior::behavior_with(sources, resolution))
+    }
+
     /// Returns the resolution context of `sources`, building it on the
     /// first call.
     pub(super) fn context(&self, sources: &[Source]) -> &ResolutionContext {

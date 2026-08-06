@@ -9,7 +9,7 @@
 use super::{
     conversion::error_conversions,
     declaration::{ItemContext, is_attributed, item_flags},
-    extraction::function_facts,
+    extraction::{Known, function_facts},
     imports::use_imports,
     rendering::name_rendered_texts,
     signature::generics_bounds,
@@ -23,6 +23,21 @@ use crate::{semantic::expr::impl_type_name, source::Source};
 /// not parse as Rust contribute no facts.
 #[must_use]
 pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
+    behavior_with(sources, None)
+}
+
+/// Extracts the facts of every function `sources` declares, with what a
+/// resolver settled about them where one ran.
+///
+/// The overlay answers what the written text cannot — the type a call
+/// hands back — and is read as plain data keyed by position, so nothing
+/// here depends on where the answers came from. Without one, every
+/// reading is exactly what it was.
+#[must_use]
+pub fn behavior_with(
+    sources: &[Source],
+    resolution: Option<&rustmanifest_schema::Resolution>
+) -> Vec<FunctionFacts> {
     let tables = TypeTables::of(sources);
     let mut facts = Vec::new();
     for (index, source) in sources.iter().enumerate() {
@@ -32,6 +47,12 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
         let imports = use_imports(&items);
+        let settled = settled_types(resolution, source);
+        let known = Known {
+            tables:  &tables,
+            imports: &imports,
+            settled: &settled
+        };
         for item in &items {
             match item {
                 syn::Item::Fn(function) => {
@@ -50,8 +71,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                         },
                         &function.sig,
                         &function.block,
-                        &tables,
-                        &imports
+                        &known
                     ));
                 }
                 syn::Item::Impl(block) => {
@@ -80,8 +100,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                             },
                             &method.sig,
                             &method.block,
-                            &tables,
-                            &imports
+                            &known
                         ));
                     }
                 }
@@ -89,7 +108,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
                     facts.extend(error_conversions(item, index));
                 }
                 syn::Item::Trait(definition) => {
-                    facts.extend(trait_default_facts(definition, index, &tables, &imports));
+                    facts.extend(trait_default_facts(definition, index, &known));
                 }
                 _ => {}
             }
@@ -97,4 +116,46 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
     }
     name_rendered_texts(&mut facts);
     facts
+}
+
+/// The name the tables speak: the outermost type of a written type, with
+/// its arguments and its path dropped.
+///
+/// The resolver answers in full — `Option<&<T as Deref>::Target>` — while
+/// every table here is keyed by a last segment. Reading the full spelling
+/// into those tables would look up a name nothing declares.
+fn outermost(written: &str) -> Option<String> {
+    let head = written.split('<').next()?.trim();
+    let named = head.rsplit("::").next()?.trim();
+    let named = named.trim_start_matches('&').trim();
+    (!named.is_empty()
+        && named
+            .chars()
+            .all(|letter| letter.is_alphanumeric() || letter == '_'))
+    .then(|| named.to_owned())
+}
+
+/// What a resolver settled about one source, by byte range.
+///
+/// Keyed by position because that is the only thing the overlay and the
+/// written text certainly share: the overlay names files by path, and a
+/// record naming another file is not about this one.
+fn settled_types(
+    resolution: Option<&rustmanifest_schema::Resolution>,
+    source: &Source
+) -> std::collections::BTreeMap<(u32, u32), String> {
+    let mut settled = std::collections::BTreeMap::new();
+    let Some(resolution) = resolution else {
+        return settled;
+    };
+    for call in &resolution.calls {
+        if call.at.file != source.path() {
+            continue;
+        }
+        let Some(named) = outermost(&call.returns) else {
+            continue;
+        };
+        settled.insert((call.at.range.start, call.at.range.end), named);
+    }
+    settled
 }

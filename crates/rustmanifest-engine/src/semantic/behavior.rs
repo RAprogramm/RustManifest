@@ -49,7 +49,7 @@ mod types;
 mod value;
 
 pub use self::{
-    assembly::behavior,
+    assembly::{behavior, behavior_with},
     choice::{Alternative, CHOICE_SET, Choice, Closure},
     exit::{ExitRoute, ExitStatus, ProcessExit},
     handback::{HANDBACK_SET, Handback, Outcome},

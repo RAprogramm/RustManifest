@@ -7,9 +7,8 @@
 
 use super::{
     declaration::{ItemContext, item_flags},
-    extraction::function_facts,
+    extraction::{Known, function_facts},
     signature::generics_bounds,
-    tables::TypeTables,
     types::FunctionFacts
 };
 
@@ -18,8 +17,7 @@ use super::{
 pub(super) fn trait_default_facts(
     definition: &syn::ItemTrait,
     index: usize,
-    tables: &TypeTables,
-    imports: &std::collections::BTreeMap<String, String>
+    known: &Known<'_>
 ) -> Vec<FunctionFacts> {
     let trait_name = definition.ident.to_string();
     let public = matches!(definition.vis, syn::Visibility::Public(_));
@@ -42,8 +40,7 @@ pub(super) fn trait_default_facts(
             },
             &method.sig,
             block,
-            tables,
-            imports
+            known
         ));
     }
     facts

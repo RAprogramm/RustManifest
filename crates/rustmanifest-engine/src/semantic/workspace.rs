@@ -100,7 +100,8 @@ impl<'source> Workspace<'source> {
     /// first call.
     #[must_use]
     pub fn facts(&self) -> &[FunctionFacts] {
-        self.performed.facts(self.settled.sources())
+        self.performed
+            .resolved_facts(self.settled.sources(), self.settled.resolution())
     }
 
     /// Returns the module graph, deriving it on the first call.

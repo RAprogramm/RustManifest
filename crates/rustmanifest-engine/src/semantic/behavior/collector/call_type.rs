@@ -9,6 +9,22 @@ use super::{FactCollector, typing::initializer_type, unwrapping::pinned_inner};
 use crate::semantic::{knowledge, std_knowledge::EXTERNAL_CONSTRUCTORS};
 
 impl FactCollector {
+    /// The type a resolver settled for the expression at this position.
+    ///
+    /// The resolver answers what written text cannot — which function a
+    /// call reaches and what it hands back — and its answer outranks
+    /// every reading below, which infers from spelling alone. A position
+    /// the resolver left out is absent from the overlay, so the reading
+    /// falls through to what the source itself proves.
+    fn settled_type(&self, expression: &syn::Expr) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = expression.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.settled.get(&(start, end)).cloned()
+    }
+
     /// Normalizes a call expression into its return-table key, seeing
     /// through `.await` and preferring the owner-qualified associated
     /// key over the bare free-function name.
@@ -45,6 +61,9 @@ impl FactCollector {
     /// resolves receiver-first, and a well-known external constructor
     /// keeps its external type name so calls on it attribute outside.
     pub(super) fn called_return(&self, expression: &syn::Expr) -> Option<String> {
+        if let Some(settled) = self.settled_type(expression) {
+            return Some(settled);
+        }
         match expression {
             syn::Expr::Try(tried) => self
                 .call_key(&tried.expr)

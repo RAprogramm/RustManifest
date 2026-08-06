@@ -19,6 +19,21 @@ use super::{
     types::{Effect, EffectSite, FunctionFacts}
 };
 
+/// Everything the reading of one body is handed besides the body itself:
+/// the workspace typing tables, the imports of its file, and what a
+/// resolver settled about that file.
+///
+/// One value rather than three parameters, because the three always
+/// travel together and are never chosen apart.
+pub(super) struct Known<'a> {
+    /// Workspace typing tables.
+    pub(super) tables:  &'a TypeTables,
+    /// Imports of the file the body lives in.
+    pub(super) imports: &'a std::collections::BTreeMap<String, String>,
+    /// What a resolver settled about that file, by byte range.
+    pub(super) settled: &'a std::collections::BTreeMap<(u32, u32), String>
+}
+
 /// Extracts the facts of one function body against its signature.
 pub(super) fn function_facts(
     source: usize,
@@ -26,8 +41,7 @@ pub(super) fn function_facts(
     context: &ItemContext<'_>,
     signature: &syn::Signature,
     block: &syn::Block,
-    tables: &TypeTables,
-    imports: &std::collections::BTreeMap<String, String>
+    known: &Known<'_>
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let census = name_census(block);
@@ -63,17 +77,18 @@ pub(super) fn function_facts(
         },
         param_types: parameter_types(signature, context.impl_type),
         elem_types:  parameter_elements(signature),
-        fn_returns:  tables.returns.clone(),
-        field_types: tables.fields.clone(),
-        field_elems: tables.field_elems.clone(),
-        field_wraps: tables.field_wraps.clone(),
-        crates:      tables.crates.clone(),
-        declared:    tables.declared.clone(),
-        payloads:    tables.payloads.clone(),
+        fn_returns:  known.tables.returns.clone(),
+        field_types: known.tables.fields.clone(),
+        field_elems: known.tables.field_elems.clone(),
+        field_wraps: known.tables.field_wraps.clone(),
+        crates:      known.tables.crates.clone(),
+        declared:    known.tables.declared.clone(),
+        payloads:    known.tables.payloads.clone(),
+        settled:     known.settled.clone(),
         src:         source,
         bounds:      context.bounds.clone(),
         local_wraps: std::collections::BTreeMap::new(),
-        imports:     imports.clone(),
+        imports:     known.imports.clone(),
         fresh:       std::collections::BTreeSet::new(),
         guards:      Vec::new(),
         prior_exits: 0,
@@ -117,9 +132,9 @@ pub(super) fn function_facts(
     fold_constants(
         &mut collector.facts,
         block,
-        &tables.constants,
+        &known.tables.constants,
         source,
-        &tables.crates
+        &known.tables.crates
     );
     collector.facts
 }
