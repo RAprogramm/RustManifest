@@ -99,6 +99,8 @@ pub(super) fn taken_half(
     }
     let [
         ComposedOrigin::Call {
+            candidate,
+            arguments,
             carried,
             failed,
             ..
@@ -110,9 +112,28 @@ pub(super) fn taken_half(
     };
     match position.as_str() {
         "0" => Some(carried.as_ref().clone()),
-        "1" => Some(failed.as_ref().clone()),
+        "1" => {
+            Some(written_failure(candidate, arguments).unwrap_or_else(|| failed.as_ref().clone()))
+        }
         _ => None
     }
+}
+
+/// The failure half a library call is handed outright, where the library
+/// takes it as an argument.
+///
+/// `value.ok_or(error)` hands back that very `error` when there is no
+/// value: the failure half is written at the site and needs no callee to
+/// answer for it. Only the spelling that takes the value itself is read
+/// this way — one that takes a closure hands back what running the
+/// closure produces, which is a different fact.
+fn written_failure(candidate: &str, arguments: &[ComposedOrigin]) -> Option<ComposedOrigin> {
+    candidate
+        .rsplit("::")
+        .next()
+        .is_some_and(|named| named == "ok_or")
+        .then(|| arguments.get(1).cloned())
+        .flatten()
 }
 
 /// Unfolds the choice at one position of the choice channel.
