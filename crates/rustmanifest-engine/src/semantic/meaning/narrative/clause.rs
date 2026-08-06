@@ -26,6 +26,12 @@ use super::super::{
 };
 use crate::semantic::behavior::{Closure, Grade, Operation, OriginGap, Provenance, Selector};
 
+/// A site no path from the entry reaches says nothing about what the
+/// process does, so a refusal standing there cannot break a statement
+/// about the process. Its claim is kept — the report prints it and says
+/// it is unreached — but the sentence is built from the sites the entry
+/// actually reaches.
+///
 /// What the program takes in, or the question the reading failed on.
 pub(super) fn intake_clause(claims: &[IntakeClaim]) -> Result<Option<String>, OriginGap> {
     let groups = by_function(
@@ -37,6 +43,9 @@ pub(super) fn intake_clause(claims: &[IntakeClaim]) -> Result<Option<String>, Or
     for held in groups {
         let mut named = Vec::new();
         for claim in held.sites {
+            if claim.execution == Grade::Unreached {
+                continue;
+            }
             match &claim.read.selector {
                 Selector::NotIdentified(_) => return Err(OriginGap::Unreadable),
                 settled => named.push(format!("{} of its {}", settled, claim.read.channel))
@@ -63,6 +72,9 @@ pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, 
     for held in groups {
         let mut named = Vec::new();
         for claim in held.sites {
+            if claim.execution == Grade::Unreached {
+                continue;
+            }
             if let Operation::Conversion(conversion) = &claim.operation.operation
                 && conversion.target.is_none()
             {
@@ -97,6 +109,9 @@ pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, Or
     for held in groups {
         let mut named = Vec::new();
         for claim in held.sites {
+            if claim.execution == Grade::Unreached {
+                continue;
+            }
             if let Some(gap) = unsettled(&claim.choice.scrutinee) {
                 return Err(gap);
             }
