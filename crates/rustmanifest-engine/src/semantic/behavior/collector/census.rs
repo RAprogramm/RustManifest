@@ -30,7 +30,7 @@
 //! accumulator singly written and state its first value as the value every
 //! later reading sees.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use syn::visit::Visit;
 
@@ -45,111 +45,128 @@ pub(in crate::semantic::behavior) struct NameCensus {
     pub(in crate::semantic::behavior) sole:    BTreeSet<String>
 }
 
-/// Counts how often `block` writes each name, along the deepest scope
-/// path any reading could stand on.
+/// Counts how `block` writes each name.
+///
+/// Two writings leave no single value behind a name: an assignment,
+/// which reaches whatever scope bound the name, and a scope binding one
+/// name twice. A name bound again inside a nested scope is neither: the
+/// inner binding stands only where it is written, and the reading
+/// restores what it shadowed on the way out — so two scopes binding one
+/// name are two names, and both are read.
 pub(in crate::semantic::behavior) fn name_census(block: &syn::Block) -> NameCensus {
-    let counts = scope_counts(|census| census.visit_block(block));
-    let mut written = BTreeSet::new();
-    let mut sole = BTreeSet::new();
-    for (name, count) in counts {
-        if count == 1 {
-            sole.insert(name.clone());
-        }
-        written.insert(name);
-    }
+    let mut census = Census {
+        bound:        Vec::new(),
+        assigned:     BTreeSet::new(),
+        double_bound: BTreeSet::new(),
+        written:      BTreeSet::new()
+    };
+    census.enter();
+    census.visit_block(block);
+    census.leave();
+    let sole = census
+        .written
+        .iter()
+        .filter(|name| !census.assigned.contains(*name) && !census.double_bound.contains(*name))
+        .cloned()
+        .collect();
     NameCensus {
-        written,
+        written: census.written,
         sole
     }
 }
 
-/// Counts the writings of one scope: its own, plus the largest count any
-/// single child scope reaches.
-fn scope_counts(visit: impl FnOnce(&mut Census)) -> BTreeMap<String, u32> {
-    let mut census = Census {
-        counts:   BTreeMap::new(),
-        children: Vec::new()
-    };
-    visit(&mut census);
-    let mut counts = census.counts;
-    let mut deepest: BTreeMap<String, u32> = BTreeMap::new();
-    for child in census.children {
-        for (name, count) in child {
-            let seen = deepest.entry(name).or_insert(0);
-            *seen = (*seen).max(count);
-        }
-    }
-    for (name, count) in deepest {
-        *counts.entry(name).or_insert(0) += count;
-    }
-    counts
-}
-
-/// Walk counting how many times each name is written in one scope.
+/// Walk recording how each name is written.
 struct Census {
-    /// How often each name is bound or assigned in this scope itself.
-    counts:   BTreeMap<String, u32>,
-    /// What each scope written inside this one counted.
-    children: Vec<BTreeMap<String, u32>>
+    /// Names bound in each scope still open, innermost last.
+    bound:        Vec<BTreeSet<String>>,
+    /// Names an assignment writes anywhere in the body.
+    assigned:     BTreeSet<String>,
+    /// Names one scope binds more than once.
+    double_bound: BTreeSet<String>,
+    /// Every name written at all.
+    written:      BTreeSet<String>
 }
 
 impl Census {
-    /// Counts one writing of `name`.
-    fn note(&mut self, name: String) {
-        *self.counts.entry(name).or_insert(0) += 1;
+    /// Opens a scope.
+    fn enter(&mut self) {
+        self.bound.push(BTreeSet::new());
     }
 
-    /// Counts a bare name standing as the target of an assignment.
-    fn note_target(&mut self, target: &syn::Expr) {
+    /// Closes the innermost scope.
+    fn leave(&mut self) {
+        self.bound.pop();
+    }
+
+    /// Records one binding in the innermost open scope.
+    fn note_binding(&mut self, name: String) {
+        self.written.insert(name.clone());
+        if let Some(scope) = self.bound.last_mut()
+            && !scope.insert(name.clone())
+        {
+            self.double_bound.insert(name);
+        }
+    }
+
+    /// Records one assignment, which reaches whatever scope bound it.
+    fn note_assignment(&mut self, target: &syn::Expr) {
         if let syn::Expr::Path(path) = target
             && let Some(name) = path.path.get_ident()
         {
-            self.note(name.to_string());
+            let name = name.to_string();
+            self.written.insert(name.clone());
+            self.assigned.insert(name);
         }
+    }
+
+    /// Runs `body` inside a scope of its own.
+    fn scoped(&mut self, body: impl FnOnce(&mut Self)) {
+        self.enter();
+        body(self);
+        self.leave();
     }
 }
 
 impl<'ast> Visit<'ast> for Census {
     fn visit_block(&mut self, block: &'ast syn::Block) {
-        let counted = scope_counts(|census| syn::visit::visit_block(census, block));
-        self.children.push(counted);
+        self.scoped(|census| syn::visit::visit_block(census, block));
     }
 
     fn visit_arm(&mut self, arm: &'ast syn::Arm) {
-        let counted = scope_counts(|census| syn::visit::visit_arm(census, arm));
-        self.children.push(counted);
+        self.scoped(|census| syn::visit::visit_arm(census, arm));
     }
 
     fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
-        let counted = scope_counts(|census| syn::visit::visit_expr_closure(census, closure));
-        self.children.push(counted);
+        self.scoped(|census| syn::visit::visit_expr_closure(census, closure));
+    }
+
+    fn visit_expr_for_loop(&mut self, loop_expr: &'ast syn::ExprForLoop) {
+        self.scoped(|census| syn::visit::visit_expr_for_loop(census, loop_expr));
     }
 
     fn visit_expr_if(&mut self, conditional: &'ast syn::ExprIf) {
-        let taken = scope_counts(|census| {
+        self.scoped(|census| {
             census.visit_expr(&conditional.cond);
             syn::visit::visit_block(census, &conditional.then_branch);
         });
-        self.children.push(taken);
         if let Some((_, otherwise)) = &conditional.else_branch {
-            let left = scope_counts(|census| census.visit_expr(otherwise));
-            self.children.push(left);
+            self.scoped(|census| census.visit_expr(otherwise));
         }
     }
 
     fn visit_pat_ident(&mut self, pattern: &'ast syn::PatIdent) {
-        self.note(pattern.ident.to_string());
+        self.note_binding(pattern.ident.to_string());
         syn::visit::visit_pat_ident(self, pattern);
     }
 
     fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
-        self.note_target(&assignment.left);
+        self.note_assignment(&assignment.left);
         syn::visit::visit_expr_assign(self, assignment);
     }
 
     fn visit_expr_binary(&mut self, binary: &'ast syn::ExprBinary) {
         if compound_assignment(binary.op) {
-            self.note_target(&binary.left);
+            self.note_assignment(&binary.left);
         }
         syn::visit::visit_expr_binary(self, binary);
     }
