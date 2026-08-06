@@ -299,6 +299,13 @@ the answer lies past a call.
   denominator grows as the vocabulary does: a rule that records a position it can
   only sometimes answer for lowers the rate while raising the count of answers, and
   both figures are printed for exactly that reason.
+- ✅ **Acceptance (origins, off our own sources)**: the same measurement run on
+  three independent workspaces of the eval corpus on 2026-08-06 — `masterror` 87.0%
+  (20036 of 23038), `hydebar` 91.3% (48001 of 52572), `fork-hyper` 84.2% (15038 of
+  17865) — against 87.6% on the engine's own sources. The reading rules are
+  therefore not fitted to this repository's style: a rule that only worked on the
+  code it was written against would show here as a rate that falls away from home.
+  The figures report and never gate.
 - ✅ **The reading rules the measurement paid for**, each one general unless stated:
   a path the standard library defines as a value — a unit variant, an associated
   constant of a primitive — is that value, from a table of library names; a name the
