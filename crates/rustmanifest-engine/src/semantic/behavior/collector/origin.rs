@@ -224,12 +224,19 @@ impl FactCollector {
     /// The field a value is read out of, where the tables name the type
     /// holding it.
     ///
+    /// A position written as a number is not a field this reading names
+    /// but the selection the walk already recorded for it, and that
+    /// record is what answers.
+    ///
     /// That the value is this field of this type is what the body proves.
     /// What put it there is decided wherever the type is constructed,
     /// which no body of this tier reads — so the answer names the field
     /// and stops, rather than refusing outright or reaching further than
     /// it can see.
     fn field_origin(&self, field: &syn::ExprField) -> Provenance {
+        if matches!(field.member, syn::Member::Unnamed(_)) {
+            return self.recorded_origin(&syn::Expr::Field(field.clone()));
+        }
         match self.field_key(field) {
             Some(key) if !key.starts_with("?.") => Provenance::Field(key),
             _ => Provenance::NotDerived(OriginGap::Foreign)
