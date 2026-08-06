@@ -142,10 +142,13 @@ pub(super) fn carry(
                 .iter()
                 .map(|operand| carry(bindings, caller, operand, settled, remaining))
                 .collect();
-            super::unfolding::taken_half(operation, &carried).unwrap_or(ComposedOrigin::Computed {
-                operation: operation.clone(),
-                operands:  carried
-            })
+            match super::unfolding::taken_half(operation, &carried) {
+                Some(half) => half,
+                None => ComposedOrigin::Computed {
+                    operation: operation.clone(),
+                    operands:  carried
+                }
+            }
         }
         ComposedOrigin::Choice(alternatives) => ComposedOrigin::Choice(
             alternatives
