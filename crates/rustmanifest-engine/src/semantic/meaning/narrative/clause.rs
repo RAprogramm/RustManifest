@@ -65,6 +65,14 @@ pub(super) fn intake_clause(claims: &[IntakeClaim]) -> Result<Option<String>, Or
 }
 
 /// What the program computes, or the question the reading failed on.
+///
+/// The clause names the operations, not their operands, so an operand
+/// the reading could not settle does not make what it says any less
+/// true. What it does print is the target of a conversion, and a
+/// conversion whose target is written nowhere refuses — the clause would
+/// otherwise name a type the source never wrote. The operand refusals
+/// are stated where they are actually said: in the write clause, beside
+/// the position they fill.
 pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, OriginGap> {
     let groups = by_function(
         claims,
@@ -82,9 +90,6 @@ pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, 
                 && conversion.target.is_none()
             {
                 return Err(OriginGap::Unreadable);
-            }
-            if let Some(gap) = claim.operation.operands.iter().find_map(unsettled) {
-                return Err(gap);
             }
             named.push(claim.operation.operation.to_string());
         }
@@ -105,6 +110,10 @@ pub(super) fn compute_clause(claims: &[ComputeClaim]) -> Result<Option<String>, 
 
 /// What the program chooses between, or the question the reading failed
 /// on.
+///
+/// The clause names how many alternatives are written and on what ground
+/// the set is closed, both of which the record proves whatever the
+/// scrutinee's origin turned out to be.
 pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, OriginGap> {
     let groups = by_function(
         claims,
@@ -117,9 +126,6 @@ pub(super) fn choice_clause(claims: &[ChoiceClaim]) -> Result<Option<String>, Or
         for claim in held.sites {
             if claim.execution == Grade::Unreached {
                 continue;
-            }
-            if let Some(gap) = unsettled(&claim.choice.scrutinee) {
-                return Err(gap);
             }
             named.push(format!(
                 "{} written alternatives {}",

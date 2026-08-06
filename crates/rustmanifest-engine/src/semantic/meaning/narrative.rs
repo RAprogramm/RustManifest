@@ -179,22 +179,42 @@ mod tests {
         assert!(said.contains("may write"), "{said}");
     }
 
-    /// A clause resting on a refusal decomposes the statement and names
-    /// the question that failed, rather than hedging the whole.
+    /// A clause states what it states: naming the operations a program
+    /// performs does not rest on where their operands came from, so an
+    /// operand the reading could not settle leaves the statement whole.
     #[test]
-    fn a_refused_clause_decomposes_the_statement_and_names_the_question() {
+    fn an_unsettled_operand_leaves_the_clause_that_never_names_it_whole() {
         let said = statement(
             "fn main() {\n    let mut total = 0;\n    total = 1;\n    let _ = total + 1;\n    \
              println!(\"hi\");\n}"
+        );
+        let Narrative::Whole(text) = said else {
+            panic!("the computation clause names operations, not operands");
+        };
+        assert!(text.contains("computes addition"), "{text}");
+        assert!(text.contains("writes"), "{text}");
+    }
+
+    /// A clause resting on a refusal it would have to speak decomposes
+    /// the statement and names the question that failed, rather than
+    /// hedging the whole: the intake clause says which part of a channel
+    /// was read, and an adapter that does not keep positions leaves it
+    /// nothing to say.
+    #[test]
+    fn a_refused_clause_decomposes_the_statement_and_names_the_question() {
+        let said = statement(
+            "fn main() {\n    let args: Vec<String> = \
+             std::env::args().filter(|one| !one.is_empty()).collect();\n    println!(\"{}\", \
+             args.len());\n}"
         );
         let Narrative::Parts {
             refused: (clause, _),
             licensed
         } = said
         else {
-            panic!("a name written twice stands for no single value, which refuses");
+            panic!("a reading whose position the adapters lost cannot be named");
         };
-        assert_eq!(clause, Clause::Computation);
+        assert_eq!(clause, Clause::Intake);
         assert!(
             licensed.iter().any(|part| part.contains("writes")),
             "{licensed:?}"
