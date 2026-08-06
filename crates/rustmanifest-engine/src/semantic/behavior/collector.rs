@@ -85,6 +85,8 @@ pub(super) struct FactCollector {
     /// Crate identity of every source, for crate-proximity resolution.
     /// Every name the workspace declares as a constant or a static.
     pub(super) declared:    super::scoped::Scoped<()>,
+    /// The single payload type of every variant that carries one.
+    pub(super) payloads:    super::scoped::Scoped<String>,
     pub(super) crates:      Vec<String>,
     /// Source index of the function under analysis.
     pub(super) src:         usize,

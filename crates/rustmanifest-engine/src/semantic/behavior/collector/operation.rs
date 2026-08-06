@@ -169,7 +169,10 @@ impl FactCollector {
         }
         let parts: Vec<&syn::Pat> = match pattern {
             syn::Pat::Tuple(tuple) => tuple.elems.iter().collect(),
-            syn::Pat::TupleStruct(variant) => variant.elems.iter().collect(),
+            syn::Pat::TupleStruct(variant) => {
+                self.type_single_payload(variant);
+                variant.elems.iter().collect()
+            }
             _ => return false
         };
         for (position, part) in parts.into_iter().enumerate() {
@@ -191,6 +194,45 @@ impl FactCollector {
             );
         }
         true
+    }
+
+    /// Types the one name a variant pattern binds, where the enum
+    /// declares what that variant carries.
+    ///
+    /// The type is written in the declaration and nowhere near the
+    /// position reading it, so without this the name types to nothing and
+    /// every field read on it refuses. The qualified spelling is asked
+    /// first: a bare variant name two enums both declare answers for
+    /// neither.
+    fn type_single_payload(&mut self, variant: &syn::PatTupleStruct) {
+        let [only] = variant.elems.iter().collect::<Vec<_>>()[..] else {
+            return;
+        };
+        let Some(bound) = super::naming::binding_name(only) else {
+            return;
+        };
+        let segments: Vec<String> = variant
+            .path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect();
+        let qualified = match segments.as_slice() {
+            [.., owner, named] => Some(format!("{owner}.{named}")),
+            _ => None
+        };
+        let carried = qualified
+            .as_deref()
+            .and_then(|key| self.payloads.resolve(key, self.src, &self.crates))
+            .or_else(|| {
+                segments
+                    .last()
+                    .and_then(|named| self.payloads.resolve(named, self.src, &self.crates))
+            })
+            .cloned();
+        if let Some(type_name) = carried {
+            self.param_types.insert(bound, type_name);
+        }
     }
 
     /// Records each field a struct pattern takes out of one value.

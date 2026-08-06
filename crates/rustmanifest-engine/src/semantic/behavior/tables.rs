@@ -13,6 +13,7 @@
 mod constant;
 mod field;
 mod function_return;
+mod variant;
 
 use super::{returned::Returned, scoped::Scoped};
 use crate::source::Source;
@@ -33,6 +34,8 @@ pub(super) struct TypeTables {
     /// Every name the workspace declares as a constant or a static,
     /// whatever its value.
     pub(super) declared:    Scoped<()>,
+    /// The single payload type of every variant that carries one.
+    pub(super) payloads:    Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
     pub(super) crates:      Vec<String>
 }
@@ -48,6 +51,7 @@ impl TypeTables {
             field_wraps,
             constants: constant::constant_texts(sources),
             declared: constant::constant_names(sources),
+            payloads: variant::variant_payloads(sources),
             crates: crate_ids(sources)
         }
     }

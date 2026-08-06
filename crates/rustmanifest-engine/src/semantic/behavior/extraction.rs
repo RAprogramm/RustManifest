@@ -69,6 +69,7 @@ pub(super) fn function_facts(
         field_wraps: tables.field_wraps.clone(),
         crates:      tables.crates.clone(),
         declared:    tables.declared.clone(),
+        payloads:    tables.payloads.clone(),
         src:         source,
         bounds:      context.bounds.clone(),
         local_wraps: std::collections::BTreeMap::new(),
