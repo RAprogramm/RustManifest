@@ -3,9 +3,9 @@
 
 //! What a `let` teaches the tables: where the bound value came from, the
 //! written type of the binding, the element type of a collection it
-//! declares, the wrapped inner type it inherits, the process stream it
-//! holds a handle to, and whether the value it holds was constructed in
-//! this body.
+//! declares — or of the sequence a call hands it — the wrapped inner
+//! type it inherits, the process stream it holds a handle to, and
+//! whether the value it holds was constructed in this body.
 
 use super::{FactCollector, typing::initializer_type};
 use crate::semantic::behavior::signature::{element_type, type_last_segment};
@@ -44,6 +44,14 @@ impl FactCollector {
                     .or_else(|| initializer_type(&init.expr))
                     .or_else(|| self.called_return(&init.expr))
             });
+            if let Some(element) = init
+                .as_ref()
+                .and_then(|init| self.call_key(&init.expr))
+                .and_then(|key| self.ret(&key))
+                .and_then(|returned| returned.element.clone())
+            {
+                self.elem_types.insert(name.clone(), element);
+            }
             match constructed {
                 Some(type_name) => {
                     self.param_types.insert(name.clone(), type_name);

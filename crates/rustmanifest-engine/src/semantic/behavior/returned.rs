@@ -15,6 +15,8 @@ pub(super) struct Returned {
     pub(super) success: Option<String>,
     /// Error type inside a `Result` return, `Self` resolved.
     pub(super) error:   Option<String>,
+    /// Element type of a sequence return, where the return declares one.
+    pub(super) element: Option<String>,
     /// Whether the signature declares the never type, so a call to this
     /// function does not return to its caller.
     pub(super) never:   bool
@@ -31,6 +33,7 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
             plain:   "!".to_owned(),
             success: None,
             error:   None,
+            element: None,
             never:   true
         });
     }
@@ -49,10 +52,12 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
     } else {
         None
     };
+    let element = super::signature::element_type(ty).map(|name| resolve_self(name, owner));
     Some(Returned {
         plain,
         success,
         error,
+        element,
         never: false
     })
 }
