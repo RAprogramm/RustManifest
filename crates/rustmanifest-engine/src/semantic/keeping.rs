@@ -15,11 +15,13 @@
 //! touches no store is not an addition, and a method called `apply` that
 //! inserts into one is.
 
+mod asking;
 mod outliving;
 mod store;
 mod verb;
 
 pub use self::{
+    asking::{Command, commands},
     outliving::{Direction, Outliving, outliving},
     store::{Store, stores},
     verb::{Keeping, Verb, keeping}
@@ -35,7 +37,7 @@ pub use self::{
 mod tests {
     use std::path::PathBuf;
 
-    use super::{Direction, Verb, keeping, outliving, stores};
+    use super::{Direction, Verb, commands, keeping, outliving, stores};
     use crate::{semantic::workspace::Workspace, source::Source};
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
@@ -93,6 +95,34 @@ impl Store {
         assert_eq!(held[0].owner, "Store");
         assert_eq!(held[0].field, "tasks");
         assert_eq!(held[0].record, "Task");
+    }
+
+    #[test]
+    fn a_written_alternative_that_reaches_the_records_is_a_command() {
+        let asking = r#"
+pub fn run(store: &mut Store, asked: &str) {
+    match asked {
+        "add" => {
+            store.add(String::new());
+        }
+        "drop" => {
+            store.drop_task(1);
+        }
+        _ => {}
+    }
+}
+"#;
+        let sources = workspace_of(&format!("{TASK_STORE}{asking}"));
+        let workspace = Workspace::new(&sources);
+        let asked = commands(&workspace);
+        let named = |written: &str| {
+            asked
+                .iter()
+                .find(|command| command.written == written)
+                .map(|command| command.verb)
+        };
+        assert_eq!(named("\"add\""), Some(Verb::Adds));
+        assert_eq!(named("\"drop\""), Some(Verb::Drops));
     }
 
     #[test]
