@@ -135,7 +135,9 @@ fn callee_answer(
     budget: u8
 ) -> ComposedOrigin {
     let by_name = sole_by_name(bindings.material.facts);
-    let Some(reached) = bound_callee(&by_name, bindings.material.qualifiers, candidate) else {
+    let Some(reached) = bound_callee(&by_name, bindings.material.qualifiers, candidate)
+        .or_else(|| declared_in_file(bindings.material.facts, caller, candidate))
+    else {
         return outside_or_unresolved(bindings, candidate);
     };
     if bindings.material.graph.possibilistic(caller, reached) {
@@ -148,6 +150,33 @@ fn callee_answer(
         return ComposedOrigin::NotDerived(OriginGap::Recursion);
     };
     substitute(&summary.result, arguments, budget)
+}
+
+/// The one function of the caller's own file that a bare candidate can
+/// name.
+///
+/// An unqualified call reaches a name in scope, and an item written in
+/// the same file is in scope. Where that file declares exactly one
+/// function of the name, no other can stand at the position — a second
+/// one would have to be imported, and the candidate would then be
+/// spelled with its qualifier. Names that several files share are
+/// settled by the file, not by the workspace.
+fn declared_in_file(facts: &[FunctionFacts], caller: usize, candidate: &str) -> Option<usize> {
+    if candidate.contains("::") {
+        return None;
+    }
+    let source = facts.get(caller)?.source;
+    let mut found = None;
+    for (index, fact) in facts.iter().enumerate() {
+        if fact.source != source || fact.function != candidate {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(index);
+    }
+    found
 }
 
 /// Whether a candidate names something the workspace declares at all.
