@@ -133,15 +133,19 @@ pub(super) struct Settled {
 }
 
 /// The name the tables speak: the outermost type of a written type, with
-/// its arguments and its path dropped.
+/// its arguments, its path, and the borrow it is held through dropped.
 ///
 /// The resolver answers in full — `Option<&<T as Deref>::Target>` — while
 /// every table here is keyed by a last segment. Reading the full spelling
 /// into those tables would look up a name nothing declares.
 fn outermost(written: &str) -> Option<String> {
     let head = written.split('<').next()?.trim();
-    let named = head.rsplit("::").next()?.trim();
-    let named = named.trim_start_matches('&').trim();
+    let held = head
+        .trim_start_matches('&')
+        .trim()
+        .trim_start_matches("mut ")
+        .trim();
+    let named = held.rsplit("::").next()?.trim();
     (!named.is_empty()
         && named
             .chars()

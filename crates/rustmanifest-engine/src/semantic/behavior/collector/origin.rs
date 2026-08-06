@@ -39,6 +39,7 @@ impl FactCollector {
             syn::Expr::Closure(_) => Provenance::Constructed("closure".to_owned()),
             syn::Expr::Range(_) => Provenance::Constructed("range".to_owned()),
             syn::Expr::Async(_) => Provenance::Constructed("future".to_owned()),
+            syn::Expr::ForLoop(_) | syn::Expr::While(_) => Provenance::Written(Literal::Unit),
             syn::Expr::Macro(invocation)
                 if crate::semantic::std_knowledge::macro_leaves(&invocation.mac.path) =>
             {
@@ -138,6 +139,11 @@ impl FactCollector {
         self.origin_of(&fallible.expr)
     }
 
+    /// A `for` and a `while` produce the unit value however their body
+    /// ends, which the language guarantees; a bare `loop` does not,
+    /// because a break may carry a value out of it, and it stays the
+    /// refusal it was.
+    ///
     /// Awaiting and an unsafe block change nothing about which value
     /// stands at the position: the first waits for the value its own
     /// expression stands for, the second only lifts a checking rule. Both
