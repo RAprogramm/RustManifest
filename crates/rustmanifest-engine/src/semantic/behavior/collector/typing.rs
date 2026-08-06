@@ -11,8 +11,20 @@ impl FactCollector {
     /// Types any expression the tables can settle: bindings and fields
     /// by their recorded types, indexed collections by element, calls
     /// through [`Self::called_return`].
+    ///
+    /// A borrow, a parenthesis, a group and a dereference are seen
+    /// through: they change how a value is held, never which value it is,
+    /// and a method written on a borrow is the method of the type behind
+    /// it. Reading only the bare form left every borrowed receiver
+    /// untyped, which is most of them.
     pub(super) fn expr_type(&self, expression: &syn::Expr) -> Option<String> {
         match expression {
+            syn::Expr::Reference(borrowed) => self.expr_type(&borrowed.expr),
+            syn::Expr::Paren(inner) => self.expr_type(&inner.expr),
+            syn::Expr::Group(inner) => self.expr_type(&inner.expr),
+            syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+                self.expr_type(&unary.expr)
+            }
             syn::Expr::Path(path) => path
                 .path
                 .get_ident()
