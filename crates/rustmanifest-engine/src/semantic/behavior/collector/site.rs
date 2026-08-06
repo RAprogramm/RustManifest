@@ -27,6 +27,18 @@ impl FactCollector {
         self.guards.pop();
     }
 
+    /// Runs `body` with the names bound inside it confined to it.
+    ///
+    /// A name bound in one alternative is not the name bound in another,
+    /// and a reading standing in the second must not be answered with the
+    /// first one's value. The origins map is restored on the way out, so
+    /// what a branch binds leaves with the branch.
+    pub(super) fn scoped<F: FnOnce(&mut Self)>(&mut self, body: F) {
+        let restored = self.origins.clone();
+        body(self);
+        self.origins = restored;
+    }
+
     /// What stands over the position being recorded, one entry per guard
     /// frame, outermost first.
     ///

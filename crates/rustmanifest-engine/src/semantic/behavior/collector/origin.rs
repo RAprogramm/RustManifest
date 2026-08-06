@@ -29,6 +29,7 @@ impl FactCollector {
             syn::Expr::Path(path) => self.path_origin(&path.path),
             syn::Expr::Field(field) => self.field_origin(field),
             syn::Expr::Try(fallible) => self.propagated_origin(fallible),
+            syn::Expr::Block(block) => self.block_origin(&block.block),
             syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => {
                 Provenance::Leaves
             }
@@ -72,6 +73,19 @@ impl FactCollector {
     /// nothing the site does not prove.
     fn propagated_origin(&self, fallible: &syn::ExprTry) -> Provenance {
         self.origin_of(&fallible.expr)
+    }
+
+    /// The value a block stands for: the value of the expression it ends
+    /// with, where it ends with one.
+    ///
+    /// A block whose last statement carries a semicolon produces the unit
+    /// value and names nothing; a block ending in an expression stands for
+    /// exactly that expression's value, and the language guarantees it.
+    fn block_origin(&self, block: &syn::Block) -> Provenance {
+        match block.stmts.last() {
+            Some(syn::Stmt::Expr(last, None)) => self.origin_of(last),
+            _ => Provenance::NotDerived(OriginGap::Unreadable)
+        }
     }
 
     /// The field a value is read out of, where the tables name the type

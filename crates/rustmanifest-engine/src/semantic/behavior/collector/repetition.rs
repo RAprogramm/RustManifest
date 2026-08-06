@@ -17,16 +17,18 @@ impl FactCollector {
 
         self.bind_element(&loop_expr.pat, &loop_expr.expr);
         self.visit_expr(&loop_expr.expr);
-        self.record_iterated_element(
-            &loop_expr.pat,
-            &loop_expr.expr,
-            &loop_expr.pat.span().byte_range()
-        );
         let body = self.flow_scope().block_flow(&loop_expr.body);
         let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());
         self.repeating(multiplicity, |collector| {
             collector.under(Guard::For, Condition::NotDerived, |collector| {
-                collector.visit_block(&loop_expr.body);
+                collector.scoped(|collector| {
+                    collector.record_iterated_element(
+                        &loop_expr.pat,
+                        &loop_expr.expr,
+                        &loop_expr.pat.span().byte_range()
+                    );
+                    collector.visit_block(&loop_expr.body);
+                });
             });
         });
     }

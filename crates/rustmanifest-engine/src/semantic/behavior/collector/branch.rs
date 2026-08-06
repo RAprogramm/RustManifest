@@ -25,7 +25,9 @@ impl FactCollector {
                 taken: true
             },
             |collector| {
-                collector.visit_block(&conditional.then_branch);
+                collector.scoped(|collector| {
+                    collector.visit_block(&conditional.then_branch);
+                });
             }
         );
         if let Some((_, otherwise)) = &conditional.else_branch {
@@ -36,7 +38,9 @@ impl FactCollector {
                     taken: false
                 },
                 |collector| {
-                    collector.visit_expr(otherwise);
+                    collector.scoped(|collector| {
+                        collector.visit_expr(otherwise);
+                    });
                 }
             );
         }
@@ -79,8 +83,10 @@ impl FactCollector {
                         alternative
                     },
                     |collector| {
-                        collector.visit_arm(arm);
-                        collector.record_alternative(record, arm);
+                        collector.scoped(|collector| {
+                            collector.visit_arm(arm);
+                            collector.record_alternative(record, arm);
+                        });
                     }
                 );
             }

@@ -10,6 +10,13 @@
 //! such a name refuses by name rather than picking the textually nearest
 //! one.
 //!
+//! Alternatives are counted as alternatives. Two arms of one `match`, or
+//! the two halves of an `if`, each bind their own name, and a reading
+//! standing inside one of them can see only that one — so sibling
+//! branches contribute the largest count any single branch reaches rather
+//! than their sum. Adding them called every name bound in two arms
+//! twice-written, and refused a value the source settles beyond doubt.
+//!
 //! Three ways of writing a name are counted, and all three are needed.
 //! Patterns alone would miss assignment entirely: the field-write reading
 //! handles only a field expression, so a bare assignment records nothing
@@ -74,7 +81,57 @@ impl Census {
     }
 }
 
+impl Census {
+    /// Adds the largest count each name reaches in any one of `branches`.
+    ///
+    /// The branches are alternatives of each other: at most one of them
+    /// runs, and a position inside one never sees the bindings of
+    /// another.
+    fn note_alternatives(&mut self, branches: Vec<BTreeMap<String, u32>>) {
+        let mut largest: BTreeMap<String, u32> = BTreeMap::new();
+        for branch in branches {
+            for (name, count) in branch {
+                let seen = largest.entry(name).or_insert(0);
+                *seen = (*seen).max(count);
+            }
+        }
+        for (name, count) in largest {
+            *self.counts.entry(name).or_insert(0) += count;
+        }
+    }
+}
+
+/// Counts the names one alternative writes, apart from every other.
+fn branch_counts(visit: impl FnOnce(&mut Census)) -> BTreeMap<String, u32> {
+    let mut census = Census {
+        counts: BTreeMap::new()
+    };
+    visit(&mut census);
+    census.counts
+}
+
 impl<'ast> Visit<'ast> for Census {
+    fn visit_expr_match(&mut self, matched: &'ast syn::ExprMatch) {
+        self.visit_expr(&matched.expr);
+        let branches = matched
+            .arms
+            .iter()
+            .map(|arm| branch_counts(|census| census.visit_arm(arm)))
+            .collect();
+        self.note_alternatives(branches);
+    }
+
+    fn visit_expr_if(&mut self, conditional: &'ast syn::ExprIf) {
+        self.visit_expr(&conditional.cond);
+        let mut branches = vec![branch_counts(|census| {
+            census.visit_block(&conditional.then_branch);
+        })];
+        if let Some((_, otherwise)) = &conditional.else_branch {
+            branches.push(branch_counts(|census| census.visit_expr(otherwise)));
+        }
+        self.note_alternatives(branches);
+    }
+
     fn visit_pat_ident(&mut self, pattern: &'ast syn::PatIdent) {
         self.note(pattern.ident.to_string());
         syn::visit::visit_pat_ident(self, pattern);

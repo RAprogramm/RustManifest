@@ -117,6 +117,28 @@ mod tests {
     /// Reading only the bare binding left `let args: Vec<String> = ..`
     /// foreign, and with it every clause resting on that value.
     #[test]
+    fn a_name_bound_in_one_arm_never_answers_a_reading_in_another() {
+        let text = "fn pick(choice: u8, given: u8) -> u8 { match choice { 1 => { let value = \
+                    given; value } _ => { let value = 7; value } } }\n";
+        let sources = [crate::source::Source::new(
+            PathBuf::from("src/lib.rs"),
+            text.to_owned()
+        )];
+        let facts = behavior(&sources);
+        let alternatives: Vec<Provenance> = facts
+            .iter()
+            .flat_map(|fact| fact.choices.iter())
+            .flat_map(|choice| choice.alternatives.iter().map(|arm| arm.value.clone()))
+            .collect();
+        assert!(alternatives.iter().any(|origin| matches!(origin, Provenance::Parameter(slot) if slot.name.as_deref() == Some("given"))));
+        assert!(
+            alternatives
+                .iter()
+                .any(|origin| matches!(origin, Provenance::Written(_)))
+        );
+    }
+
+    #[test]
     fn a_loop_binding_stands_for_an_element_of_what_it_iterates() {
         let text = "fn total(values: Vec<u32>) -> u32 { let mut sum = 0; for value in values { \
                     sum += value; } sum }\n";
