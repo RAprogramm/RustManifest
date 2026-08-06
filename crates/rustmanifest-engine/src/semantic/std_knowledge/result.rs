@@ -16,7 +16,79 @@
 use crate::semantic::knowledge::{MethodResult, Outcome, ReturnForm};
 
 /// What each known standard-library method hands back.
-const METHOD_RESULTS: [MethodResult; 16] = [
+const METHOD_RESULTS: [MethodResult; 28] = [
+    MethodResult {
+        owner:   "str",
+        method:  "to_owned",
+        form:    ReturnForm::Named("String"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "str",
+        method:  "to_string",
+        form:    ReturnForm::Named("String"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "str",
+        method:  "len",
+        form:    ReturnForm::Named("usize"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "String",
+        method:  "len",
+        form:    ReturnForm::Named("usize"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "Vec",
+        method:  "len",
+        form:    ReturnForm::Named("usize"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "str",
+        method:  "is_empty",
+        form:    ReturnForm::Named("bool"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "String",
+        method:  "is_empty",
+        form:    ReturnForm::Named("bool"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "Vec",
+        method:  "is_empty",
+        form:    ReturnForm::Named("bool"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "Vec",
+        method:  "first",
+        form:    ReturnForm::Element,
+        outcome: Outcome::Optional
+    },
+    MethodResult {
+        owner:   "Vec",
+        method:  "last",
+        form:    ReturnForm::Element,
+        outcome: Outcome::Optional
+    },
+    MethodResult {
+        owner:   "PathBuf",
+        method:  "display",
+        form:    ReturnForm::Named("Display"),
+        outcome: Outcome::Total
+    },
+    MethodResult {
+        owner:   "Path",
+        method:  "display",
+        form:    ReturnForm::Named("Display"),
+        outcome: Outcome::Total
+    },
     MethodResult {
         owner:   "str",
         method:  "parse",
