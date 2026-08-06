@@ -57,6 +57,48 @@ impl FactCollector {
     }
 }
 
+impl FactCollector {
+    /// Records what a `let` written in a condition binds, on the same
+    /// ground the arms of a match over the same value are read.
+    ///
+    /// `if let Ok(value) = call()` and the `Ok` arm of a match over that
+    /// call bind the same name to the same half of the same value. They
+    /// are one fact written two ways, so they are read by one rule — the
+    /// second spelling was left refusing only because nothing looked at
+    /// it.
+    pub(super) fn record_condition_binding(&mut self, condition: &syn::Expr) {
+        let syn::Expr::Let(written) = condition else {
+            return;
+        };
+        let Some((variant, bound)) = variant_binding(&written.pat) else {
+            return;
+        };
+        let Some(key) = self.call_key(&written.expr) else {
+            return;
+        };
+        let Some(returned) = self.ret(&key) else {
+            return;
+        };
+        if let Some(type_name) = RESULT_VARIANTS
+            .iter()
+            .find(|(named, _)| *named == variant)
+            .and_then(|(_, ok)| {
+                if *ok {
+                    returned.success.clone()
+                } else {
+                    returned.error.clone()
+                }
+            })
+        {
+            self.param_types.insert(bound.clone(), type_name);
+        }
+        if variant == "Ok" {
+            let produced = self.origin_of(&written.expr);
+            self.origins.insert(bound, produced);
+        }
+    }
+}
+
 /// The variant an arm matches and the single plain name it binds.
 fn variant_binding(pattern: &syn::Pat) -> Option<(String, String)> {
     let syn::Pat::TupleStruct(tuple) = pattern else {

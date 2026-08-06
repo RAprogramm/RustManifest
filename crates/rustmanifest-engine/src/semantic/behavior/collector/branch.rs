@@ -26,6 +26,7 @@ impl FactCollector {
         use syn::spanned::Spanned;
 
         self.visit_expr(&conditional.cond);
+        self.record_condition_binding(&conditional.cond);
         let test = self.origin_of(&conditional.cond);
         let span = conditional.span().byte_range();
         let record = conditional
