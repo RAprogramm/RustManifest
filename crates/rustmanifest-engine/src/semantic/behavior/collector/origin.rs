@@ -39,12 +39,13 @@ impl FactCollector {
             syn::Expr::Closure(_) => Provenance::Constructed("closure".to_owned()),
             syn::Expr::Range(_) => Provenance::Constructed("range".to_owned()),
             syn::Expr::Async(_) => Provenance::Constructed("future".to_owned()),
-            syn::Expr::ForLoop(_) | syn::Expr::While(_) => Provenance::Written(Literal::Unit),
-            syn::Expr::Let(_) => Provenance::Constructed("bool".to_owned()),
-            syn::Expr::Assign(_) => Provenance::Written(Literal::Unit),
+            syn::Expr::ForLoop(_) | syn::Expr::While(_) | syn::Expr::Assign(_) => {
+                Provenance::Written(Literal::Unit)
+            }
             syn::Expr::Binary(binary) if crate::semantic::expr::compound_assignment(binary.op) => {
                 Provenance::Written(Literal::Unit)
             }
+            syn::Expr::Let(_) => Provenance::Constructed("bool".to_owned()),
             syn::Expr::Const(block) => self.block_origin(&block.block),
             syn::Expr::TryBlock(block) => self.block_origin(&block.block),
             syn::Expr::Macro(invocation)
