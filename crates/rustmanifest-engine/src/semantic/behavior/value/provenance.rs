@@ -58,13 +58,14 @@ pub enum Provenance {
     /// inside, each of which the walk records on its own channel. Naming
     /// the type and stopping states exactly that much.
     Constructed(String),
-    /// The value handed to a closure as one of its own inputs.
+    /// The value handed to a body written inside this one as one of its
+    /// own inputs: a closure's, or a nested function's.
     ///
-    /// Whoever runs the closure decides it, which is outside this body
-    /// exactly as a parameter's value is outside the function that
-    /// declares it. Where a rule already knows what the closure is run
-    /// over — an adapter's element, a combinator's held value — that
-    /// answer stands and this one is not recorded.
+    /// Whoever runs that body decides it, which is outside the reading
+    /// exactly as a parameter's value is outside the function declaring
+    /// it. Where a rule already knows what the body is run over — an
+    /// adapter's element, a combinator's held value — that answer stands
+    /// and this one is not recorded.
     Supplied(String),
     /// No value: control leaves this position instead of producing one.
     ///

@@ -90,6 +90,10 @@ impl FactCollector {
         });
     }
 
+    /// Its own inputs stand for what its own callers hand in, not for
+    /// anything the enclosing body holds: they are the nested function's
+    /// parameters and the enclosing function never sees them.
+    ///
     /// A nested item is order-independent: it is visible to the whole
     /// block around it and is callable from before the line it is
     /// written on. What stands over that line therefore says nothing
@@ -102,7 +106,19 @@ impl FactCollector {
         self.dead = false;
         self.prior_exits = 0;
         self.under(Guard::NestedItem, Condition::NotDerived, |collector| {
-            syn::visit::visit_item_fn(collector, nested);
+            collector.scoped(|collector| {
+                for input in &nested.sig.inputs {
+                    let syn::FnArg::Typed(typed) = input else {
+                        continue;
+                    };
+                    supplied_names(&typed.pat, &mut |named| {
+                        collector
+                            .origins
+                            .insert(named.to_owned(), Provenance::Supplied(named.to_owned()));
+                    });
+                }
+                syn::visit::visit_item_fn(collector, nested);
+            });
         });
         self.dead = entry_dead;
         self.prior_exits = entry_exits;
