@@ -176,7 +176,10 @@ impl FactCollector {
             return;
         };
         let resolved = self.write_destination(destination);
-        let payload = self.typed_holes(output::argument_payload(rest), &rest[1..]);
+        let payload = self.typed_holes(
+            output::argument_payload(rest),
+            rest.get(1..).unwrap_or_default()
+        );
         self.push_output(span, resolved, payload, newline, Conduit::Formatting);
     }
 

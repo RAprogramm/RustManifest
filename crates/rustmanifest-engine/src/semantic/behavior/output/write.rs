@@ -621,4 +621,11 @@ mod tests {
             .expect("the entry function is a fact");
         assert_eq!(entry.output_writes[0].guard.local_grade(), Grade::Certain);
     }
+
+    #[test]
+    fn a_writer_macro_with_no_arguments_beyond_its_destination_is_read_without_panicking() {
+        let writes = writes_of("    let mut out = String::new();\n    write!(out, \"hi\").ok();");
+        assert_eq!(writes.len(), 1);
+        assert_eq!(writes[0].payload.fully_known(), Some("hi"));
+    }
 }
