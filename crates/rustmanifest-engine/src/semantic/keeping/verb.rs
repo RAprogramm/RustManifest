@@ -88,9 +88,10 @@ fn verb_of(
     store: &Store,
     key: &str
 ) -> Option<Verb> {
-    let touches = fact.reads.iter().any(|read| read == key)
-        || fact.writes.iter().any(|write| write == key)
-        || fact.builds.iter().any(|build| build == key);
+    let named = key.to_owned();
+    let touches = fact.reads.contains(&named)
+        || fact.writes.contains(&named)
+        || fact.builds.contains(&named);
     if !touches {
         return None;
     }

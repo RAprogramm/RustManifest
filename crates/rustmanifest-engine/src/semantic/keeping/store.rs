@@ -84,9 +84,9 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
 fn carried_to_a_file(workspace: &Workspace<'_>, owner: &str, field: &str) -> bool {
     let key = format!("{owner}.{field}");
     workspace.facts().iter().any(|fact| {
-        let touches = fact.reads.iter().any(|read| *read == key)
-            || fact.writes.iter().any(|write| *write == key)
-            || fact.builds.iter().any(|build| *build == key)
+        let touches = fact.reads.contains(&key)
+            || fact.writes.contains(&key)
+            || fact.builds.contains(&key)
             || builds_the_owner(fact, owner);
         touches
             && fact
