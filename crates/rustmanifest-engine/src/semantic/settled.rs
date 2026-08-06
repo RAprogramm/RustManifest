@@ -96,6 +96,7 @@ mod tests {
         )];
         let resolution = Resolution {
             resolver: "test".to_owned(),
+            fields:   Vec::new(),
             calls:    vec![ResolvedCall {
                 at:       Location {
                     file:  PathBuf::from("src/lib.rs"),
