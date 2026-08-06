@@ -37,7 +37,15 @@ pub(super) fn honesty(workspace: &Workspace<'_>) -> String {
 }
 
 /// How many of the statements the engine makes about entry points hold
-/// together, and how many decompose because a clause rests on a refusal.
+/// together, how many decompose because a clause rests on a refusal, and
+/// how many of the positions a program actually prints have their value
+/// traced all the way.
+///
+/// The last of the three is the strict one. A statement holds together
+/// whenever no clause would have to speak a refusal, which most programs
+/// manage; what a generator would need is the value behind each written
+/// position, and that is counted separately so the easier number cannot
+/// stand in for it.
 ///
 /// The origin rate counts positions in the fact base; this counts what a
 /// reader is actually handed. A tier can answer most positions and still
@@ -54,12 +62,32 @@ fn statements(workspace: &Workspace<'_>) -> String {
         .filter(|entry| matches!(entry.narrative, rustmanifest_engine::Narrative::Whole(_)))
         .count();
     let total = entries.len();
+    let positions: Vec<bool> = entries
+        .iter()
+        .flat_map(|entry| entry.claims.iter())
+        .flat_map(|claim| claim.sources.iter())
+        .map(|(_, origin)| origin.derived())
+        .collect();
+    let filled = positions.iter().filter(|derived| **derived).count();
     #[allow(
         clippy::cast_precision_loss,
         reason = "entry counts stay far below 2^52, so the casts are exact"
     )]
     let share = whole as f64 / total as f64 * 100.0;
-    format!("- entry statements whole: {whole}/{total} ({share:.1}%)\n")
+    let mut out = format!("- entry statements whole: {whole}/{total} ({share:.1}%)\n");
+    if !positions.is_empty() {
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "position counts stay far below 2^52, so the casts are exact"
+        )]
+        let told = filled as f64 / positions.len() as f64 * 100.0;
+        let _ = writeln!(
+            out,
+            "- written positions whose value is traced: {filled}/{} ({told:.1}%)",
+            positions.len()
+        );
+    }
+    out
 }
 
 /// What share of the recorded value positions the engine settled, and
