@@ -20,7 +20,7 @@ use super::{
     substitution::substitute,
     unfolding::unfold
 };
-use crate::semantic::behavior::{FunctionFacts, OriginGap};
+use crate::semantic::behavior::{FunctionFacts, OriginGap, Outcome};
 
 /// Everything one pass needs to settle a call.
 pub(super) struct Bindings<'facts> {
@@ -59,13 +59,26 @@ pub(super) fn summary_of(
 /// No position at all is a refusal, not an answer: the reading found no
 /// return position, which is a statement about the reading. Several
 /// positions are alternatives of one another, and are kept as such.
+///
+/// Where a function hands back both halves of a fallible answer, the
+/// value a caller reads is the success half: the failure half is what it
+/// hands back *instead*, and stating it as one of the values a caller
+/// could be holding would let an error stand where a result was read.
+/// Every position is still recorded, half by half, on the handback
+/// channel — it is the summary alone that keeps to the half a reader
+/// takes.
 fn handed_back(
     settled: crate::semantic::settled::Settled<'_>,
     own: &FunctionFacts
 ) -> ComposedOrigin {
+    let carries_failure = own
+        .handbacks
+        .iter()
+        .any(|handback| handback.outcome == Outcome::Failure);
     let mut terms: Vec<ComposedOrigin> = own
         .handbacks
         .iter()
+        .filter(|handback| !carries_failure || handback.outcome != Outcome::Failure)
         .map(|handback| unfold(settled, own, &handback.value, ORIGIN_DEPTH))
         .collect();
     match terms.len() {
