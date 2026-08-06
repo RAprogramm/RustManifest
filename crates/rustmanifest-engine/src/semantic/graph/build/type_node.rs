@@ -18,7 +18,8 @@ pub(in crate::semantic::graph) fn node(source: usize, definition: &syn::ItemStru
                 field.ident.as_ref().map(|ident| FieldNode {
                     name:      ident.to_string(),
                     type_name: last_segment(&field.ty),
-                    element:   held_element(&field.ty)
+                    element:   held_element(&field.ty),
+                    key:       looked_up_by(&field.ty)
                 })
             })
             .collect(),
@@ -81,7 +82,8 @@ pub(in crate::semantic::graph) fn enum_node(
             fields.push(FieldNode {
                 name,
                 type_name: last_segment(&field.ty),
-                element: held_element(&field.ty)
+                element: held_element(&field.ty),
+                key: looked_up_by(&field.ty)
             });
         }
     }
@@ -125,6 +127,36 @@ fn held_element(ty: &syn::Type) -> Option<String> {
         return None;
     };
     Some(inner.path.segments.last()?.ident.to_string())
+}
+
+/// The type a map is looked into with, where the field declares a map:
+/// the first written type argument of a type carrying two.
+///
+/// A type carrying one argument holds a sequence, looked into by
+/// position, and answers nothing here.
+fn looked_up_by(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    let written: Vec<&syn::Type> = arguments
+        .args
+        .iter()
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(inner) => Some(inner),
+            _ => None
+        })
+        .collect();
+    if written.len() < 2 {
+        return None;
+    }
+    let syn::Type::Path(first) = written.first()? else {
+        return None;
+    };
+    Some(first.path.segments.last()?.ident.to_string())
 }
 
 fn last_segment(ty: &syn::Type) -> String {

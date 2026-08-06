@@ -26,6 +26,8 @@ pub struct Store {
     pub shape:  String,
     /// Type of the records inside it.
     pub record: String,
+    /// Type a lookup into it is written with, where it is a map.
+    pub key:    Option<String>,
     /// Byte range of the field's declaration.
     pub site:   Range,
     /// Source the declaration was read from.
@@ -60,6 +62,7 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
                 field:  field.name.clone(),
                 shape:  field.type_name.clone(),
                 record: element.to_owned(),
+                key:    field.key.clone(),
                 site:   node.range,
                 source: node.source
             });

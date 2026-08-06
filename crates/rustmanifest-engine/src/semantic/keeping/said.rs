@@ -31,10 +31,16 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let mut said = Vec::new();
     for store in &held {
         let key = format!("{}.{}", store.owner, store.field);
-        let mut clauses = vec![format!(
-            "keeps `{}` records in `{}` of `{}`",
-            store.record, store.field, store.owner
-        )];
+        let mut clauses = vec![match &store.key {
+            Some(key) => format!(
+                "keeps `{}` records in `{}` of `{}`, each found by a `{key}`",
+                store.record, store.field, store.owner
+            ),
+            None => format!(
+                "keeps `{}` records in `{}` of `{}`",
+                store.record, store.field, store.owner
+            )
+        }];
         let mut verbs: Vec<String> = kept
             .iter()
             .filter(|entry| entry.store == key)

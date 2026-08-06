@@ -28,7 +28,11 @@ pub struct FieldNode {
     /// Type of the values the field's collection holds, where the field
     /// declares a collection (`Vec<Credentials>` → `Credentials`,
     /// `BTreeMap<u64, Task>` → `Task`).
-    pub element:   Option<String>
+    pub element:   Option<String>,
+    /// Type a lookup into the field is written with, where the field
+    /// declares a map (`BTreeMap<u64, Task>` → `u64`). A sequence is
+    /// looked into by position and declares no key of its own.
+    pub key:       Option<String>
 }
 
 /// One structure or enum definition found in the workspace.
