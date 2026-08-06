@@ -74,6 +74,9 @@ impl FactCollector {
         if let Some(named) = self.declared_path(path) {
             return Provenance::Constant(named);
         }
+        if let Some(named) = self.function_path(path) {
+            return Provenance::Constant(named);
+        }
         path.get_ident()
             .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
                 self.named_origin(&name.to_string())
@@ -142,6 +145,37 @@ impl FactCollector {
             Some(syn::Stmt::Expr(last, None)) => self.origin_of(last),
             _ => Provenance::NotDerived(OriginGap::Unreadable)
         }
+    }
+
+    /// The name a written path stands for, where the workspace declares
+    /// a function under it.
+    ///
+    /// A function written without being called is a value: it is handed
+    /// to an adapter, stored, or passed on, and which function it is, is
+    /// exactly what the path says. Only paths the return table answers
+    /// for are read this way, so a name the workspace never declares
+    /// stays the refusal it was.
+    fn function_path(&self, path: &syn::Path) -> Option<String> {
+        let segments: Vec<String> = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect();
+        let written = segments.join("::");
+        let qualified = match segments.as_slice() {
+            [.., owner, named] => Some(format!("{owner}::{named}")),
+            _ => None
+        };
+        if qualified
+            .as_deref()
+            .is_some_and(|key| self.ret(key).is_some())
+        {
+            return Some(written);
+        }
+        let [only] = segments.as_slice() else {
+            return None;
+        };
+        self.ret(only).map(|_| written)
     }
 
     /// The field a value is read out of, where the tables name the type
