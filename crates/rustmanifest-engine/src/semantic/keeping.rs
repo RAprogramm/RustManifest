@@ -19,6 +19,7 @@ mod asking;
 mod outliving;
 mod said;
 mod store;
+mod telling;
 mod verb;
 
 pub use self::{
@@ -26,6 +27,7 @@ pub use self::{
     outliving::{Direction, Outliving, outliving},
     said::purpose,
     store::{Store, stores},
+    telling::{Telling, telling},
     verb::{Keeping, Verb, keeping}
 };
 

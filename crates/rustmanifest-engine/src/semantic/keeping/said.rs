@@ -10,7 +10,9 @@
 //! reading proved is simply absent, so a shorter sentence is a smaller
 //! claim rather than a vaguer one.
 
-use super::{asking::commands, outliving::outliving, store::stores, verb::keeping};
+use super::{
+    asking::commands, outliving::outliving, store::stores, telling::telling, verb::keeping
+};
 use crate::semantic::workspace::Workspace;
 
 /// What a program does with the records it holds, in one sentence per
@@ -24,6 +26,7 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let kept = keeping(workspace);
     let carried = outliving(workspace);
     let asked = commands(workspace);
+    let told = telling(workspace);
     let mut said = Vec::new();
     for store in &held {
         let key = format!("{}.{}", store.owner, store.field);
@@ -58,6 +61,16 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
             .collect();
         ways.sort_unstable();
         ways.dedup();
+        let mut shown: Vec<String> = told
+            .iter()
+            .filter(|entry| entry.store == key)
+            .map(|entry| format!("`{}`", entry.function))
+            .collect();
+        shown.sort_unstable();
+        shown.dedup();
+        if !shown.is_empty() {
+            clauses.push(format!("what it holds is printed in {}", shown.join(", ")));
+        }
         if ways.is_empty() {
             clauses.push("nothing carries them past the end of the run".to_owned());
         } else {
