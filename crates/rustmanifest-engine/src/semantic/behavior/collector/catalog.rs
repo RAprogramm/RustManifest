@@ -149,6 +149,24 @@ pub(super) const EXPRESSION_MACROS: [&str; 20] = [
 
 /// Iterator and `Option` adapters whose single-parameter closure
 /// receives one element of the adapted collection or option.
+/// Methods whose closure is handed two elements of the receiver at once,
+/// so both of its inputs stand for an element and neither for anything
+/// else.
+///
+/// A comparator is the ordinary shape: the library hands it two of the
+/// values it is ordering. Reading only the first input left every
+/// comparison written this way standing on an untyped name.
+pub(super) const PAIRWISE_ADAPTERS: [&str; 8] = [
+    "binary_search_by",
+    "dedup_by",
+    "max_by",
+    "min_by",
+    "partition_point",
+    "sort_by",
+    "sort_unstable_by",
+    "windows"
+];
+
 pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
     "all",
     "and_then",

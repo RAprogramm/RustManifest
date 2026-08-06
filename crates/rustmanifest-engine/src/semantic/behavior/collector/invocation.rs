@@ -15,7 +15,7 @@ mod walk;
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
+    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, PAIRWISE_ADAPTERS, TEXT_WRITE_METHOD}
 };
 use crate::semantic::{expr::MUTATING_METHODS, knowledge};
 
@@ -70,6 +70,15 @@ impl FactCollector {
                     && let Some(pattern) = closure.inputs.first()
                 {
                     self.bind_element(pattern, &call.receiver);
+                }
+            }
+        } else if PAIRWISE_ADAPTERS.contains(&method.as_str()) {
+            for argument in &call.args {
+                let syn::Expr::Closure(closure) = argument else {
+                    continue;
+                };
+                for input in &closure.inputs {
+                    self.bind_element(input, &call.receiver);
                 }
             }
         } else {
