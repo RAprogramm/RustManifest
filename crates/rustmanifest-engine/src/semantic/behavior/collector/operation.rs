@@ -155,6 +155,11 @@ impl FactCollector {
     /// Records each part a pattern takes out of one value, and lets the
     /// name bound at each position stand for that part.
     ///
+    /// A part that is itself a pattern is taken apart in turn, against
+    /// the part it stands for: `(Some(one), Some(two))` names position
+    /// zero of the pair, then position zero of what that carries, and
+    /// each step is the selection the source wrote.
+    ///
     /// A name a nearer reading already answered is left alone: the
     /// outcome reading, which knows the value a fallible call handed
     /// back, states it without the unwrapping step, and restating it as a
@@ -187,6 +192,20 @@ impl FactCollector {
         self.type_pair_parts(pattern, taken);
         for (position, part) in parts.into_iter().enumerate() {
             let Some(name) = super::naming::binding_name(part) else {
+                if !matches!(
+                    part,
+                    syn::Pat::Tuple(_) | syn::Pat::TupleStruct(_) | syn::Pat::Struct(_)
+                ) {
+                    continue;
+                }
+                let operands = vec![
+                    taken.clone(),
+                    Provenance::Written(Literal::Integer(position.to_string())),
+                ];
+                let index =
+                    self.push_operation(span, Operation::Selection, operands, Guarding::Unchecked);
+                let inner = Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX));
+                self.record_tuple_parts(part, &inner, span);
                 continue;
             };
             if !self.sole.contains(&name) || self.origins.contains_key(&name) {
