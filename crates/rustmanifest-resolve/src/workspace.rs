@@ -119,8 +119,8 @@ fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), ResolveError> {
     }
 }
 
-/// Records every field read written inside a macro argument, mapped back
-/// to the range the source wrote it at.
+/// Records every field read and every method call written inside a macro
+/// argument, mapped back to the range the source wrote it at.
 ///
 /// A field inside a macro argument is a token to a walk over the source
 /// tree and an expression only after expansion — which is where the
@@ -164,6 +164,17 @@ fn settled_inside_macros(
                     end:   u32::from(written.end())
                 };
                 resolution.fields.push(settled);
+            }
+            for call in tree.descendants().filter_map(ast::MethodCallExpr::cast) {
+                let Some(mut settled) = settled_call(semantics, database, file, &call) else {
+                    continue;
+                };
+                let written = semantics.original_range(call.syntax()).range;
+                settled.at.range = Range {
+                    start: u32::from(written.start()),
+                    end:   u32::from(written.end())
+                };
+                resolution.calls.push(settled);
             }
         }
     }
