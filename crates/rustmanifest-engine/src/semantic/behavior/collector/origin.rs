@@ -32,6 +32,12 @@ impl FactCollector {
             syn::Expr::Block(block) => self.block_origin(&block.block),
             syn::Expr::Unsafe(block) => self.block_origin(&block.block),
             syn::Expr::Await(awaited) => self.origin_of(&awaited.base),
+            syn::Expr::Macro(invocation) => {
+                crate::semantic::std_knowledge::macro_value(&invocation.mac.path).map_or_else(
+                    || self.recorded_origin(expression),
+                    |built| Provenance::Constructed(built.to_owned())
+                )
+            }
             syn::Expr::Struct(literal) => literal.path.segments.last().map_or_else(
                 || Provenance::NotDerived(OriginGap::Unreadable),
                 |segment| Provenance::Constructed(segment.ident.to_string())
