@@ -132,9 +132,12 @@ impl FactCollector {
     /// The value a block stands for: the value of the expression it ends
     /// with, where it ends with one.
     ///
-    /// A block whose last statement carries a semicolon produces the unit
-    /// value and names nothing; a block ending in an expression stands for
-    /// exactly that expression's value, and the language guarantees it.
+    /// A block ending in an expression stands for exactly that
+    /// expression's value; a block ending any other way produces the unit
+    /// value, and the language guarantees both. The one exception is a
+    /// block whose last statement leaves the function: nothing is
+    /// produced there at all, which is a settled answer of its own and
+    /// not the unit value.
     pub(super) fn block_value(&self, block: &syn::Block) -> Provenance {
         self.block_origin(block)
     }
@@ -143,7 +146,11 @@ impl FactCollector {
     fn block_origin(&self, block: &syn::Block) -> Provenance {
         match block.stmts.last() {
             Some(syn::Stmt::Expr(last, None)) => self.origin_of(last),
-            _ => Provenance::NotDerived(OriginGap::Unreadable)
+            Some(syn::Stmt::Expr(
+                last @ (syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_)),
+                Some(_)
+            )) => self.origin_of(last),
+            _ => Provenance::Written(Literal::Unit)
         }
     }
 
