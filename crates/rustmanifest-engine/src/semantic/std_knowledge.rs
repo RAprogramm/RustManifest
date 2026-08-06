@@ -23,7 +23,7 @@ mod value_path;
 pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
-    macro_value::macro_value,
+    macro_value::{macro_leaves, macro_value},
     method_effect::method_effect,
     presence::{Presence, presence_method},
     result::method_result,

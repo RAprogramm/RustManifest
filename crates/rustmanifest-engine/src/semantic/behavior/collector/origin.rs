@@ -39,6 +39,11 @@ impl FactCollector {
             syn::Expr::Closure(_) => Provenance::Constructed("closure".to_owned()),
             syn::Expr::Range(_) => Provenance::Constructed("range".to_owned()),
             syn::Expr::Async(_) => Provenance::Constructed("future".to_owned()),
+            syn::Expr::Macro(invocation)
+                if crate::semantic::std_knowledge::macro_leaves(&invocation.mac.path) =>
+            {
+                Provenance::Leaves
+            }
             syn::Expr::Macro(invocation) => {
                 crate::semantic::std_knowledge::macro_value(&invocation.mac.path).map_or_else(
                     || self.recorded_origin(expression),

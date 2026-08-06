@@ -15,12 +15,32 @@
 //! business and nothing here proves what it produces.
 
 /// `(macro, built type)` rows for the standard macros that build a value.
-const MACRO_VALUES: [(&str, &str); 4] = [
+const MACRO_VALUES: [(&str, &str); 9] = [
     ("format", "String"),
     ("vec", "Vec"),
     ("concat", "str"),
-    ("stringify", "str")
+    ("stringify", "str"),
+    ("matches", "bool"),
+    ("write", "Result"),
+    ("writeln", "Result"),
+    ("format_args", "Arguments"),
+    ("env", "str")
 ];
+
+/// Standard macros that leave the function instead of producing a value.
+const MACRO_LEAVERS: [&str; 4] = ["panic", "unreachable", "todo", "unimplemented"];
+
+/// Whether the macro written at a path leaves the function instead of
+/// producing a value.
+///
+/// A position filled by one of these produces nothing at all, which the
+/// language guarantees and which is a settled answer rather than a
+/// refusal: an arm that panics is an arm that hands nothing back.
+pub(in crate::semantic) fn macro_leaves(path: &syn::Path) -> bool {
+    path.segments
+        .last()
+        .is_some_and(|segment| MACRO_LEAVERS.contains(&segment.ident.to_string().as_str()))
+}
 
 /// The type the macro written at a path builds, where the standard
 /// library defines it.
