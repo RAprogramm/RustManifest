@@ -216,7 +216,7 @@ impl FactCollector {
         use syn::spanned::Spanned;
 
         let pattern = bound_name(&local.pat);
-        if matches!(pattern, syn::Pat::Tuple(_)) {
+        if matches!(pattern, syn::Pat::Tuple(_) | syn::Pat::TupleStruct(_)) {
             let Some(init) = &local.init else {
                 return;
             };

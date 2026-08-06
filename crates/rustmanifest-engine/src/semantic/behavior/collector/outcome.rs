@@ -67,9 +67,13 @@ impl FactCollector {
     /// second spelling was left refusing only because nothing looked at
     /// it.
     pub(super) fn record_condition_binding(&mut self, condition: &syn::Expr) {
+        use syn::spanned::Spanned;
+
         let syn::Expr::Let(written) = condition else {
             return;
         };
+        let taken = self.origin_of(&written.expr);
+        self.record_tuple_parts(&written.pat, &taken, &written.pat.span().byte_range());
         let Some((variant, bound)) = variant_binding(&written.pat) else {
             return;
         };
