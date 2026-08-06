@@ -22,7 +22,7 @@ use crate::semantic::{
     behavior::{
         operation::{Arithmetic, Comparison, Conversion, Guarding, Operation, OperationSite},
         output::Multiplicity,
-        value::{Disposal, Provenance}
+        value::{Disposal, Literal, Provenance}
     },
     std_knowledge::operation_method
 };
@@ -132,18 +132,59 @@ impl FactCollector {
         iterable: &syn::Expr,
         span: &std::ops::Range<usize>
     ) {
-        let Some(name) = super::naming::binding_name(pattern) else {
-            return;
-        };
-        if !self.sole.contains(&name) {
+        let named = super::naming::binding_name(pattern);
+        let takes_apart = matches!(pattern, syn::Pat::Tuple(_));
+        if !takes_apart && !named.as_ref().is_some_and(|name| self.sole.contains(name)) {
             return;
         }
         let operands = vec![self.origin_of(iterable)];
         let index = self.push_operation(span, Operation::Selection, operands, Guarding::Unchecked);
-        self.origins.insert(
-            name,
-            Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX))
-        );
+        let element = Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX));
+        if self.record_tuple_parts(pattern, &element, span) {
+            return;
+        }
+        if let Some(name) = named {
+            self.origins.insert(name, element);
+        }
+    }
+
+    /// Records each part a tuple pattern takes out of one value, and lets
+    /// the name bound at each position stand for that part.
+    ///
+    /// Which part a name holds is written in the pattern itself: the name
+    /// at position `k` holds the element at position `k`, and the
+    /// language guarantees it. That is the same fact an index at a
+    /// written position records, so it is recorded as the same operation
+    /// over the same two operands — the value taken apart, and the
+    /// position taken from it.
+    pub(super) fn record_tuple_parts(
+        &mut self,
+        pattern: &syn::Pat,
+        taken: &Provenance,
+        span: &std::ops::Range<usize>
+    ) -> bool {
+        let syn::Pat::Tuple(tuple) = pattern else {
+            return false;
+        };
+        for (position, part) in tuple.elems.iter().enumerate() {
+            let Some(name) = super::naming::binding_name(part) else {
+                continue;
+            };
+            if !self.sole.contains(&name) {
+                continue;
+            }
+            let operands = vec![
+                taken.clone(),
+                Provenance::Written(Literal::Integer(position.to_string())),
+            ];
+            let index =
+                self.push_operation(span, Operation::Selection, operands, Guarding::Unchecked);
+            self.origins.insert(
+                name,
+                Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX))
+            );
+        }
+        true
     }
 
     /// Records the conversion a written cast performs, whose target the

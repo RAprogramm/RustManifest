@@ -171,18 +171,30 @@ impl FactCollector {
     /// Records where the value a `let` binds came from, for the one shape
     /// a single value stands behind: a plain name this body writes once.
     ///
-    /// A pattern taking a value apart binds several names to parts of it,
-    /// and which part each name holds is a question this tier does not
-    /// answer; a name written more than once stands for no single value.
-    /// Both are left unrecorded, so a later reading of such a name reaches
-    /// the refusal that names the question instead of a stale answer.
+    /// A tuple pattern is the one shape that answers which part each name
+    /// holds — the name at position `k` holds the element at position `k`
+    /// — and each part is recorded as the selection it is. Every other
+    /// pattern taking a value apart, and every name written more than
+    /// once, is left unrecorded, so a later reading reaches the refusal
+    /// that names the question instead of a stale answer.
     ///
     /// A written type is not such a pattern. `let args: Vec<String> = ..`
     /// binds one name to one value exactly as `let args = ..` does, and
     /// reading only the bare form left every annotated binding foreign —
     /// which is most of them in ordinary code.
     pub(super) fn record_local_origin(&mut self, local: &syn::Local) {
-        let syn::Pat::Ident(bound) = bound_name(&local.pat) else {
+        use syn::spanned::Spanned;
+
+        let pattern = bound_name(&local.pat);
+        if matches!(pattern, syn::Pat::Tuple(_)) {
+            let Some(init) = &local.init else {
+                return;
+            };
+            let taken = self.origin_of(&init.expr);
+            self.record_tuple_parts(pattern, &taken, &local.pat.span().byte_range());
+            return;
+        }
+        let syn::Pat::Ident(bound) = pattern else {
             return;
         };
         if bound.subpat.is_some() {
