@@ -84,7 +84,14 @@ impl FactCollector {
             call.span().byte_range()
         };
         let reserved = self.reserve_method_call(call, &method, &span);
-        self.walk_method_call(call);
+        if ITERATOR_ADAPTERS.contains(&method.as_str()) {
+            self.scoped(|collector| {
+                collector.bind_adapter_inputs(call, &span);
+                collector.walk_method_call(call);
+            });
+        } else {
+            self.walk_method_call(call);
+        }
         let mut written: Vec<&syn::Expr> = vec![call.receiver.as_ref()];
         written.extend(call.args.iter());
         self.settle_arguments(reserved, &written);

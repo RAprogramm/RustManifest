@@ -44,6 +44,29 @@ impl FactCollector {
         self.element_of(&call.receiver)
     }
 
+    /// Lets the input of every closure written beside an adapter stand
+    /// for an element of what the adapter runs over.
+    ///
+    /// The same fact a loop binding carries: the closure is handed one
+    /// element at a time, and which value that is comes from the
+    /// receiver. Recorded as the same selection, so a reading does not
+    /// depend on whether the source wrote a loop or an adapter.
+    pub(super) fn bind_adapter_inputs(
+        &mut self,
+        call: &syn::ExprMethodCall,
+        span: &std::ops::Range<usize>
+    ) {
+        for argument in &call.args {
+            let syn::Expr::Closure(closure) = argument else {
+                continue;
+            };
+            let [only] = closure.inputs.iter().collect::<Vec<_>>()[..] else {
+                continue;
+            };
+            self.record_iterated_element(only, &call.receiver, span);
+        }
+    }
+
     /// Binds one loop or closure pattern against the iterated element
     /// type, seeing through `enumerate`'s index tuple.
     pub(super) fn bind_element(&mut self, pattern: &syn::Pat, iterable: &syn::Expr) {
