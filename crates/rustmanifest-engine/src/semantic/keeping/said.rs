@@ -11,7 +11,8 @@
 //! claim rather than a vaguer one.
 
 use super::{
-    asking::commands, outliving::outliving, store::stores, telling::telling, verb::keeping
+    asking::commands, ending::endings, outliving::outliving, store::stores, telling::telling,
+    verb::keeping
 };
 use crate::semantic::workspace::Workspace;
 
@@ -75,6 +76,25 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
             clauses.push("nothing carries them past the end of the run".to_owned());
         } else {
             clauses.push(format!("{}, so they outlive the run", ways.join(", ")));
+        }
+        let mut ends: Vec<String> = endings(workspace)
+            .iter()
+            .map(|way| {
+                format!(
+                    "{} with {}",
+                    if way.certain {
+                        "always ends"
+                    } else {
+                        "can end"
+                    },
+                    way.status
+                )
+            })
+            .collect();
+        ends.sort_unstable();
+        ends.dedup();
+        if !ends.is_empty() {
+            clauses.push(format!("the run {}", ends.join(", ")));
         }
         said.push(clauses.join("; "));
     }

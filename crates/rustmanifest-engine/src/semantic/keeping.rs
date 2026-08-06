@@ -16,6 +16,7 @@
 //! inserts into one is.
 
 mod asking;
+mod ending;
 mod outliving;
 mod said;
 mod store;
@@ -24,6 +25,7 @@ mod verb;
 
 pub use self::{
     asking::{Command, commands},
+    ending::{Ending, endings},
     outliving::{Direction, Outliving, outliving},
     said::purpose,
     store::{Store, stores},
