@@ -33,6 +33,9 @@ impl FactCollector {
         });
     }
 
+    /// What the condition binds stands in the body and nowhere else,
+    /// exactly as it does for a conditional — a `while let` is one.
+    ///
     /// A `while` re-evaluates its condition before every iteration, so a
     /// write standing in the condition repeats exactly as one in the
     /// body does. The condition still carries no guard: it is reached
@@ -43,7 +46,10 @@ impl FactCollector {
         self.repeating(multiplicity, |collector| {
             collector.visit_expr(&loop_expr.cond);
             collector.under(Guard::While, Condition::NotDerived, |collector| {
-                collector.visit_block(&loop_expr.body);
+                collector.scoped(|collector| {
+                    collector.record_condition_binding(&loop_expr.cond);
+                    collector.visit_block(&loop_expr.body);
+                });
             });
         });
     }
