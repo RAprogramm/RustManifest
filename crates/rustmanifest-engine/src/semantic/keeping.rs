@@ -15,10 +15,12 @@
 //! touches no store is not an addition, and a method called `apply` that
 //! inserts into one is.
 
+mod outliving;
 mod store;
 mod verb;
 
 pub use self::{
+    outliving::{Direction, Outliving, outliving},
     store::{Store, stores},
     verb::{Keeping, Verb, keeping}
 };
@@ -33,7 +35,7 @@ pub use self::{
 mod tests {
     use std::path::PathBuf;
 
-    use super::{Verb, keeping, stores};
+    use super::{Direction, Verb, keeping, outliving, stores};
     use crate::{semantic::workspace::Workspace, source::Source};
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
@@ -91,6 +93,21 @@ impl Store {
         assert_eq!(held[0].owner, "Store");
         assert_eq!(held[0].field, "tasks");
         assert_eq!(held[0].record, "Task");
+    }
+
+    #[test]
+    fn a_store_written_to_a_file_outlives_the_run_that_made_it() {
+        let sources = workspace_of(&format!(
+            "{TASK_STORE}\nimpl Store {{\n    pub fn save(&self, path: &str) -> \
+             std::io::Result<()> {{\n        let mut out = String::new();\n        for (_, task) \
+             in &self.tasks {{\n            out.push_str(&task.title);\n        }}\n        \
+             std::fs::write(path, out)\n    }}\n}}\n"
+        ));
+        let workspace = Workspace::new(&sources);
+        let carried = outliving(&workspace);
+        assert_eq!(carried.len(), 1);
+        assert_eq!(carried[0].direction, Direction::Saves);
+        assert!(carried[0].function.ends_with("save"));
     }
 
     #[test]
