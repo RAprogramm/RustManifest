@@ -164,6 +164,9 @@ impl FactCollector {
         taken: &Provenance,
         span: &std::ops::Range<usize>
     ) -> bool {
+        if let syn::Pat::Struct(written) = pattern {
+            return self.record_named_parts(written);
+        }
         let parts: Vec<&syn::Pat> = match pattern {
             syn::Pat::Tuple(tuple) => tuple.elems.iter().collect(),
             syn::Pat::TupleStruct(variant) => variant.elems.iter().collect(),
@@ -186,6 +189,34 @@ impl FactCollector {
                 name,
                 Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX))
             );
+        }
+        true
+    }
+
+    /// Records each field a struct pattern takes out of one value.
+    ///
+    /// The pattern writes both the type it matches and the field each
+    /// name is bound to, so the answer is the field itself — the same
+    /// answer a written field expression gives. What the field holds is
+    /// settled wherever that type is constructed, which this tier does
+    /// not read, and the answer says exactly that much.
+    fn record_named_parts(&mut self, written: &syn::PatStruct) -> bool {
+        let Some(owner) = written.path.segments.last() else {
+            return false;
+        };
+        let owner = owner.ident.to_string();
+        for field in &written.fields {
+            let syn::Member::Named(named) = &field.member else {
+                continue;
+            };
+            let Some(bound) = super::naming::binding_name(&field.pat) else {
+                continue;
+            };
+            if !self.sole.contains(&bound) {
+                continue;
+            }
+            self.origins
+                .insert(bound, Provenance::Field(format!("{owner}.{named}")));
         }
         true
     }
