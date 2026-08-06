@@ -294,15 +294,15 @@ the answer lies past a call.
   records a position whether or not it can answer for it — without the rate, a page
   of named refusals reads like understanding, and no generation gate can state the
   share of facts it fires on. First measured on the engine's own sources at 68.5%
-  (14321 of 20895); the reading rules below took it to **76.9% (17731 of 23061)**,
-  with the remainder refused as foreign 2722, unreadable 2191, rebound 417. The
+  (14321 of 20895); the reading rules below took it to **88.3% (22057 of 24987)**,
+  with the remainder refused as foreign 1859, unreadable 703, rebound 368. The
   denominator grows as the vocabulary does: a rule that records a position it can
   only sometimes answer for lowers the rate while raising the count of answers, and
   both figures are printed for exactly that reason.
 - ✅ **Acceptance (origins, off our own sources)**: the same measurement run on
-  three independent workspaces of the eval corpus on 2026-08-06 — `masterror` 87.0%
-  (20036 of 23038), `hydebar` 91.3% (48001 of 52572), `fork-hyper` 84.2% (15038 of
-  17865) — against 87.6% on the engine's own sources. The reading rules are
+  three independent workspaces of the eval corpus on 2026-08-06 — `masterror` 88.6%
+  (20474 of 23100), `hydebar` 92.8% (49086 of 52870), `fork-hyper` 89.1% (16121 of
+  18103) — against 88.3% on the engine's own sources. The reading rules are
   therefore not fitted to this repository's style: a rule that only worked on the
   code it was written against would show here as a rate that falls away from home.
   The figures report and never gate.
@@ -319,8 +319,15 @@ the answer lies past a call.
   recorded as that choice; a written structure is the value built at that position,
   and so is the value a standard macro builds; the propagating operator, an await
   and an unsafe block leave the same value standing; a block stands for the
-  expression it ends with; and two arms are two scopes, so a name bound in one never
-  answers a reading in another — the one soundness bug the work found, which had
+  expression it ends with, and one that ends any other way is the unit value; a
+  written tuple position, like an index, is a selection; a variant pattern names the
+  payload it takes and a struct pattern the field it binds, the same rule reading a
+  binding, a condition and an arm; a path of several segments names an item, which
+  a binding never is; typing sees through a borrow as every other reading does; a
+  macro of the library builds what the library says it builds, or ends the function
+  and hands nothing back; what a resolver settled about a call and its receiver
+  outranks the reading that infers from spelling; and two arms are two scopes, so a
+  name bound in one never answers a reading in another — the one soundness bug the work found, which had
   been stating a value from the wrong branch.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
