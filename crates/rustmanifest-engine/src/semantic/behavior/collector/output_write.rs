@@ -54,7 +54,16 @@ impl FactCollector {
         debug_macro: bool
     ) {
         use syn::spanned::Spanned;
-        let payload = self.typed_holes(output::macro_payload(invocation, debug_macro));
+        let parsed = invocation
+            .parse_body_with(
+                syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
+            )
+            .ok();
+        let arguments: Vec<&syn::Expr> = parsed
+            .as_ref()
+            .map(|written| written.iter().skip(1).collect())
+            .unwrap_or_default();
+        let payload = self.typed_holes(output::macro_payload(invocation, debug_macro), &arguments);
         self.push_output(
             invocation.span().byte_range(),
             Destination {
@@ -76,11 +85,13 @@ impl FactCollector {
     /// `writeln!` to a handle — a difference in how the write is spelled,
     /// never in what it says.
     ///
-    /// Only a position written as a captured name is answered: the name
-    /// is the binding, and the binding's type is already in the tables.
-    /// A positional argument names an expression rather than a binding,
-    /// and typing it would mean evaluating what the source only wrote.
-    fn typed_holes(&self, payload: Payload) -> Payload {
+    /// A position written as a captured name is answered from the
+    /// tables, which hold the binding it names. A position written as an
+    /// expression is answered by reading that expression's own origin —
+    /// a lookup over records the walk already made, never a new record —
+    /// so a field, an element or a call filling a position states where
+    /// its value came from exactly as it would anywhere else.
+    fn typed_holes(&self, payload: Payload, written: &[&syn::Expr]) -> Payload {
         let Payload::Template(segments) = payload else {
             return payload;
         };
@@ -89,9 +100,20 @@ impl FactCollector {
                 .into_iter()
                 .map(|segment| match segment {
                     output::Segment::Hole(mut hole) => {
-                        if let output::HoleSource::Named(name) = &hole.source {
-                            hole.type_name = self.param_types.get(name).cloned();
-                            hole.origin = self.named_value(name);
+                        match &hole.source {
+                            output::HoleSource::Named(name) => {
+                                hole.type_name = self.param_types.get(name).cloned();
+                                hole.origin = self.named_value(name);
+                            }
+                            output::HoleSource::Positional(index)
+                            | output::HoleSource::Indexed(index) => {
+                                if let Some(argument) =
+                                    usize::try_from(*index).ok().and_then(|at| written.get(at))
+                                {
+                                    hole.type_name = self.expr_type(argument);
+                                    hole.origin = self.origin_of(argument);
+                                }
+                            }
                         }
                         output::Segment::Hole(hole)
                     }
@@ -126,7 +148,7 @@ impl FactCollector {
             return;
         };
         let resolved = self.write_destination(destination);
-        let payload = self.typed_holes(output::argument_payload(rest));
+        let payload = self.typed_holes(output::argument_payload(rest), &rest[1..]);
         self.push_output(span, resolved, payload, newline, Conduit::Formatting);
     }
 
