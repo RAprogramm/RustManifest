@@ -9,13 +9,24 @@ use super::{FactCollector, typing::initializer_type, unwrapping::pinned_inner};
 use crate::semantic::{knowledge, std_knowledge::EXTERNAL_CONSTRUCTORS};
 
 impl FactCollector {
-    /// The type a resolver settled for the expression at this position.
+    /// The type a resolver settled for the receiver of the call at this
+    /// position.
     ///
     /// The resolver answers what written text cannot — which function a
     /// call reaches and what it hands back — and its answer outranks
     /// every reading below, which infers from spelling alone. A position
     /// the resolver left out is absent from the overlay, so the reading
     /// falls through to what the source itself proves.
+    pub(super) fn settled_receiver(&self, expression: &syn::Expr) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = expression.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.receivers.get(&(start, end)).cloned()
+    }
+
+    /// The type a resolver settled for the expression at this position.
     fn settled_type(&self, expression: &syn::Expr) -> Option<String> {
         use syn::spanned::Spanned;
 
@@ -80,7 +91,9 @@ impl FactCollector {
             }
             syn::Expr::Await(awaited) => self.called_return(&awaited.base),
             syn::Expr::MethodCall(call) => {
-                let owner = self.expr_type(&call.receiver)?;
+                let owner = self
+                    .settled_receiver(expression)
+                    .or_else(|| self.expr_type(&call.receiver))?;
                 let method = call.method.to_string();
                 if method == "clone" {
                     return Some(owner);

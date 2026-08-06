@@ -118,6 +118,17 @@ pub fn behavior_with(
     facts
 }
 
+/// What a resolver settled about one source: the type each call hands
+/// back, and the type of the receiver it was called on, both by the byte
+/// range of the call.
+#[derive(Debug, Default)]
+pub(super) struct Settled {
+    /// Type each call at a position hands back.
+    pub(super) produced:  std::collections::BTreeMap<(u32, u32), String>,
+    /// Type of the receiver each call at a position was called on.
+    pub(super) receivers: std::collections::BTreeMap<(u32, u32), String>
+}
+
 /// The name the tables speak: the outermost type of a written type, with
 /// its arguments and its path dropped.
 ///
@@ -143,8 +154,8 @@ fn outermost(written: &str) -> Option<String> {
 fn settled_types(
     resolution: Option<&rustmanifest_schema::Resolution>,
     source: &Source
-) -> std::collections::BTreeMap<(u32, u32), String> {
-    let mut settled = std::collections::BTreeMap::new();
+) -> Settled {
+    let mut settled = Settled::default();
     let Some(resolution) = resolution else {
         return settled;
     };
@@ -152,10 +163,13 @@ fn settled_types(
         if call.at.file != source.path() {
             continue;
         }
-        let Some(named) = outermost(&call.returns) else {
-            continue;
-        };
-        settled.insert((call.at.range.start, call.at.range.end), named);
+        let at = (call.at.range.start, call.at.range.end);
+        if let Some(named) = outermost(&call.returns) {
+            settled.produced.insert(at, named);
+        }
+        if let Some(named) = call.receiver.as_deref().and_then(outermost) {
+            settled.receivers.insert(at, named);
+        }
     }
     settled
 }

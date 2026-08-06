@@ -31,7 +31,7 @@ pub(super) struct Known<'a> {
     /// Imports of the file the body lives in.
     pub(super) imports: &'a std::collections::BTreeMap<String, String>,
     /// What a resolver settled about that file, by byte range.
-    pub(super) settled: &'a std::collections::BTreeMap<(u32, u32), String>
+    pub(super) settled: &'a super::assembly::Settled
 }
 
 /// Extracts the facts of one function body against its signature.
@@ -84,7 +84,8 @@ pub(super) fn function_facts(
         crates:      known.tables.crates.clone(),
         declared:    known.tables.declared.clone(),
         payloads:    known.tables.payloads.clone(),
-        settled:     known.settled.clone(),
+        settled:     known.settled.produced.clone(),
+        receivers:   known.settled.receivers.clone(),
         src:         source,
         bounds:      context.bounds.clone(),
         local_wraps: std::collections::BTreeMap::new(),
