@@ -140,12 +140,12 @@ pub(super) struct Settled {
 /// into those tables would look up a name nothing declares.
 fn outermost(written: &str) -> Option<String> {
     let head = written.split('<').next()?.trim();
-    let held = head
+    let without_borrow = head
         .trim_start_matches('&')
         .trim()
         .trim_start_matches("mut ")
         .trim();
-    let named = held.rsplit("::").next()?.trim();
+    let named = without_borrow.rsplit("::").next()?.trim();
     (!named.is_empty()
         && named
             .chars()
