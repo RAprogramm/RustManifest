@@ -15,8 +15,13 @@ use syn::visit::Visit;
 use super::super::scoped::Scoped;
 use crate::source::Source;
 
-/// Reads the name of every constant and static the workspace declares,
-/// whatever its value is written as.
+/// Reads the name of every constant, static and payload-free variant the
+/// workspace declares, whatever its value is written as.
+///
+/// A variant carrying nothing is a named value exactly as a constant is:
+/// writing it names one value, and which one is settled by the
+/// declaration. It is noted under its own name and under
+/// `Enum.Variant`, because either spelling may be written.
 ///
 /// A name, not a value: that a path names a constant is what the
 /// declaration proves, and what the constant holds is settled where it is
@@ -59,6 +64,19 @@ impl<'ast> Visit<'ast> for ConstantNames<'_> {
     fn visit_impl_item_const(&mut self, item: &'ast syn::ImplItemConst) {
         self.table.note(item.ident.to_string(), self.source, ());
         syn::visit::visit_impl_item_const(self, item);
+    }
+
+    fn visit_item_enum(&mut self, item: &'ast syn::ItemEnum) {
+        let owner = item.ident.to_string();
+        for variant in &item.variants {
+            if !matches!(variant.fields, syn::Fields::Unit) {
+                continue;
+            }
+            let named = variant.ident.to_string();
+            self.table.note(format!("{owner}.{named}"), self.source, ());
+            self.table.note(named, self.source, ());
+        }
+        syn::visit::visit_item_enum(self, item);
     }
 }
 

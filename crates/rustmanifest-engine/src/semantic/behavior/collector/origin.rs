@@ -68,15 +68,44 @@ impl FactCollector {
                 return bound;
             }
         }
-        crate::semantic::std_knowledge::value_path(path).map_or_else(
-            || {
-                path.get_ident()
-                    .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
-                        self.named_origin(&name.to_string())
-                    })
-            },
-            Provenance::Constant
-        )
+        if let Some(named) = crate::semantic::std_knowledge::value_path(path) {
+            return Provenance::Constant(named);
+        }
+        if let Some(named) = self.declared_path(path) {
+            return Provenance::Constant(named);
+        }
+        path.get_ident()
+            .map_or(Provenance::NotDerived(OriginGap::Foreign), |name| {
+                self.named_origin(&name.to_string())
+            })
+    }
+
+    /// The name a written path stands for, where the workspace declares
+    /// it as a value: a constant, a static, or a variant carrying
+    /// nothing.
+    ///
+    /// The qualified spelling is asked first, so a bare name two
+    /// declarations share answers for neither rather than for the nearest
+    /// one.
+    fn declared_path(&self, path: &syn::Path) -> Option<String> {
+        let segments: Vec<String> = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect();
+        let written = segments.join("::");
+        if let [.., owner, named] = segments.as_slice()
+            && self
+                .declared
+                .resolve(&format!("{owner}.{named}"), self.src, &self.crates)
+                .is_some()
+        {
+            return Some(written);
+        }
+        let named = segments.last()?;
+        self.declared
+            .resolve(named, self.src, &self.crates)
+            .map(|()| written)
     }
 
     /// The value a propagating operator leaves standing where it does not
