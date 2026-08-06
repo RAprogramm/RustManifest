@@ -31,8 +31,35 @@ pub(super) fn honesty(workspace: &Workspace<'_>) -> String {
         );
     }
     out.push_str(&origins(&coverage, workspace));
+    out.push_str(&statements(workspace));
     out.push_str("- unread sources are not a claim of absence\n");
     out
+}
+
+/// How many of the statements the engine makes about entry points hold
+/// together, and how many decompose because a clause rests on a refusal.
+///
+/// The origin rate counts positions in the fact base; this counts what a
+/// reader is actually handed. A tier can answer most positions and still
+/// break every sentence, because one refused clause decomposes the whole
+/// statement it stands in — which is the number a generation gate would
+/// have to fire on.
+fn statements(workspace: &Workspace<'_>) -> String {
+    let entries = rustmanifest_engine::program_meaning(workspace);
+    if entries.is_empty() {
+        return String::new();
+    }
+    let whole = entries
+        .iter()
+        .filter(|entry| matches!(entry.narrative, rustmanifest_engine::Narrative::Whole(_)))
+        .count();
+    let total = entries.len();
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "entry counts stay far below 2^52, so the casts are exact"
+    )]
+    let share = whole as f64 / total as f64 * 100.0;
+    format!("- entry statements whole: {whole}/{total} ({share:.1}%)\n")
 }
 
 /// What share of the recorded value positions the engine settled, and
