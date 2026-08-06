@@ -6,7 +6,7 @@ Canonical plan for `rustmanifest`. Updated with every phase-completing PR.
 
 **Landed since the semantic tier closed:** the resolved-name extractor as an opt-in SCIP overlay (`--scip`) reaching `facts`, `coverage`, `check` and the invariant surface, with edge provenance in traces; call resolution confined to cargo build-target boundaries; error-conversion edges synthesized from `From` implementations at `?` sites; macro expansion promoted to a standard analysis mode; multi-implementor dispatch over-approximated with the modality stated in the trace; ecosystem knowledge packs (`reqwest`, `tempfile`, `tokio`) plus standard-library knowledge, quoted in findings from the library's own documentation with the cost of a deviation counted rather than described; machine-applicable fixes applied by `check --fix`.
 
-**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`), the value tier's own follow-ons (the four unresolved questions of [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md), now that the derived-versus-refused origin rate is measured and stands at 68.5% on the engine's own sources), and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
+**Next:** Phase 3 (HTTP/OAuth — tier-3 clippy delegation already shipped as `check --delegate-clippy`), the value tier's own follow-ons (the four unresolved questions of [RFC 0004](./RFCS/0004-value-provenance-and-the-inward-boundary.md), now that the derived-versus-refused origin rate is measured and stands at 76.9% on the engine's own sources), and the research plan's later phases (Ascent, tsetlin-rs ranking, MIR refiner).
 
 **Source layout:** no source file exceeds 150 pure code lines (blank lines, `//`/`///`/`//!` and `#[cfg(test)]` blocks excluded); oversized modules are split into nested single-responsibility submodules, with the parent as `X.rs` beside the directory `X/` and never a `mod.rs`.
 
@@ -290,11 +290,31 @@ the answer lies past a call.
 - ✅ **The derived-versus-refused count** (`semantic/coverage/origin.rs`,
   `rustmanifest coverage`, the honesty section of `rustmanifest report`): how many
   value positions were recorded and how many were settled, with the refusals broken
-  down by the question each one failed on. Measured on the engine's own sources:
-  20895 positions, 14321 derived (68.5%), refused as foreign 3770, unreadable 2334,
-  rebound 470. The counter exists because the tier records a position whether or
-  not it can answer for it — without the rate, a page of named refusals reads like
-  understanding, and no generation gate can state the share of facts it fires on.
+  down by the question each one failed on. The counter exists because the tier
+  records a position whether or not it can answer for it — without the rate, a page
+  of named refusals reads like understanding, and no generation gate can state the
+  share of facts it fires on. First measured on the engine's own sources at 68.5%
+  (14321 of 20895); the reading rules below took it to **76.9% (17731 of 23061)**,
+  with the remainder refused as foreign 2722, unreadable 2191, rebound 417. The
+  denominator grows as the vocabulary does: a rule that records a position it can
+  only sometimes answer for lowers the rate while raising the count of answers, and
+  both figures are printed for exactly that reason.
+- ✅ **The reading rules the measurement paid for**, each one general unless stated:
+  a path the standard library defines as a value — a unit variant, an associated
+  constant of a primitive — is that value, from a table of library names; a name the
+  workspace declares as a constant or a static is that constant, the body being
+  asked first so a binding still shadows it; a field names its owner wherever the
+  collector's own typing answers, instead of only on a parameter; what a loop hands
+  its body is an element of what it iterates, recorded as the selection an index
+  already is, and the same for the input of a closure written beside an adapter; a
+  tuple pattern says which part each name holds, so taking a value apart keeps the
+  origin; a conditional with an else chooses between two written alternatives and is
+  recorded as that choice; a written structure is the value built at that position,
+  and so is the value a standard macro builds; the propagating operator, an await
+  and an unsafe block leave the same value standing; a block stands for the
+  expression it ends with; and two arms are two scopes, so a name bound in one never
+  answers a reading in another — the one soundness bug the work found, which had
+  been stating a value from the wrong branch.
 
 ### Phase 3 — Streamable HTTP, OAuth, clippy delegation ⏳ in progress (clippy delegation done locally; HTTP/OAuth pending)
 

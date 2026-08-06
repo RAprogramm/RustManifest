@@ -23,6 +23,14 @@ standard type named — which is weaker than a catch-all, says so, and does not 
 a scrutinee's type. Everything the `Unresolved questions` section lists is still
 open.
 
+The vocabulary has since grown three answers the design below does not name —
+a value the library's own tables name (`None`, a primitive's limit, a constant
+the workspace declares), a value built at the position (a written structure, a
+standard macro), and the element a loop or an adapter hands out — and the
+single-binding census now counts sibling branches as alternatives rather than
+as repetitions, with the origins map restored on the way out of each branch so
+the two readings cannot disagree. The roadmap records the measured effect.
+
 ## Summary
 
 The engine can state what a program writes and what status it leaves. It cannot
