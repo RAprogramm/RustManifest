@@ -153,6 +153,11 @@ impl FactCollector {
     /// Records each part a pattern takes out of one value, and lets the
     /// name bound at each position stand for that part.
     ///
+    /// A name a nearer reading already answered is left alone: the
+    /// outcome reading, which knows the value a fallible call handed
+    /// back, states it without the unwrapping step, and restating it as a
+    /// selection would put a step between a value and itself.
+    ///
     /// Which part a name holds is written in the pattern itself: the name
     /// at position `k` holds what stands at position `k` of the value
     /// taken apart — an element of a tuple, or the payload a variant
@@ -181,7 +186,7 @@ impl FactCollector {
             let Some(name) = super::naming::binding_name(part) else {
                 continue;
             };
-            if !self.sole.contains(&name) {
+            if !self.sole.contains(&name) || self.origins.contains_key(&name) {
                 continue;
             }
             let operands = vec![
@@ -256,7 +261,7 @@ impl FactCollector {
             let Some(bound) = super::naming::binding_name(&field.pat) else {
                 continue;
             };
-            if !self.sole.contains(&bound) {
+            if !self.sole.contains(&bound) || self.origins.contains_key(&bound) {
                 continue;
             }
             self.origins

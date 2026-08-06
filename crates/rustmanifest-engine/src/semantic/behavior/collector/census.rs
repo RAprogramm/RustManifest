@@ -10,12 +10,18 @@
 //! such a name refuses by name rather than picking the textually nearest
 //! one.
 //!
-//! Alternatives are counted as alternatives. Two arms of one `match`, or
-//! the two halves of an `if`, each bind their own name, and a reading
-//! standing inside one of them can see only that one — so sibling
-//! branches contribute the largest count any single branch reaches rather
-//! than their sum. Adding them called every name bound in two arms
-//! twice-written, and refused a value the source settles beyond doubt.
+//! Scopes are counted as scopes. A name is written more than once only
+//! where one reading could see two of its writings: twice in the same
+//! scope, or once in a scope and once in a scope enclosing it. Two
+//! sibling scopes — two arms of a `match`, the halves of an `if`, two
+//! blocks written one after the other — each bind their own name, and no
+//! position sees both, so siblings contribute the largest count any one
+//! of them reaches rather than their sum.
+//!
+//! Counting the whole body flat called every such name twice-written and
+//! refused values the source settles beyond doubt: an error bound in one
+//! construct and an error bound in the next are two names, not one name
+//! written twice.
 //!
 //! Three ways of writing a name are counted, and all three are needed.
 //! Patterns alone would miss assignment entirely: the field-write reading
@@ -39,15 +45,13 @@ pub(in crate::semantic::behavior) struct NameCensus {
     pub(in crate::semantic::behavior) sole:    BTreeSet<String>
 }
 
-/// Counts how often `block` writes each name.
+/// Counts how often `block` writes each name, along the deepest scope
+/// path any reading could stand on.
 pub(in crate::semantic::behavior) fn name_census(block: &syn::Block) -> NameCensus {
-    let mut census = Census {
-        counts: BTreeMap::new()
-    };
-    census.visit_block(block);
+    let counts = scope_counts(|census| census.visit_block(block));
     let mut written = BTreeSet::new();
     let mut sole = BTreeSet::new();
-    for (name, count) in census.counts {
+    for (name, count) in counts {
         if count == 1 {
             sole.insert(name.clone());
         }
@@ -59,10 +63,34 @@ pub(in crate::semantic::behavior) fn name_census(block: &syn::Block) -> NameCens
     }
 }
 
-/// Walk counting how many times each name is written.
+/// Counts the writings of one scope: its own, plus the largest count any
+/// single child scope reaches.
+fn scope_counts(visit: impl FnOnce(&mut Census)) -> BTreeMap<String, u32> {
+    let mut census = Census {
+        counts:   BTreeMap::new(),
+        children: Vec::new()
+    };
+    visit(&mut census);
+    let mut counts = census.counts;
+    let mut deepest: BTreeMap<String, u32> = BTreeMap::new();
+    for child in census.children {
+        for (name, count) in child {
+            let seen = deepest.entry(name).or_insert(0);
+            *seen = (*seen).max(count);
+        }
+    }
+    for (name, count) in deepest {
+        *counts.entry(name).or_insert(0) += count;
+    }
+    counts
+}
+
+/// Walk counting how many times each name is written in one scope.
 struct Census {
-    /// How often each name is bound or assigned.
-    counts: BTreeMap<String, u32>
+    /// How often each name is bound or assigned in this scope itself.
+    counts:   BTreeMap<String, u32>,
+    /// What each scope written inside this one counted.
+    children: Vec<BTreeMap<String, u32>>
 }
 
 impl Census {
@@ -81,55 +109,32 @@ impl Census {
     }
 }
 
-impl Census {
-    /// Adds the largest count each name reaches in any one of `branches`.
-    ///
-    /// The branches are alternatives of each other: at most one of them
-    /// runs, and a position inside one never sees the bindings of
-    /// another.
-    fn note_alternatives(&mut self, branches: Vec<BTreeMap<String, u32>>) {
-        let mut largest: BTreeMap<String, u32> = BTreeMap::new();
-        for branch in branches {
-            for (name, count) in branch {
-                let seen = largest.entry(name).or_insert(0);
-                *seen = (*seen).max(count);
-            }
-        }
-        for (name, count) in largest {
-            *self.counts.entry(name).or_insert(0) += count;
-        }
-    }
-}
-
-/// Counts the names one alternative writes, apart from every other.
-fn branch_counts(visit: impl FnOnce(&mut Census)) -> BTreeMap<String, u32> {
-    let mut census = Census {
-        counts: BTreeMap::new()
-    };
-    visit(&mut census);
-    census.counts
-}
-
 impl<'ast> Visit<'ast> for Census {
-    fn visit_expr_match(&mut self, matched: &'ast syn::ExprMatch) {
-        self.visit_expr(&matched.expr);
-        let branches = matched
-            .arms
-            .iter()
-            .map(|arm| branch_counts(|census| census.visit_arm(arm)))
-            .collect();
-        self.note_alternatives(branches);
+    fn visit_block(&mut self, block: &'ast syn::Block) {
+        let counted = scope_counts(|census| syn::visit::visit_block(census, block));
+        self.children.push(counted);
+    }
+
+    fn visit_arm(&mut self, arm: &'ast syn::Arm) {
+        let counted = scope_counts(|census| syn::visit::visit_arm(census, arm));
+        self.children.push(counted);
+    }
+
+    fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
+        let counted = scope_counts(|census| syn::visit::visit_expr_closure(census, closure));
+        self.children.push(counted);
     }
 
     fn visit_expr_if(&mut self, conditional: &'ast syn::ExprIf) {
-        self.visit_expr(&conditional.cond);
-        let mut branches = vec![branch_counts(|census| {
-            census.visit_block(&conditional.then_branch);
-        })];
+        let taken = scope_counts(|census| {
+            census.visit_expr(&conditional.cond);
+            syn::visit::visit_block(census, &conditional.then_branch);
+        });
+        self.children.push(taken);
         if let Some((_, otherwise)) = &conditional.else_branch {
-            branches.push(branch_counts(|census| census.visit_expr(otherwise)));
+            let left = scope_counts(|census| census.visit_expr(otherwise));
+            self.children.push(left);
         }
-        self.note_alternatives(branches);
     }
 
     fn visit_pat_ident(&mut self, pattern: &'ast syn::PatIdent) {
