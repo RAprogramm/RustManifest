@@ -37,6 +37,9 @@ pub(super) struct TypeTables {
     /// Every name the workspace declares as a constant or a static,
     /// whatever its value.
     pub(super) declared:    Scoped<()>,
+    /// Whether each method the workspace declares takes its receiver
+    /// mutably, keyed `Type::method`.
+    pub(super) mutates:     Scoped<bool>,
     /// The single payload type of every variant that carries one.
     pub(super) payloads:    Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
@@ -49,6 +52,7 @@ impl TypeTables {
         let fields = field::field_tables(sources);
         Self {
             returns:     function_return::return_types(sources),
+            mutates:     function_return::receiver_mutability(sources),
             fields:      fields.plain,
             field_elems: fields.elems,
             field_wraps: fields.wraps,

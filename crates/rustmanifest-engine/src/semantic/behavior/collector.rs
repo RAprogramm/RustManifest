@@ -85,6 +85,9 @@ pub(super) struct FactCollector {
     pub(super) field_pairs: super::scoped::Scoped<(String, String)>,
     pub(super) field_wraps: Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
+    /// Whether each method the workspace declares takes its receiver
+    /// mutably.
+    pub(super) mutates:     super::scoped::Scoped<bool>,
     /// Every name the workspace declares as a constant or a static.
     pub(super) declared:    super::scoped::Scoped<()>,
     /// The single payload type of every variant that carries one.

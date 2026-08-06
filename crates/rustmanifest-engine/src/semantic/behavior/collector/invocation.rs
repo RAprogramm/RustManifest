@@ -53,6 +53,7 @@ impl FactCollector {
         if MUTATING_METHODS.contains(&method.as_str())
             && let syn::Expr::Field(field) = call.receiver.as_ref()
             && let Some(key) = self.field_key(field)
+            && self.receiver_taken_mutably(field, &method)
         {
             self.record_field_write(field, key);
         }
@@ -102,6 +103,30 @@ impl FactCollector {
             self.record_method_operation(call);
         }
         self.carry_outcome(call, &span);
+    }
+
+    /// Whether a method called on a field can change what it is called
+    /// on.
+    ///
+    /// The name table says which spellings usually mutate; where the
+    /// workspace declares the method itself, the declaration outranks
+    /// the table — a method taking `&self` changes nothing however it is
+    /// spelled. A method the workspace does not declare keeps the
+    /// table's answer, which is all there is to go on.
+    fn receiver_taken_mutably(&self, field: &syn::ExprField, method: &str) -> bool {
+        let Some(owner) = self.expr_type(&field.base).and_then(|owner| {
+            self.field(&format!(
+                "{owner}.{}",
+                super::naming::member_name(&field.member)
+            ))
+            .cloned()
+        }) else {
+            return true;
+        };
+        self.mutates
+            .resolve(&format!("{owner}::{method}"), self.src, &self.crates)
+            .copied()
+            .unwrap_or(true)
     }
 
     /// Reserves the record one method call fills, and records the effect

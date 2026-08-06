@@ -78,6 +78,7 @@ pub(super) fn function_facts(
         param_types: parameter_types(signature, context.impl_type),
         elem_types:  parameter_elements(signature),
         fn_returns:  known.tables.returns.clone(),
+        mutates:     known.tables.mutates.clone(),
         field_types: known.tables.fields.clone(),
         field_elems: known.tables.field_elems.clone(),
         field_wraps: known.tables.field_wraps.clone(),
