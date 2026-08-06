@@ -54,6 +54,8 @@ pub enum ComposedOrigin {
     Field(String),
     /// The value a standard-library path stands for, named as written.
     Constant(String),
+    /// A value of a named type built at the position.
+    Constructed(String),
     /// A value drawn from outside the process.
     Boundary {
         /// Where it comes from.
@@ -114,6 +116,7 @@ impl ComposedOrigin {
             | Self::Parameter(_)
             | Self::Field(_)
             | Self::Constant(_)
+            | Self::Constructed(_)
             | Self::Leaves
             | Self::Boundary {
                 ..
@@ -139,6 +142,7 @@ impl ComposedOrigin {
             | Self::Parameter(_)
             | Self::Field(_)
             | Self::Constant(_)
+            | Self::Constructed(_)
             | Self::Leaves
             | Self::Boundary {
                 ..

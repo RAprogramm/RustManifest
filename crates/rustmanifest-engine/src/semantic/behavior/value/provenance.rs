@@ -51,6 +51,13 @@ pub enum Provenance {
     /// written literal. Only paths the library tables answer for land
     /// here — a workspace constant of the same spelling does not.
     Constant(String),
+    /// A value of a named type built at this position.
+    ///
+    /// What the body proves is that a value of this type was constructed
+    /// here; what its fields hold is decided by the expressions written
+    /// inside, each of which the walk records on its own channel. Naming
+    /// the type and stopping states exactly that much.
+    Constructed(String),
     /// No value: control leaves this position instead of producing one.
     ///
     /// A settled answer and not a refusal. `Err(_) => return code` hands
@@ -76,6 +83,7 @@ impl Provenance {
             Self::Called(_) => "called",
             Self::Field(_) => "field",
             Self::Constant(_) => "constant",
+            Self::Constructed(_) => "constructed",
             Self::Leaves => "leaves",
             Self::NotDerived(gap) => gap.label()
         }
@@ -116,6 +124,24 @@ mod tests {
     /// A written type does not change which value a name stands for.
     /// Reading only the bare binding left `let args: Vec<String> = ..`
     /// foreign, and with it every clause resting on that value.
+    #[test]
+    fn a_written_structure_is_the_value_built_at_that_position() {
+        let text = "struct Pair { left: u8, right: u8 }\nfn make(one: u8) -> Pair { Pair { left: \
+                    one, right: 0 } }\n";
+        let sources = [crate::source::Source::new(
+            PathBuf::from("src/lib.rs"),
+            text.to_owned()
+        )];
+        let facts = behavior(&sources);
+        let built = Provenance::Constructed("Pair".to_owned());
+        assert!(
+            facts
+                .iter()
+                .flat_map(|fact| fact.handbacks.iter())
+                .any(|handback| handback.value == built)
+        );
+    }
+
     #[test]
     fn a_name_bound_in_one_arm_never_answers_a_reading_in_another() {
         let text = "fn pick(choice: u8, given: u8) -> u8 { match choice { 1 => { let value = \

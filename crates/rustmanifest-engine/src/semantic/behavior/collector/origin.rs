@@ -30,6 +30,10 @@ impl FactCollector {
             syn::Expr::Field(field) => self.field_origin(field),
             syn::Expr::Try(fallible) => self.propagated_origin(fallible),
             syn::Expr::Block(block) => self.block_origin(&block.block),
+            syn::Expr::Struct(literal) => literal.path.segments.last().map_or_else(
+                || Provenance::NotDerived(OriginGap::Unreadable),
+                |segment| Provenance::Constructed(segment.ident.to_string())
+            ),
             syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => {
                 Provenance::Leaves
             }

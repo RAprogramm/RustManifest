@@ -22,6 +22,7 @@ pub fn origin_text(origin: &ComposedOrigin) -> String {
         ),
         ComposedOrigin::Field(key) => format!("the field `{key}`"),
         ComposedOrigin::Constant(named) => format!("the value `{named}`"),
+        ComposedOrigin::Constructed(type_name) => format!("a `{type_name}` built here"),
         ComposedOrigin::Boundary {
             channel,
             selector
