@@ -55,6 +55,23 @@ pub(super) fn summary_of(
     }
 }
 
+/// The failure half of a term that hands back a whole fallible answer.
+///
+/// A function whose last expression *is* the answer marks no half of its
+/// own: what it hands back is what the expression hands back, both
+/// halves at once. The failure half of such a position is the failure
+/// half of that term, written as the selection that takes it — the same
+/// one a `?` and an `Err` pattern write.
+fn failing_half(term: ComposedOrigin) -> ComposedOrigin {
+    ComposedOrigin::Computed {
+        operation: crate::semantic::behavior::Operation::Selection,
+        operands:  vec![
+            term,
+            ComposedOrigin::Written(crate::semantic::behavior::Literal::Integer("1".to_owned())),
+        ]
+    }
+}
+
 /// Which half of a fallible answer a term is being asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Half {
@@ -91,9 +108,15 @@ fn handed_back(
         .iter()
         .filter(|handback| match half {
             Half::Success => !carries_failure || handback.outcome != Outcome::Failure,
-            Half::Failure => handback.outcome == Outcome::Failure
+            Half::Failure => !carries_failure || handback.outcome == Outcome::Failure
         })
-        .map(|handback| unfold(settled, own, &handback.value, ORIGIN_DEPTH))
+        .map(|handback| {
+            let term = unfold(settled, own, &handback.value, ORIGIN_DEPTH);
+            if half == Half::Failure && handback.outcome != Outcome::Failure {
+                return failing_half(term);
+            }
+            term
+        })
         .collect();
     match terms.len() {
         0 => ComposedOrigin::NotDerived(OriginGap::Unreadable),
