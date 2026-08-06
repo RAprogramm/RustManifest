@@ -13,7 +13,7 @@
 
 use rustmanifest_schema::Range;
 
-use crate::semantic::{TypeKind, workspace::Workspace};
+use crate::semantic::{TypeKind, behavior::Effect, workspace::Workspace};
 
 /// One collection of records a type holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,18 +45,21 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
             continue;
         }
         for field in &node.fields {
-            let Some(record) = graph
-                .types()
-                .iter()
-                .find(|candidate| candidate.kind == TypeKind::Struct && kept(field, candidate))
-            else {
+            let Some(element) = field.element.as_deref() else {
                 continue;
             };
+            let declared = graph
+                .types()
+                .iter()
+                .any(|candidate| candidate.kind == TypeKind::Struct && candidate.name == element);
+            if !declared && !carried_to_a_file(workspace, &node.name, &field.name) {
+                continue;
+            }
             held.push(Store {
                 owner:  node.name.clone(),
                 field:  field.name.clone(),
                 shape:  field.type_name.clone(),
-                record: record.name.clone(),
+                record: element.to_owned(),
                 site:   node.range,
                 source: node.source
             });
@@ -70,14 +73,38 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
     held
 }
 
-/// Whether a field holds a collection of `record`.
+/// Whether some method both touches this field and reaches the file
+/// system in the same body.
 ///
-/// The element type is read off the written type argument the field
-/// table already keeps; a field whose type carries no argument holds no
-/// collection and is not a store however it is named.
-fn kept(field: &crate::semantic::graph::FieldNode, record: &crate::semantic::TypeNode) -> bool {
-    field
-        .element
-        .as_deref()
-        .is_some_and(|element| element == record.name)
+/// A collection of values another crate declares is not obviously a
+/// store of anything — until the program carries it to a file, which is
+/// what a program does with what it means to keep. A collection built
+/// and dropped inside one body is never carried anywhere and stays what
+/// it is: working memory.
+fn carried_to_a_file(workspace: &Workspace<'_>, owner: &str, field: &str) -> bool {
+    let key = format!("{owner}.{field}");
+    workspace.facts().iter().any(|fact| {
+        let touches = fact.reads.iter().any(|read| *read == key)
+            || fact.writes.iter().any(|write| *write == key)
+            || fact.builds.iter().any(|build| *build == key)
+            || builds_the_owner(fact, owner);
+        touches
+            && fact
+                .effect_sites
+                .iter()
+                .any(|site| site.effect == Effect::FileSystem)
+    })
+}
+
+/// Whether a body builds the type that declares the field.
+///
+/// A collection filled into a fresh value of its owner is that owner's
+/// collection however the body spells the name: the constructor writes
+/// `Self`, and the reading follows the declaration rather than the
+/// spelling.
+fn builds_the_owner(fact: &crate::semantic::behavior::FunctionFacts, owner: &str) -> bool {
+    fact.constructs
+        .iter()
+        .any(|built| built == owner || built == "Self")
+        && fact.function.starts_with(&format!("{owner}::"))
 }

@@ -66,7 +66,7 @@ const WRITING: [&str; 6] = [
 #[must_use]
 pub fn outliving(workspace: &Workspace<'_>) -> Vec<Outliving> {
     let mut carried = Vec::new();
-    for kept in keeping(workspace) {
+    for kept in filling(workspace) {
         let Some(fact) = workspace.facts().get(index_of(workspace, &kept)) else {
             continue;
         };
@@ -90,6 +90,38 @@ pub fn outliving(workspace: &Workspace<'_>) -> Vec<Outliving> {
         }
     }
     carried
+}
+
+/// Every method that touches a store, whether by naming its field or by
+/// building the value that holds it.
+///
+/// A constructor filling a fresh value from a file names no field at
+/// all — the collection is a local until the moment it is moved in — and
+/// reading only the named touches lost exactly the method that brings a
+/// store into being.
+fn filling(workspace: &Workspace<'_>) -> Vec<Keeping> {
+    let mut touched = keeping(workspace);
+    for store in super::store::stores(workspace) {
+        let key = format!("{}.{}", store.owner, store.field);
+        for fact in workspace.facts() {
+            let builds = fact
+                .constructs
+                .iter()
+                .any(|built| *built == store.owner || built == "Self")
+                && fact.function.starts_with(&format!("{}::", store.owner));
+            if !builds || touched.iter().any(|kept| kept.function == fact.function) {
+                continue;
+            }
+            touched.push(Keeping {
+                function: fact.function.clone(),
+                store:    key.clone(),
+                verb:     super::verb::Verb::Adds,
+                site:     fact.range,
+                source:   fact.source
+            });
+        }
+    }
+    touched
 }
 
 /// Index of the fact one keeping was read from.
