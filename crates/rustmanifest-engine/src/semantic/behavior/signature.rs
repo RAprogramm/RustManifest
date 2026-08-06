@@ -22,7 +22,7 @@ mod wrapper;
 
 pub(super) use self::{
     bound::generics_bounds,
-    element::element_type,
+    element::{element_type, pair_types},
     error_type::error_types,
     parameter::{param_facts, parameter_elements, parameter_types},
     slot::param_slots,

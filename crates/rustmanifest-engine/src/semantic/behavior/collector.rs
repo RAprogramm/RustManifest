@@ -81,6 +81,8 @@ pub(super) struct FactCollector {
     /// `Type.field` keys of collection fields to element types.
     pub(super) field_elems: Scoped<String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
+    /// Key and value types of every map-typed field.
+    pub(super) field_pairs: super::scoped::Scoped<(String, String)>,
     pub(super) field_wraps: Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
     /// Every name the workspace declares as a constant or a static.

@@ -29,6 +29,9 @@ pub(super) struct TypeTables {
     /// `Type.field` keys of single-generic wrapper fields to the
     /// wrapped inner type.
     pub(super) field_wraps: Scoped<String>,
+    /// The key and value types of every map-typed field, keyed
+    /// `Type.field`.
+    pub(super) field_pairs: Scoped<(String, String)>,
     /// Names of string constants to the literal each is written as.
     pub(super) constants:   Scoped<String>,
     /// Every name the workspace declares as a constant or a static,
@@ -43,12 +46,13 @@ pub(super) struct TypeTables {
 impl TypeTables {
     /// Reads every typing table off `sources` in one pass each.
     pub(super) fn of(sources: &[Source]) -> Self {
-        let (fields, field_elems, field_wraps) = field::field_tables(sources);
+        let (fields, field_elems, field_wraps, field_pairs) = field::field_tables(sources);
         Self {
             returns: function_return::return_types(sources),
             fields,
             field_elems,
             field_wraps,
+            field_pairs,
             constants: constant::constant_texts(sources),
             declared: constant::constant_names(sources),
             payloads: variant::variant_payloads(sources),

@@ -2,13 +2,46 @@
 // SPDX-License-Identifier: MIT
 
 //! The element type a declared collection carries: slices, arrays, and
-//! the std sequence containers, read from the declaration alone.
+//! the std sequence containers, read from the declaration alone — and,
+//! for a map, the pair its iteration hands out, position by position.
 
 use super::type_name::type_last_segment;
 
-/// Renders the element type of a collection: slices, arrays, and the
-/// std sequence containers carrying one type argument, looking through
-/// references.
+/// The key and value types a declared map carries, in that order.
+///
+/// Iterating a map hands out a pair, and which of the two stands at
+/// which position is fixed by the library rather than by the reading. A
+/// container that is not one of the two standard maps is not answered
+/// for at all.
+pub(in crate::semantic::behavior) fn pair_types(ty: &syn::Type) -> Option<(String, String)> {
+    match ty {
+        syn::Type::Reference(reference) => pair_types(&reference.elem),
+        syn::Type::Path(path) => {
+            let segment = path.path.segments.last()?;
+            if !matches!(segment.ident.to_string().as_str(), "BTreeMap" | "HashMap") {
+                return None;
+            }
+            let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+            let written: Vec<&syn::Type> = arguments
+                .args
+                .iter()
+                .filter_map(|argument| match argument {
+                    syn::GenericArgument::Type(inner) => Some(inner),
+                    _ => None
+                })
+                .collect();
+            let [key, value] = written[..] else {
+                return None;
+            };
+            Some((concrete_element(key)?, concrete_element(value)?))
+        }
+        _ => None
+    }
+}
+
+/// Element type of a collection type.
 pub(in crate::semantic::behavior) fn element_type(ty: &syn::Type) -> Option<String> {
     match ty {
         syn::Type::Reference(reference) => element_type(&reference.elem),

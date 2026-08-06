@@ -182,6 +182,7 @@ impl FactCollector {
             }
             _ => return false
         };
+        self.type_pair_parts(pattern, taken);
         for (position, part) in parts.into_iter().enumerate() {
             let Some(name) = super::naming::binding_name(part) else {
                 continue;
@@ -201,6 +202,50 @@ impl FactCollector {
             );
         }
         true
+    }
+
+    /// Types the two names a pair pattern binds, where the value taken
+    /// apart is a map the tables know.
+    ///
+    /// Iterating a map hands out a key and a value in that order, which
+    /// the library fixes and the pattern positions name. Without this
+    /// the value of a map iteration types to nothing, and every field
+    /// read on it refuses.
+    fn type_pair_parts(&mut self, pattern: &syn::Pat, taken: &Provenance) {
+        let syn::Pat::Tuple(tuple) = pattern else {
+            return;
+        };
+        let [first, second] = tuple.elems.iter().collect::<Vec<_>>()[..] else {
+            return;
+        };
+        let Provenance::Computed(index) = taken else {
+            return;
+        };
+        let Some(site) = usize::try_from(*index)
+            .ok()
+            .and_then(|at| self.facts.operations.get(at))
+        else {
+            return;
+        };
+        let [over, ..] = site.operands.as_slice() else {
+            return;
+        };
+        let Provenance::Field(key) = over else {
+            return;
+        };
+        let Some(pair) = self
+            .field_pairs
+            .resolve(key, self.src, &self.crates)
+            .cloned()
+        else {
+            return;
+        };
+        if let Some(named) = super::naming::binding_name(first) {
+            self.param_types.insert(named, pair.0);
+        }
+        if let Some(named) = super::naming::binding_name(second) {
+            self.param_types.insert(named, pair.1);
+        }
     }
 
     /// Types the one name a variant pattern binds, where the enum

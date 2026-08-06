@@ -81,6 +81,7 @@ pub(super) fn function_facts(
         field_types: known.tables.fields.clone(),
         field_elems: known.tables.field_elems.clone(),
         field_wraps: known.tables.field_wraps.clone(),
+        field_pairs: known.tables.field_pairs.clone(),
         crates:      known.tables.crates.clone(),
         declared:    known.tables.declared.clone(),
         payloads:    known.tables.payloads.clone(),

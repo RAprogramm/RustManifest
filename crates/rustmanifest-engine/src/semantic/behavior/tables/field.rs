@@ -9,7 +9,7 @@
 use crate::{
     semantic::behavior::{
         scoped::Scoped,
-        signature::{element_type, type_last_segment, wrapped_type}
+        signature::{element_type, pair_types, type_last_segment, wrapped_type}
     },
     source::Source
 };
@@ -20,10 +20,16 @@ use crate::{
 /// to its wrapped inner type.
 pub(super) fn field_tables(
     sources: &[Source]
-) -> (Scoped<String>, Scoped<String>, Scoped<String>) {
+) -> (
+    Scoped<String>,
+    Scoped<String>,
+    Scoped<String>,
+    Scoped<(String, String)>
+) {
     let mut plain = Scoped::default();
     let mut elems = Scoped::default();
     let mut wraps = Scoped::default();
+    let mut pairs = Scoped::default();
     for (index, source) in sources.iter().enumerate() {
         let Some(file) = source.tree() else {
             continue;
@@ -46,11 +52,14 @@ pub(super) fn field_tables(
                 if let Some(element) = element_type(&field.ty) {
                     elems.note(key.clone(), index, element);
                 }
+                if let Some(pair) = pair_types(&field.ty) {
+                    pairs.note(key.clone(), index, pair);
+                }
                 if let Some(inner) = wrapped_type(&field.ty) {
                     wraps.note(key, index, inner);
                 }
             }
         }
     }
-    (plain, elems, wraps)
+    (plain, elems, wraps, pairs)
 }
