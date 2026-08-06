@@ -49,6 +49,7 @@ ignore = "0.4"
 quote = "1"
 syn = { version = "3", features = ["full", "visit"] }
 tsetlin-rs = "0.3"
+ra_ap_cfg = "=0.0.345"
 ra_ap_hir = "=0.0.345"
 ra_ap_ide_db = "=0.0.345"
 ra_ap_load-cargo = "=0.0.345"

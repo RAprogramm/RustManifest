@@ -2360,6 +2360,7 @@ dependencies = [
 name = "rustmanifest-resolve"
 version = "0.0.0"
 dependencies = [
+ "ra_ap_cfg",
  "ra_ap_hir",
  "ra_ap_ide_db",
  "ra_ap_load-cargo",

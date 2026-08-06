@@ -16,6 +16,7 @@ categories = ["development-tools"]
 keywords = ["rust", "static-analysis", "types", "resolution"]
 
 [dependencies]
+ra_ap_cfg = { workspace = true }
 ra_ap_hir = { workspace = true }
 ra_ap_ide_db = { workspace = true }
 ra_ap_load-cargo = { workspace = true }

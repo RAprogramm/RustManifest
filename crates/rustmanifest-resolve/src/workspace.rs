@@ -12,16 +12,20 @@
 //!   call into the library resolves to nothing and its type reads as unknown —
 //!   on a small program that is the difference between every call answered and
 //!   one in seven.
+//! - The test configuration must be turned on, or every `#[cfg(test)]` module
+//!   is inactive code the resolver answers nothing about — which on a
+//!   well-tested workspace is most of the file.
 //! - Only files of the analyzed workspace are walked. Every dependency's
 //!   sources are loaded too, and walking them turns seconds into minutes for
 //!   answers about code nobody asked about.
 
 use std::path::Path;
 
-use ra_ap_hir::{DisplayTarget, HasCrate, HirDisplay, Semantics, attach_db};
+use ra_ap_cfg::{CfgAtom, CfgDiff};
+use ra_ap_hir::{DisplayTarget, HasCrate, HirDisplay, Semantics, Symbol, attach_db};
 use ra_ap_ide_db::RootDatabase;
 use ra_ap_load_cargo::{LoadCargoConfig, ProcMacroServerChoice, load_workspace_at};
-use ra_ap_project_model::{CargoConfig, RustLibSource};
+use ra_ap_project_model::{CargoConfig, CfgOverrides, RustLibSource};
 use ra_ap_syntax::{AstNode, ast};
 use rustmanifest_schema::{Location, Range, Resolution, ResolvedCall, ResolvedField};
 use tracing::debug;
@@ -92,6 +96,10 @@ fn written_in_rust(path: &str) -> bool {
 fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), ResolveError> {
     let cargo = CargoConfig {
         sysroot: Some(RustLibSource::Discover),
+        cfg_overrides: CfgOverrides {
+            global: CfgDiff::new(vec![CfgAtom::Flag(Symbol::intern("test"))], Vec::new()),
+            ..CfgOverrides::default()
+        },
         ..CargoConfig::default()
     };
     let load = LoadCargoConfig {
