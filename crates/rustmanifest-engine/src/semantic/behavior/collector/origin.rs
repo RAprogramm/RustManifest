@@ -41,6 +41,10 @@ impl FactCollector {
             syn::Expr::Async(_) => Provenance::Constructed("future".to_owned()),
             syn::Expr::ForLoop(_) | syn::Expr::While(_) => Provenance::Written(Literal::Unit),
             syn::Expr::Let(_) => Provenance::Constructed("bool".to_owned()),
+            syn::Expr::Assign(_) => Provenance::Written(Literal::Unit),
+            syn::Expr::Binary(binary) if crate::semantic::expr::compound_assignment(binary.op) => {
+                Provenance::Written(Literal::Unit)
+            }
             syn::Expr::Const(block) => self.block_origin(&block.block),
             syn::Expr::TryBlock(block) => self.block_origin(&block.block),
             syn::Expr::Macro(invocation)
@@ -142,9 +146,10 @@ impl FactCollector {
         self.origin_of(&fallible.expr)
     }
 
-    /// A pattern written in a condition answers whether it matched, and
-    /// a constant block stands for the value it ends with, both by the
-    /// language's own rules.
+    /// A pattern written in a condition answers whether it matched; a
+    /// constant block stands for the value it ends with; an assignment,
+    /// plain or compound, produces the unit value however much it
+    /// changes. All three are the language's own rules.
     ///
     /// A `for` and a `while` produce the unit value however their body
     /// ends, which the language guarantees; a bare `loop` does not,
