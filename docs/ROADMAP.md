@@ -305,6 +305,21 @@ the answer lies past a call.
   denominator grows as the vocabulary does: a rule that records a position it can
   only sometimes answer for lowers the rate while raising the count of answers, and
   both figures are printed for exactly that reason.
+- ✅ **The traced-position rate** (the honesty section of `rustmanifest report`): of
+  the positions a program actually prints, how many have their value traced all the
+  way through the composition. The strict number, and the one a generation gate
+  would stand on — the whole-statement rate saturates once no clause has to speak a
+  refusal, and cannot stand in for it. Measured on 2026-08-06: `masterror` 51.2%
+  (1166 of 2233 with the resolution overlay, 1144 without), `fork-hyper` 31.2% (360
+  of 1152), the ordinary task list 5 of 8. What stops the rest is almost entirely
+  one question — which function a call reaches, where the receiver types to nothing
+  — so the overlay is where the remainder lives.
+- ✅ **A call that leaves the program is an answer, not a gap**: what a function no
+  workspace source declares hands back is decided outside the sources being read,
+  which is as settled as the content of a field. Naming the callee states
+  everything the program proves, and the refusal is kept for the case it was meant
+  for — a name the workspace does declare that the binding rule cannot tie to one
+  definition.
 - ✅ **The whole-statement rate** (the honesty section of `rustmanifest report`):
   how many entry points get a statement that holds together against how many
   decompose because a clause rests on a refusal. It is the harder of the two
