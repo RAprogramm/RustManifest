@@ -61,6 +61,10 @@ impl FactCollector {
     /// Records what a `let` written in a condition binds, on the same
     /// ground the arms of a match over the same value are read.
     ///
+    /// A condition may bind more than once: the language chains them with
+    /// `&&`, and each link binds in the branch the whole condition
+    /// guards, so every link is read.
+    ///
     /// `if let Ok(value) = call()` and the `Ok` arm of a match over that
     /// call bind the same name to the same half of the same value. They
     /// are one fact written two ways, so they are read by one rule — the
@@ -69,8 +73,18 @@ impl FactCollector {
     pub(super) fn record_condition_binding(&mut self, condition: &syn::Expr) {
         use syn::spanned::Spanned;
 
-        let syn::Expr::Let(written) = condition else {
-            return;
+        let written = match condition {
+            syn::Expr::Let(written) => written,
+            syn::Expr::Paren(inner) => {
+                self.record_condition_binding(&inner.expr);
+                return;
+            }
+            syn::Expr::Binary(chain) if matches!(chain.op, syn::BinOp::And(_)) => {
+                self.record_condition_binding(&chain.left);
+                self.record_condition_binding(&chain.right);
+                return;
+            }
+            _ => return
         };
         let taken = self.origin_of(&written.expr);
         self.record_tuple_parts(&written.pat, &taken, &written.pat.span().byte_range());
