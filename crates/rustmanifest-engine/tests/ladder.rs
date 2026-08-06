@@ -139,6 +139,33 @@ fn main() {
 }
 "#;
 
+/// A program with a helper nothing calls, whose reading refuses.
+const UNREACHED_HELPER: &str = r#"fn unused(values: Vec<u8>) -> u8 {
+    let mut total = 0;
+    for value in values {
+        total = value;
+    }
+    total
+}
+
+fn main() {
+    println!("ready");
+}
+"#;
+
+#[test]
+fn a_refusal_nothing_reaches_leaves_the_statement_whole() {
+    let stated = stated(&[("src/main.rs", UNREACHED_HELPER)]);
+    assert!(
+        stated.contains("the process unconditionally writes \"ready\\n\" to stdout"),
+        "the write is not stated: {stated}"
+    );
+    assert!(
+        !stated.starts_with("this analysis"),
+        "a statement broke on a site no path reaches: {stated}"
+    );
+}
+
 #[test]
 fn the_task_list_states_what_it_prints_without_refusing_anywhere() {
     let stated = stated(&[("src/main.rs", TASK_LIST)]);

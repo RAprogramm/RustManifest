@@ -305,6 +305,14 @@ the answer lies past a call.
   denominator grows as the vocabulary does: a rule that records a position it can
   only sometimes answer for lowers the rate while raising the count of answers, and
   both figures are printed for exactly that reason.
+- ✅ **The whole-statement rate** (the honesty section of `rustmanifest report`):
+  how many entry points get a statement that holds together against how many
+  decompose because a clause rests on a refusal. It is the harder of the two
+  numbers and the one a generation gate would stand on: a tier can answer most
+  positions and still break every sentence. Measured on 2026-08-06 after a
+  refusal at an unreached site stopped counting against a statement about the
+  process: `masterror` 6 of 11, `fork-hyper` 16 of 18, and an ordinary
+  command-line task list 1 of 1 with every one of its 141 value positions derived.
 - ✅ **Acceptance (origins, off our own sources)**: the same measurement run on
   three independent workspaces of the eval corpus on 2026-08-06 — `masterror` 88.6%
   (20474 of 23100), `hydebar` 92.8% (49086 of 52870), `fork-hyper` 89.1% (16121 of
