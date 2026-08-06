@@ -52,7 +52,14 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
     } else {
         None
     };
-    let element = super::signature::element_type(ty).map(|name| resolve_self(name, owner));
+    let element = super::signature::element_type(ty)
+        .or_else(|| {
+            (segment.ident == "Result" || segment.ident == "Option")
+                .then(|| argument_type(segment, 0))
+                .flatten()
+                .and_then(super::signature::element_type)
+        })
+        .map(|name| resolve_self(name, owner));
     Some(Returned {
         plain,
         success,
@@ -60,6 +67,26 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
         element,
         never: false
     })
+}
+
+/// The `position`-th angle-bracketed type argument itself, where one
+/// stands there.
+///
+/// The last segment answers what a type is called; the type answers what
+/// it carries, which is what a sequence inside a fallible return has to
+/// be asked for.
+fn argument_type(segment: &syn::PathSegment, position: usize) -> Option<&syn::Type> {
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    arguments
+        .args
+        .iter()
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(written) => Some(written),
+            _ => None
+        })
+        .nth(position)
 }
 
 /// Last segment of the `position`-th angle-bracketed type argument.
