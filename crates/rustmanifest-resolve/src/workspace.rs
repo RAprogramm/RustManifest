@@ -78,6 +78,7 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
                     resolution.fields.push(settled);
                 }
             }
+            settled_inside_macros(&semantics, &database, &name, &parsed, &mut resolution);
         }
     });
     resolution.settle();
@@ -115,6 +116,56 @@ fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), ResolveError> {
             path:   root.to_path_buf(),
             reason: source.to_string()
         })
+    }
+}
+
+/// Records every field read written inside a macro argument, mapped back
+/// to the range the source wrote it at.
+///
+/// A field inside a macro argument is a token to a walk over the source
+/// tree and an expression only after expansion — which is where the
+/// positions a format string prints live. The expansion of a print
+/// carries another macro inside it, so one level is not enough and the
+/// walk goes two: far enough for the argument list, and bounded so a
+/// macro defined in terms of itself cannot run the walk away.
+fn settled_inside_macros(
+    semantics: &Semantics<'_, RootDatabase>,
+    database: &RootDatabase,
+    file: &str,
+    parsed: &ast::SourceFile,
+    resolution: &mut Resolution
+) {
+    for invocation in parsed
+        .syntax()
+        .descendants()
+        .filter_map(ast::MacroCall::cast)
+    {
+        let Some(expanded) = semantics.expand_macro_call(&invocation) else {
+            continue;
+        };
+        let mut trees = vec![expanded.value.clone()];
+        for inner in expanded
+            .value
+            .descendants()
+            .filter_map(ast::MacroCall::cast)
+        {
+            if let Some(deeper) = semantics.expand_macro_call(&inner) {
+                trees.push(deeper.value);
+            }
+        }
+        for tree in trees {
+            for field in tree.descendants().filter_map(ast::FieldExpr::cast) {
+                let Some(mut settled) = settled_field(semantics, database, file, &field) else {
+                    continue;
+                };
+                let written = semantics.original_range(field.syntax()).range;
+                settled.at.range = Range {
+                    start: u32::from(written.start()),
+                    end:   u32::from(written.end())
+                };
+                resolution.fields.push(settled);
+            }
+        }
     }
 }
 
