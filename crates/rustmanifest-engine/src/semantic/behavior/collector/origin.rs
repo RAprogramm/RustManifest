@@ -144,14 +144,17 @@ impl FactCollector {
 
     /// The value a block stands for, as the reading itself uses it.
     fn block_origin(&self, block: &syn::Block) -> Provenance {
-        match block.stmts.last() {
-            Some(syn::Stmt::Expr(last, None)) => self.origin_of(last),
-            Some(syn::Stmt::Expr(
-                last @ (syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_)),
-                Some(_)
-            )) => self.origin_of(last),
-            _ => Provenance::Written(Literal::Unit)
+        let Some(syn::Stmt::Expr(last, terminator)) = block.stmts.last() else {
+            return Provenance::Written(Literal::Unit);
+        };
+        let leaves = matches!(
+            last,
+            syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_)
+        );
+        if terminator.is_none() || leaves {
+            return self.origin_of(last);
         }
+        Provenance::Written(Literal::Unit)
     }
 
     /// The name a written path stands for, where the workspace declares
