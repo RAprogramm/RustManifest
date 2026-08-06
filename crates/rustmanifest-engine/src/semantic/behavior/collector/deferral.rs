@@ -6,13 +6,36 @@
 //! anywhere.
 
 use super::FactCollector;
-use crate::semantic::behavior::{output::Guard, value::Condition};
+use crate::semantic::behavior::{
+    output::Guard,
+    value::{Condition, Provenance}
+};
 
 impl FactCollector {
-    /// Visits a closure body under the frame a deferred body carries.
+    /// Visits a closure body under the frame a deferred body carries,
+    /// with its own inputs standing for what whoever runs it hands in.
+    ///
+    /// An input no nearer rule answered is supplied from outside this
+    /// body — a settled answer and not a refusal, exactly as a
+    /// parameter's value is settled outside the function declaring it.
+    /// The binding lives as long as the body it belongs to and no
+    /// longer.
     pub(super) fn collect_closure(&mut self, closure: &syn::ExprClosure) {
         self.under(Guard::Closure, Condition::NotDerived, |collector| {
-            syn::visit::visit_expr_closure(collector, closure);
+            collector.scoped(|collector| {
+                for input in &closure.inputs {
+                    let Some(named) = super::naming::binding_name(input) else {
+                        continue;
+                    };
+                    if collector.origins.contains_key(&named) {
+                        continue;
+                    }
+                    collector
+                        .origins
+                        .insert(named.clone(), Provenance::Supplied(named));
+                }
+                syn::visit::visit_expr_closure(collector, closure);
+            });
         });
     }
 

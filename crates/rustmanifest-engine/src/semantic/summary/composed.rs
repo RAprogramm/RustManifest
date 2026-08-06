@@ -56,6 +56,8 @@ pub enum ComposedOrigin {
     Constant(String),
     /// A value of a named type built at the position.
     Constructed(String),
+    /// The value handed to a closure as one of its own inputs.
+    Supplied(String),
     /// The value a call to something outside this program hands back.
     ///
     /// A settled answer and not a refusal: what such a call produces is
@@ -125,6 +127,7 @@ impl ComposedOrigin {
             | Self::Constant(_)
             | Self::Constructed(_)
             | Self::Beyond(_)
+            | Self::Supplied(_)
             | Self::Leaves
             | Self::Boundary {
                 ..
@@ -152,6 +155,7 @@ impl ComposedOrigin {
             | Self::Constant(_)
             | Self::Constructed(_)
             | Self::Beyond(_)
+            | Self::Supplied(_)
             | Self::Leaves
             | Self::Boundary {
                 ..

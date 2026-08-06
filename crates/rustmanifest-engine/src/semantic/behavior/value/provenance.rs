@@ -58,6 +58,14 @@ pub enum Provenance {
     /// inside, each of which the walk records on its own channel. Naming
     /// the type and stopping states exactly that much.
     Constructed(String),
+    /// The value handed to a closure as one of its own inputs.
+    ///
+    /// Whoever runs the closure decides it, which is outside this body
+    /// exactly as a parameter's value is outside the function that
+    /// declares it. Where a rule already knows what the closure is run
+    /// over — an adapter's element, a combinator's held value — that
+    /// answer stands and this one is not recorded.
+    Supplied(String),
     /// No value: control leaves this position instead of producing one.
     ///
     /// A settled answer and not a refusal. `Err(_) => return code` hands
@@ -84,6 +92,7 @@ impl Provenance {
             Self::Field(_) => "field",
             Self::Constant(_) => "constant",
             Self::Constructed(_) => "constructed",
+            Self::Supplied(_) => "supplied",
             Self::Leaves => "leaves",
             Self::NotDerived(gap) => gap.label()
         }
