@@ -311,7 +311,11 @@ the answer lies past a call.
   would stand on — the whole-statement rate saturates once no clause has to speak a
   refusal, and cannot stand in for it. Measured on 2026-08-06: `masterror` 52.7%
   (1177 of 2233), `fork-hyper` 31.2% without the overlay and 32.8% with it, the
-  ordinary task list 5 of 8. What stops the rest is one question and almost nothing
+  ordinary task list 8 of 8. The ladder's own programs are fully traced: the
+  greeting states its write with nothing left to derive, the calculator 41 of 41
+  positions and its one written position traced to the command line, the
+  create-read-update-delete store 39 of 39 and 1 of 1, the task list 141 of 141 and
+  8 of 8. What stops the rest is one question and almost nothing
   else — which function a call reaches. It splits in two: a name the workspace does
   not declare at all now answers (the call leaves the program), and what remains is
   a name several workspace functions share, which only a receiver type settles. The
