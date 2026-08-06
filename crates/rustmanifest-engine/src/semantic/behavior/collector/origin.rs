@@ -30,6 +30,8 @@ impl FactCollector {
             syn::Expr::Field(field) => self.field_origin(field),
             syn::Expr::Try(fallible) => self.propagated_origin(fallible),
             syn::Expr::Block(block) => self.block_origin(&block.block),
+            syn::Expr::Unsafe(block) => self.block_origin(&block.block),
+            syn::Expr::Await(awaited) => self.origin_of(&awaited.base),
             syn::Expr::Struct(literal) => literal.path.segments.last().map_or_else(
                 || Provenance::NotDerived(OriginGap::Unreadable),
                 |segment| Provenance::Constructed(segment.ident.to_string())
@@ -79,6 +81,11 @@ impl FactCollector {
         self.origin_of(&fallible.expr)
     }
 
+    /// Awaiting and an unsafe block change nothing about which value
+    /// stands at the position: the first waits for the value its own
+    /// expression stands for, the second only lifts a checking rule. Both
+    /// are seen through, exactly as a borrow and a parenthesis are.
+    ///
     /// The value a block stands for: the value of the expression it ends
     /// with, where it ends with one.
     ///
