@@ -14,18 +14,23 @@ use crate::{
     source::Source
 };
 
+/// The four readings of a field the tables carry.
+pub(super) struct FieldTables {
+    /// The field's own type, by last segment.
+    pub(super) plain: Scoped<String>,
+    /// The element type of a collection field.
+    pub(super) elems: Scoped<String>,
+    /// The inner type of a single-generic wrapper field.
+    pub(super) wraps: Scoped<String>,
+    /// The key and value types of a map field.
+    pub(super) pairs: Scoped<(String, String)>
+}
+
 /// Maps every named field of a uniquely named struct — keyed
 /// `Type.field` — to its type's last segment, every collection-typed
 /// field to its element type, and every single-generic wrapper field
 /// to its wrapped inner type.
-pub(super) fn field_tables(
-    sources: &[Source]
-) -> (
-    Scoped<String>,
-    Scoped<String>,
-    Scoped<String>,
-    Scoped<(String, String)>
-) {
+pub(super) fn field_tables(sources: &[Source]) -> FieldTables {
     let mut plain = Scoped::default();
     let mut elems = Scoped::default();
     let mut wraps = Scoped::default();
@@ -61,5 +66,10 @@ pub(super) fn field_tables(
             }
         }
     }
-    (plain, elems, wraps, pairs)
+    FieldTables {
+        plain,
+        elems,
+        wraps,
+        pairs
+    }
 }

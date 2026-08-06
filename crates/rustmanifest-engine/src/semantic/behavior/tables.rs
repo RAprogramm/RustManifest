@@ -46,17 +46,17 @@ pub(super) struct TypeTables {
 impl TypeTables {
     /// Reads every typing table off `sources` in one pass each.
     pub(super) fn of(sources: &[Source]) -> Self {
-        let (fields, field_elems, field_wraps, field_pairs) = field::field_tables(sources);
+        let fields = field::field_tables(sources);
         Self {
-            returns: function_return::return_types(sources),
-            fields,
-            field_elems,
-            field_wraps,
-            field_pairs,
-            constants: constant::constant_texts(sources),
-            declared: constant::constant_names(sources),
-            payloads: variant::variant_payloads(sources),
-            crates: crate_ids(sources)
+            returns:     function_return::return_types(sources),
+            fields:      fields.plain,
+            field_elems: fields.elems,
+            field_wraps: fields.wraps,
+            field_pairs: fields.pairs,
+            constants:   constant::constant_texts(sources),
+            declared:    constant::constant_names(sources),
+            payloads:    variant::variant_payloads(sources),
+            crates:      crate_ids(sources)
         }
     }
 }
