@@ -11,7 +11,7 @@
 
 use super::composed::ComposedOrigin;
 use crate::semantic::{
-    behavior::{Arguments, FunctionFacts, OriginGap, Provenance},
+    behavior::{Arguments, FunctionFacts, Literal, Operation, OriginGap, Provenance},
     settled::Settled
 };
 
@@ -67,13 +67,47 @@ fn computed(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) 
     else {
         return ComposedOrigin::NotDerived(OriginGap::Unreadable);
     };
+    let operands: Vec<ComposedOrigin> = site
+        .operands
+        .iter()
+        .map(|operand| unfold(settled, fact, operand, budget))
+        .collect();
+    if let Some(half) = taken_half(&site.operation, &operands) {
+        return half;
+    }
     ComposedOrigin::Computed {
         operation: site.operation.clone(),
-        operands:  site
-            .operands
-            .iter()
-            .map(|operand| unfold(settled, fact, operand, budget))
-            .collect()
+        operands
+    }
+}
+
+/// The half of a fallible answer a selection takes, where that is what
+/// the selection does.
+///
+/// Taking a value apart with `Ok(value)` selects position zero of the
+/// answer, and with `Err(error)` position one: the pattern names the
+/// half, and the call already carries both. Restating it as a selection
+/// over a call would put a step between a value and itself and lose
+/// which half was taken.
+fn taken_half(operation: &Operation, operands: &[ComposedOrigin]) -> Option<ComposedOrigin> {
+    if !matches!(operation, Operation::Selection) {
+        return None;
+    }
+    let [
+        ComposedOrigin::Call {
+            carried,
+            failed,
+            ..
+        },
+        ComposedOrigin::Written(Literal::Integer(position))
+    ] = operands
+    else {
+        return None;
+    };
+    match position.as_str() {
+        "0" => Some(carried.as_ref().clone()),
+        "1" => Some(failed.as_ref().clone()),
+        _ => None
     }
 }
 
@@ -111,6 +145,10 @@ fn called(settled: Settled<'_>, fact: &FunctionFacts, index: u32, budget: u8) ->
     ComposedOrigin::Call {
         candidate: site.candidate.clone(),
         arguments,
+        failed: Box::new(ComposedOrigin::NotDerived(match site.arguments {
+            Arguments::Written(_) => OriginGap::CalleeUnresolved,
+            Arguments::Unwritten => OriginGap::Unwritten
+        })),
         carried: Box::new(ComposedOrigin::NotDerived(match site.arguments {
             Arguments::Written(_) => OriginGap::CalleeUnresolved,
             Arguments::Unwritten => OriginGap::Unwritten

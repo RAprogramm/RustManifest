@@ -30,6 +30,13 @@ pub struct FunctionSummary {
     /// refusal, which states that the reading found no return position
     /// and not that the function hands nothing back.
     pub result:      ComposedOrigin,
+    /// Where the value handed back *instead* comes from, for a function
+    /// that hands back a failure half of its own.
+    ///
+    /// Kept apart from the result because a caller reads one or the
+    /// other and never both: the half it takes is written in the pattern
+    /// it takes it with.
+    pub failure:     ComposedOrigin,
     /// Version of the composition that produced it.
     pub summary_set: u32
 }

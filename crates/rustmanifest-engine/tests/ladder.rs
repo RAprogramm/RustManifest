@@ -271,8 +271,8 @@ fn the_greeting_states_what_it_writes_and_nothing_more() {
 fn the_task_list_traces_every_position_it_prints() {
     let stated = stated(&[("src/main.rs", TODO)]);
     assert!(
-        !stated.contains("did not derive"),
-        "the task list refuses somewhere: {stated}"
+        !stated.contains("<id>` is a value this analysis did not derive"),
+        "the identifier the task list prints is not traced: {stated}"
     );
     assert!(
         stated.contains("conversion to u64 over position 2 of the command-line"),
@@ -281,6 +281,10 @@ fn the_task_list_traces_every_position_it_prints() {
     assert!(
         stated.contains("takes position 1 of its command-line"),
         "the command it was asked for is not stated: {stated}"
+    );
+    assert!(
+        stated.contains("`<error>` is a value this analysis did not derive"),
+        "the failure half is claimed rather than refused: {stated}"
     );
 }
 

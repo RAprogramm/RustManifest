@@ -40,6 +40,10 @@ pub enum ComposedOrigin {
         /// Where the callee's own handback comes from, with this site's
         /// arguments substituted for the callee's inputs.
         carried:   Box<Self>,
+        /// Where the callee's failure half comes from, on the same
+        /// terms. Read only where the caller takes that half apart, and
+        /// never counted when the value read is the success half.
+        failed:    Box<Self>,
         /// Type the callee hands back, where a resolver settled it.
         ///
         /// A type is not an origin: knowing that a call answers with a

@@ -43,15 +43,25 @@ pub(super) fn summary_of(
     let Some(own) = facts.get(fact) else {
         return refused(fact, String::new(), Vec::new(), OriginGap::Unreadable);
     };
-    let result = handed_back(bindings.settled, own);
-    let carried = carry(bindings, fact, &result, settled, ORIGIN_DEPTH);
+    let result = handed_back(bindings.settled, own, Half::Success);
+    let failure = handed_back(bindings.settled, own, Half::Failure);
     FunctionSummary {
         function: own.function.clone(),
         fact,
         slots: own.slots.clone(),
-        result: carried,
+        result: carry(bindings, fact, &result, settled, ORIGIN_DEPTH),
+        failure: carry(bindings, fact, &failure, settled, ORIGIN_DEPTH),
         summary_set: SUMMARY_SET
     }
+}
+
+/// Which half of a fallible answer a term is being asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Half {
+    /// The value a caller reads out of a successful answer.
+    Success,
+    /// The value handed back instead of it.
+    Failure
 }
 
 /// The term one function's return positions amount to.
@@ -69,7 +79,8 @@ pub(super) fn summary_of(
 /// takes.
 fn handed_back(
     settled: crate::semantic::settled::Settled<'_>,
-    own: &FunctionFacts
+    own: &FunctionFacts,
+    half: Half
 ) -> ComposedOrigin {
     let carries_failure = own
         .handbacks
@@ -78,7 +89,10 @@ fn handed_back(
     let mut terms: Vec<ComposedOrigin> = own
         .handbacks
         .iter()
-        .filter(|handback| !carries_failure || handback.outcome != Outcome::Failure)
+        .filter(|handback| match half {
+            Half::Success => !carries_failure || handback.outcome != Outcome::Failure,
+            Half::Failure => handback.outcome == Outcome::Failure
+        })
         .map(|handback| unfold(settled, own, &handback.value, ORIGIN_DEPTH))
         .collect();
     match terms.len() {
@@ -110,11 +124,13 @@ pub(super) fn carry(
                 .iter()
                 .map(|argument| carry(bindings, caller, argument, settled, remaining))
                 .collect();
-            let answer = callee_answer(bindings, caller, candidate, &written, settled, remaining);
+            let answered =
+                callee_answer(bindings, caller, candidate, &written, settled, remaining);
             ComposedOrigin::Call {
                 candidate: candidate.clone(),
                 arguments: written,
-                carried:   Box::new(answer),
+                carried:   Box::new(answered.taken),
+                failed:    Box::new(answered.instead),
                 returns:   returns.clone()
             }
         }
@@ -146,23 +162,45 @@ fn callee_answer(
     arguments: &[ComposedOrigin],
     settled: &BTreeMap<usize, FunctionSummary>,
     budget: u8
-) -> ComposedOrigin {
+) -> Answered {
     let by_name = sole_by_name(bindings.material.facts);
     let Some(reached) = bound_callee(&by_name, bindings.material.qualifiers, candidate)
         .or_else(|| declared_in_file(bindings.material.facts, caller, candidate))
     else {
-        return outside_or_unresolved(bindings, candidate);
+        return Answered::both(outside_or_unresolved(bindings, candidate));
     };
     if bindings.material.graph.possibilistic(caller, reached) {
-        return ComposedOrigin::NotDerived(OriginGap::Dispatched);
+        return Answered::both(ComposedOrigin::NotDerived(OriginGap::Dispatched));
     }
     if bindings.components.together(caller, reached) {
-        return ComposedOrigin::NotDerived(OriginGap::Recursion);
+        return Answered::both(ComposedOrigin::NotDerived(OriginGap::Recursion));
     }
     let Some(summary) = settled.get(&reached) else {
-        return ComposedOrigin::NotDerived(OriginGap::Recursion);
+        return Answered::both(ComposedOrigin::NotDerived(OriginGap::Recursion));
     };
-    substitute(&summary.result, arguments, budget)
+    Answered {
+        taken:   substitute(&summary.result, arguments, budget),
+        instead: substitute(&summary.failure, arguments, budget)
+    }
+}
+
+/// The two halves a call can hand back, in the caller's terms.
+struct Answered {
+    /// The value a caller reads out of a successful answer.
+    taken:   ComposedOrigin,
+    /// The value handed back instead of it.
+    instead: ComposedOrigin
+}
+
+impl Answered {
+    /// Both halves answered the same way, for the refusals that say
+    /// nothing about which half was meant.
+    fn both(term: ComposedOrigin) -> Self {
+        Self {
+            taken:   term.clone(),
+            instead: term
+        }
+    }
 }
 
 /// The one function of the caller's own file that a bare candidate can
@@ -227,6 +265,7 @@ const fn refused(
         fact,
         slots,
         result: ComposedOrigin::NotDerived(gap),
+        failure: ComposedOrigin::NotDerived(gap),
         summary_set: SUMMARY_SET
     }
 }

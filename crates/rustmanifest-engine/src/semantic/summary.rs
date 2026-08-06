@@ -199,6 +199,9 @@ pub fn summaries_with(
                 result: ComposedOrigin::NotDerived(
                     crate::semantic::behavior::OriginGap::Unreadable
                 ),
+                failure: ComposedOrigin::NotDerived(
+                    crate::semantic::behavior::OriginGap::Unreadable
+                ),
                 summary_set: SUMMARY_SET
             })
         })

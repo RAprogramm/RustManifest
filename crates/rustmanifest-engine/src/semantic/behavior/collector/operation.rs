@@ -197,6 +197,32 @@ impl FactCollector {
         }
         let parts: Vec<&syn::Pat> = match pattern {
             syn::Pat::Tuple(tuple) => tuple.elems.iter().collect(),
+            syn::Pat::TupleStruct(variant) if names_the_failure_half(variant) => {
+                self.type_single_payload(variant);
+                for part in &variant.elems {
+                    let Some(name) = super::naming::binding_name(part) else {
+                        continue;
+                    };
+                    if !self.sole.contains(&name) || self.origins.contains_key(&name) {
+                        continue;
+                    }
+                    let operands = vec![
+                        taken.clone(),
+                        Provenance::Written(Literal::Integer("1".to_owned())),
+                    ];
+                    let index = self.push_operation(
+                        span,
+                        Operation::Selection,
+                        operands,
+                        Guarding::Unchecked
+                    );
+                    self.origins.insert(
+                        name,
+                        Provenance::Computed(u32::try_from(index).unwrap_or(u32::MAX))
+                    );
+                }
+                return true;
+            }
             syn::Pat::TupleStruct(variant) => {
                 self.type_single_payload(variant);
                 variant.elems.iter().collect()
@@ -449,6 +475,21 @@ const fn binary_operation(operator: syn::BinOp) -> Option<Operation> {
         syn::BinOp::Or(_) => Operation::Junction(Junction::Either),
         _ => return None
     })
+}
+
+/// Whether a variant pattern names the failure half of a fallible
+/// answer.
+///
+/// The two halves are taken apart the same way and stand for different
+/// values, so the position written for the failure half is one rather
+/// than zero: the composition reads the half from it and never hands a
+/// reader the other one.
+fn names_the_failure_half(variant: &syn::PatTupleStruct) -> bool {
+    variant
+        .path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "Err")
 }
 
 /// The pattern under the wrappers that change how it is written but not
