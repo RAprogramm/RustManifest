@@ -60,11 +60,19 @@ pub struct Keeping {
 }
 
 /// What every method of the workspace does to every store it touches.
+///
+/// A `#[test]` function is not one of the program's own methods: what
+/// it does to a store it does to a fixture of its own making, and
+/// counting it would put test names into the sentence about the
+/// program.
 #[must_use]
 pub fn keeping(workspace: &Workspace<'_>) -> Vec<Keeping> {
     let held = super::store::stores(workspace);
     let mut read = Vec::new();
     for fact in workspace.facts() {
+        if fact.flags.test() {
+            continue;
+        }
         for store in &held {
             let key = format!("{}.{}", store.owner, store.field);
             let Some(verb) = verb_of(fact, store, &key) else {

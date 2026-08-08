@@ -279,6 +279,24 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_test_function_touching_a_store_is_not_one_of_its_methods() {
+        let sources = workspace_of(&format!(
+            "{TASK_STORE}\n#[cfg(test)]\nmod tests {{\n    use super::Store;\n\n    \
+             #[test]\n    fn fixture_reads_the_store() {{\n        let store = Store {{ tasks: \
+             std::collections::BTreeMap::new() }};\n        for (_, task) in &store.tasks {{\n    \
+                     let _ = &task.title;\n        }}\n    }}\n}}\n"
+        ));
+        let workspace = Workspace::new(&sources);
+        let read = keeping(&workspace);
+        assert!(
+            !read
+                .iter()
+                .any(|kept| kept.function.ends_with("fixture_reads_the_store")),
+            "{read:?}"
+        );
+    }
+
+    #[test]
     fn a_serializable_owner_shapes_records_for_the_wire_instead_of_keeping_them() {
         let sources = workspace_of(
             "pub struct Item {\n    pub name: String\n}\n\n#[derive(Serialize)]\npub struct \
