@@ -60,7 +60,10 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
             held.push(Store {
                 owner:  node.name.clone(),
                 field:  field.name.clone(),
-                shape:  field.type_name.clone(),
+                shape:  field
+                    .holds
+                    .clone()
+                    .unwrap_or_else(|| field.type_name.clone()),
                 record: element.to_owned(),
                 key:    field.key.clone(),
                 site:   node.range,

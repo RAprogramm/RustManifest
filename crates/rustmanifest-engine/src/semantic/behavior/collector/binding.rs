@@ -43,6 +43,7 @@ impl FactCollector {
                     .map(ToOwned::to_owned)
                     .or_else(|| initializer_type(&init.expr))
                     .or_else(|| self.called_return(&init.expr))
+                    .or_else(|| self.opened_of(&init.expr))
             });
             if let Some(element) = init
                 .as_ref()

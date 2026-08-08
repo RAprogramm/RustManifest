@@ -32,7 +32,12 @@ pub struct FieldNode {
     /// Type a lookup into the field is written with, where the field
     /// declares a map (`BTreeMap<u64, Task>` → `u64`). A sequence is
     /// looked into by position and declares no key of its own.
-    pub key:       Option<String>
+    pub key:       Option<String>,
+    /// The collection's own name under the guards written around the
+    /// field's type, where a guard stands: `Mutex<BTreeMap<u64, Task>>`
+    /// holds a `BTreeMap`. Absent where no guard was seen through, so
+    /// the written type name keeps answering.
+    pub holds:     Option<String>
 }
 
 /// One structure or enum definition found in the workspace.

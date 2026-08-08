@@ -19,7 +19,8 @@ pub(in crate::semantic::graph) fn node(source: usize, definition: &syn::ItemStru
                     name:      ident.to_string(),
                     type_name: last_segment(&field.ty),
                     element:   held_element(&field.ty),
-                    key:       looked_up_by(&field.ty)
+                    key:       looked_up_by(&field.ty),
+                    holds:     held_collection(&field.ty)
                 })
             })
             .collect(),
@@ -83,7 +84,8 @@ pub(in crate::semantic::graph) fn enum_node(
                 name,
                 type_name: last_segment(&field.ty),
                 element: held_element(&field.ty),
-                key: looked_up_by(&field.ty)
+                key: looked_up_by(&field.ty),
+                holds: held_collection(&field.ty)
             });
         }
     }
@@ -131,6 +133,18 @@ fn guarded(ty: &syn::Type) -> &syn::Type {
         [inner] => guarded(inner),
         _ => ty
     }
+}
+
+/// The name of the collection standing under the guards, where one was
+/// seen through at all — the shape a call on the opened value is a call
+/// on. Where no guard stands the written type name already answers, and
+/// this stays silent.
+fn held_collection(ty: &syn::Type) -> Option<String> {
+    let unguarded = guarded(ty);
+    if std::ptr::eq(unguarded, ty) {
+        return None;
+    }
+    Some(last_segment(unguarded))
 }
 
 /// The type a collection field holds, read off the written type

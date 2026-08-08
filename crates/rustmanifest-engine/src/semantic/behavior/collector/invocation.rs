@@ -147,7 +147,10 @@ impl FactCollector {
         span: &std::ops::Range<usize>
     ) -> usize {
         let settled = self.settled_receiver(&syn::Expr::MethodCall(call.clone()));
-        let Some(owner) = settled.or_else(|| self.expr_type(&call.receiver)) else {
+        let Some(owner) = settled
+            .or_else(|| self.expr_type(&call.receiver))
+            .or_else(|| self.opened_of(&call.receiver))
+        else {
             return self.reserve_written_call(Some("?"), method, span);
         };
         if let Some(effect) = knowledge::method_effect(&owner, method)

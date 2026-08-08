@@ -168,6 +168,27 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_handler_writing_through_the_opened_lock_adds_and_drops_records() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
+             tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn create(State(state): \
+             State<Arc<AppState>>) {\n    state.tasks.lock().unwrap().insert(1, Task { title: \
+             String::new() });\n}\n\npub fn remove(State(state): State<Arc<AppState>>) {\n    let \
+             mut tasks = state.tasks.lock().unwrap();\n    tasks.remove(&1);\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let read = keeping(&workspace);
+        let verb = |name: &str| {
+            read.iter()
+                .find(|kept| kept.function.ends_with(name))
+                .map(|kept| kept.verb)
+        };
+        assert_eq!(verb("create"), Some(Verb::Adds));
+        assert_eq!(verb("remove"), Some(Verb::Drops));
+    }
+
+    #[test]
     fn a_route_whose_handler_reaches_the_records_is_a_way_to_ask() {
         let sources = workspace_of(
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \

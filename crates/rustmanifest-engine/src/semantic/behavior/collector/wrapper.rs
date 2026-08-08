@@ -33,6 +33,23 @@ impl FactCollector {
         }
     }
 
+    /// The value a guard-opening chain leaves in hand: `lock`, `read`,
+    /// `write`, `borrow` and `borrow_mut` open a wrapper into a guard
+    /// that stands for the wrapped value, and `unwrap` or `expect` only
+    /// strips the fallible half around that guard. Any other method ends
+    /// the chain, and a receiver that is no recorded wrapper answers
+    /// nothing — `read` on a socket stays a read on a socket.
+    pub(super) fn opened_of(&self, expression: &syn::Expr) -> Option<String> {
+        let syn::Expr::MethodCall(call) = strip_ref_deref(expression) else {
+            return None;
+        };
+        match call.method.to_string().as_str() {
+            "unwrap" | "expect" => self.opened_of(&call.receiver),
+            "lock" | "read" | "write" | "borrow" | "borrow_mut" => self.wrapped_of(&call.receiver),
+            _ => None
+        }
+    }
+
     /// Types the parameter of a single-parameter closure argument with
     /// the receiver field's wrapped inner type — the `do_io(|inner|
     /// inner.read(buf))` shape, where the wrapper hands its wrapped
