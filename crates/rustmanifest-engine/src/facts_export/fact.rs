@@ -42,6 +42,11 @@ pub fn fact_json(
         "writes": entry.writes,
         "builds": entry.builds,
         "constructs": entry.constructs,
+        "built-fields": entry.built_fields.iter().map(|built| serde_json::json!({
+            "owner": built.owner,
+            "field": built.field,
+            "origin": built.origin.label()
+        })).collect::<Vec<_>>(),
         "error-types": entry.error_types,
         "effects": entry.effects.iter().map(ToString::to_string).collect::<Vec<_>>(),
         "effect-sites": entry.effect_sites.iter().map(effect_site_json).collect::<Vec<_>>(),
