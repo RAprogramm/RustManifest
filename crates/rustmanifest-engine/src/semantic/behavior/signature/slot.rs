@@ -12,7 +12,9 @@
 //! would hand argument two to the input written third.
 
 /// The declared inputs of `signature`, one entry each, the receiver
-/// first: the name where the input is written as a plain name, and
+/// first: the name where the input is written as a plain name, the one
+/// name where the pattern takes a wrapper apart right there — that name
+/// holds the input's payload from the first line of the body on — and
 /// `None` where it is a pattern this tier does not take apart.
 pub(in crate::semantic::behavior) fn param_slots(
     signature: &syn::Signature
@@ -24,6 +26,7 @@ pub(in crate::semantic::behavior) fn param_slots(
             syn::FnArg::Receiver(_) => Some("self".to_owned()),
             syn::FnArg::Typed(typed) => match typed.pat.as_ref() {
                 syn::Pat::Ident(bound) if bound.subpat.is_none() => Some(bound.ident.to_string()),
+                syn::Pat::TupleStruct(pattern) => super::parameter::single_binding(pattern),
                 _ => None
             }
         })
@@ -69,5 +72,18 @@ mod tests {
             slots("fn take(_: u8, (left, right): (u8, u8), last: u8)"),
             vec![None, None, Some("last".to_owned())]
         );
+    }
+
+    /// A pattern taking a wrapper apart in the signature names its slot
+    /// by the one name it binds: that name holds the input's payload
+    /// from the first line of the body on. Two names would be a guess,
+    /// and none is made.
+    #[test]
+    fn a_pattern_taking_a_wrapper_apart_names_its_slot() {
+        assert_eq!(
+            slots("fn read(State(state): State<AppState>, Path(id): Path<u64>)"),
+            vec![Some("state".to_owned()), Some("id".to_owned())]
+        );
+        assert_eq!(slots("fn take(Pair(left, right): Pair)"), vec![None]);
     }
 }

@@ -107,7 +107,7 @@ pub(in crate::semantic::behavior) fn parameter_types(
 /// A parameter written as `Wrapper(name): Wrapper<T>` takes the wrapper
 /// apart in the signature itself, so the name holds the wrapped value
 /// from the first line of the body on.
-fn single_binding(pattern: &syn::PatTupleStruct) -> Option<String> {
+pub(super) fn single_binding(pattern: &syn::PatTupleStruct) -> Option<String> {
     let mut bound = pattern.elems.iter();
     let (first, rest) = (bound.next()?, bound.next());
     if rest.is_some() {
