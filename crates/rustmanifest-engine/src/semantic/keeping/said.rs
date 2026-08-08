@@ -34,10 +34,17 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let mut said = Vec::new();
     for store in &held {
         let key = format!("{}.{}", store.owner, store.field);
-        let held_in = format!(
-            "keeps `{}` records in `{}` of `{}`",
-            store.record, store.field, store.owner
-        );
+        let held_in = if store.wire {
+            format!(
+                "shapes `{}` records in `{}` of `{}` for the wire, as its derive declares",
+                store.record, store.field, store.owner
+            )
+        } else {
+            format!(
+                "keeps `{}` records in `{}` of `{}`",
+                store.record, store.field, store.owner
+            )
+        };
         let mut clauses = vec![store.key.as_ref().map_or_else(
             || held_in.clone(),
             |key| format!("{held_in}, each found by a `{key}`")

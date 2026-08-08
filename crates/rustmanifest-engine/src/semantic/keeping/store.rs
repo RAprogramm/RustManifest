@@ -28,6 +28,10 @@ pub struct Store {
     pub record: String,
     /// Type a lookup into it is written with, where it is a map.
     pub key:    Option<String>,
+    /// Whether the owner declares itself a wire shape: a serialization
+    /// derive written on the type says its values are made to leave or
+    /// enter the process, and the declaration is the type's own.
+    pub wire:   bool,
     /// Byte range of the field's declaration.
     pub site:   Range,
     /// Source the declaration was read from.
@@ -89,6 +93,10 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
                 shape,
                 record: element.to_owned(),
                 key: field.key.clone(),
+                wire: node
+                    .derives
+                    .iter()
+                    .any(|derive| derive == "Serialize" || derive == "Deserialize"),
                 site: node.range,
                 source: node.source
             });

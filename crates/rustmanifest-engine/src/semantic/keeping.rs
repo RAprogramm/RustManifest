@@ -259,6 +259,25 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_serializable_owner_shapes_records_for_the_wire_instead_of_keeping_them() {
+        let sources = workspace_of(
+            "pub struct Item {\n    pub name: String\n}\n\n#[derive(Serialize)]\npub struct \
+             Envelope {\n    pub items: Vec<Item>\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            said[0].contains(
+                "shapes `Item` records in `items` of `Envelope` for the wire, as its derive \
+                 declares"
+            ),
+            "{said:?}"
+        );
+        assert!(!said[0].contains("keeps"), "{said:?}");
+    }
+
+    #[test]
     fn a_store_written_to_a_file_outlives_the_run_that_made_it() {
         let sources = workspace_of(&format!(
             "{TASK_STORE}\nimpl Store {{\n    pub fn save(&self, path: &str) -> \
