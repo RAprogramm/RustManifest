@@ -34,6 +34,9 @@ pub struct Command {
     pub reaches:  String,
     /// What that method does to the records.
     pub verb:     Verb,
+    /// Where the value it hands the method came from, in words, for the
+    /// one argument the site writes beside the receiver.
+    pub carries:  Option<String>,
     /// Byte range of the choosing construct.
     pub site:     Range,
     /// Source the choice was read from.
@@ -70,6 +73,7 @@ pub fn commands(workspace: &Workspace<'_>) -> Vec<Command> {
                 written,
                 reaches: reached.function.clone(),
                 verb: reached.verb,
+                carries: handed_over(workspace, fact, site),
                 site: choice_site(fact, choice).unwrap_or(fact.range),
                 source: fact.source
             });
@@ -109,6 +113,39 @@ fn written_alternative(fact: &FunctionFacts, choice: u32, alternative: u32) -> O
         .alternatives
         .get(usize::try_from(alternative).ok()?)?;
     written.pattern.clone()
+}
+
+/// Where the value a command hands its method came from, in words.
+///
+/// A command that asks for a record by a key is asking with something
+/// the run supplied, and the value tier already derived where that
+/// something came from. Only the first written argument beside the
+/// receiver is read: it is the one a caller writes to say *which*
+/// record, and reading further would state of one argument what holds
+/// of another.
+fn handed_over(
+    workspace: &Workspace<'_>,
+    fact: &FunctionFacts,
+    site: &crate::semantic::behavior::CallSite
+) -> Option<String> {
+    let written = site.arguments.written()?;
+    let handed = written.get(1)?;
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
+    let composed = crate::semantic::summary::composition_with(
+        sources,
+        workspace.resolution(),
+        facts,
+        workspace.calls(),
+        &qualifiers
+    );
+    let index = facts
+        .iter()
+        .position(|candidate| std::ptr::eq(candidate, fact))?;
+    let term = composed.of(index, handed);
+    term.derived()
+        .then(|| crate::semantic::meaning::origin_text(&term))
 }
 
 /// Whether an alternative is something a run can write to ask for.

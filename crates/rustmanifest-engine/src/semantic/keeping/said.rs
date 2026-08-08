@@ -52,7 +52,10 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
         let mut names: Vec<String> = asked
             .iter()
             .filter(|command| kept.iter().any(|entry| entry.function == command.reaches))
-            .map(|command| format!("{} {}", command.written, command.verb))
+            .map(|command| match &command.carries {
+                Some(carried) => format!("{} {} named by {carried}", command.written, command.verb),
+                None => format!("{} {}", command.written, command.verb)
+            })
             .collect();
         names.sort_unstable();
         names.dedup();
