@@ -4,13 +4,16 @@
 //! Whether what a program keeps outlives the run that made it.
 //!
 //! A store held in memory is gone when the process ends. A method that
-//! touches the store and, in the same body, reaches the file system
-//! carries it across that boundary — and which way it carries is read
-//! from the call that proved the effect, never from the method's name.
+//! touches the store and, in the same body, reaches the file system or
+//! the database carries it across that boundary — and which way it
+//! carries is read from the call that proved the effect, never from the
+//! method's name. For the database the effect itself already says the
+//! way: a statement proven to mutate persists, a query proven to read
+//! restores.
 //!
-//! Only the file system is read this way. A store carried over a socket
-//! or into a database is carried by machinery this reading does not
-//! follow, and saying nothing is the honest answer there.
+//! Only those two boundaries are read. A store carried over a socket is
+//! carried by machinery this reading does not follow, and saying
+//! nothing is the honest answer there.
 
 use rustmanifest_schema::Range;
 
@@ -23,14 +26,20 @@ pub enum Direction {
     /// Puts what the store holds where the next run can read it.
     Saves,
     /// Fills the store from what an earlier run left.
-    Loads
+    Loads,
+    /// Puts what the store holds into the database.
+    Persists,
+    /// Fills the store from rows the database holds.
+    Restores
 }
 
 impl std::fmt::Display for Direction {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         out.write_str(match self {
             Self::Saves => "writes the records to a file",
-            Self::Loads => "fills the records from a file"
+            Self::Loads => "fills the records from a file",
+            Self::Persists => "writes the records to the database",
+            Self::Restores => "fills the records from the database"
         })
     }
 }
@@ -71,21 +80,21 @@ pub fn outliving(workspace: &Workspace<'_>) -> Vec<Outliving> {
             continue;
         };
         for site in &fact.effect_sites {
-            if site.effect != Effect::FileSystem {
-                continue;
-            }
             let named = site.proof.rsplit("::").next().unwrap_or(&site.proof);
+            let direction = match site.effect {
+                Effect::FileSystem if WRITING.contains(&named) => Direction::Saves,
+                Effect::FileSystem => Direction::Loads,
+                Effect::DatabaseWrite => Direction::Persists,
+                Effect::DatabaseRead => Direction::Restores,
+                _ => continue
+            };
             carried.push(Outliving {
-                function:  kept.function.clone(),
-                store:     kept.store.clone(),
-                direction: if WRITING.contains(&named) {
-                    Direction::Saves
-                } else {
-                    Direction::Loads
-                },
-                proof:     site.proof.clone(),
-                site:      site.range,
-                source:    kept.source
+                function: kept.function.clone(),
+                store: kept.store.clone(),
+                direction,
+                proof: site.proof.clone(),
+                site: site.range,
+                source: kept.source
             });
         }
     }

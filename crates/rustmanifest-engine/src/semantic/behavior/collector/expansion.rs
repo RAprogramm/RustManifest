@@ -41,6 +41,7 @@ impl FactCollector {
                 knowledge::sql_macro_effect(&name, &invocation.tokens.to_string())
             {
                 self.facts.effects.push(effect);
+                self.record_macro_effect_site(invocation, effect);
             }
             if EXPRESSION_MACROS.contains(&name.as_str()) {
                 self.visit_macro_arguments(invocation);
@@ -59,6 +60,32 @@ impl FactCollector {
             }
         }
         syn::visit::visit_macro(self, invocation);
+    }
+
+    /// Records the site an effect-carrying macro proved its effect at:
+    /// the macro path as the source spells it, over the path's own byte
+    /// range, so the effect carries a citation like every call-proven
+    /// effect does.
+    fn record_macro_effect_site(&mut self, invocation: &syn::Macro, effect: Effect) {
+        use syn::spanned::Spanned;
+        let proof = invocation
+            .path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+        let bytes = invocation.path.span().byte_range();
+        self.facts
+            .effect_sites
+            .push(crate::semantic::behavior::types::EffectSite {
+                effect,
+                proof,
+                range: rustmanifest_schema::Range {
+                    start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+                    end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+                }
+            });
     }
 
     /// Visits the arguments of a macro whose arguments are expressions,

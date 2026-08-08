@@ -102,14 +102,15 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
     held
 }
 
-/// Whether some method both touches this field and reaches the file
-/// system in the same body.
+/// Whether some method both touches this field and reaches a boundary
+/// records outlive the run behind — the file system or the database —
+/// in the same body.
 ///
 /// A collection of values another crate declares is not obviously a
-/// store of anything — until the program carries it to a file, which is
-/// what a program does with what it means to keep. A collection built
-/// and dropped inside one body is never carried anywhere and stays what
-/// it is: working memory.
+/// store of anything — until the program carries it across such a
+/// boundary, which is what a program does with what it means to keep. A
+/// collection built and dropped inside one body is never carried
+/// anywhere and stays what it is: working memory.
 fn carried_to_a_file(workspace: &Workspace<'_>, owner: &str, field: &str) -> bool {
     let key = format!("{owner}.{field}");
     workspace.facts().iter().any(|fact| {
@@ -118,10 +119,12 @@ fn carried_to_a_file(workspace: &Workspace<'_>, owner: &str, field: &str) -> boo
             || fact.builds.contains(&key)
             || builds_the_owner(fact, owner);
         touches
-            && fact
-                .effect_sites
-                .iter()
-                .any(|site| site.effect == Effect::FileSystem)
+            && fact.effect_sites.iter().any(|site| {
+                matches!(
+                    site.effect,
+                    Effect::FileSystem | Effect::DatabaseWrite | Effect::DatabaseRead
+                )
+            })
     })
 }
 
