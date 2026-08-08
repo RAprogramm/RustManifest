@@ -13,7 +13,7 @@
 use std::fmt::Write as _;
 
 use super::{
-    answering::returners, asking::commands, ending::endings, outliving::outliving,
+    answering::returners, asking::commands, ending::endings, fed::feedings, outliving::outliving,
     receiving::receivers, served::servings, store::stores, telling::telling, verb::keeping
 };
 use crate::semantic::{surface::surface, workspace::Workspace};
@@ -33,6 +33,7 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let told = telling(workspace);
     let answered = returners(workspace.sources());
     let received = receivers(workspace.sources());
+    let fed = feedings(workspace);
     let routes = surface(workspace.sources()).routes;
     let mut said = Vec::new();
     for store in &held {
@@ -66,6 +67,9 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
                 clauses.push(clause);
             }
             if let Some(clause) = received_clause(&routes, &received, &store.owner) {
+                clauses.push(clause);
+            }
+            if let Some(clause) = fed_clause(&fed, &key) {
                 clauses.push(clause);
             }
         }
@@ -221,4 +225,22 @@ fn received_clause(
     arrives.sort_unstable();
     arrives.dedup();
     (!arrives.is_empty()).then(|| format!("a request arrives as it: {}", arrives.join(", ")))
+}
+
+/// The filling clause of one wire shape: the kept stores its collection
+/// is derived from, each with the function whose body performs it.
+fn fed_clause(fed: &[super::fed::Feeding], key: &str) -> Option<String> {
+    let mut fillings: Vec<String> = fed
+        .iter()
+        .filter(|feeding| feeding.wire == key)
+        .map(|feeding| {
+            format!(
+                "filled from the kept `{}` in `{}`",
+                feeding.from, feeding.function
+            )
+        })
+        .collect();
+    fillings.sort_unstable();
+    fillings.dedup();
+    (!fillings.is_empty()).then(|| fillings.join(", "))
 }

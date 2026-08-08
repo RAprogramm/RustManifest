@@ -18,6 +18,7 @@
 mod answering;
 mod asking;
 mod ending;
+mod fed;
 mod outliving;
 mod receiving;
 mod said;
@@ -30,6 +31,7 @@ mod verb;
 pub use self::{
     asking::{Command, commands},
     ending::{Ending, endings},
+    fed::{Feeding, feedings},
     outliving::{Direction, Outliving, outliving},
     said::purpose,
     served::{Serving, servings},
@@ -330,6 +332,28 @@ pub fn run(store: &mut Store, asked: &str) {
         assert_eq!(said.len(), 1);
         assert!(
             said[0].contains("a request arrives as it: `POST /items`"),
+            "{said:?}"
+        );
+    }
+
+    #[test]
+    fn a_wire_shape_filled_from_a_kept_store_is_tied_to_it_by_derivation() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
+             tasks: Mutex<BTreeMap<u64, Task>>\n}\n\n#[derive(Serialize)]\npub struct Envelope \
+             {\n    pub items: Vec<Task>\n}\n\npub fn titles(tasks: &BTreeMap<u64, Task>) -> \
+             Vec<Task> {\n    Vec::new()\n}\n\npub fn list(State(state): State<Arc<AppState>>) \
+             -> Envelope {\n    Envelope { items: titles(&state.tasks.lock().unwrap()) }\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        let wire = said
+            .iter()
+            .find(|sentence| sentence.contains("Envelope"))
+            .expect("the wire shape must have a sentence");
+        assert!(
+            wire.contains("filled from the kept `AppState.tasks` in `list`"),
             "{said:?}"
         );
     }

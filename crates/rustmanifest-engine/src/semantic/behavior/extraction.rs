@@ -58,6 +58,7 @@ pub(super) fn function_facts(
             writes: Vec::new(),
             builds: Vec::new(),
             constructs: Vec::new(),
+            built_fields: Vec::new(),
             error_types: Vec::new(),
             effects: Vec::new(),
             effect_sites: Vec::new(),

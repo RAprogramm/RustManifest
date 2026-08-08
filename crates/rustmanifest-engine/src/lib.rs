@@ -58,18 +58,18 @@ pub use semantic::{
     Absorption, Arguments, CallGraph, Capability, ChoiceClaim, Clause, Command as KeptCommand,
     Completion, ComputeClaim, Condition, Coverage, Direction as KeptDirection, Disposal, DocFacts,
     Effect, EntryKind, EntryMeaning, EntryPoint, Evidence, ExitClaim, ExitRoute, ExitStatus,
-    ExpansionReport, Feature, FunctionFacts, FunctionFlags, Grade, Guard, HandbackClaim, Hole,
-    HoleSource, ImplNode, Junction, Keeping, Literal, MethodNode, ModuleCapability, ModuleEdge,
-    ModuleInfo, ModuleOverview, Multiplicity, Narrative, Newline, OUTPUT_SINK_SET, OpaqueReason,
-    OriginGap, Outliving, OutputClaim, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload,
-    ProcessExit, Provenance, Role, Route, ScipEdges, ScipError, Segment, SemanticAnalyzer,
-    Serving, SiteGuard, Started, Store as KeptStore, Stream, Surface, TraitNode, TypeGraph,
-    TypeKind, TypeNode, VALUE_ORIGIN_SET, Verb as KeptVerb, Workspace, behavior, behavior_with,
-    call_graph, call_graph_with, capabilities, check_invariants, check_invariants_with,
-    commands as kept_commands, completion_rule, coverage, coverage_indexed, coverage_with,
-    doc_facts, entry_points, expansion, features, keeping, module_overview, origin_gaps,
-    outliving, program_meaning, purpose, role, semantic_findings, servings, started,
-    stores as kept_stores, surface, transitive_effects, unresolved_targets
+    ExpansionReport, Feature, Feeding, FunctionFacts, FunctionFlags, Grade, Guard, HandbackClaim,
+    Hole, HoleSource, ImplNode, Junction, Keeping, Literal, MethodNode, ModuleCapability,
+    ModuleEdge, ModuleInfo, ModuleOverview, Multiplicity, Narrative, Newline, OUTPUT_SINK_SET,
+    OpaqueReason, OriginGap, Outliving, OutputClaim, OutputWrite, ParamFacts, ParamMode,
+    ParamSlot, Payload, ProcessExit, Provenance, Role, Route, ScipEdges, ScipError, Segment,
+    SemanticAnalyzer, Serving, SiteGuard, Started, Store as KeptStore, Stream, Surface, TraitNode,
+    TypeGraph, TypeKind, TypeNode, VALUE_ORIGIN_SET, Verb as KeptVerb, Workspace, behavior,
+    behavior_with, call_graph, call_graph_with, capabilities, check_invariants,
+    check_invariants_with, commands as kept_commands, completion_rule, coverage, coverage_indexed,
+    coverage_with, doc_facts, entry_points, expansion, features, feedings, keeping,
+    module_overview, origin_gaps, outliving, program_meaning, purpose, role, semantic_findings,
+    servings, started, stores as kept_stores, surface, transitive_effects, unresolved_targets
 };
 pub use source::Source;
 

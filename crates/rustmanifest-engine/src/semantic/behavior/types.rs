@@ -184,6 +184,22 @@ pub struct CallSite {
     pub conditions: Vec<super::value::Condition>
 }
 
+/// One field of a written structure and where its written value came
+/// from.
+///
+/// The construct channel says a type was built; this one says what each
+/// field was built *from*, so a shape assembled out of a store can be
+/// tied to that store by derivation rather than by co-occurrence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuiltField {
+    /// Type the literal constructs, `Self` resolved.
+    pub owner:  String,
+    /// Field name as written.
+    pub field:  String,
+    /// Where the written value came from.
+    pub origin: super::value::Provenance
+}
+
 /// Behavioral facts of one function or method.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFacts {
@@ -206,6 +222,9 @@ pub struct FunctionFacts {
     pub builds:        Vec<String>,
     /// Types constructed through struct literals.
     pub constructs:    Vec<String>,
+    /// Fields of written struct literals with the origin of each written
+    /// value, in body order — what a constructed shape was built from.
+    pub built_fields:  Vec<BuiltField>,
     /// Error types the signature can return (`Result<_, E>` → `E`).
     pub error_types:   Vec<String>,
     /// Side-effect categories observed, deduplicated and sorted.
