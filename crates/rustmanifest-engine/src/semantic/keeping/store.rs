@@ -34,6 +34,25 @@ pub struct Store {
     pub source: usize
 }
 
+/// The shapes the standard library declares as collections of many
+/// values.
+///
+/// A field of any other shape — an `Option`, a `Result`, a domain
+/// wrapper — holds one value or none, and one value is not a set of
+/// records however its type is spelled. The first corpus run made the
+/// case: an optional error inside a response envelope read as "keeps
+/// error records" until the shape was required to be a collection.
+const COLLECTIONS: [&str; 8] = [
+    "Vec",
+    "VecDeque",
+    "BTreeMap",
+    "HashMap",
+    "BTreeSet",
+    "HashSet",
+    "LinkedList",
+    "BinaryHeap"
+];
+
 /// The collections of workspace records every workspace type holds.
 ///
 /// Sorted by owner and then by field, so two runs over one workspace
@@ -50,6 +69,13 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
             let Some(element) = field.element.as_deref() else {
                 continue;
             };
+            let shape = field
+                .holds
+                .clone()
+                .unwrap_or_else(|| field.type_name.clone());
+            if !COLLECTIONS.contains(&shape.as_str()) {
+                continue;
+            }
             let declared = graph
                 .types()
                 .iter()
@@ -58,15 +84,12 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
                 continue;
             }
             held.push(Store {
-                owner:  node.name.clone(),
-                field:  field.name.clone(),
-                shape:  field
-                    .holds
-                    .clone()
-                    .unwrap_or_else(|| field.type_name.clone()),
+                owner: node.name.clone(),
+                field: field.name.clone(),
+                shape,
                 record: element.to_owned(),
-                key:    field.key.clone(),
-                site:   node.range,
+                key: field.key.clone(),
+                site: node.range,
                 source: node.source
             });
         }
