@@ -15,6 +15,7 @@
 //! touches no store is not an addition, and a method called `apply` that
 //! inserts into one is.
 
+mod answering;
 mod asking;
 mod ending;
 mod outliving;
@@ -313,6 +314,23 @@ pub fn run(store: &mut Store, asked: &str) {
             "{said:?}"
         );
         assert!(!said[0].contains("keeps"), "{said:?}");
+    }
+
+    #[test]
+    fn a_route_answering_with_a_wire_shape_enters_its_sentence() {
+        let sources = workspace_of(
+            "pub struct Item {\n    pub name: String\n}\n\n#[derive(Serialize)]\npub struct \
+             Envelope {\n    pub items: Vec<Item>\n}\n\npub async fn list() -> Json<Envelope> \
+             {\n    Json(Envelope { items: Vec::new() })\n}\n\npub fn app() -> Router {\n    \
+             Router::new().route(\"/items\", get(list))\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            said[0].contains("a request is answered with it: `GET /items`"),
+            "{said:?}"
+        );
     }
 
     #[test]

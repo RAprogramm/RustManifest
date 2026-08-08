@@ -13,10 +13,10 @@
 use std::fmt::Write as _;
 
 use super::{
-    asking::commands, ending::endings, outliving::outliving, served::servings, store::stores,
-    telling::telling, verb::keeping
+    answering::returners, asking::commands, ending::endings, outliving::outliving,
+    served::servings, store::stores, telling::telling, verb::keeping
 };
-use crate::semantic::workspace::Workspace;
+use crate::semantic::{surface::surface, workspace::Workspace};
 
 /// What a program does with the records it holds, in one sentence per
 /// store.
@@ -31,6 +31,8 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let asked = commands(workspace);
     let served = servings(workspace);
     let told = telling(workspace);
+    let answered = returners(workspace.sources());
+    let routes = surface(workspace.sources()).routes;
     let mut said = Vec::new();
     for store in &held {
         let key = format!("{}.{}", store.owner, store.field);
@@ -49,32 +51,18 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
             || held_in.clone(),
             |key| format!("{held_in}, each found by a `{key}`")
         )];
-        let mut verbs: Vec<String> = kept
-            .iter()
-            .filter(|entry| entry.store == key)
-            .map(|entry| format!("`{}` {}", entry.function, entry.verb))
-            .collect();
-        verbs.sort_unstable();
-        verbs.dedup();
-        if !verbs.is_empty() {
-            clauses.push(format!("of its own methods, {}", verbs.join(", ")));
+        if let Some(clause) = verb_clause(&kept, &key) {
+            clauses.push(clause);
         }
-        let mut names: Vec<String> = asked
-            .iter()
-            .filter(|command| kept.iter().any(|entry| entry.function == command.reaches))
-            .map(|command| {
-                command.carries.as_ref().map_or_else(
-                    || format!("{} {}", command.written, command.verb),
-                    |carried| format!("{} {} named by {carried}", command.written, command.verb)
-                )
-            })
-            .collect();
-        names.sort_unstable();
-        names.dedup();
-        if !names.is_empty() {
-            clauses.push(format!("a run asks by name: {}", names.join(", ")));
+        if let Some(clause) = command_clause(&asked, &kept) {
+            clauses.push(clause);
         }
         if let Some(clause) = route_clause(&served, &key) {
+            clauses.push(clause);
+        }
+        if store.wire
+            && let Some(clause) = answered_clause(&routes, &answered, &store.owner)
+        {
             clauses.push(clause);
         }
         let mut ways: Vec<String> = carried
@@ -123,6 +111,40 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     said
 }
 
+/// The verb clause of one store: what the program's own methods do to
+/// it.
+fn verb_clause(kept: &[super::verb::Keeping], key: &str) -> Option<String> {
+    let mut verbs: Vec<String> = kept
+        .iter()
+        .filter(|entry| entry.store == key)
+        .map(|entry| format!("`{}` {}", entry.function, entry.verb))
+        .collect();
+    verbs.sort_unstable();
+    verbs.dedup();
+    (!verbs.is_empty()).then(|| format!("of its own methods, {}", verbs.join(", ")))
+}
+
+/// The command clause: the written names a run asks with, each with the
+/// origin of the key it hands over where that origin was derived.
+fn command_clause(
+    asked: &[super::asking::Command],
+    kept: &[super::verb::Keeping]
+) -> Option<String> {
+    let mut names: Vec<String> = asked
+        .iter()
+        .filter(|command| kept.iter().any(|entry| entry.function == command.reaches))
+        .map(|command| {
+            command.carries.as_ref().map_or_else(
+                || format!("{} {}", command.written, command.verb),
+                |carried| format!("{} {} named by {carried}", command.written, command.verb)
+            )
+        })
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    (!names.is_empty()).then(|| format!("a run asks by name: {}", names.join(", ")))
+}
+
 /// The route clause of one store: every endpoint that reaches it,
 /// stated as what a caller writes and what they get, with a route that
 /// may not be mounted saying so.
@@ -143,4 +165,30 @@ fn route_clause(served: &[super::served::Serving], key: &str) -> Option<String> 
         .collect();
     routes.dedup();
     (!routes.is_empty()).then(|| format!("a request asks by route: {}", routes.join(", ")))
+}
+
+/// The answering clause of one wire shape: every route whose handler's
+/// written return type is this very owner, wrappers seen through.
+fn answered_clause(
+    routes: &[crate::semantic::surface::Route],
+    answered: &[(String, String)],
+    owner: &str
+) -> Option<String> {
+    let mut asked: Vec<String> = routes
+        .iter()
+        .filter(|route| {
+            answered.iter().any(|(function, with)| {
+                with == owner
+                    && route
+                        .handler
+                        .rsplit("::")
+                        .next()
+                        .is_some_and(|named| named == function)
+            })
+        })
+        .map(|route| format!("`{} {}`", route.method, route.path))
+        .collect();
+    asked.sort_unstable();
+    asked.dedup();
+    (!asked.is_empty()).then(|| format!("a request is answered with it: {}", asked.join(", ")))
 }
