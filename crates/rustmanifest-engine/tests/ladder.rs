@@ -1,13 +1,15 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! What the engine states about three ordinary programs.
+//! What the engine states about the ordinary programs of the ladder.
 //!
-//! A greeting, a calculator, a create-read-update-delete store: the ladder
-//! the meaning tier is measured on. The first rung is covered where the
-//! sentence is built; these two are covered here, because what they prove
-//! is not one recognizer but the whole chain — a value read from outside
-//! the process, carried through a call, computed on, and written out.
+//! A greeting, a calculator, a create-read-update-delete store, a task
+//! list, and the same store served over the wire: the ladder the meaning
+//! and keeping tiers are measured on. The first rung is covered where
+//! the sentence is built; the rest are covered here, because what they
+//! prove is not one recognizer but the whole chain — a value read from
+//! outside the process, carried through a call, computed on, and
+//! written out or served.
 //!
 //! Every assertion below failed before the work it guards. They are the
 //! only record that it holds: a run in a terminal is gone the moment the
@@ -22,7 +24,7 @@
 
 use std::path::PathBuf;
 
-use rustmanifest_engine::{Narrative, Source, Workspace, program_meaning};
+use rustmanifest_engine::{Narrative, Source, Workspace, program_meaning, purpose};
 
 /// The whole statement the engine makes about the entry point of
 /// `sources`, licensed clauses and refused one alike.
@@ -159,6 +161,72 @@ const GREETING: &str = r#"fn main() {
 }
 "#;
 
+/// The next rung after the task list: the same store served over the
+/// wire — a shared map behind a lock, four handlers taking the state
+/// through the extractor pattern, a router naming the paths.
+const API_SERVER: &str = r#"use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex}
+};
+
+struct Task {
+    title: String,
+    done:  bool
+}
+
+struct AppState {
+    tasks: Mutex<BTreeMap<u64, Task>>
+}
+
+async fn list(State(state): State<Arc<AppState>>) -> String {
+    let tasks = state.tasks.lock().unwrap();
+    let mut out = String::new();
+    for (id, task) in tasks.iter() {
+        out.push_str(&format!("{id} {} {}\n", task.done, task.title));
+    }
+    out
+}
+
+async fn read(State(state): State<Arc<AppState>>, Path(id): Path<u64>) -> String {
+    let tasks = state.tasks.lock().unwrap();
+    match tasks.get(&id) {
+        Some(task) => format!("{id} {} {}\n", task.done, task.title),
+        None => "not found\n".to_owned()
+    }
+}
+
+async fn create(State(state): State<Arc<AppState>>, title: String) -> String {
+    let mut tasks = state.tasks.lock().unwrap();
+    let id = tasks.keys().last().copied().unwrap_or(0) + 1;
+    tasks.insert(id, Task { title, done: false });
+    format!("{id}\n")
+}
+
+async fn remove(State(state): State<Arc<AppState>>, Path(id): Path<u64>) -> String {
+    let mut tasks = state.tasks.lock().unwrap();
+    match tasks.remove(&id) {
+        Some(_) => "removed\n".to_owned(),
+        None => "not found\n".to_owned()
+    }
+}
+
+fn app(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/tasks", get(list).post(create))
+        .route("/tasks/{id}", get(read).delete(remove))
+        .with_state(state)
+}
+"#;
+
+/// What the keeping tier says about `sources`, one sentence per store.
+fn kept(sources: &[(&str, &str)]) -> Vec<String> {
+    let owned: Vec<Source> = sources
+        .iter()
+        .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
+        .collect();
+    purpose(&Workspace::new(&owned))
+}
+
 /// The task list a junior writes: read the command line, load a file,
 /// add, complete, list, save.
 const TODO: &str = r#"use std::{collections::BTreeMap, env, fs, io, process::ExitCode};
@@ -253,6 +321,43 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 "#;
+
+/// The server rung: the whole sentence, every clause standing on its
+/// own proof — the store behind the lock, the verbs of the four
+/// handlers, the four routes, and the record a one-parameter path
+/// names.
+#[test]
+fn the_api_server_states_its_store_its_verbs_and_its_routes() {
+    let said = kept(&[("src/main.rs", API_SERVER)]);
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains("keeps `Task` records in `tasks` of `AppState`, each found by a `u64`"),
+        "{said:?}"
+    );
+    assert!(
+        said[0].contains("`create` adds a record"),
+        "the insert through the opened lock is not read: {said:?}"
+    );
+    assert!(
+        said[0].contains("`remove` takes a record out"),
+        "the removal through the opened lock is not read: {said:?}"
+    );
+    assert!(
+        said[0].contains("`GET /tasks` reads the records"),
+        "{said:?}"
+    );
+    assert!(said[0].contains("`POST /tasks` adds a record"), "{said:?}");
+    assert!(
+        said[0].contains(
+            "`DELETE /tasks/{id}` takes a record out named by the `{id}` the path carries"
+        ),
+        "{said:?}"
+    );
+    assert!(
+        said[0].contains("nothing carries them past the end of the run"),
+        "an in-memory map must not claim to outlive the run: {said:?}"
+    );
+}
 
 #[test]
 fn the_greeting_states_what_it_writes_and_nothing_more() {
