@@ -98,17 +98,51 @@ pub(in crate::semantic::graph) fn enum_node(
     }
 }
 
-/// Renders the last path segment of a type, or a placeholder for non-path
-/// types such as references, tuples, and slices.
+/// The type standing under the guards written around it.
+///
+/// A lock, a cell, or a sharing pointer says how a value is reached —
+/// one user at a time, checked at runtime, counted owners — and never
+/// what the value is. A reading that asks what a field holds therefore
+/// looks through them: the guarded type is the single written type
+/// argument, and a guard written with any other arity is left standing.
+fn guarded(ty: &syn::Type) -> &syn::Type {
+    const GUARDS: [&str; 7] = ["Arc", "Rc", "Box", "Mutex", "RwLock", "RefCell", "Cell"];
+    let syn::Type::Path(path) = ty else {
+        return ty;
+    };
+    let Some(segment) = path.path.segments.last() else {
+        return ty;
+    };
+    if !GUARDS.contains(&segment.ident.to_string().as_str()) {
+        return ty;
+    }
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return ty;
+    };
+    let written: Vec<&syn::Type> = arguments
+        .args
+        .iter()
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(inner) => Some(inner),
+            _ => None
+        })
+        .collect();
+    match written.as_slice() {
+        [inner] => guarded(inner),
+        _ => ty
+    }
+}
+
 /// The type a collection field holds, read off the written type
 /// arguments: the last one, so a map answers with its values and a
-/// sequence with its elements.
+/// sequence with its elements. Guards around the collection are seen
+/// through, so a map behind a lock holds what the map holds.
 ///
 /// A type carrying no arguments holds nothing, and a type argument that
 /// is not a plain path — a reference, a tuple, a slice — is not named
 /// here, because what it holds has no single name to give.
 fn held_element(ty: &syn::Type) -> Option<String> {
-    let syn::Type::Path(path) = ty else {
+    let syn::Type::Path(path) = guarded(ty) else {
         return None;
     };
     let segment = path.path.segments.last()?;
@@ -130,12 +164,13 @@ fn held_element(ty: &syn::Type) -> Option<String> {
 }
 
 /// The type a map is looked into with, where the field declares a map:
-/// the first written type argument of a type carrying two.
+/// the first written type argument of a type carrying two. Guards around
+/// the map are seen through, exactly as [`held_element`] sees them.
 ///
 /// A type carrying one argument holds a sequence, looked into by
 /// position, and answers nothing here.
 fn looked_up_by(ty: &syn::Type) -> Option<String> {
-    let syn::Type::Path(path) = ty else {
+    let syn::Type::Path(path) = guarded(ty) else {
         return None;
     };
     let segment = path.path.segments.last()?;
@@ -159,6 +194,8 @@ fn looked_up_by(ty: &syn::Type) -> Option<String> {
     Some(first.path.segments.last()?.ident.to_string())
 }
 
+/// Renders the last path segment of a type, or a placeholder for non-path
+/// types such as references, tuples, and slices.
 fn last_segment(ty: &syn::Type) -> String {
     match ty {
         syn::Type::Path(path) => path

@@ -132,6 +132,21 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_collection_behind_a_lock_is_the_same_store() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String,\n    pub done:  bool\n}\n\npub struct Shared {\n    pub tasks: \
+             Arc<Mutex<BTreeMap<u64, Task>>>\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let held = stores(&workspace);
+        assert_eq!(held.len(), 1);
+        assert_eq!(held[0].owner, "Shared");
+        assert_eq!(held[0].record, "Task");
+        assert_eq!(held[0].key.as_deref(), Some("u64"));
+    }
+
+    #[test]
     fn a_written_alternative_that_reaches_the_records_is_a_command() {
         let asking = r#"
 pub fn run(store: &mut Store, asked: &str) {
