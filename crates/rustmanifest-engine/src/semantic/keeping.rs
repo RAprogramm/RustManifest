@@ -19,6 +19,7 @@ mod answering;
 mod asking;
 mod ending;
 mod outliving;
+mod receiving;
 mod said;
 mod served;
 mod store;
@@ -314,6 +315,23 @@ pub fn run(store: &mut Store, asked: &str) {
             "{said:?}"
         );
         assert!(!said[0].contains("keeps"), "{said:?}");
+    }
+
+    #[test]
+    fn a_route_arriving_as_a_wire_shape_enters_its_sentence() {
+        let sources = workspace_of(
+            "pub struct Item {\n    pub name: String\n}\n\n#[derive(Deserialize)]\npub struct \
+             CreateRequest {\n    pub items: Vec<Item>\n}\n\npub async fn create(Json(body): \
+             Json<CreateRequest>) -> String {\n    String::new()\n}\n\npub fn app() -> Router \
+             {\n    Router::new().route(\"/items\", post(create))\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            said[0].contains("a request arrives as it: `POST /items`"),
+            "{said:?}"
+        );
     }
 
     #[test]

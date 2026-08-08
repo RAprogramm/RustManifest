@@ -62,7 +62,7 @@ fn answered_with(signature: &syn::Signature) -> Option<String> {
 /// The last path segment under the wrappers: `Result` answers with its
 /// first written argument, and any type carrying exactly one written
 /// argument carries what it wraps.
-fn unwrapped(ty: &syn::Type) -> Option<String> {
+pub(super) fn unwrapped(ty: &syn::Type) -> Option<String> {
     let syn::Type::Path(path) = ty else {
         return None;
     };

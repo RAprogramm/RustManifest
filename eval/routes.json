@@ -1,0 +1,84 @@
+{
+  "engine-version": "0.0.0",
+  "repos": [
+    {
+      "name": "aura-api",
+      "score": {
+        "counts": {
+          "declared": 93,
+          "recovered": 110,
+          "agreed": 92
+        },
+        "disagreement": {
+          "unrecovered": [
+            "GET /api/nft/{season}/shard/{entry_id}.json"
+          ],
+          "undeclared": [
+            "GET /api/aura_event/{aura_event_id}/chat/ws",
+            "GET /api/me/events",
+            "GET /api/nft/assets/lottie/{model}",
+            "GET /api/nft/preview/shard.lottie.json",
+            "GET /api/nft/preview/shard.svg",
+            "GET /api/nft/{season}/pass.svg",
+            "GET /api/nft/{season}/preview",
+            "GET /api/nft/{season}/shard/{*entry_id}",
+            "GET /api/payments/{provider}/webhook",
+            "GET /health",
+            "GET /metrics",
+            "GET /whoami",
+            "GET /{season}/pass.json",
+            "POST /api/payments/rub",
+            "POST /api/payments/rub/topup",
+            "POST /api/payments/yookassa/webhook",
+            "POST /api/payments/{provider}/webhook",
+            "POST /api/telegram/webhook"
+          ]
+        }
+      }
+    },
+    {
+      "name": "entity-derive",
+      "score": null
+    },
+    {
+      "name": "fork-hyper",
+      "score": null
+    },
+    {
+      "name": "hydebar",
+      "score": null
+    },
+    {
+      "name": "masterror",
+      "score": null
+    },
+    {
+      "name": "ratma-studio-api",
+      "score": {
+        "counts": {
+          "declared": 139,
+          "recovered": 152,
+          "agreed": 139
+        },
+        "disagreement": {
+          "unrecovered": [],
+          "undeclared": [
+            "GET /api/notification/ws",
+            "GET /api/timeweb/ai/agents",
+            "GET /api/timeweb/balancers",
+            "GET /api/timeweb/catalog/database-types",
+            "GET /api/timeweb/catalog/locations",
+            "GET /api/timeweb/container-registries",
+            "GET /api/timeweb/dedicated-servers",
+            "GET /api/timeweb/firewall/groups",
+            "GET /api/timeweb/floating-ips",
+            "GET /api/timeweb/images",
+            "GET /api/timeweb/network-drives",
+            "GET /api/timeweb/ssh-keys",
+            "GET /api/timeweb/vpcs"
+          ]
+        }
+      }
+    }
+  ]
+}

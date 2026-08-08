@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 
 use super::{
     answering::returners, asking::commands, ending::endings, outliving::outliving,
-    served::servings, store::stores, telling::telling, verb::keeping
+    receiving::receivers, served::servings, store::stores, telling::telling, verb::keeping
 };
 use crate::semantic::{surface::surface, workspace::Workspace};
 
@@ -32,6 +32,7 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let served = servings(workspace);
     let told = telling(workspace);
     let answered = returners(workspace.sources());
+    let received = receivers(workspace.sources());
     let routes = surface(workspace.sources()).routes;
     let mut said = Vec::new();
     for store in &held {
@@ -60,10 +61,13 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
         if let Some(clause) = route_clause(&served, &key) {
             clauses.push(clause);
         }
-        if store.wire
-            && let Some(clause) = answered_clause(&routes, &answered, &store.owner)
-        {
-            clauses.push(clause);
+        if store.wire {
+            if let Some(clause) = answered_clause(&routes, &answered, &store.owner) {
+                clauses.push(clause);
+            }
+            if let Some(clause) = received_clause(&routes, &received, &store.owner) {
+                clauses.push(clause);
+            }
         }
         let mut ways: Vec<String> = carried
             .iter()
@@ -191,4 +195,30 @@ fn answered_clause(
     asked.sort_unstable();
     asked.dedup();
     (!asked.is_empty()).then(|| format!("a request is answered with it: {}", asked.join(", ")))
+}
+
+/// The receiving clause of one wire shape: every route whose handler's
+/// written parameters carry this very owner, wrappers seen through.
+fn received_clause(
+    routes: &[crate::semantic::surface::Route],
+    received: &[(String, String)],
+    owner: &str
+) -> Option<String> {
+    let mut arrives: Vec<String> = routes
+        .iter()
+        .filter(|route| {
+            received.iter().any(|(function, with)| {
+                with == owner
+                    && route
+                        .handler
+                        .rsplit("::")
+                        .next()
+                        .is_some_and(|named| named == function)
+            })
+        })
+        .map(|route| format!("`{} {}`", route.method, route.path))
+        .collect();
+    arrives.sort_unstable();
+    arrives.dedup();
+    (!arrives.is_empty()).then(|| format!("a request arrives as it: {}", arrives.join(", ")))
 }
