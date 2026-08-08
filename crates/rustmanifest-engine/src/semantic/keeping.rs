@@ -291,6 +291,22 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_store_written_through_the_query_function_outlives_the_run() {
+        let sources = workspace_of(&format!(
+            "{TASK_STORE}\nimpl Store {{\n    pub async fn persist(&self) {{\n        for (_, \
+             task) in &self.tasks {{\n            sqlx::query(\"INSERT INTO tasks (title) VALUES \
+             ($1)\").bind(&task.title);\n        }}\n    }}\n}}\n"
+        ));
+        let workspace = Workspace::new(&sources);
+        let carried = outliving(&workspace);
+        let persisted = carried
+            .iter()
+            .find(|entry| entry.function.ends_with("persist"))
+            .expect("the query function must carry the store like the macro does");
+        assert_eq!(persisted.direction, Direction::Persists);
+    }
+
+    #[test]
     fn each_verb_is_read_from_what_the_method_does_to_the_store() {
         let sources = workspace_of(TASK_STORE);
         let workspace = Workspace::new(&sources);

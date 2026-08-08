@@ -75,6 +75,29 @@ impl FactCollector {
         syn::visit::visit_expr_path(self, path);
     }
 
+    /// Records the database effect a SQL-carrying function call proves:
+    /// the crate and function name say the argument is a statement, and
+    /// the first written argument — where it is a string literal — says
+    /// what kind. A statement built at runtime proves the call and not
+    /// the kind, and yields nothing.
+    pub(super) fn record_sql_call(&mut self, call: &syn::ExprCall) {
+        let syn::Expr::Path(path) = call.func.as_ref() else {
+            return;
+        };
+        let Some(sql) = first_literal(call) else {
+            return;
+        };
+        let segments = self.expanded_segments(&path.path);
+        if let Some(effect) = knowledge::sql_call_effect(&segments, &sql) {
+            self.facts.effects.push(effect);
+            self.facts.effect_sites.push(EffectSite {
+                effect,
+                proof: segments.join("::"),
+                range: span_range(path.span())
+            });
+        }
+    }
+
     /// Marks the function as carrying the unsafe effect, citing the block
     /// itself as what proved it.
     pub(super) fn collect_unsafe_block(&mut self, block: &syn::ExprUnsafe) {
@@ -86,6 +109,18 @@ impl FactCollector {
         });
         syn::visit::visit_expr_unsafe(self, block);
     }
+}
+
+/// The first argument of a call, where the source writes it as a string
+/// literal.
+fn first_literal(call: &syn::ExprCall) -> Option<String> {
+    let syn::Expr::Lit(literal) = call.args.first()? else {
+        return None;
+    };
+    let syn::Lit::Str(text) = &literal.lit else {
+        return None;
+    };
+    Some(text.value())
 }
 
 /// Converts a span to the byte range the fact base records, saturating

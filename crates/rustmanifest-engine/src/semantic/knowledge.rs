@@ -103,8 +103,27 @@ pub(super) fn sql_macro_effect(macro_name: &str, tokens: &str) -> Option<Effect>
     if !SQL_MACROS.contains(&macro_name) {
         return None;
     }
-    let after_quote = tokens.split_once('"')?.1;
-    let keyword: String = after_quote
+    statement_effect(tokens.split_once('"')?.1)
+}
+
+/// Classifies a SQL-carrying function call of the `sqlx` crate the same
+/// way, where the SQL it is handed is written at the call. The function
+/// names are the macro names: the crate exports both forms over one
+/// statement, differing in when the statement is checked, not in what
+/// it does.
+pub(super) fn sql_call_effect(segments: &[String], sql: &str) -> Option<Effect> {
+    let (Some(first), Some(last)) = (segments.first(), segments.last()) else {
+        return None;
+    };
+    if first != "sqlx" || !SQL_MACROS.contains(&last.as_str()) {
+        return None;
+    }
+    statement_effect(sql)
+}
+
+/// The database effect the first keyword of a statement proves.
+fn statement_effect(sql: &str) -> Option<Effect> {
+    let keyword: String = sql
         .trim_start()
         .chars()
         .take_while(char::is_ascii_alphabetic)

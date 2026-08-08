@@ -28,6 +28,7 @@ impl FactCollector {
         let span = call.span().byte_range();
         let mut reserved = None;
         self.record_source_call(call);
+        self.record_sql_call(call);
         if let syn::Expr::Path(path) = call.func.as_ref() {
             let segments = &path.path.segments;
             if segments.len() == 1 {
