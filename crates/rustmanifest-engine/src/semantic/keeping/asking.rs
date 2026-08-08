@@ -49,9 +49,30 @@ pub struct Command {
 /// state them alike.
 #[must_use]
 pub fn commands(workspace: &Workspace<'_>) -> Vec<Command> {
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
+    let composed = crate::semantic::summary::composition_with(
+        sources,
+        workspace.resolution(),
+        facts,
+        workspace.calls(),
+        &qualifiers
+    );
+    commands_with(workspace, &composed)
+}
+
+/// [`commands`] over a composition already built, so one derivation
+/// serves every reading of the keeping tier instead of each site
+/// rebuilding it.
+#[must_use]
+pub(super) fn commands_with(
+    workspace: &Workspace<'_>,
+    composed: &crate::semantic::summary::Composition<'_>
+) -> Vec<Command> {
     let kept = keeping(workspace);
     let mut asked = Vec::new();
-    for fact in workspace.facts() {
+    for (index, fact) in workspace.facts().iter().enumerate() {
         for site in &fact.call_sites {
             let Some((choice, alternative)) = arm_of(&site.conditions) else {
                 continue;
@@ -73,7 +94,7 @@ pub fn commands(workspace: &Workspace<'_>) -> Vec<Command> {
                 written,
                 reaches: reached.function.clone(),
                 verb: reached.verb,
-                carries: handed_over(workspace, fact, site),
+                carries: handed_over(composed, index, site),
                 site: choice_site(fact, choice).unwrap_or(fact.range),
                 source: fact.source
             });
@@ -124,25 +145,12 @@ fn written_alternative(fact: &FunctionFacts, choice: u32, alternative: u32) -> O
 /// record, and reading further would state of one argument what holds
 /// of another.
 fn handed_over(
-    workspace: &Workspace<'_>,
-    fact: &FunctionFacts,
+    composed: &crate::semantic::summary::Composition<'_>,
+    index: usize,
     site: &crate::semantic::behavior::CallSite
 ) -> Option<String> {
     let written = site.arguments.written()?;
     let handed = written.get(1)?;
-    let sources = workspace.sources();
-    let facts = workspace.facts();
-    let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
-    let composed = crate::semantic::summary::composition_with(
-        sources,
-        workspace.resolution(),
-        facts,
-        workspace.calls(),
-        &qualifiers
-    );
-    let index = facts
-        .iter()
-        .position(|candidate| std::ptr::eq(candidate, fact))?;
     let term = composed.of(index, handed);
     term.derived()
         .then(|| crate::semantic::meaning::origin_text(&term))

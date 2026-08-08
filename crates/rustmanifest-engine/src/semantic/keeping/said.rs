@@ -13,8 +13,9 @@
 use std::fmt::Write as _;
 
 use super::{
-    answering::returners, asking::commands, ending::endings, fed::feedings, outliving::outliving,
-    receiving::receivers, served::servings, store::stores, telling::telling, verb::keeping
+    answering::returners, asking::commands_with, ending::endings, fed::feedings_with,
+    outliving::outliving, receiving::receivers, served::servings_with, store::stores,
+    telling::telling, verb::keeping
 };
 use crate::semantic::{surface::surface, workspace::Workspace};
 
@@ -25,16 +26,27 @@ use crate::semantic::{surface::surface, workspace::Workspace};
 /// proven", never "this program is about nothing".
 #[must_use]
 pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
+    let composed = crate::semantic::summary::composition_with(
+        sources,
+        workspace.resolution(),
+        facts,
+        workspace.calls(),
+        &qualifiers
+    );
     let held = stores(workspace);
     let kept = keeping(workspace);
     let carried = outliving(workspace);
-    let asked = commands(workspace);
-    let served = servings(workspace);
+    let asked = commands_with(workspace, &composed);
+    let served = servings_with(workspace, &composed);
     let told = telling(workspace);
-    let answered = returners(workspace.sources());
-    let received = receivers(workspace.sources());
-    let fed = feedings(workspace);
-    let routes = surface(workspace.sources()).routes;
+    let answered = returners(sources);
+    let received = receivers(sources);
+    let fed = feedings_with(workspace, &composed);
+    let routes = surface(sources).routes;
+    let ends = ending_clause(workspace);
     let mut said = Vec::new();
     for store in &held {
         let key = format!("{}.{}", store.owner, store.field);
@@ -73,50 +85,69 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
                 clauses.push(clause);
             }
         }
-        let mut ways: Vec<String> = carried
-            .iter()
-            .filter(|entry| entry.store == key)
-            .map(|entry| format!("`{}` {}", entry.function, entry.direction))
-            .collect();
-        ways.sort_unstable();
-        ways.dedup();
-        let mut shown: Vec<String> = told
-            .iter()
-            .filter(|entry| entry.store == key)
-            .map(|entry| format!("`{}`", entry.function))
-            .collect();
-        shown.sort_unstable();
-        shown.dedup();
-        if !shown.is_empty() {
-            clauses.push(format!("what it holds is printed in {}", shown.join(", ")));
+        if let Some(clause) = telling_clause(&told, &key) {
+            clauses.push(clause);
         }
-        if ways.is_empty() {
-            clauses.push("nothing carries them past the end of the run".to_owned());
-        } else {
-            clauses.push(format!("{}, so they outlive the run", ways.join(", ")));
-        }
-        let mut ends: Vec<String> = endings(workspace)
-            .iter()
-            .map(|way| {
-                format!(
-                    "{} with {}",
-                    if way.certain {
-                        "always ends"
-                    } else {
-                        "can end"
-                    },
-                    way.status
-                )
-            })
-            .collect();
-        ends.sort_unstable();
-        ends.dedup();
-        if !ends.is_empty() {
-            clauses.push(format!("the run {}", ends.join(", ")));
+        clauses.push(outlived_clause(&carried, &key));
+        if let Some(clause) = &ends {
+            clauses.push(clause.clone());
         }
         said.push(clauses.join("; "));
     }
     said
+}
+
+/// The printing clause of one store: the functions its records are
+/// printed in.
+fn telling_clause(told: &[super::telling::Telling], key: &str) -> Option<String> {
+    let mut shown: Vec<String> = told
+        .iter()
+        .filter(|entry| entry.store == key)
+        .map(|entry| format!("`{}`", entry.function))
+        .collect();
+    shown.sort_unstable();
+    shown.dedup();
+    (!shown.is_empty()).then(|| format!("what it holds is printed in {}", shown.join(", ")))
+}
+
+/// The outliving clause of one store: which methods carry it across the
+/// end of the run, or the statement that nothing does.
+fn outlived_clause(carried: &[super::outliving::Outliving], key: &str) -> String {
+    let mut ways: Vec<String> = carried
+        .iter()
+        .filter(|entry| entry.store == key)
+        .map(|entry| format!("`{}` {}", entry.function, entry.direction))
+        .collect();
+    ways.sort_unstable();
+    ways.dedup();
+    if ways.is_empty() {
+        "nothing carries them past the end of the run".to_owned()
+    } else {
+        format!("{}, so they outlive the run", ways.join(", "))
+    }
+}
+
+/// The ending clause: the statuses the run can leave with. Derived
+/// once — the statuses belong to the run, not to any one store — and
+/// repeated per sentence.
+fn ending_clause(workspace: &Workspace<'_>) -> Option<String> {
+    let mut ends: Vec<String> = endings(workspace)
+        .iter()
+        .map(|way| {
+            format!(
+                "{} with {}",
+                if way.certain {
+                    "always ends"
+                } else {
+                    "can end"
+                },
+                way.status
+            )
+        })
+        .collect();
+    ends.sort_unstable();
+    ends.dedup();
+    (!ends.is_empty()).then(|| format!("the run {}", ends.join(", ")))
 }
 
 /// The verb clause of one store: what the program's own methods do to

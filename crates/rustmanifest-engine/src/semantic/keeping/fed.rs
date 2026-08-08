@@ -27,11 +27,6 @@ pub struct Feeding {
 /// Every wire shape provably filled from a kept store.
 #[must_use]
 pub fn feedings(workspace: &Workspace<'_>) -> Vec<Feeding> {
-    let held = stores(workspace);
-    let (wired, kept): (Vec<&Store>, Vec<&Store>) = held.iter().partition(|store| store.wire);
-    if wired.is_empty() || kept.is_empty() {
-        return Vec::new();
-    }
     let sources = workspace.sources();
     let facts = workspace.facts();
     let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
@@ -42,6 +37,22 @@ pub fn feedings(workspace: &Workspace<'_>) -> Vec<Feeding> {
         workspace.calls(),
         &qualifiers
     );
+    feedings_with(workspace, &composed)
+}
+
+/// [`feedings`] over a composition already built, so one derivation
+/// serves every reading of the keeping tier.
+#[must_use]
+pub(super) fn feedings_with(
+    workspace: &Workspace<'_>,
+    composed: &crate::semantic::summary::Composition<'_>
+) -> Vec<Feeding> {
+    let held = stores(workspace);
+    let (wired, kept): (Vec<&Store>, Vec<&Store>) = held.iter().partition(|store| store.wire);
+    if wired.is_empty() || kept.is_empty() {
+        return Vec::new();
+    }
+    let facts = workspace.facts();
     let mut fed = Vec::new();
     for (index, fact) in facts.iter().enumerate() {
         for built in &fact.built_fields {

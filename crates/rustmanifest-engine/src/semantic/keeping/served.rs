@@ -48,9 +48,6 @@ pub struct Serving {
 /// workspace state them alike.
 #[must_use]
 pub fn servings(workspace: &Workspace<'_>) -> Vec<Serving> {
-    let kept = keeping(workspace);
-    let held = super::store::stores(workspace);
-    let takers = super::taker::path_takers(workspace.sources());
     let sources = workspace.sources();
     let facts = workspace.facts();
     let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
@@ -61,6 +58,21 @@ pub fn servings(workspace: &Workspace<'_>) -> Vec<Serving> {
         workspace.calls(),
         &qualifiers
     );
+    servings_with(workspace, &composed)
+}
+
+/// [`servings`] over a composition already built, so one derivation
+/// serves every reading of the keeping tier.
+#[must_use]
+pub(super) fn servings_with(
+    workspace: &Workspace<'_>,
+    composed: &crate::semantic::summary::Composition<'_>
+) -> Vec<Serving> {
+    let kept = keeping(workspace);
+    let held = super::store::stores(workspace);
+    let takers = super::taker::path_takers(workspace.sources());
+    let sources = workspace.sources();
+    let facts = workspace.facts();
     let mut served = Vec::new();
     for route in surface(sources).routes {
         let Some(reached) = kept
@@ -69,7 +81,7 @@ pub fn servings(workspace: &Workspace<'_>) -> Vec<Serving> {
         else {
             continue;
         };
-        let asks = asked_with_the_path(&takers, &held, facts, &composed, reached);
+        let asks = asked_with_the_path(&takers, &held, facts, composed, reached);
         served.push(Serving {
             method:      route.method,
             path:        route.path.clone(),
