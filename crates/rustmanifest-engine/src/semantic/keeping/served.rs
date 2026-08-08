@@ -31,10 +31,11 @@ pub struct Serving {
     /// What that handler does to the records.
     pub verb:        Verb,
     /// The one parameter the path writes, where the handler provably
-    /// receives it: the path spells exactly one `{name}` and the
-    /// handler's signature takes a path-extractor type apart. With
-    /// several parameters, which one names the record would be a guess,
-    /// and none is made.
+    /// asks the store with it: the path spells exactly one `{name}`,
+    /// the handler's signature takes a path-extractor type apart into
+    /// one binding, and the handler's own lookup into the store is
+    /// written with that very binding. Any link short of that, and no
+    /// name is claimed.
     pub named_by:    Option<String>,
     /// Whether the registration stands under a construct that may not
     /// run, so the route exists in some builds or runs only.
@@ -48,29 +49,96 @@ pub struct Serving {
 #[must_use]
 pub fn servings(workspace: &Workspace<'_>) -> Vec<Serving> {
     let kept = keeping(workspace);
+    let held = super::store::stores(workspace);
     let takers = super::taker::path_takers(workspace.sources());
+    let sources = workspace.sources();
+    let facts = workspace.facts();
+    let qualifiers = crate::semantic::meaning::qualifiers_by_fact(sources, facts);
+    let composed = crate::semantic::summary::composition_with(
+        sources,
+        workspace.resolution(),
+        facts,
+        workspace.calls(),
+        &qualifiers
+    );
     let mut served = Vec::new();
-    for route in surface(workspace.sources()).routes {
+    for route in surface(sources).routes {
         let Some(reached) = kept
             .iter()
             .find(|entry| handler_reaches(&route.handler, &entry.function))
         else {
             continue;
         };
-        let receives = takers
-            .iter()
-            .any(|taker| handler_reaches(&route.handler, taker));
+        let asks = asked_with_the_path(&takers, &held, facts, &composed, reached);
         served.push(Serving {
             method:      route.method,
             path:        route.path.clone(),
             store:       reached.store.clone(),
             reaches:     reached.function.clone(),
             verb:        reached.verb,
-            named_by:    path_parameter(&route.path).filter(|_| receives),
+            named_by:    path_parameter(&route.path).filter(|_| asks),
             conditional: route.conditional
         });
     }
     served
+}
+
+/// Methods a run asks for one record with: a keyed read, a keyed write
+/// access, a removal.
+const ASKING: [&str; 3] = ["get", "get_mut", "remove"];
+
+/// Whether the handler's own lookup into the store is written with the
+/// very name its path-extractor pattern binds.
+///
+/// Three links, each read and none guessed: the binding the pattern
+/// introduces, the call site asking the collection by a key, and the
+/// derivation tying that site's written argument back to the handler's
+/// own input of that name.
+fn asked_with_the_path(
+    takers: &[(String, String)],
+    held: &[super::store::Store],
+    facts: &[crate::semantic::behavior::FunctionFacts],
+    composed: &crate::semantic::summary::Composition<'_>,
+    reached: &crate::semantic::keeping::Keeping
+) -> bool {
+    let Some((_, binding)) = takers
+        .iter()
+        .find(|(name, _)| handler_reaches(&reached.function, name))
+    else {
+        return false;
+    };
+    let Some(shape) = held
+        .iter()
+        .find(|store| format!("{}.{}", store.owner, store.field) == reached.store)
+        .map(|store| store.shape.as_str())
+    else {
+        return false;
+    };
+    let Some(index) = facts.iter().position(|fact| {
+        let same_name = fact.function == reached.function;
+        same_name && fact.range == reached.site
+    }) else {
+        return false;
+    };
+    let Some(fact) = facts.get(index) else {
+        return false;
+    };
+    fact.call_sites.iter().any(|site| {
+        ASKING
+            .iter()
+            .any(|method| site.candidate == format!("{shape}::{method}"))
+            && site
+                .arguments
+                .written()
+                .and_then(|written| written.get(1))
+                .is_some_and(|origin| {
+                    matches!(
+                        composed.of(index, origin),
+                        crate::semantic::summary::ComposedOrigin::Parameter(slot)
+                            if slot.name.as_deref() == Some(binding)
+                    )
+                })
+    })
 }
 
 /// The one parameter the path writes, where it writes exactly one.

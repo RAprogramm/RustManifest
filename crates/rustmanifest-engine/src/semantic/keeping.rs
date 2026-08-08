@@ -231,6 +231,26 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_path_the_lookup_never_asks_with_names_nothing() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct Path<T>(pub \
+             T);\n\npub struct AppState {\n    pub tasks: Mutex<BTreeMap<u64, \
+             Task>>\n}\n\npub fn read(State(state): State<Arc<AppState>>, Path(id): Path<u64>) \
+             -> bool {\n    let tasks = state.tasks.lock().unwrap();\n    \
+             tasks.get(&1).is_some()\n}\n\npub fn app() -> Router {\n    \
+             Router::new().route(\"/tasks/{id}\", get(read))\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            !said[0].contains("named by"),
+            "a lookup asking with a written key must not claim the path names it: {said:?}"
+        );
+    }
+
+    #[test]
     fn a_written_alternative_that_reaches_the_records_is_a_command() {
         let asking = r#"
 pub fn run(store: &mut Store, asked: &str) {
