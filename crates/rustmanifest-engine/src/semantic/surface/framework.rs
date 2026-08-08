@@ -19,7 +19,10 @@ pub struct FrameworkModel {
     /// Method that folds another router in under a path prefix.
     pub nesting:       &'static [&'static str],
     /// Method that folds another router in without a prefix.
-    pub merging:       &'static [&'static str]
+    pub merging:       &'static [&'static str],
+    /// Types a handler signature takes apart to receive a value the
+    /// framework read out of the request path.
+    pub path_takers:   &'static [&'static str]
 }
 
 /// The axum/tower model: `Router::new().route(path, get(handler))`, with
@@ -32,7 +35,8 @@ pub(super) const AXUM: FrameworkModel = FrameworkModel {
         "get", "post", "put", "patch", "delete", "head", "options", "trace", "any"
     ],
     nesting:       &["nest"],
-    merging:       &["merge"]
+    merging:       &["merge"],
+    path_takers:   &["Path"]
 };
 
 /// Every framework model the engine knows.
@@ -50,4 +54,11 @@ impl FrameworkModel {
 /// Whether a type name roots a router chain under any known model.
 pub(super) fn router_type(name: &str) -> bool {
     MODELS.iter().any(|model| model.routers.contains(&name))
+}
+
+/// Whether a handler signature taking this type apart receives a value
+/// the framework read out of the request path, under any known model.
+#[must_use]
+pub(in crate::semantic) fn takes_from_path(name: &str) -> bool {
+    MODELS.iter().any(|model| model.path_takers.contains(&name))
 }

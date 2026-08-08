@@ -21,6 +21,7 @@ mod outliving;
 mod said;
 mod served;
 mod store;
+mod taker;
 mod telling;
 mod verb;
 
@@ -203,6 +204,28 @@ pub fn run(store: &mut Store, asked: &str) {
         assert_eq!(said.len(), 1);
         assert!(
             said[0].contains("a request asks by route: `GET /tasks` reads the records"),
+            "{said:?}"
+        );
+    }
+
+    #[test]
+    fn a_route_with_one_written_parameter_names_the_record_by_it() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct Path<T>(pub \
+             T);\n\npub struct AppState {\n    pub tasks: Mutex<BTreeMap<u64, \
+             Task>>\n}\n\npub fn read(State(state): State<Arc<AppState>>, Path(id): Path<u64>) \
+             -> bool {\n    let tasks = state.tasks.lock().unwrap();\n    \
+             tasks.get(&id).is_some()\n}\n\npub fn app() -> Router {\n    \
+             Router::new().route(\"/tasks/{id}\", get(read))\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            said[0].contains(
+                "`GET /tasks/{id}` reads the records named by the `{id}` the path carries"
+            ),
             "{said:?}"
         );
     }

@@ -30,6 +30,12 @@ pub struct Serving {
     pub reaches:     String,
     /// What that handler does to the records.
     pub verb:        Verb,
+    /// The one parameter the path writes, where the handler provably
+    /// receives it: the path spells exactly one `{name}` and the
+    /// handler's signature takes a path-extractor type apart. With
+    /// several parameters, which one names the record would be a guess,
+    /// and none is made.
+    pub named_by:    Option<String>,
     /// Whether the registration stands under a construct that may not
     /// run, so the route exists in some builds or runs only.
     pub conditional: bool
@@ -42,6 +48,7 @@ pub struct Serving {
 #[must_use]
 pub fn servings(workspace: &Workspace<'_>) -> Vec<Serving> {
     let kept = keeping(workspace);
+    let takers = super::taker::path_takers(workspace.sources());
     let mut served = Vec::new();
     for route in surface(workspace.sources()).routes {
         let Some(reached) = kept
@@ -50,16 +57,33 @@ pub fn servings(workspace: &Workspace<'_>) -> Vec<Serving> {
         else {
             continue;
         };
+        let receives = takers
+            .iter()
+            .any(|taker| handler_reaches(&route.handler, taker));
         served.push(Serving {
             method:      route.method,
-            path:        route.path,
+            path:        route.path.clone(),
             store:       reached.store.clone(),
             reaches:     reached.function.clone(),
             verb:        reached.verb,
+            named_by:    path_parameter(&route.path).filter(|_| receives),
             conditional: route.conditional
         });
     }
     served
+}
+
+/// The one parameter the path writes, where it writes exactly one.
+fn path_parameter(path: &str) -> Option<String> {
+    let mut written = path
+        .split('{')
+        .skip(1)
+        .filter_map(|rest| rest.split('}').next());
+    let (first, rest) = (written.next()?, written.next());
+    if rest.is_some() {
+        return None;
+    }
+    Some(first.trim_start_matches(':').to_owned())
 }
 
 /// Whether a handler written at a registration names the function a

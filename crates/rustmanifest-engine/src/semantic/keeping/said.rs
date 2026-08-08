@@ -10,6 +10,8 @@
 //! reading proved is simply absent, so a shorter sentence is a smaller
 //! claim rather than a vaguer one.
 
+use std::fmt::Write as _;
+
 use super::{
     asking::commands, ending::endings, outliving::outliving, served::servings, store::stores,
     telling::telling, verb::keeping
@@ -122,12 +124,14 @@ fn route_clause(served: &[super::served::Serving], key: &str) -> Option<String> 
         .iter()
         .filter(|serving| serving.store == key)
         .map(|serving| {
-            let asked = format!("`{} {}` {}", serving.method, serving.path, serving.verb);
-            if serving.conditional {
-                format!("{asked} (mounted in some builds or runs only)")
-            } else {
-                asked
+            let mut asked = format!("`{} {}` {}", serving.method, serving.path, serving.verb);
+            if let Some(name) = &serving.named_by {
+                let _ = write!(asked, " named by the `{{{name}}}` the path carries");
             }
+            if serving.conditional {
+                asked.push_str(" (mounted in some builds or runs only)");
+            }
+            asked
         })
         .collect();
     routes.dedup();

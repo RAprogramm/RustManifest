@@ -44,6 +44,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use syn::Item;
 
+pub(super) use self::framework::takes_from_path;
 use self::{
     expansion::Expansion,
     path::module_path,
