@@ -147,6 +147,25 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
+    fn a_handler_taking_the_state_through_a_written_pattern_reads_the_records() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
+             tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn list(State(state): \
+             State<Arc<AppState>>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
+             tasks.len()\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let read = keeping(&workspace);
+        let listed = read
+            .iter()
+            .find(|kept| kept.function.ends_with("list"))
+            .expect("the handler must reach the store");
+        assert_eq!(listed.store, "AppState.tasks");
+        assert_eq!(listed.verb, Verb::Reads);
+    }
+
+    #[test]
     fn a_written_alternative_that_reaches_the_records_is_a_command() {
         let asking = r#"
 pub fn run(store: &mut Store, asked: &str) {

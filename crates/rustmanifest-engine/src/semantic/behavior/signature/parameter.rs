@@ -80,17 +80,74 @@ pub(in crate::semantic::behavior) fn parameter_types(
                     types.insert("self".to_owned(), impl_type.to_owned());
                 }
             }
-            syn::FnArg::Typed(argument) => {
-                if let (syn::Pat::Ident(pattern), Some(type_name)) =
-                    (argument.pat.as_ref(), type_last_segment(&argument.ty))
-                {
-                    let resolved = bounds.get(&type_name).cloned().unwrap_or(type_name);
-                    types.insert(pattern.ident.to_string(), resolved);
+            syn::FnArg::Typed(argument) => match argument.pat.as_ref() {
+                syn::Pat::Ident(pattern) => {
+                    if let Some(type_name) = type_last_segment(&argument.ty) {
+                        let resolved = bounds.get(&type_name).cloned().unwrap_or(type_name);
+                        types.insert(pattern.ident.to_string(), resolved);
+                    }
                 }
+                syn::Pat::TupleStruct(pattern) => {
+                    if let (Some(name), Some(type_name)) =
+                        (single_binding(pattern), unwrapped_argument(&argument.ty))
+                    {
+                        types.insert(name, type_name);
+                    }
+                }
+                _ => {}
             }
         }
     }
     types
+}
+
+/// The one name a single-field tuple-struct pattern binds, where it
+/// binds exactly one.
+///
+/// A parameter written as `Wrapper(name): Wrapper<T>` takes the wrapper
+/// apart in the signature itself, so the name holds the wrapped value
+/// from the first line of the body on.
+fn single_binding(pattern: &syn::PatTupleStruct) -> Option<String> {
+    let mut bound = pattern.elems.iter();
+    let (first, rest) = (bound.next()?, bound.next());
+    if rest.is_some() {
+        return None;
+    }
+    let syn::Pat::Ident(ident) = first else {
+        return None;
+    };
+    Some(ident.ident.to_string())
+}
+
+/// The type the one written argument of a wrapper names, where the
+/// wrapper carries exactly one.
+///
+/// Read for a parameter whose pattern already proves the unwrapping:
+/// the single field of such a wrapper is taken to be its single type
+/// argument, which holds for the extractor shape the pattern is written
+/// for, and is wrong where a one-argument type declares its field as
+/// something else — the same class of approximation as the wrapped
+/// closure binding, and bounded the same way by the written pattern.
+fn unwrapped_argument(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    let mut written = arguments.args.iter().filter_map(|argument| {
+        if let syn::GenericArgument::Type(inner) = argument {
+            Some(inner)
+        } else {
+            None
+        }
+    });
+    let (first, rest) = (written.next()?, written.next());
+    if rest.is_some() {
+        return None;
+    }
+    type_last_segment(first)
 }
 
 /// Maps parameter names to the element type of their declared
