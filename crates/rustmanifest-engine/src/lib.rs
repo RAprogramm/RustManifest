@@ -63,13 +63,13 @@ pub use semantic::{
     ModuleInfo, ModuleOverview, Multiplicity, Narrative, Newline, OUTPUT_SINK_SET, OpaqueReason,
     OriginGap, Outliving, OutputClaim, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload,
     ProcessExit, Provenance, Role, Route, ScipEdges, ScipError, Segment, SemanticAnalyzer,
-    SiteGuard, Started, Store as KeptStore, Stream, Surface, TraitNode, TypeGraph, TypeKind,
-    TypeNode, VALUE_ORIGIN_SET, Verb as KeptVerb, Workspace, behavior, behavior_with, call_graph,
-    call_graph_with, capabilities, check_invariants, check_invariants_with,
+    Serving, SiteGuard, Started, Store as KeptStore, Stream, Surface, TraitNode, TypeGraph,
+    TypeKind, TypeNode, VALUE_ORIGIN_SET, Verb as KeptVerb, Workspace, behavior, behavior_with,
+    call_graph, call_graph_with, capabilities, check_invariants, check_invariants_with,
     commands as kept_commands, completion_rule, coverage, coverage_indexed, coverage_with,
     doc_facts, entry_points, expansion, features, keeping, module_overview, origin_gaps,
-    outliving, program_meaning, purpose, role, semantic_findings, started, stores as kept_stores,
-    surface, transitive_effects, unresolved_targets
+    outliving, program_meaning, purpose, role, semantic_findings, servings, started,
+    stores as kept_stores, surface, transitive_effects, unresolved_targets
 };
 pub use source::Source;
 

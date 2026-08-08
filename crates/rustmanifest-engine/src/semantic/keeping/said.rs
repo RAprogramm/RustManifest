@@ -11,8 +11,8 @@
 //! claim rather than a vaguer one.
 
 use super::{
-    asking::commands, ending::endings, outliving::outliving, store::stores, telling::telling,
-    verb::keeping
+    asking::commands, ending::endings, outliving::outliving, served::servings, store::stores,
+    telling::telling, verb::keeping
 };
 use crate::semantic::workspace::Workspace;
 
@@ -27,6 +27,7 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
     let kept = keeping(workspace);
     let carried = outliving(workspace);
     let asked = commands(workspace);
+    let served = servings(workspace);
     let told = telling(workspace);
     let mut said = Vec::new();
     for store in &held {
@@ -55,9 +56,7 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
             .map(|command| {
                 command.carries.as_ref().map_or_else(
                     || format!("{} {}", command.written, command.verb),
-                    |carried| {
-                        format!("{} {} named by {carried}", command.written, command.verb)
-                    }
+                    |carried| format!("{} {} named by {carried}", command.written, command.verb)
                 )
             })
             .collect();
@@ -65,6 +64,9 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
         names.dedup();
         if !names.is_empty() {
             clauses.push(format!("a run asks by name: {}", names.join(", ")));
+        }
+        if let Some(clause) = route_clause(&served, &key) {
+            clauses.push(clause);
         }
         let mut ways: Vec<String> = carried
             .iter()
@@ -110,4 +112,24 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
         said.push(clauses.join("; "));
     }
     said
+}
+
+/// The route clause of one store: every endpoint that reaches it,
+/// stated as what a caller writes and what they get, with a route that
+/// may not be mounted saying so.
+fn route_clause(served: &[super::served::Serving], key: &str) -> Option<String> {
+    let mut routes: Vec<String> = served
+        .iter()
+        .filter(|serving| serving.store == key)
+        .map(|serving| {
+            let asked = format!("`{} {}` {}", serving.method, serving.path, serving.verb);
+            if serving.conditional {
+                format!("{asked} (mounted in some builds or runs only)")
+            } else {
+                asked
+            }
+        })
+        .collect();
+    routes.dedup();
+    (!routes.is_empty()).then(|| format!("a request asks by route: {}", routes.join(", ")))
 }

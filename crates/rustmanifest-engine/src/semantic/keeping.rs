@@ -19,6 +19,7 @@ mod asking;
 mod ending;
 mod outliving;
 mod said;
+mod served;
 mod store;
 mod telling;
 mod verb;
@@ -28,6 +29,7 @@ pub use self::{
     ending::{Ending, endings},
     outliving::{Direction, Outliving, outliving},
     said::purpose,
+    served::{Serving, servings},
     store::{Store, stores},
     telling::{Telling, telling},
     verb::{Keeping, Verb, keeping}
@@ -163,6 +165,25 @@ pub fn run(store: &mut Store, asked: &str) {
             .expect("the handler must reach the store");
         assert_eq!(listed.store, "AppState.tasks");
         assert_eq!(listed.verb, Verb::Reads);
+    }
+
+    #[test]
+    fn a_route_whose_handler_reaches_the_records_is_a_way_to_ask() {
+        let sources = workspace_of(
+            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
+             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
+             tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn list(State(state): \
+             State<Arc<AppState>>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
+             tasks.len()\n}\n\npub fn app() -> Router {\n    Router::new().route(\"/tasks\", \
+             get(list))\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1);
+        assert!(
+            said[0].contains("a request asks by route: `GET /tasks` reads the records"),
+            "{said:?}"
+        );
     }
 
     #[test]
