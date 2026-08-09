@@ -12,13 +12,14 @@
 //! server itself — how to render an answer is the asker's decision.
 
 use lsp_server::{Request, Response};
-use rustmanifest_engine::Source;
+
+use super::snapshot::Derived;
 
 /// The one command this server serves.
 pub(super) const WHY: &str = "rust-manifest.why";
 
 /// Answers one `workspace/executeCommand` request over the snapshot.
-pub(super) fn answer(request: &Request, sources: &[Source]) -> Response {
+pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     let arguments = &request.params["arguments"];
     let (Some(_uri), Some(function), Some(effect)) = (
         arguments[0].as_str(),
@@ -31,8 +32,13 @@ pub(super) fn answer(request: &Request, sources: &[Source]) -> Response {
             format!("`{WHY}` takes [uri, function, effect]")
         );
     };
-    let workspace = rustmanifest_engine::Workspace::new(sources);
-    let asked = rustmanifest_engine::semantic::why_effect(&workspace, function, effect);
+    let asked = rustmanifest_engine::semantic::why_effect_over(
+        held.sources,
+        held.facts,
+        held.graph,
+        function,
+        effect
+    );
     let steps: Vec<serde_json::Value> = asked
         .steps
         .iter()

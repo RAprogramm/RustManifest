@@ -14,16 +14,15 @@
 
 use lsp_server::{Request, Response};
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
-use rustmanifest_engine::Source;
 
 use super::{
     card::{card, why_section},
     position::offset_of,
-    snapshot::path_of
+    snapshot::{Derived, path_of}
 };
 
-/// Answers one hover request over the snapshot's sources.
-pub(super) fn answer(request: &Request, sources: &[Source]) -> Response {
+/// Answers one hover request over the snapshot's derivations.
+pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     let Ok(params) = serde_json::from_value::<HoverParams>(request.params.clone()) else {
         return Response::new_err(
             request.id.clone(),
@@ -33,19 +32,14 @@ pub(super) fn answer(request: &Request, sources: &[Source]) -> Response {
     };
     let uri = &params.text_document_position_params.text_document.uri;
     let path = path_of(uri.as_str());
-    let answered = sources
+    let answered = held
+        .sources
         .iter()
         .position(|source| source.path() == path)
         .and_then(|file| {
-            let held = sources[file].text();
-            let offset = offset_of(held, params.text_document_position_params.position);
-            let facts = rustmanifest_engine::behavior(sources);
-            let graph = rustmanifest_engine::call_graph(
-                &facts,
-                &rustmanifest_engine::semantic::resolution_context(sources)
-            );
-            let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
-            facts
+            let text = held.sources[file].text();
+            let offset = offset_of(text, params.text_document_position_params.position);
+            held.facts
                 .iter()
                 .enumerate()
                 .find(|(_, fact)| {
@@ -54,16 +48,17 @@ pub(super) fn answer(request: &Request, sources: &[Source]) -> Response {
                         && (range.start as usize..range.end as usize).contains(&offset)
                 })
                 .map(|(index, fact)| {
-                    let inherited = reached.get(index).map_or(&[][..], Vec::as_slice);
+                    let inherited = held.reached.get(index).map_or(&[][..], Vec::as_slice);
                     let mut value = card(fact, inherited);
-                    let workspace = rustmanifest_engine::Workspace::new(sources);
                     for effect in inherited
                         .iter()
                         .filter(|effect| !fact.effects.contains(effect))
                     {
                         let named = effect.to_string();
-                        let asked = rustmanifest_engine::semantic::why_effect(
-                            &workspace,
+                        let asked = rustmanifest_engine::semantic::why_effect_over(
+                            held.sources,
+                            held.facts,
+                            held.graph,
                             &fact.function,
                             &named
                         );

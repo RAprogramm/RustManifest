@@ -41,7 +41,25 @@ pub struct Answer {
 /// does.
 #[must_use]
 pub fn why_effect(workspace: &Workspace<'_>, function: &str, effect: &str) -> Answer {
-    let facts = workspace.facts();
+    why_effect_over(
+        workspace.sources(),
+        workspace.facts(),
+        workspace.calls(),
+        function,
+        effect
+    )
+}
+
+/// [`why_effect`] over derivations already built, so a caller holding
+/// them pays for no second derivation.
+#[must_use]
+pub fn why_effect_over(
+    sources: &[crate::source::Source],
+    facts: &[FunctionFacts],
+    graph: &CallGraph,
+    function: &str,
+    effect: &str
+) -> Answer {
     let named: Vec<usize> = facts
         .iter()
         .enumerate()
@@ -59,9 +77,9 @@ pub fn why_effect(workspace: &Workspace<'_>, function: &str, effect: &str) -> An
         .iter()
         .any(|observed| observed.to_string() == effect)
     {
-        return direct(workspace, fact, effect);
+        return direct(sources, fact, effect);
     }
-    through(workspace, index, effect)
+    through(sources, facts, graph, index, effect)
 }
 
 /// The refusal for a name matching no function or several.
@@ -90,8 +108,8 @@ fn unmatched(facts: &[FunctionFacts], function: &str, named: &[usize]) -> Answer
 }
 
 /// The answer where the body performs the effect itself.
-fn direct(workspace: &Workspace<'_>, fact: &FunctionFacts, effect: &str) -> Answer {
-    let steps = proof_steps(workspace, fact, effect);
+fn direct(sources: &[crate::source::Source], fact: &FunctionFacts, effect: &str) -> Answer {
+    let steps = proof_steps(sources, fact, effect);
     Answer {
         conclusion: format!(
             "`{}` performs `{effect}` in its own body, at the written call the steps cite",
@@ -102,9 +120,13 @@ fn direct(workspace: &Workspace<'_>, fact: &FunctionFacts, effect: &str) -> Answ
 }
 
 /// The answer where the effect is reached through calls.
-fn through(workspace: &Workspace<'_>, index: usize, effect: &str) -> Answer {
-    let facts = workspace.facts();
-    let graph: &CallGraph = workspace.calls();
+fn through(
+    sources: &[crate::source::Source],
+    facts: &[FunctionFacts],
+    graph: &CallGraph,
+    index: usize,
+    effect: &str
+) -> Answer {
     let chain = effect_chain(facts, graph, index, effect);
     let Some(&sink) = chain.last() else {
         let derived: Vec<String> = facts[index]
@@ -132,7 +154,7 @@ fn through(workspace: &Workspace<'_>, index: usize, effect: &str) -> Answer {
             reason: edge_reason(graph, window[0], window[1]).to_owned()
         });
     }
-    steps.extend(proof_steps(workspace, &facts[sink], effect));
+    steps.extend(proof_steps(sources, &facts[sink], effect));
     let possible = chain
         .windows(2)
         .any(|window| graph.possibilistic(window[0], window[1]));
@@ -152,8 +174,11 @@ fn through(workspace: &Workspace<'_>, index: usize, effect: &str) -> Answer {
 
 /// The steps citing every written path that proved the effect in one
 /// body, each with the file it stands in.
-fn proof_steps(workspace: &Workspace<'_>, fact: &FunctionFacts, effect: &str) -> Vec<TraceStep> {
-    let sources = workspace.sources();
+fn proof_steps(
+    sources: &[crate::source::Source],
+    fact: &FunctionFacts,
+    effect: &str
+) -> Vec<TraceStep> {
     fact.effect_sites
         .iter()
         .filter(|site| site.effect.to_string() == effect)

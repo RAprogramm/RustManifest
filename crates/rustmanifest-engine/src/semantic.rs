@@ -113,6 +113,6 @@ pub use self::{
         composition_with, summaries, summaries_with
     },
     surface::{FrameworkModel, Route, Surface, surface},
-    why::{Answer, why_effect},
+    why::{Answer, why_effect, why_effect_over},
     workspace::Workspace
 };

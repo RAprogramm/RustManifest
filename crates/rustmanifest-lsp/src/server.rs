@@ -61,9 +61,9 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                     return Ok(());
                 }
                 let answer = match request.method.as_str() {
-                    "textDocument/hover" => hover::answer(&request, held.sources(&documents)),
+                    "textDocument/hover" => hover::answer(&request, &held.derived(&documents)),
                     "workspace/executeCommand" => {
-                        command::answer(&request, held.sources(&documents))
+                        command::answer(&request, &held.derived(&documents))
                     }
                     _ => lsp_server::Response::new_err(
                         request.id.clone(),
