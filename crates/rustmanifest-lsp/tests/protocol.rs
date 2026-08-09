@@ -102,3 +102,85 @@ fn an_opened_document_with_a_violation_receives_its_diagnostic() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// A source whose function clones, allocates and takes a borrowed
+/// parameter — the memory story a card must tell.
+const HUNGRY: &str = "fn hoard(input: &str) -> Vec<String> {\n    let mut out = Vec::new();\n    \
+                      out.push(input.to_owned());\n    out.push(format!(\"{input}\"));\n    \
+                      std::fs::write(\"log\", input).ok();\n    out\n}\n";
+
+#[test]
+fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": HUNGRY
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/hover".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "position": { "line": 0, "character": 4 }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a hover request must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    let value = held["contents"]["value"].as_str().unwrap();
+    assert!(value.contains("### `hoard`"), "{value}");
+    assert!(value.contains("clones: 1"), "{value}");
+    assert!(value.contains("allocations:"), "{value}");
+    assert!(value.contains("taken borrowed"), "{value}");
+    assert!(value.contains("effects of its own body: `fs`"), "{value}");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}

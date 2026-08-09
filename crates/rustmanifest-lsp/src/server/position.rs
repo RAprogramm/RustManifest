@@ -67,3 +67,32 @@ mod tests {
         assert_eq!(past.line, 2);
     }
 }
+
+/// The byte offset one protocol position names in `text`, UTF-16 code
+/// units walked back to bytes, clamped to the line it names.
+pub(super) fn offset_of(text: &str, position: lsp_types::Position) -> usize {
+    let mut line = 0u32;
+    let mut cursor = 0usize;
+    if position.line > 0 {
+        for (at, part) in text.char_indices() {
+            if part == '\n' {
+                line += 1;
+                if line == position.line {
+                    cursor = at + 1;
+                    break;
+                }
+            }
+        }
+        if line < position.line {
+            return text.len();
+        }
+    }
+    let mut units = 0u32;
+    for (at, part) in text[cursor..].char_indices() {
+        if units >= position.character || part == '\n' {
+            return cursor + at;
+        }
+        units += u32::try_from(part.len_utf16()).unwrap_or(u32::MAX);
+    }
+    text.len()
+}

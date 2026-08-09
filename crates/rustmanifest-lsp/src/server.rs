@@ -22,7 +22,11 @@ use lsp_types::{
 };
 
 mod analysis;
+mod card;
+mod hover;
 mod position;
+
+use std::collections::BTreeMap;
 
 use self::analysis::Analysis;
 
@@ -35,21 +39,38 @@ use self::analysis::Analysis;
 pub fn serve(connection: &Connection) -> anyhow::Result<()> {
     let capabilities = ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         ..ServerCapabilities::default()
     };
     connection
         .initialize(serde_json::to_value(capabilities).context("encoding capabilities")?)
         .context("initialize handshake")?;
     let analysis = Analysis::new().context("building analyzers from bundled rules")?;
+    let mut documents: BTreeMap<String, String> = BTreeMap::new();
     for message in &connection.receiver {
         match message {
             Message::Request(request) => {
                 if connection.handle_shutdown(&request).context("shutdown")? {
                     return Ok(());
                 }
+                let answer = match request.method.as_str() {
+                    "textDocument/hover" => {
+                        hover::answer(&request, held_text(&documents, &request))
+                    }
+                    _ => lsp_server::Response::new_err(
+                        request.id.clone(),
+                        lsp_server::ErrorCode::MethodNotFound as i32,
+                        format!("method `{}` is not served", request.method)
+                    )
+                };
+                connection
+                    .sender
+                    .send(Message::Response(answer))
+                    .context("answering a request")?;
             }
             Message::Notification(notification) => {
                 if let Some((uri, text)) = document_of(&notification) {
+                    documents.insert(uri.as_str().to_owned(), text.clone());
                     publish(connection, &analysis, uri, &text)?;
                 }
             }
@@ -57,6 +78,17 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// The stored text of the document a request speaks about.
+fn held_text<'a>(
+    documents: &'a BTreeMap<String, String>,
+    request: &lsp_server::Request
+) -> Option<&'a str> {
+    request.params["textDocument"]["uri"]
+        .as_str()
+        .and_then(|uri| documents.get(uri))
+        .map(String::as_str)
 }
 
 /// The document one notification carries, where it carries one whole.
