@@ -46,28 +46,6 @@ impl LineIndex {
     }
 }
 
-#[cfg(test)]
-#[allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    reason = "test code is allowed to fail loudly on broken invariants"
-)]
-mod tests {
-    use super::LineIndex;
-
-    #[test]
-    fn offsets_map_to_lines_and_utf16_columns() {
-        let text = "fn a() {}\nlet s = \"п\";\n";
-        let index = LineIndex::new(text);
-        assert_eq!(index.position(text, 0).line, 0);
-        assert_eq!(index.position(text, 10).line, 1);
-        assert_eq!(index.position(text, 10).character, 0);
-        let past = index.position(text, 10_000);
-        assert_eq!(past.line, 2);
-    }
-}
-
 /// The byte offset one protocol position names in `text`, UTF-16 code
 /// units walked back to bytes, clamped to the line it names.
 pub(super) fn offset_of(text: &str, position: lsp_types::Position) -> usize {
@@ -95,4 +73,26 @@ pub(super) fn offset_of(text: &str, position: lsp_types::Position) -> usize {
         units += u32::try_from(part.len_utf16()).unwrap_or(u32::MAX);
     }
     text.len()
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use super::LineIndex;
+
+    #[test]
+    fn offsets_map_to_lines_and_utf16_columns() {
+        let text = "fn a() {}\nlet s = \"п\";\n";
+        let index = LineIndex::new(text);
+        assert_eq!(index.position(text, 0).line, 0);
+        assert_eq!(index.position(text, 10).line, 1);
+        assert_eq!(index.position(text, 10).character, 0);
+        let past = index.position(text, 10_000);
+        assert_eq!(past.line, 2);
+    }
 }

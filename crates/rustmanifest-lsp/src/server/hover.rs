@@ -49,8 +49,8 @@ pub(super) fn answer(request: &Request, text: Option<&str>) -> Response {
                 range:    None
             })
     });
-    match answered {
-        Some(hover) => Response::new_ok(request.id.clone(), hover),
-        None => Response::new_ok(request.id.clone(), serde_json::Value::Null)
-    }
+    answered.map_or_else(
+        || Response::new_ok(request.id.clone(), serde_json::Value::Null),
+        |hover| Response::new_ok(request.id.clone(), hover)
+    )
 }
