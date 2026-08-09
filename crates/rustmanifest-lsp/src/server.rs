@@ -23,6 +23,7 @@ use lsp_types::{
 
 mod analysis;
 mod card;
+mod command;
 mod hover;
 mod position;
 
@@ -40,6 +41,10 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
     let capabilities = ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+        execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
+            commands: vec![command::WHY.to_owned()],
+            ..lsp_types::ExecuteCommandOptions::default()
+        }),
         ..ServerCapabilities::default()
     };
     connection
@@ -57,6 +62,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                     "textDocument/hover" => {
                         hover::answer(&request, held_text(&documents, &request))
                     }
+                    "workspace/executeCommand" => command::answer(&request, &documents),
                     _ => lsp_server::Response::new_err(
                         request.id.clone(),
                         lsp_server::ErrorCode::MethodNotFound as i32,
