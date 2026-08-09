@@ -5,18 +5,20 @@
 //! computed over the whole workspace snapshot.
 //!
 //! The cursor names a function by standing on its written name — the
-//! one byte range the fact base records per function. A cursor
-//! anywhere else answers with nothing, which the protocol renders as
-//! no card at all: silence is "no fact recorded here", never an empty
-//! box. The facts and the inference read every source the snapshot
-//! holds, so a chain crossing files answers the same as one inside a
-//! single buffer.
+//! one byte range the fact base records per function. A cursor on a
+//! written call instead answers with the ownership story of that call:
+//! per handed value, whether it moves, crosses as a copy, or is only
+//! borrowed. A cursor anywhere else answers with nothing, which the
+//! protocol renders as no card at all: silence is "no fact recorded
+//! here", never an empty box. The facts and the inference read every
+//! source the snapshot holds, so a chain crossing files answers the
+//! same as one inside a single buffer.
 
 use lsp_server::{Request, Response};
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use super::{
-    card::{card, why_section},
+    card::{card, handover_section, why_section},
     position::offset_of,
     snapshot::{Derived, path_of}
 };
@@ -39,43 +41,57 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
         .and_then(|file| {
             let text = held.sources[file].text();
             let offset = offset_of(text, params.text_document_position_params.position);
-            held.facts
-                .iter()
-                .enumerate()
-                .find(|(_, fact)| {
-                    let range = fact.range;
-                    fact.source == file
-                        && (range.start as usize..range.end as usize).contains(&offset)
-                })
-                .map(|(index, fact)| {
-                    let inherited = held.reached.get(index).map_or(&[][..], Vec::as_slice);
-                    let mut value = card(fact, inherited);
-                    for effect in inherited
-                        .iter()
-                        .filter(|effect| !fact.effects.contains(effect))
-                    {
-                        let named = effect.to_string();
-                        let asked = rustmanifest_engine::semantic::why_effect_over(
-                            held.sources,
-                            held.facts,
-                            held.graph,
-                            &fact.function,
-                            &named
-                        );
-                        value.push_str("\n\n");
-                        value.push_str(&why_section(&named, &asked));
-                    }
-                    Hover {
-                        contents: HoverContents::Markup(MarkupContent {
-                            kind: MarkupKind::Markdown,
-                            value
-                        }),
-                        range:    None
-                    }
-                })
+            named_card(held, file, offset).or_else(|| call_story(held, file, offset))
+        })
+        .map(|value| Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value
+            }),
+            range:    None
         });
     answered.map_or_else(
         || Response::new_ok(request.id.clone(), serde_json::Value::Null),
         |hover| Response::new_ok(request.id.clone(), hover)
     )
+}
+
+/// The fact card of the function whose written name covers `offset`,
+/// with the inference of every effect it only inherits.
+fn named_card(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> {
+    let (index, fact) = held.facts.iter().enumerate().find(|(_, fact)| {
+        let range = fact.range;
+        fact.source == file && (range.start as usize..range.end as usize).contains(&offset)
+    })?;
+    let inherited = held.reached.get(index).map_or(&[][..], Vec::as_slice);
+    let mut value = card(fact, inherited);
+    for effect in inherited
+        .iter()
+        .filter(|effect| !fact.effects.contains(effect))
+    {
+        let named = effect.to_string();
+        let asked = rustmanifest_engine::semantic::why_effect_over(
+            held.sources,
+            held.facts,
+            held.graph,
+            &fact.function,
+            &named
+        );
+        value.push_str("\n\n");
+        value.push_str(&why_section(&named, &asked));
+    }
+    Some(value)
+}
+
+/// The ownership story of the written call covering `offset`, where a
+/// resolved workspace call with parameters stands there.
+fn call_story(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> {
+    let answer = rustmanifest_engine::semantic::handover_at(
+        held.facts,
+        held.graph,
+        held.types,
+        file,
+        u32::try_from(offset).ok()?
+    )?;
+    Some(handover_section(&answer))
 }

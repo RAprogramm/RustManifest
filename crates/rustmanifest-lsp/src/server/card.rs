@@ -74,3 +74,14 @@ pub(super) fn why_section(effect: &str, answer: &rustmanifest_engine::semantic::
     lines.push(format!("=> {}", answer.conclusion));
     lines.join("\n")
 }
+
+/// The ownership story of the written call under the cursor: one step
+/// per handed value, closing with where each one ends up.
+pub(super) fn handover_section(answer: &rustmanifest_engine::semantic::Answer) -> String {
+    let mut lines = vec!["### ownership at this call".to_owned()];
+    for (position, step) in answer.steps.iter().enumerate() {
+        lines.push(format!("{}. {} — {}", position + 1, step.fact, step.reason));
+    }
+    lines.push(format!("=> {}", answer.conclusion));
+    lines.join("\n")
+}

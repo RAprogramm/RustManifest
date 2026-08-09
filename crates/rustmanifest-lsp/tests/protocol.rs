@@ -366,3 +366,92 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// The interview scene itself: a function taking a `String` by value,
+/// and a caller handing its local over. The hover on the written call
+/// must tell the move.
+const HANDED: &str = "fn foo(value: String) {}\nfn main() { let s = String::from(\"hello\"); \
+                      foo(s); }\n";
+
+#[test]
+fn a_hover_on_a_written_call_tells_where_ownership_goes() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": HANDED
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    let line = HANDED.lines().nth(1).unwrap();
+    let character = line.find("foo(s)").unwrap() + 1;
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/hover".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "position": { "line": 1, "character": character }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a hover request must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    let value = held["contents"]["value"].as_str().unwrap();
+    assert!(value.contains("### ownership at this call"), "{value}");
+    assert!(
+        value.contains("`value: String` is taken by value, and `String` is not `Copy`"),
+        "{value}"
+    );
+    assert!(value.contains("unusable after this line"), "{value}");
+    assert!(
+        value.contains("calling `foo` moves 1 value(s) in"),
+        "{value}"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}

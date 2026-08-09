@@ -12,7 +12,7 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use rustmanifest_engine::{FunctionFacts, Source, semantic::Effect};
+use rustmanifest_engine::{FunctionFacts, Source, TypeGraph, semantic::Effect};
 
 /// The sources and derivations answers are computed over, rebuilt after
 /// document events.
@@ -40,7 +40,9 @@ struct Built {
     /// The resolved call graph over the facts.
     graph:   rustmanifest_engine::CallGraph,
     /// Per-function effects closed over the graph.
-    reached: Vec<Vec<Effect>>
+    reached: Vec<Vec<Effect>>,
+    /// The type graph of the sources: definitions, derives, and impls.
+    types:   TypeGraph
 }
 
 impl Snapshot {
@@ -69,11 +71,13 @@ impl Snapshot {
                 &rustmanifest_engine::semantic::resolution_context(&sources)
             );
             let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
+            let types = TypeGraph::from_sources(&sources);
             self.built = Some(Built {
                 sources,
                 facts,
                 graph,
-                reached
+                reached,
+                types
             });
             self.dirty = false;
         }
@@ -84,13 +88,15 @@ impl Snapshot {
                 &[],
                 &rustmanifest_engine::semantic::ResolutionContext::default()
             ),
-            reached: Vec::new()
+            reached: Vec::new(),
+            types:   TypeGraph::from_sources(&[])
         });
         Derived {
             sources: &held.sources,
             facts:   &held.facts,
             graph:   &held.graph,
-            reached: &held.reached
+            reached: &held.reached,
+            types:   &held.types
         }
     }
 }
@@ -104,7 +110,9 @@ pub(super) struct Derived<'a> {
     /// The resolved call graph over the facts.
     pub(super) graph:   &'a rustmanifest_engine::CallGraph,
     /// Per-function effects closed over the graph.
-    pub(super) reached: &'a [Vec<Effect>]
+    pub(super) reached: &'a [Vec<Effect>],
+    /// The type graph of the sources: definitions, derives, and impls.
+    pub(super) types:   &'a TypeGraph
 }
 
 /// Builds the source slice: the root's files off disk, buffers overlaid,
