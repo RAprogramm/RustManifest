@@ -94,6 +94,9 @@ impl FactCollector {
     /// moment. Reading the positions again once the walk has come back
     /// out costs one lookup and turns those positions from unreadable
     /// into what they are.
+    /// A hole written as an inline capture spells the name inside the
+    /// template rather than as an expression, so no path visit ever
+    /// sees it — the use is counted here, where the capture is read.
     pub(super) fn settle_hole_origins(&mut self, invocation: &syn::Macro, skipped: usize) {
         let Some(index) = self.facts.output_writes.len().checked_sub(1) else {
             return;
@@ -108,8 +111,24 @@ impl FactCollector {
             return;
         };
         let settled = self.typed_holes(recorded.payload.clone(), &written);
+        let captured: Vec<String> = match &settled {
+            Payload::Template(segments) => segments
+                .iter()
+                .filter_map(|segment| match segment {
+                    output::Segment::Hole(hole) => match &hole.source {
+                        output::HoleSource::Named(name) => Some(name.clone()),
+                        _ => None
+                    },
+                    output::Segment::Text(_) => None
+                })
+                .collect(),
+            _ => Vec::new()
+        };
         if let Some(recorded) = self.facts.output_writes.get_mut(index) {
             recorded.payload = settled;
+        }
+        for name in captured {
+            self.bump_param(&name, false);
         }
     }
 

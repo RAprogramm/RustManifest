@@ -124,6 +124,16 @@ mod tests {
         assert_eq!(joined.table, None, "a join must not claim one table");
     }
 
+    /// A name captured inline in a template is a use of the parameter it
+    /// names, counted where the capture is read — no path visit ever
+    /// sees it.
+    #[test]
+    fn an_inline_template_capture_counts_as_a_use() {
+        let all = facts("fn show(input: &str) { println!(\"{input} {input}\"); }");
+        let shown = named(&all, "show");
+        assert_eq!(shown.params[0].uses, 2, "{:?}", shown.params);
+    }
+
     /// The function form hands its arguments over one `bind` at a time,
     /// and the chain lands on the statement site in written order; a
     /// computed argument claims nothing.
