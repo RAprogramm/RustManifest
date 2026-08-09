@@ -78,7 +78,7 @@ impl Analysis {
                 },
                 severity: Some(severity(finding.severity)),
                 code: Some(NumberOrString::String(finding.rule_id)),
-                source: Some("rustmanifest".to_owned()),
+                source: Some("rust-manifest".to_owned()),
                 message: finding.message,
                 ..Diagnostic::default()
             })

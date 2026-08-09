@@ -70,7 +70,7 @@ fn an_opened_document_with_a_violation_receives_its_diagnostic() {
     assert!(
         diagnostics
             .iter()
-            .all(|entry| entry["source"] == "rustmanifest" && entry["code"].is_string()),
+            .all(|entry| entry["source"] == "rust-manifest" && entry["code"].is_string()),
         "{diagnostics:?}"
     );
 

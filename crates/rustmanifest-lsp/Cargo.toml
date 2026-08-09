@@ -29,3 +29,7 @@ tracing-subscriber.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "rust-manifest"
+path = "src/main.rs"
