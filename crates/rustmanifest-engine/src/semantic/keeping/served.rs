@@ -68,7 +68,18 @@ pub(super) fn servings_with(
     workspace: &Workspace<'_>,
     composed: &crate::semantic::summary::Composition<'_>
 ) -> Vec<Serving> {
-    let kept = keeping(workspace);
+    servings_of(workspace, composed, &keeping(workspace))
+}
+
+/// [`servings`] over any keeping list — the field stores' own, or the
+/// table stores' — since the join asks only which handler performs
+/// which verb on which key.
+#[must_use]
+pub(super) fn servings_of(
+    workspace: &Workspace<'_>,
+    composed: &crate::semantic::summary::Composition<'_>,
+    kept: &[crate::semantic::keeping::Keeping]
+) -> Vec<Serving> {
     let held = super::store::stores(workspace);
     let takers = super::taker::path_takers(workspace.sources());
     let sources = workspace.sources();

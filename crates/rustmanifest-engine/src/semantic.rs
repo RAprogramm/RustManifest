@@ -90,8 +90,9 @@ pub use self::{
     },
     invariant::{check_invariants, check_invariants_with},
     keeping::{
-        Command, Direction, Ending, Feeding, Keeping, Outliving, Serving, Store, Telling, Verb,
-        commands, endings, feedings, keeping, outliving, purpose, servings, stores, telling
+        Command, Direction, Ending, Feeding, Keeping, Outliving, Serving, Store, TableStore,
+        Telling, Verb, commands, endings, feedings, keeping, outliving, purpose, servings, stores,
+        table_keeping, table_key, tables, telling
     },
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},

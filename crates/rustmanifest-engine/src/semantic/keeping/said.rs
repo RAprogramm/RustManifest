@@ -13,9 +13,17 @@
 use std::fmt::Write as _;
 
 use super::{
-    answering::returners, asking::commands_with, ending::endings, fed::feedings_with,
-    outliving::outliving, receiving::receivers, served::servings_with, store::stores,
-    telling::telling, verb::keeping
+    answering::returners,
+    asking::commands_with,
+    ending::endings,
+    fed::feedings_with,
+    outliving::outliving,
+    receiving::receivers,
+    served::{servings_of, servings_with},
+    store::stores,
+    table::{table_keeping, table_key, tables},
+    telling::telling,
+    verb::keeping
 };
 use crate::semantic::{surface::surface, workspace::Workspace};
 
@@ -89,6 +97,29 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
             clauses.push(clause);
         }
         clauses.push(outlived_clause(&carried, &key));
+        if let Some(clause) = &ends {
+            clauses.push(clause.clone());
+        }
+        said.push(clauses.join("; "));
+    }
+    let table_kept = table_keeping(workspace);
+    let table_served = servings_of(workspace, &composed, &table_kept);
+    for store in tables(workspace) {
+        let key = table_key(&store.table);
+        let mut clauses = vec![format!(
+            "keeps its records as rows of the `{}` table, named in its own statements",
+            store.table
+        )];
+        if let Some(clause) = verb_clause(&table_kept, &key) {
+            clauses.push(clause);
+        }
+        if let Some(clause) = command_clause(&asked, &table_kept) {
+            clauses.push(clause);
+        }
+        if let Some(clause) = route_clause(&table_served, &key) {
+            clauses.push(clause);
+        }
+        clauses.push("the rows stay in the database past the end of the run".to_owned());
         if let Some(clause) = &ends {
             clauses.push(clause.clone());
         }

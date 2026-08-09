@@ -24,6 +24,7 @@ mod receiving;
 mod said;
 mod served;
 mod store;
+mod table;
 mod taker;
 mod telling;
 mod verb;
@@ -36,6 +37,7 @@ pub use self::{
     said::purpose,
     served::{Serving, servings},
     store::{Store, stores},
+    table::{TableStore, table_keeping, table_key, tables},
     telling::{Telling, telling},
     verb::{Keeping, Verb, keeping}
 };
@@ -50,7 +52,7 @@ pub use self::{
 mod tests {
     use std::path::PathBuf;
 
-    use super::{Direction, Verb, commands, keeping, outliving, purpose, stores};
+    use super::{Direction, Verb, commands, keeping, outliving, purpose, stores, tables};
     use crate::{semantic::workspace::Workspace, source::Source};
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
@@ -373,6 +375,63 @@ pub fn run(store: &mut Store, asked: &str) {
             said[0].contains("a request is answered with it: `GET /items`"),
             "{said:?}"
         );
+    }
+
+    /// A program holding no collection anywhere still keeps records:
+    /// the table its own statements name is the store, and each verb is
+    /// the statement's kind.
+    #[test]
+    fn a_table_named_in_the_programs_own_statements_is_a_store() {
+        let sources = workspace_of(
+            "pub async fn create(pool: &sqlx::PgPool, title: String) {\n    \
+             sqlx::query!(\"INSERT INTO tasks (title) VALUES ($1)\", title);\n}\npub async fn \
+             list(pool: &sqlx::PgPool) {\n    sqlx::query!(\"SELECT id, title FROM tasks\");\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let held = tables(&workspace);
+        assert_eq!(held.len(), 1, "{held:?}");
+        assert_eq!(held[0].table, "tasks");
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1, "{said:?}");
+        assert!(
+            said[0].contains("keeps its records as rows of the `tasks` table"),
+            "{said:?}"
+        );
+        assert!(said[0].contains("`create` adds a record"), "{said:?}");
+        assert!(said[0].contains("`list` reads the records"), "{said:?}");
+        assert!(
+            said[0].contains("the rows stay in the database past the end of the run"),
+            "{said:?}"
+        );
+    }
+
+    /// The same table named from a body that also touches a declared
+    /// field store is that store's far side, and gets no sentence of
+    /// its own.
+    #[test]
+    fn a_table_tied_to_a_declared_store_is_not_a_second_store() {
+        let sources = workspace_of(&format!(
+            "{TASK_STORE}\nimpl Store {{\n    pub async fn persist(&self) {{\n        for (_, \
+             task) in &self.tasks {{\n            sqlx::query!(\"INSERT INTO tasks (title) \
+             VALUES ($1)\", task.title);\n        }}\n    }}\n}}\n"
+        ));
+        let workspace = Workspace::new(&sources);
+        assert!(tables(&workspace).is_empty(), "{:?}", tables(&workspace));
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1, "one store, one sentence: {said:?}");
+    }
+
+    /// A statement naming no single table builds no store, and the
+    /// sentence stays silent rather than picking a plausible name.
+    #[test]
+    fn a_join_builds_no_table_store() {
+        let sources = workspace_of(
+            "pub async fn report(pool: &sqlx::PgPool) {\n    sqlx::query!(\"SELECT t.id FROM \
+             tasks t JOIN users u ON TRUE\");\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        assert!(tables(&workspace).is_empty());
+        assert!(purpose(&workspace).is_empty());
     }
 
     #[test]
