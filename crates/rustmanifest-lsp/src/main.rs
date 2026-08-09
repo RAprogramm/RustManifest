@@ -22,6 +22,7 @@ fn main() -> ExitCode {
     let _ = tracing::subscriber::set_global_default(subscriber);
     let (connection, threads) = lsp_server::Connection::stdio();
     let served = rustmanifest_lsp::serve(&connection);
+    drop(connection);
     let joined = threads.join();
     match (served, joined) {
         (Ok(()), Ok(())) => ExitCode::SUCCESS,
