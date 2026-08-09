@@ -66,7 +66,8 @@ pub use self::{
         Multiplicity, Newline, OPERATION_SET, OUTPUT_SINK_SET, OpaqueReason, Operation,
         OperationSite, OriginGap, Outcome, OutputWrite, ParamFacts, ParamMode, ParamSlot, Payload,
         ProcessExit, Provenance, QuerySite, ReadShape, Segment, Selector, SelectorGap, SiteGuard,
-        Statement, Stream, Terminator, VALUE_ORIGIN_SET, behavior, behavior_with
+        Statement, StatementCoverage, Stream, Terminator, VALUE_ORIGIN_SET, behavior,
+        behavior_with, statement_coverage
     },
     calls::{
         CallGraph, ResolutionContext, call_graph, call_graph_with, resolution_context,

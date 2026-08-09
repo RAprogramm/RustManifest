@@ -65,3 +65,51 @@ pub struct QuerySite {
     /// Byte range of the written statement's carrier.
     pub range:     Range
 }
+
+/// How many database effects the statement channel accounts for.
+///
+/// Three counters, none a claim: sites proving a database effect, sites
+/// whose statement kind the channel proved, and among those the sites
+/// naming their table. A statement built at run time proves the effect
+/// and nothing further, so the first number exceeding the second is the
+/// channel's own blind spot, stated as a number rather than left to be
+/// discovered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StatementCoverage {
+    /// Sites proving a database effect, DDL and run-time statements
+    /// included.
+    pub effect_sites: usize,
+    /// Statement sites whose kind the first keyword proved.
+    pub kinds_proven: usize,
+    /// Of those, the sites whose table one plain grammar slot names.
+    pub tables_named: usize
+}
+
+/// Counts the statement channel against the database effects it covers.
+#[must_use]
+pub fn statement_coverage(facts: &[super::FunctionFacts]) -> StatementCoverage {
+    let mut counted = StatementCoverage {
+        effect_sites: 0,
+        kinds_proven: 0,
+        tables_named: 0
+    };
+    for fact in facts {
+        counted.effect_sites += fact
+            .effect_sites
+            .iter()
+            .filter(|site| {
+                matches!(
+                    site.effect,
+                    super::Effect::DatabaseRead | super::Effect::DatabaseWrite
+                )
+            })
+            .count();
+        counted.kinds_proven += fact.queries.len();
+        counted.tables_named += fact
+            .queries
+            .iter()
+            .filter(|site| site.table.is_some())
+            .count();
+    }
+    counted
+}

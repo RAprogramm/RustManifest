@@ -65,7 +65,7 @@ pub use self::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
-    query::{QuerySite, Statement},
+    query::{QuerySite, Statement, StatementCoverage, statement_coverage},
     types::{CallSite, Effect, EffectSite, FunctionFacts, FunctionFlags, ParamFacts, ParamMode},
     value::{
         Arguments, Condition, Disposal, Literal, OriginGap, ParamSlot, Provenance,
@@ -122,6 +122,23 @@ mod tests {
         assert_eq!(listed.table.as_deref(), Some("tasks"));
         let joined = one("report");
         assert_eq!(joined.table, None, "a join must not claim one table");
+    }
+
+    /// The counter states the channel's own blind spot: a DDL statement
+    /// proves the effect and nothing further, so the effect count
+    /// exceeds the proven-kind count by exactly that site.
+    #[test]
+    fn the_statement_counter_names_the_channels_blind_spot() {
+        let all = facts(
+            "async fn migrate(pool: &sqlx::PgPool) {\n    sqlx::query(\"CREATE TABLE tasks (id \
+             BIGINT)\");\n}\nasync fn list(pool: &sqlx::PgPool) {\n    sqlx::query(\"SELECT id \
+             FROM tasks\");\n}\nasync fn report(pool: &sqlx::PgPool) {\n    sqlx::query(\"SELECT \
+             t.id FROM tasks t JOIN users u ON TRUE\");\n}"
+        );
+        let counted = super::statement_coverage(&all);
+        assert_eq!(counted.effect_sites, 3);
+        assert_eq!(counted.kinds_proven, 2, "the DDL site proves no kind");
+        assert_eq!(counted.tables_named, 1, "the join names no table");
     }
 
     #[test]
