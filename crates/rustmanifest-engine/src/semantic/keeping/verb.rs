@@ -123,5 +123,20 @@ fn verb_of(
     {
         return Some(Verb::Marks);
     }
-    Some(Verb::Reads)
+    reading_only(fact, &named)
+}
+
+/// A read proven by its own channel, and silence for every other touch.
+///
+/// The reads channel recording the field is the proof that the method
+/// reads it. A touch recorded only as a write of the field itself — a
+/// method assigning a fresh collection over it, or folding another one
+/// in — proves none of the four verbs, and the answer there is silence:
+/// calling a method that replaces every record a reader would state a
+/// verb the facts never proved.
+fn reading_only(fact: &crate::semantic::behavior::FunctionFacts, key: &str) -> Option<Verb> {
+    fact.reads
+        .iter()
+        .any(|read| read == key)
+        .then_some(Verb::Reads)
 }

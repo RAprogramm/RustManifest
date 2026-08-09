@@ -423,6 +423,33 @@ pub fn run(store: &mut Store, asked: &str) {
         assert_eq!(persisted.direction, Direction::Persists);
     }
 
+    /// The module's contract is silence for a touch that proves no verb.
+    /// The earlier fallback answered "reads" instead, so a method
+    /// replacing the collection with a fresh one and a method folding
+    /// another store's state in were both named readers — of a method
+    /// provably discarding every record, reading was claimed.
+    #[test]
+    fn a_touch_that_proves_no_verb_gets_none_rather_than_reads() {
+        let sources = workspace_of(&format!(
+            "{TASK_STORE}\nimpl Store {{\n    pub fn wipe(&mut self) {{\n        self.tasks = \
+             BTreeMap::new();\n    }}\n    pub fn absorb(&mut self, other: BTreeMap<u64, Task>) \
+             {{\n        self.tasks = other;\n    }}\n}}\n"
+        ));
+        let workspace = Workspace::new(&sources);
+        let read = keeping(&workspace);
+        for silenced in ["wipe", "absorb"] {
+            assert!(
+                !read.iter().any(|kept| kept.function.ends_with(silenced)),
+                "a touch proving no verb must stay silent: {read:?}"
+            );
+        }
+        assert!(
+            read.iter()
+                .any(|kept| kept.function.ends_with("titles") && kept.verb == Verb::Reads),
+            "a read proven by its own channel must keep its verb: {read:?}"
+        );
+    }
+
     #[test]
     fn each_verb_is_read_from_what_the_method_does_to_the_store() {
         let sources = workspace_of(TASK_STORE);
