@@ -103,11 +103,13 @@ fn an_opened_document_with_a_violation_receives_its_diagnostic() {
     handle.join().unwrap().unwrap();
 }
 
-/// A source whose function clones, allocates and takes a borrowed
-/// parameter — the memory story a card must tell.
-const HUNGRY: &str = "fn hoard(input: &str) -> Vec<String> {\n    let mut out = Vec::new();\n    \
+/// A source whose function clones, allocates, takes a borrowed
+/// parameter, and reaches the file system only through a helper — the
+/// memory story a card must tell, and the inference it must carry.
+const HUNGRY: &str = "fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\nfn \
+                      hoard(input: &str) -> Vec<String> {\n    let mut out = Vec::new();\n    \
                       out.push(input.to_owned());\n    out.push(format!(\"{input}\"));\n    \
-                      std::fs::write(\"log\", input).ok();\n    out\n}\n";
+                      persist(input);\n    out\n}\n";
 
 #[test]
 fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
@@ -151,7 +153,7 @@ fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
             "textDocument/hover".to_owned(),
             serde_json::json!({
                 "textDocument": { "uri": "file:///demo/src/lib.rs" },
-                "position": { "line": 0, "character": 4 }
+                "position": { "line": 1, "character": 4 }
             })
         )))
         .unwrap();
@@ -164,7 +166,19 @@ fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
     assert!(value.contains("clones: 1"), "{value}");
     assert!(value.contains("allocations:"), "{value}");
     assert!(value.contains("taken borrowed"), "{value}");
-    assert!(value.contains("effects of its own body: `fs`"), "{value}");
+    assert!(
+        value.contains("effects reached through calls: `fs`"),
+        "{value}"
+    );
+    assert!(value.contains("why `fs`:"), "{value}");
+    assert!(
+        value.contains("1. fn `hoard` calls fn `persist` — resolved call edge"),
+        "the card must carry the inference, step by step: {value}"
+    );
+    assert!(
+        value.contains("proven by the written call `std::fs::write`"),
+        "{value}"
+    );
     client
         .sender
         .send(Message::Request(Request::new(

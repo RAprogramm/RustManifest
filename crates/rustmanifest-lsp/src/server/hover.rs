@@ -12,7 +12,10 @@
 use lsp_server::{Request, Response};
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
-use super::{card::card, position::offset_of};
+use super::{
+    card::{card, why_section},
+    position::offset_of
+};
 
 /// Answers one hover request from the stored text of the document.
 pub(super) fn answer(request: &Request, text: Option<&str>) -> Response {
@@ -41,12 +44,30 @@ pub(super) fn answer(request: &Request, text: Option<&str>) -> Response {
                 let range = fact.range;
                 (range.start as usize..range.end as usize).contains(&offset)
             })
-            .map(|(index, fact)| Hover {
-                contents: HoverContents::Markup(MarkupContent {
-                    kind:  MarkupKind::Markdown,
-                    value: card(fact, reached.get(index).map_or(&[], Vec::as_slice))
-                }),
-                range:    None
+            .map(|(index, fact)| {
+                let inherited = reached.get(index).map_or(&[][..], Vec::as_slice);
+                let mut value = card(fact, inherited);
+                let workspace = rustmanifest_engine::Workspace::new(&sources);
+                for effect in inherited
+                    .iter()
+                    .filter(|effect| !fact.effects.contains(effect))
+                {
+                    let named = effect.to_string();
+                    let asked = rustmanifest_engine::semantic::why_effect(
+                        &workspace,
+                        &fact.function,
+                        &named
+                    );
+                    value.push_str("\n\n");
+                    value.push_str(&why_section(&named, &asked));
+                }
+                Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value
+                    }),
+                    range:    None
+                }
             })
     });
     answered.map_or_else(

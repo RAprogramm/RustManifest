@@ -63,3 +63,14 @@ pub(super) fn card(fact: &FunctionFacts, reached: &[Effect]) -> String {
     }
     lines.join("\n\n")
 }
+
+/// The inference section of one inherited effect: the numbered steps
+/// from the function to the written call that proves the effect.
+pub(super) fn why_section(effect: &str, answer: &rustmanifest_engine::semantic::Answer) -> String {
+    let mut lines = vec![format!("why `{effect}`:")];
+    for (position, step) in answer.steps.iter().enumerate() {
+        lines.push(format!("{}. {} — {}", position + 1, step.fact, step.reason));
+    }
+    lines.push(format!("=> {}", answer.conclusion));
+    lines.join("\n")
+}
