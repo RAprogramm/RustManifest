@@ -4,8 +4,9 @@
 //! What the engine states about the ordinary programs of the ladder.
 //!
 //! A greeting, a calculator, a create-read-update-delete store, a task
-//! list, the same store served over the wire, and the same store with a
-//! database behind it: the ladder the meaning and keeping tiers are
+//! list, the same store served over the wire, the same store with a
+//! database behind it, and the server straight over the database with
+//! no collection anywhere: the ladder the meaning and keeping tiers are
 //! measured on. The first rung is covered where
 //! the sentence is built; the rest are covered here, because what they
 //! prove is not one recognizer but the whole chain — a value read from
@@ -489,6 +490,92 @@ fn the_database_todo_traces_its_command_key_and_states_its_endings() {
     );
     assert!(
         said[0].contains("the run can end with failure, can end with success"),
+        "{said:?}"
+    );
+}
+
+/// The rung above both: the server straight over the database. No
+/// collection anywhere — the records live in rows, and the only place
+/// their home is written is the SQL text of the handlers themselves.
+const API_OVER_DATABASE: &str = r#"use std::sync::Arc;
+
+async fn list(State(pool): State<Arc<sqlx::PgPool>>) -> String {
+    let mut out = String::new();
+    let rows = sqlx::query!("SELECT id, title, done FROM tasks ORDER BY id")
+        .fetch_all(pool.as_ref())
+        .await
+        .unwrap();
+    for row in rows {
+        out.push_str(&format!("{} {} {}\n", row.id, row.done, row.title));
+    }
+    out
+}
+
+async fn create(State(pool): State<Arc<sqlx::PgPool>>, title: String) -> String {
+    sqlx::query!("INSERT INTO tasks (title, done) VALUES ($1, FALSE)", title)
+        .execute(pool.as_ref())
+        .await
+        .unwrap();
+    "created\n".to_owned()
+}
+
+async fn complete(State(pool): State<Arc<sqlx::PgPool>>, Path(id): Path<i64>) -> String {
+    sqlx::query!("UPDATE tasks SET done = TRUE WHERE id = $1", id)
+        .execute(pool.as_ref())
+        .await
+        .unwrap();
+    "done\n".to_owned()
+}
+
+async fn remove(State(pool): State<Arc<sqlx::PgPool>>, Path(id): Path<i64>) -> String {
+    sqlx::query!("DELETE FROM tasks WHERE id = $1", id)
+        .execute(pool.as_ref())
+        .await
+        .unwrap();
+    "removed\n".to_owned()
+}
+
+fn app(pool: Arc<sqlx::PgPool>) -> Router {
+    Router::new()
+        .route("/tasks", get(list).post(create))
+        .route("/tasks/{id}", put(complete).delete(remove))
+        .with_state(pool)
+}
+"#;
+
+/// The database-server rung: a program holding no collection still
+/// states what it keeps — the table its handlers' own statements name —
+/// with each verb the statement's kind and each route joined to the
+/// handler that performs it.
+#[test]
+fn the_server_over_the_database_states_its_table_its_verbs_and_its_routes() {
+    let said = kept(&[("src/main.rs", API_OVER_DATABASE)]);
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains(
+            "keeps its records as rows of the `tasks` table, named in its own statements"
+        ),
+        "a program with no collection anywhere must still state its store: {said:?}"
+    );
+    assert!(said[0].contains("`create` adds a record"), "{said:?}");
+    assert!(said[0].contains("`complete` changes a record"), "{said:?}");
+    assert!(said[0].contains("`remove` takes a record out"), "{said:?}");
+    assert!(said[0].contains("`list` reads the records"), "{said:?}");
+    assert!(
+        said[0].contains("`GET /tasks` reads the records"),
+        "the route is not joined to the statement behind it: {said:?}"
+    );
+    assert!(said[0].contains("`POST /tasks` adds a record"), "{said:?}");
+    assert!(
+        said[0].contains("`PUT /tasks/{id}` changes a record"),
+        "{said:?}"
+    );
+    assert!(
+        said[0].contains("`DELETE /tasks/{id}` takes a record out"),
+        "{said:?}"
+    );
+    assert!(
+        said[0].contains("the rows stay in the database past the end of the run"),
         "{said:?}"
     );
 }
