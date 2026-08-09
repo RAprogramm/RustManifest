@@ -29,6 +29,15 @@ pub(super) fn honesty(workspace: &Workspace<'_>) -> String {
             coverage.call_candidates_total,
             coverage.call_candidates_unknown
         );
+        let _ = writeln!(
+            out,
+            "- refused calls by row: foreign {}, named-elsewhere {}, ambiguous {}, \
+             owner-without-member {}",
+            coverage.call_candidates_external,
+            coverage.call_candidates_unreachable,
+            coverage.call_candidates_ambiguous,
+            coverage.call_candidates_owned
+        );
     }
     out.push_str(&origins(&coverage, workspace));
     out.push_str(&statements(workspace));

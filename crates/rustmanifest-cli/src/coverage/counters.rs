@@ -63,12 +63,16 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
             &report.call_candidates_total.to_string(),
             &format!(
                 "resolved in-workspace {calls_resolved}  {call_rate:.1}%   external \
-                 {calls_external}   unknown receiver {calls_unknown}   accounted \
-                 {call_accounted:.1}%{scip_tail}",
+                 {calls_external}   unknown receiver {calls_unknown}   named elsewhere \
+                 {calls_unreachable}   ambiguous {calls_ambiguous}   owner without member \
+                 {calls_owned}   accounted {call_accounted:.1}%{scip_tail}",
                 calls_resolved = report.call_candidates_resolved,
                 call_rate = report.call_resolution_rate(),
                 calls_external = report.call_candidates_external,
                 calls_unknown = report.call_candidates_unknown,
+                calls_unreachable = report.call_candidates_unreachable,
+                calls_ambiguous = report.call_candidates_ambiguous,
+                calls_owned = report.call_candidates_owned,
                 call_accounted = report.call_accounted_rate(),
                 scip_tail = if report.call_candidates_scip == 0 {
                     String::new()
@@ -111,32 +115,35 @@ mod tests {
     #[test]
     fn report_lines_are_aligned_and_honest() {
         let report = Coverage {
-            files_total:                318,
-            files_parsed:               318,
-            modules_total:              212,
-            files_reachable:            296,
-            files_standalone:           22,
-            structs_captured:           509,
-            enums_captured:             41,
-            traits_captured:            12,
-            impls_captured:             480,
-            methods_captured:           1920,
-            fields_captured:            2140,
-            aggregation_edges_resolved: 87,
-            interaction_edges_resolved: 133,
-            use_targets_total:          4044,
-            use_targets_resolved:       1620,
-            use_targets_external:       2400,
-            use_targets_unresolved:     24,
-            derives_seen:               233,
-            item_macros_seen:           12,
-            call_candidates_total:      5000,
-            call_candidates_resolved:   1066,
-            call_candidates_external:   3600,
-            call_candidates_unknown:    200,
-            call_candidates_scip:       0,
-            origins_total:              1400,
-            origins_derived:            1050
+            files_total:                 318,
+            files_parsed:                318,
+            modules_total:               212,
+            files_reachable:             296,
+            files_standalone:            22,
+            structs_captured:            509,
+            enums_captured:              41,
+            traits_captured:             12,
+            impls_captured:              480,
+            methods_captured:            1920,
+            fields_captured:             2140,
+            aggregation_edges_resolved:  87,
+            interaction_edges_resolved:  133,
+            use_targets_total:           4044,
+            use_targets_resolved:        1620,
+            use_targets_external:        2400,
+            use_targets_unresolved:      24,
+            derives_seen:                233,
+            item_macros_seen:            12,
+            call_candidates_total:       5000,
+            call_candidates_resolved:    1066,
+            call_candidates_external:    3600,
+            call_candidates_unknown:     200,
+            call_candidates_unreachable: 90,
+            call_candidates_ambiguous:   30,
+            call_candidates_owned:       14,
+            call_candidates_scip:        0,
+            origins_total:               1400,
+            origins_derived:             1050
         };
         let lines = report_lines(&report);
         assert_eq!(lines.len(), 8);
@@ -163,7 +170,8 @@ mod tests {
         assert_eq!(
             lines[5],
             "call candidates     5000      resolved in-workspace 1066  21.3%   external 3600   \
-             unknown receiver 200   accounted 93.3%"
+             unknown receiver 200   named elsewhere 90   ambiguous 30   owner without member \
+             14   accounted 95.1%"
         );
         assert_eq!(
             lines[6],

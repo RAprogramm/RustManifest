@@ -435,6 +435,66 @@ mod tests {
         assert!(graph.unresolved() > 0);
     }
 
+    /// Every refused candidate lands in exactly one named row: a
+    /// remainder derivable only by subtraction is the hole the
+    /// accounting exists to close.
+    #[test]
+    fn every_refusal_lands_in_exactly_one_named_row() {
+        let sources = [
+            Source::new(
+                PathBuf::from("crates/one/src/lib.rs"),
+                "pub struct Wallet;\nimpl Wallet { pub fn credit(&self) {} }\npub fn ping() \
+                 {}\npub fn caller(w: Wallet) {\n    ping();\n    Wallet::missing();\n    \
+                 std::fs::read_to_string(\"x\").ok();\n}"
+                    .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("crates/two/src/lib.rs"),
+                "pub fn ping() {}".to_owned()
+            )
+        ];
+        let all = crate::semantic::behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        assert_eq!(graph.ambiguous(), 1, "two linkable ping definitions");
+        assert_eq!(graph.owned_unmatched(), 1, "an owner without the member");
+        assert!(graph.external() >= 1, "the std call is foreign");
+        assert_eq!(
+            graph.unresolved(),
+            graph.external()
+                + graph.unknown_receiver()
+                + graph.unreachable_named()
+                + graph.ambiguous()
+                + graph.owned_unmatched(),
+            "a refusal outside every row would be countable only by subtraction"
+        );
+    }
+
+    /// A name defined only where the caller cannot link is its own row:
+    /// external by elimination is a different unknowing than a name the
+    /// workspace never declares.
+    #[test]
+    fn a_name_defined_only_in_an_unlinkable_target_is_its_own_row() {
+        let sources = [
+            Source::new(
+                PathBuf::from("crates/demo/tests/alpha.rs"),
+                "struct Client;\nimpl Client { fn fetch(&self) {} }\nfn drive(client: Client) { \
+                 client.fetch(); }"
+                    .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("crates/demo/tests/beta.rs"),
+                "fn poke() { helper().fetch(); }".to_owned()
+            )
+        ];
+        let all = crate::semantic::behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        assert_eq!(
+            graph.unreachable_named(),
+            1,
+            "the other test crate's method exists, but not for this caller"
+        );
+    }
+
     #[test]
     fn cross_crate_calls_resolve_through_crate_names() {
         let sources = [

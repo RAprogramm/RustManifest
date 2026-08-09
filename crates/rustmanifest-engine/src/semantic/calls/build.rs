@@ -46,14 +46,11 @@ pub fn call_graph_with(
         .map(|(owner, _)| owner)
         .collect();
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
-    let mut resolved = 0u64;
-    let mut unresolved = 0u64;
-    let mut external = 0u64;
-    let mut unknown_receiver = 0u64;
+    let mut tallies = Tallies::default();
     let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
-            let matches = candidate.strip_prefix("?::").map_or_else(
+            let named = candidate.strip_prefix("?::").map_or_else(
                 || {
                     candidate.rsplit_once("::").map_or_else(
                         || by_bare_free.get(candidate.as_str()),
@@ -69,9 +66,11 @@ pub fn call_graph_with(
                 },
                 |method| by_method.get(method)
             );
-            let matches = matches.map(|indices| linkable(context, facts, index, indices));
+            let matches = named
+                .as_ref()
+                .map(|indices| linkable(context, facts, index, indices));
             if let Some([only]) = matches.as_deref() {
-                resolved += 1;
+                tallies.resolved += 1;
                 if !edges[index].contains(only) {
                     edges[index].push(*only);
                 }
@@ -95,29 +94,17 @@ pub fn call_graph_with(
                         edges[index].push(target);
                     }
                 }
-                resolved += 1;
+                tallies.resolved += 1;
                 continue;
             }
-            unresolved += 1;
-            if let Some(method) = candidate.strip_prefix("?::") {
-                let reachable = by_method
-                    .get(method)
-                    .is_some_and(|indices| !linkable(context, facts, index, indices).is_empty());
-                if reachable {
-                    unknown_receiver += 1;
-                } else {
-                    external += 1;
-                }
-            } else if candidate.rsplit_once("::").map_or_else(
-                || !by_bare_free.contains_key(candidate.as_str()),
-                |(owner, _)| {
-                    !workspace_owners.contains(owner)
-                        && !module_segments.contains(owner)
-                        && !context.trait_impls.contains_key(owner)
-                }
-            ) {
-                external += 1;
-            }
+            tallies.count_refusal(
+                candidate,
+                named.is_some(),
+                matches.as_deref(),
+                &workspace_owners,
+                module_segments,
+                context
+            );
         }
         edges[index].sort_unstable();
     }
@@ -126,13 +113,88 @@ pub fn call_graph_with(
             !linkable(context, facts, caller, &[callee]).is_empty()
         })
     });
-    CallGraph {
-        edges,
-        resolved,
-        unresolved,
-        external,
-        unknown_receiver,
-        indexed,
-        possibilistic
+    tallies.graph(edges, indexed, possibilistic)
+}
+
+/// The resolution tallies while the graph is under construction.
+#[derive(Default)]
+struct Tallies {
+    /// Candidates bound to exactly one function, dispatch included.
+    resolved:          u64,
+    /// Every refused candidate, whatever the row below it lands in.
+    unresolved:        u64,
+    /// Names the workspace never declares.
+    external:          u64,
+    /// `?::` names the workspace declares reachably.
+    unknown_receiver:  u64,
+    /// Names declared somewhere the caller cannot link against.
+    unreachable_named: u64,
+    /// Names matching several linkable functions.
+    ambiguous:         u64,
+    /// Names whose declared owner carries no such member.
+    owned_unmatched:   u64
+}
+
+impl Tallies {
+    /// Books one refused candidate into exactly one row, so no refusal
+    /// is derivable only by subtraction.
+    fn count_refusal(
+        &mut self,
+        candidate: &str,
+        named: bool,
+        matches: Option<&[usize]>,
+        workspace_owners: &BTreeSet<&str>,
+        module_segments: &BTreeSet<String>,
+        context: &ResolutionContext
+    ) {
+        self.unresolved += 1;
+        if candidate.strip_prefix("?::").is_some() {
+            match matches {
+                Some([]) => self.unreachable_named += 1,
+                Some(_) => self.unknown_receiver += 1,
+                None => self.external += 1
+            }
+            return;
+        }
+        match matches {
+            Some([]) => self.unreachable_named += 1,
+            Some(_) => self.ambiguous += 1,
+            None => {
+                let foreign = candidate.rsplit_once("::").map_or_else(
+                    || !named,
+                    |(owner, _)| {
+                        !workspace_owners.contains(owner)
+                            && !module_segments.contains(owner)
+                            && !context.trait_impls.contains_key(owner)
+                    }
+                );
+                if foreign {
+                    self.external += 1;
+                } else {
+                    self.owned_unmatched += 1;
+                }
+            }
+        }
+    }
+
+    /// Seals the tallies into the finished graph.
+    const fn graph(
+        self,
+        edges: Vec<Vec<usize>>,
+        indexed: BTreeSet<(usize, usize)>,
+        possibilistic: BTreeSet<(usize, usize)>
+    ) -> CallGraph {
+        CallGraph {
+            edges,
+            resolved: self.resolved,
+            unresolved: self.unresolved,
+            external: self.external,
+            unknown_receiver: self.unknown_receiver,
+            unreachable_named: self.unreachable_named,
+            ambiguous: self.ambiguous,
+            owned_unmatched: self.owned_unmatched,
+            indexed,
+            possibilistic
+        }
     }
 }

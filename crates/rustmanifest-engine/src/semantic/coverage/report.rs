@@ -22,74 +22,85 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Coverage {
     /// Sources in the analyzed slice.
-    pub files_total:                u64,
+    pub files_total:                 u64,
     /// Sources accepted by the Rust parser.
-    pub files_parsed:               u64,
+    pub files_parsed:                u64,
     /// Nodes in the module graph, including single-file fallback roots and
     /// inline modules.
-    pub modules_total:              u64,
+    pub modules_total:               u64,
     /// Distinct files that became at least one module reachable from a
     /// cargo-layout crate root (`src/lib.rs`, `src/main.rs`, `src/bin/*`,
     /// `build.rs`, top-level `tests/`, `benches/`, `examples/`).
-    pub files_reachable:            u64,
+    pub files_reachable:             u64,
     /// Distinct files claimed by no layout root and promoted to standalone
     /// crate roots of their own (compile-test fixtures, broken `mod`
     /// chains, lone reviewed files).
-    pub files_standalone:           u64,
+    pub files_standalone:            u64,
     /// Structure definitions captured by the type graph.
-    pub structs_captured:           u64,
+    pub structs_captured:            u64,
     /// Enum definitions captured by the type graph.
-    pub enums_captured:             u64,
+    pub enums_captured:              u64,
     /// Trait definitions captured by the type graph.
-    pub traits_captured:            u64,
+    pub traits_captured:             u64,
     /// Impl blocks captured by the type graph.
-    pub impls_captured:             u64,
+    pub impls_captured:              u64,
     /// Methods and associated functions captured across all impl blocks.
-    pub methods_captured:           u64,
+    pub methods_captured:            u64,
     /// Named fields captured across all structures and enum payloads.
-    pub fields_captured:            u64,
+    pub fields_captured:             u64,
     /// Fields whose type name resolved to a workspace type.
-    pub aggregation_edges_resolved: u64,
+    pub aggregation_edges_resolved:  u64,
     /// Type-to-type interaction edges resolved from method bodies.
-    pub interaction_edges_resolved: u64,
+    pub interaction_edges_resolved:  u64,
     /// Expanded `use` targets across all modules.
-    pub use_targets_total:          u64,
+    pub use_targets_total:           u64,
     /// `use` targets that resolve to a module of the same crate.
-    pub use_targets_resolved:       u64,
+    pub use_targets_resolved:        u64,
     /// `use` targets whose leading segment names a known external crate:
     /// the standard-library family or a declared dependency.
-    pub use_targets_external:       u64,
+    pub use_targets_external:        u64,
     /// `use` targets that neither resolve in-workspace nor name a known
     /// external crate — the honest "did not understand" bucket.
-    pub use_targets_unresolved:     u64,
+    pub use_targets_unresolved:      u64,
     /// `#[derive(...)]` attributes seen on items; their expansions are not
     /// analyzed.
-    pub derives_seen:               u64,
+    pub derives_seen:                u64,
     /// Item-level macro invocations seen; their expansions are not
     /// analyzed.
-    pub item_macros_seen:           u64,
+    pub item_macros_seen:            u64,
     /// Call candidates observed across all function bodies.
-    pub call_candidates_total:      u64,
+    pub call_candidates_total:       u64,
     /// Call candidates that resolved to exactly one workspace function.
-    pub call_candidates_resolved:   u64,
+    pub call_candidates_resolved:    u64,
     /// Unmatched call candidates provably outside the workspace: the
     /// owner or called name matches nothing the workspace defines.
-    pub call_candidates_external:   u64,
+    pub call_candidates_external:    u64,
     /// Unmatched call candidates a typed receiver would settle
     /// in-workspace — the engine's own understanding gap.
-    pub call_candidates_unknown:    u64,
+    pub call_candidates_unknown:     u64,
+    /// Unmatched candidates named in the workspace but linkable from
+    /// nowhere the caller builds — external by elimination, a different
+    /// unknowing than a name never declared.
+    pub call_candidates_unreachable: u64,
+    /// Unmatched candidates naming several linkable functions at once,
+    /// refused by the uniqueness gate rather than guessed.
+    pub call_candidates_ambiguous:   u64,
+    /// Unmatched candidates whose declared owner carries no such name in
+    /// the syntactic slice — the signature of a generated or
+    /// trait-provided member.
+    pub call_candidates_owned:       u64,
     /// Call edges added by a SCIP index overlay beyond the syntactic
     /// candidates; zero when no index was supplied.
-    pub call_candidates_scip:       u64,
+    pub call_candidates_scip:        u64,
     /// Value positions recorded across the value tier's channels: the
     /// operands of an operation, the scrutinee and alternatives of a
     /// choice, the value of a handback, the written arguments of a call
     /// site, the origin of a payload hole.
-    pub origins_total:              u64,
+    pub origins_total:               u64,
     /// Value positions whose origin the engine settled. The rest are
     /// recorded refusals, each naming the question it failed on, which
     /// [`origin_gaps`](super::origin_gaps) counts by name.
-    pub origins_derived:            u64
+    pub origins_derived:             u64
 }
 
 impl Coverage {
@@ -131,13 +142,16 @@ impl Coverage {
         percent(self.call_candidates_resolved, self.call_candidates_total)
     }
 
-    /// Share of call candidates accounted for — resolved in-workspace or
-    /// attributed to external code — in percent of
+    /// Share of call candidates accounted for — resolved in-workspace,
+    /// attributed to external code, or external by elimination because
+    /// their only definitions are unlinkable — in percent of
     /// `call_candidates_total`.
     #[must_use]
     pub const fn call_accounted_rate(&self) -> f64 {
         percent(
-            self.call_candidates_resolved + self.call_candidates_external,
+            self.call_candidates_resolved
+                + self.call_candidates_external
+                + self.call_candidates_unreachable,
             self.call_candidates_total
         )
     }
