@@ -26,10 +26,11 @@ mod card;
 mod command;
 mod hover;
 mod position;
+mod snapshot;
 
 use std::collections::BTreeMap;
 
-use self::analysis::Analysis;
+use self::{analysis::Analysis, snapshot::Snapshot};
 
 /// Runs the server over `connection` until the client asks to shut down.
 ///
@@ -47,11 +48,12 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
         }),
         ..ServerCapabilities::default()
     };
-    connection
+    let opened = connection
         .initialize(serde_json::to_value(capabilities).context("encoding capabilities")?)
         .context("initialize handshake")?;
     let analysis = Analysis::new().context("building analyzers from bundled rules")?;
     let mut documents: BTreeMap<String, String> = BTreeMap::new();
+    let mut held = Snapshot::new(root_of(&opened));
     for message in &connection.receiver {
         match message {
             Message::Request(request) => {
@@ -59,10 +61,10 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                     return Ok(());
                 }
                 let answer = match request.method.as_str() {
-                    "textDocument/hover" => {
-                        hover::answer(&request, held_text(&documents, &request))
+                    "textDocument/hover" => hover::answer(&request, held.sources(&documents)),
+                    "workspace/executeCommand" => {
+                        command::answer(&request, held.sources(&documents))
                     }
-                    "workspace/executeCommand" => command::answer(&request, &documents),
                     _ => lsp_server::Response::new_err(
                         request.id.clone(),
                         lsp_server::ErrorCode::MethodNotFound as i32,
@@ -77,6 +79,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
             Message::Notification(notification) => {
                 if let Some((uri, text)) = document_of(&notification) {
                     documents.insert(uri.as_str().to_owned(), text.clone());
+                    held.touch();
                     publish(connection, &analysis, uri, &text)?;
                 }
             }
@@ -86,15 +89,13 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The stored text of the document a request speaks about.
-fn held_text<'a>(
-    documents: &'a BTreeMap<String, String>,
-    request: &lsp_server::Request
-) -> Option<&'a str> {
-    request.params["textDocument"]["uri"]
+/// The workspace root the client named at initialize, where it named
+/// one: the first workspace folder, or the older root field.
+fn root_of(opened: &serde_json::Value) -> Option<std::path::PathBuf> {
+    opened["workspaceFolders"][0]["uri"]
         .as_str()
-        .and_then(|uri| documents.get(uri))
-        .map(String::as_str)
+        .or_else(|| opened["rootUri"].as_str())
+        .map(snapshot::path_of)
 }
 
 /// The document one notification carries, where it carries one whole.

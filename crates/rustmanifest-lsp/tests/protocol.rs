@@ -278,3 +278,91 @@ fn the_why_command_answers_with_the_inference_as_data() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// Two documents, the chain crossing between them: the card of the
+/// caller in one file carries the inference down to the proof written
+/// in the other.
+#[test]
+fn a_chain_crossing_two_open_documents_answers_whole() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    for (uri, text) in [
+        (
+            "file:///demo/src/store.rs",
+            "pub fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\n"
+        ),
+        (
+            "file:///demo/src/lib.rs",
+            "mod store;\nfn keep(entry: &str) { crate::store::persist(entry); }\n"
+        )
+    ] {
+        client
+            .sender
+            .send(Message::Notification(Notification::new(
+                lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+                serde_json::json!({
+                    "textDocument": {
+                        "uri": uri, "languageId": "rust", "version": 1, "text": text
+                    }
+                })
+            )))
+            .unwrap();
+        let _diagnostics = client.receiver.recv().unwrap();
+    }
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.why",
+                "arguments": ["file:///demo/src/lib.rs", "keep", "fs"]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    assert!(
+        held["conclusion"]
+            .as_str()
+            .unwrap()
+            .contains("reaches `fs` through `persist`"),
+        "a chain crossing two documents must answer whole: {held}"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}
