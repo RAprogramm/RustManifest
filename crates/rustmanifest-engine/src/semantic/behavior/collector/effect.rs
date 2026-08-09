@@ -101,6 +101,8 @@ impl FactCollector {
                     .push(crate::semantic::behavior::query::QuerySite {
                         statement,
                         table: knowledge::table_of(&sql),
+                        record: turbofish_row_type(&path.path),
+                        binds: Vec::new(),
                         range: span_range(path.span())
                     });
             }
@@ -140,4 +142,28 @@ fn span_range(span: proc_macro2::Span) -> Range {
         start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
         end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
     }
+}
+
+/// The row type a call's own turbofish writes, by its last segment.
+///
+/// The row-typing form takes the driver first and the row second, so
+/// the last written type argument is the row. A call written without a
+/// turbofish types its rows by inference, which is the compiler's
+/// knowledge rather than the source's, and names none here.
+fn turbofish_row_type(path: &syn::Path) -> Option<String> {
+    let syn::PathArguments::AngleBracketed(written) = &path.segments.last()?.arguments else {
+        return None;
+    };
+    written
+        .args
+        .iter()
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(syn::Type::Path(named)) => named
+                .path
+                .segments
+                .last()
+                .map(|segment| segment.ident.to_string()),
+            _ => None
+        })
+        .next_back()
 }

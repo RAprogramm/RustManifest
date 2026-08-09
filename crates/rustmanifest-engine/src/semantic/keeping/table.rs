@@ -30,6 +30,15 @@ use crate::semantic::{Statement, workspace::Workspace};
 pub struct TableStore {
     /// Table name as the first naming statement spells it.
     pub table:  String,
+    /// The workspace-declared type its rows are read into, where every
+    /// row-typing statement of the table writes the same one.
+    ///
+    /// Two statements writing two different row types leave the record
+    /// unnamed: which of them is the table's own shape is not written
+    /// anywhere, and silence beats the first plausible name. A type
+    /// another crate declares is not named either — the same rule the
+    /// field stores follow.
+    pub record: Option<String>,
     /// Byte range of that statement's carrier.
     pub site:   Range,
     /// Source it was read from.
@@ -62,6 +71,7 @@ pub fn tables(workspace: &Workspace<'_>) -> Vec<TableStore> {
             }
             held.push(TableStore {
                 table:  named.to_owned(),
+                record: row_type(workspace, named),
                 site:   site.range,
                 source: fact.source
             });
@@ -69,6 +79,30 @@ pub fn tables(workspace: &Workspace<'_>) -> Vec<TableStore> {
     }
     held.sort_by(|left, right| left.table.cmp(&right.table));
     held
+}
+
+/// The one workspace-declared type every row-typing statement of one
+/// table writes, where they all write the same one.
+fn row_type(workspace: &Workspace<'_>, table: &str) -> Option<String> {
+    let mut written: Vec<&str> = workspace
+        .facts()
+        .iter()
+        .filter(|fact| !fact.flags.test())
+        .flat_map(|fact| &fact.queries)
+        .filter(|site| site.table.as_deref() == Some(table))
+        .filter_map(|site| site.record.as_deref())
+        .collect();
+    written.sort_unstable();
+    written.dedup();
+    let [only] = written[..] else {
+        return None;
+    };
+    let declared = workspace
+        .types()
+        .types()
+        .iter()
+        .any(|node| node.kind == crate::semantic::TypeKind::Struct && node.name == only);
+    declared.then(|| only.to_owned())
 }
 
 /// What every function does to every table its statements name, one

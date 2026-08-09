@@ -92,7 +92,8 @@ pub(super) fn servings_of(
         else {
             continue;
         };
-        let asks = asked_with_the_path(&takers, &held, facts, composed, reached);
+        let asks = asked_with_the_path(&takers, &held, facts, composed, reached)
+            || statement_binds_the_path(&takers, facts, reached);
         served.push(Serving {
             method:      route.method,
             path:        route.path.clone(),
@@ -162,6 +163,37 @@ fn asked_with_the_path(
                     )
                 })
     })
+}
+
+/// Whether a table-store handler's own statement is written with the
+/// very name its path-extractor pattern binds.
+///
+/// The same three links as the field-store rule, each written: the
+/// binding the pattern introduces, the statement site on this very
+/// table, and that site's argument list spelling that name. The
+/// argument list records plain names only, so a computed argument
+/// claims nothing here.
+fn statement_binds_the_path(
+    takers: &[(String, String)],
+    facts: &[crate::semantic::behavior::FunctionFacts],
+    reached: &crate::semantic::keeping::Keeping
+) -> bool {
+    let Some((_, binding)) = takers
+        .iter()
+        .find(|(name, _)| handler_reaches(&reached.function, name))
+    else {
+        return false;
+    };
+    facts
+        .iter()
+        .filter(|fact| fact.function == reached.function)
+        .flat_map(|fact| &fact.queries)
+        .any(|site| {
+            site.table
+                .as_deref()
+                .is_some_and(|table| super::table::table_key(table) == reached.store)
+                && site.binds.iter().any(|bound| bound == binding)
+        })
 }
 
 /// The one parameter the path writes, where it writes exactly one.

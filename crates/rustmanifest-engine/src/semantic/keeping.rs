@@ -405,6 +405,61 @@ pub fn run(store: &mut Store, asked: &str) {
         );
     }
 
+    /// A row-typing statement writing a workspace-declared type names
+    /// the table's record; two statements writing two different types
+    /// leave it unnamed.
+    #[test]
+    fn a_row_typing_statement_names_the_tables_record() {
+        let one = workspace_of(
+            "pub struct Task {\n    pub title: String\n}\n\npub async fn list(pool: \
+             &sqlx::PgPool) {\n    sqlx::query_as::<_, Task>(\"SELECT id, title FROM \
+             tasks\");\n}\n"
+        );
+        let workspace = Workspace::new(&one);
+        let held = tables(&workspace);
+        assert_eq!(held.len(), 1, "{held:?}");
+        assert_eq!(held[0].record.as_deref(), Some("Task"));
+        assert!(
+            purpose(&workspace)[0].contains("keeps `Task` records as rows of the `tasks` table"),
+            "{:?}",
+            purpose(&workspace)
+        );
+        let two = workspace_of(
+            "pub struct Task {\n    pub title: String\n}\npub struct Row {\n    pub title: \
+             String\n}\n\npub async fn list(pool: &sqlx::PgPool) {\n    sqlx::query_as::<_, \
+             Task>(\"SELECT title FROM tasks\");\n}\npub async fn titles(pool: &sqlx::PgPool) \
+             {\n    sqlx::query_as::<_, Row>(\"SELECT title FROM tasks\");\n}\n"
+        );
+        let disagreeing = Workspace::new(&two);
+        assert_eq!(
+            tables(&disagreeing)[0].record,
+            None,
+            "two written row types must leave the record unnamed"
+        );
+    }
+
+    /// A statement written with the very name the handler's path
+    /// pattern binds names the record by it, and a statement bound with
+    /// anything else claims nothing.
+    #[test]
+    fn a_statement_bound_with_the_path_binding_names_the_record_by_it() {
+        let sources = workspace_of(
+            "pub struct State<T>(pub T);\npub struct Path<T>(pub T);\n\npub async fn \
+             remove(State(pool): State<sqlx::PgPool>, Path(id): Path<i64>) {\n    \
+             sqlx::query!(\"DELETE FROM tasks WHERE id = $1\", id);\n}\n\npub fn app() -> Router \
+             {\n    Router::new().route(\"/tasks/{id}\", delete(remove))\n}\n"
+        );
+        let workspace = Workspace::new(&sources);
+        let said = purpose(&workspace);
+        assert_eq!(said.len(), 1, "{said:?}");
+        assert!(
+            said[0].contains(
+                "`DELETE /tasks/{id}` takes a record out named by the `{id}` the path carries"
+            ),
+            "{said:?}"
+        );
+    }
+
     /// The same table named from a body that also touches a declared
     /// field store is that store's far side, and gets no sentence of
     /// its own.

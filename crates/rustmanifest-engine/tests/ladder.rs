@@ -499,9 +499,15 @@ fn the_database_todo_traces_its_command_key_and_states_its_endings() {
 /// their home is written is the SQL text of the handlers themselves.
 const API_OVER_DATABASE: &str = r#"use std::sync::Arc;
 
+struct Task {
+    id:    i64,
+    title: String,
+    done:  bool
+}
+
 async fn list(State(pool): State<Arc<sqlx::PgPool>>) -> String {
     let mut out = String::new();
-    let rows = sqlx::query!("SELECT id, title, done FROM tasks ORDER BY id")
+    let rows = sqlx::query_as::<_, Task>("SELECT id, title, done FROM tasks ORDER BY id")
         .fetch_all(pool.as_ref())
         .await
         .unwrap();
@@ -553,9 +559,10 @@ fn the_server_over_the_database_states_its_table_its_verbs_and_its_routes() {
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
         said[0].contains(
-            "keeps its records as rows of the `tasks` table, named in its own statements"
+            "keeps `Task` records as rows of the `tasks` table, named in its own statements"
         ),
-        "a program with no collection anywhere must still state its store: {said:?}"
+        "a program with no collection anywhere must still state its store and its row type: \
+         {said:?}"
     );
     assert!(said[0].contains("`create` adds a record"), "{said:?}");
     assert!(said[0].contains("`complete` changes a record"), "{said:?}");
@@ -567,11 +574,14 @@ fn the_server_over_the_database_states_its_table_its_verbs_and_its_routes() {
     );
     assert!(said[0].contains("`POST /tasks` adds a record"), "{said:?}");
     assert!(
-        said[0].contains("`PUT /tasks/{id}` changes a record"),
-        "{said:?}"
+        said[0]
+            .contains("`PUT /tasks/{id}` changes a record named by the `{id}` the path carries"),
+        "the statement's own bind must tie the route's parameter to the record: {said:?}"
     );
     assert!(
-        said[0].contains("`DELETE /tasks/{id}` takes a record out"),
+        said[0].contains(
+            "`DELETE /tasks/{id}` takes a record out named by the `{id}` the path carries"
+        ),
         "{said:?}"
     );
     assert!(

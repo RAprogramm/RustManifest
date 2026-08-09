@@ -51,6 +51,17 @@ pub struct QuerySite {
     /// The table the statement's own grammar slot names, where a single
     /// plain name provably fills it.
     pub table:     Option<String>,
+    /// The type the carrier itself writes for the rows — the macro's
+    /// leading type argument or the call's turbofish — by its last
+    /// segment. A carrier writing no type names none: inference is the
+    /// compiler's knowledge, not the source's.
+    pub record:    Option<String>,
+    /// Plain names written as the statement's own arguments after the
+    /// SQL, in written order. A bound expression that is not a plain
+    /// name is not listed: what a computed argument holds is the value
+    /// tier's question, and this channel records only what the site
+    /// spells.
+    pub binds:     Vec<String>,
     /// Byte range of the written statement's carrier.
     pub range:     Range
 }

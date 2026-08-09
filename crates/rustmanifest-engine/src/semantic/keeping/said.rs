@@ -102,26 +102,56 @@ pub fn purpose(workspace: &Workspace<'_>) -> Vec<String> {
         }
         said.push(clauses.join("; "));
     }
+    said.extend(table_sentences(
+        workspace,
+        &composed,
+        &asked,
+        ends.as_deref()
+    ));
+    said
+}
+
+/// One sentence per table store, on the same clause order as the field
+/// stores' sentences.
+fn table_sentences(
+    workspace: &Workspace<'_>,
+    composed: &crate::semantic::summary::Composition<'_>,
+    asked: &[super::asking::Command],
+    ends: Option<&str>
+) -> Vec<String> {
     let table_kept = table_keeping(workspace);
-    let table_served = servings_of(workspace, &composed, &table_kept);
+    let table_served = servings_of(workspace, composed, &table_kept);
+    let mut said = Vec::new();
     for store in tables(workspace) {
         let key = table_key(&store.table);
-        let mut clauses = vec![format!(
-            "keeps its records as rows of the `{}` table, named in its own statements",
-            store.table
-        )];
+        let held_as = store.record.as_ref().map_or_else(
+            || {
+                format!(
+                    "keeps its records as rows of the `{}` table, named in its own statements",
+                    store.table
+                )
+            },
+            |record| {
+                format!(
+                    "keeps `{record}` records as rows of the `{}` table, named in its own \
+                     statements",
+                    store.table
+                )
+            }
+        );
+        let mut clauses = vec![held_as];
         if let Some(clause) = verb_clause(&table_kept, &key) {
             clauses.push(clause);
         }
-        if let Some(clause) = command_clause(&asked, &table_kept) {
+        if let Some(clause) = command_clause(asked, &table_kept) {
             clauses.push(clause);
         }
         if let Some(clause) = route_clause(&table_served, &key) {
             clauses.push(clause);
         }
         clauses.push("the rows stay in the database past the end of the run".to_owned());
-        if let Some(clause) = &ends {
-            clauses.push(clause.clone());
+        if let Some(clause) = ends {
+            clauses.push(clause.to_owned());
         }
         said.push(clauses.join("; "));
     }
