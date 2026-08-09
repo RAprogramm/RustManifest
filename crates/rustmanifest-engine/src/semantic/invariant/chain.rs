@@ -17,7 +17,7 @@ use crate::semantic::{behavior::FunctionFacts, calls::CallGraph};
 /// several implementors admits possibility, an edge only the SCIP index
 /// resolved names the index as its source, and everything else is the
 /// syntactic resolver's unique match.
-pub(super) fn edge_reason(graph: &CallGraph, from: usize, to: usize) -> &'static str {
+pub(in crate::semantic) fn edge_reason(graph: &CallGraph, from: usize, to: usize) -> &'static str {
     if graph.possibilistic(from, to) {
         "dispatch edge over several implementors — the effect is possible, not certain"
     } else if graph.indexed(from, to) {
@@ -64,7 +64,7 @@ pub(super) fn reach_chain(
 /// Finds the shortest resolved call chain from `start` to a function that
 /// performs `effect` directly, both endpoints included; empty when no such
 /// chain exists.
-pub(super) fn effect_chain(
+pub(in crate::semantic) fn effect_chain(
     facts: &[FunctionFacts],
     graph: &CallGraph,
     start: usize,

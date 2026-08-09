@@ -15,6 +15,7 @@
 )]
 
 pub mod analyzed;
+pub mod ask;
 pub mod check;
 pub mod coverage;
 pub mod expand;
@@ -68,6 +69,9 @@ pub struct Cli {
 /// Available subcommands for the `rustmanifest` binary.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Ask why a function carries an effect; the answer is a
+    /// step-by-step inference over recorded facts.
+    Ask(ask::AskArgs),
     /// Run the analysis engine across one or more paths.
     Check(CheckArgs),
     /// Report how much of the analyzed sources the engine understands.
@@ -99,6 +103,7 @@ pub enum Command {
 pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     init_tracing(cli.verbose);
     match cli.command {
+        Command::Ask(args) => ask::run_ask(&args),
         Command::Check(args) => run_check(&args),
         Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Explain(args) => run_explain(&args),

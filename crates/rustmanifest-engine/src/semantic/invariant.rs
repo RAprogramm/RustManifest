@@ -24,7 +24,7 @@
 //! names the provenance of the edge it walks, so an index-owed
 //! derivation is never presented as a syntactic one.
 
-mod chain;
+pub(in crate::semantic) mod chain;
 mod effect_ban;
 mod field_write;
 mod layer_boundary;

@@ -54,6 +54,7 @@ mod std_derive;
 mod std_knowledge;
 mod summary;
 mod surface;
+mod why;
 mod workspace;
 
 pub use self::{
@@ -112,5 +113,6 @@ pub use self::{
         composition_with, summaries, summaries_with
     },
     surface::{FrameworkModel, Route, Surface, surface},
+    why::{Answer, why_effect},
     workspace::Workspace
 };
