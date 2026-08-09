@@ -109,6 +109,7 @@ fn conversion_fact(source: usize, owner: &str, source_type: String) -> FunctionF
         choices: Vec::new(),
         handbacks: Vec::new(),
         output_writes: Vec::new(),
-        exits: Vec::new()
+        exits: Vec::new(),
+        queries: Vec::new()
     }
 }

@@ -38,6 +38,7 @@ mod imports;
 mod input;
 mod operation;
 mod output;
+mod query;
 mod rendering;
 mod returned;
 mod scoped;
@@ -64,6 +65,7 @@ pub use self::{
         Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
+    query::{QuerySite, Statement},
     types::{CallSite, Effect, EffectSite, FunctionFacts, FunctionFlags, ParamFacts, ParamMode},
     value::{
         Arguments, Condition, Disposal, Literal, OriginGap, ParamSlot, Provenance,
@@ -91,6 +93,35 @@ mod tests {
 
     fn named<'a>(all: &'a [FunctionFacts], name: &str) -> &'a FunctionFacts {
         all.iter().find(|facts| facts.function == name).unwrap()
+    }
+
+    /// Both spellings of a `sqlx` statement — the macro and the
+    /// function — record what the statement does and which table its
+    /// own grammar slot names; a statement naming no single table keeps
+    /// its record with the table left open, so the count of statements
+    /// never silently drops below the count of database effects.
+    #[test]
+    fn written_statements_record_their_kind_and_their_table() {
+        let all = facts(
+            "async fn create(pool: &sqlx::PgPool, title: String) {\n    sqlx::query!(\"INSERT \
+             INTO tasks (title) VALUES ($1)\", title);\n}\nasync fn list(pool: &sqlx::PgPool) \
+             {\n    sqlx::query(\"SELECT id, title FROM tasks\");\n}\nasync fn report(pool: \
+             &sqlx::PgPool) {\n    sqlx::query(\"SELECT t.id FROM tasks t JOIN users u ON TRUE\");\
+             \n}"
+        );
+        let one = |name: &str| {
+            let sites = &named(&all, name).queries;
+            assert_eq!(sites.len(), 1, "{sites:?}");
+            sites[0].clone()
+        };
+        let created = one("create");
+        assert_eq!(created.statement, super::Statement::Inserts);
+        assert_eq!(created.table.as_deref(), Some("tasks"));
+        let listed = one("list");
+        assert_eq!(listed.statement, super::Statement::Selects);
+        assert_eq!(listed.table.as_deref(), Some("tasks"));
+        let joined = one("report");
+        assert_eq!(joined.table, None, "a join must not claim one table");
     }
 
     #[test]

@@ -74,7 +74,8 @@ pub(super) fn function_facts(
             choices: Vec::new(),
             handbacks: Vec::new(),
             output_writes: Vec::new(),
-            exits: Vec::new()
+            exits: Vec::new(),
+            queries: Vec::new()
         },
         param_types: parameter_types(signature, context.impl_type),
         elem_types:  parameter_elements(signature),

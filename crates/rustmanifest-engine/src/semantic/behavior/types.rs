@@ -291,5 +291,10 @@ pub struct FunctionFacts {
     /// A status is observable outside the process exactly as a write is,
     /// and is recorded the same way: one record per site, never
     /// deduplicated, each carrying what stands over it.
-    pub exits:         Vec<super::exit::ProcessExit>
+    pub exits:         Vec<super::exit::ProcessExit>,
+    /// Written database statements, in body order, on the same terms as
+    /// every per-site channel here: one record per site, never
+    /// deduplicated, the table optional where the text does not prove
+    /// one.
+    pub queries:       Vec<super::query::QuerySite>
 }

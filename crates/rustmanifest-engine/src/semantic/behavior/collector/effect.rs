@@ -95,6 +95,15 @@ impl FactCollector {
                 proof: segments.join("::"),
                 range: span_range(path.span())
             });
+            if let Some(statement) = knowledge::statement_of(&sql) {
+                self.facts
+                    .queries
+                    .push(crate::semantic::behavior::query::QuerySite {
+                        statement,
+                        table: knowledge::table_of(&sql),
+                        range: span_range(path.span())
+                    });
+            }
         }
     }
 

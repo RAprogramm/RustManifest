@@ -37,11 +37,11 @@ impl FactCollector {
             if DIVERGING_MACROS.contains(&name.as_str()) {
                 self.facts.flags = self.facts.flags.with_panic();
             }
-            if let Some(effect) =
-                knowledge::sql_macro_effect(&name, &invocation.tokens.to_string())
-            {
+            let tokens = invocation.tokens.to_string();
+            if let Some(effect) = knowledge::sql_macro_effect(&name, &tokens) {
                 self.facts.effects.push(effect);
                 self.record_macro_effect_site(invocation, effect);
+                self.record_statement(invocation, &tokens);
             }
             if EXPRESSION_MACROS.contains(&name.as_str()) {
                 self.visit_macro_arguments(invocation);
@@ -81,6 +81,31 @@ impl FactCollector {
             .push(crate::semantic::behavior::types::EffectSite {
                 effect,
                 proof,
+                range: rustmanifest_schema::Range {
+                    start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+                    end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+                }
+            });
+    }
+
+    /// Records the written statement a SQL-carrying macro proves: the
+    /// kind from its first keyword, the table from the grammar slot
+    /// where a single plain name fills it, over the macro path's own
+    /// range.
+    fn record_statement(&mut self, invocation: &syn::Macro, tokens: &str) {
+        use syn::spanned::Spanned;
+        let Some(sql) = tokens.split('"').nth(1) else {
+            return;
+        };
+        let Some(statement) = knowledge::statement_of(sql) else {
+            return;
+        };
+        let bytes = invocation.path.span().byte_range();
+        self.facts
+            .queries
+            .push(crate::semantic::behavior::query::QuerySite {
+                statement,
+                table: knowledge::table_of(sql),
                 range: rustmanifest_schema::Range {
                     start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
                     end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)

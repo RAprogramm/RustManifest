@@ -14,10 +14,14 @@
 
 mod reqwest;
 mod result;
+mod statement;
 mod tempfile;
 mod tokio;
 
-pub(super) use self::result::{MethodResult, Outcome, ReturnForm, converts};
+pub(super) use self::{
+    result::{MethodResult, Outcome, ReturnForm, converts},
+    statement::{statement_of, table_of}
+};
 use super::behavior::Effect;
 
 /// Everything one pack knows about one crate.
