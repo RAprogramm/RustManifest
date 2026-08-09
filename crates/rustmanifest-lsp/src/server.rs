@@ -38,7 +38,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
         ..ServerCapabilities::default()
     };
     connection
-        .initialize(serde_json::json!({ "capabilities": capabilities }))
+        .initialize(serde_json::to_value(capabilities).context("encoding capabilities")?)
         .context("initialize handshake")?;
     let analysis = Analysis::new().context("building analyzers from bundled rules")?;
     for message in &connection.receiver {

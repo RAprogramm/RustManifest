@@ -31,7 +31,16 @@ fn an_opened_document_with_a_violation_receives_its_diagnostic() {
             serde_json::json!({ "capabilities": {} })
         )))
         .unwrap();
-    let _initialize_answer = client.receiver.recv().unwrap();
+    let Message::Response(initialize_answer) = client.receiver.recv().unwrap() else {
+        panic!("the initialize request must be answered first");
+    };
+    let settled = initialize_answer.response_result.as_ref().unwrap();
+    let synchronizes = settled["capabilities"]["textDocumentSync"].is_number();
+    assert!(
+        synchronizes,
+        "a server whose declared capabilities carry no text sync is never sent a document, and \
+         everything after this line tests nothing: {initialize_answer:?}"
+    );
     client
         .sender
         .send(Message::Notification(Notification::new(
