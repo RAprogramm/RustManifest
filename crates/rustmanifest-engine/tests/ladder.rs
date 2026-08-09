@@ -4,8 +4,9 @@
 //! What the engine states about the ordinary programs of the ladder.
 //!
 //! A greeting, a calculator, a create-read-update-delete store, a task
-//! list, and the same store served over the wire: the ladder the meaning
-//! and keeping tiers are measured on. The first rung is covered where
+//! list, the same store served over the wire, and the same store with a
+//! database behind it: the ladder the meaning and keeping tiers are
+//! measured on. The first rung is covered where
 //! the sentence is built; the rest are covered here, because what they
 //! prove is not one recognizer but the whole chain — a value read from
 //! outside the process, carried through a call, computed on, and
@@ -321,6 +322,145 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 "#;
+
+/// The rung after the server: the same task list with a database behind
+/// it — the store is rebuilt from rows at the start of the run and
+/// written back as rows at its end, so the records outlive the process
+/// in both directions.
+const DATABASE_TODO: &str = r#"use std::{collections::BTreeMap, env, process::ExitCode};
+
+struct Task {
+    title: String,
+    done:  bool
+}
+
+struct Store {
+    tasks: BTreeMap<u64, Task>
+}
+
+impl Store {
+    async fn restore(pool: &sqlx::PgPool) -> Result<Self, sqlx::Error> {
+        let rows = sqlx::query!("SELECT id, title, done FROM tasks")
+            .fetch_all(pool)
+            .await?;
+        let mut tasks = BTreeMap::new();
+        for row in rows {
+            tasks.insert(row.id, Task {
+                title: row.title,
+                done:  row.done
+            });
+        }
+        Ok(Self { tasks })
+    }
+
+    fn add(&mut self, title: String) -> u64 {
+        let next = self.tasks.keys().last().copied().unwrap_or(0) + 1;
+        self.tasks.insert(next, Task { title, done: false });
+        next
+    }
+
+    fn complete(&mut self, id: u64) -> bool {
+        match self.tasks.get_mut(&id) {
+            Some(task) => {
+                task.done = true;
+                true
+            }
+            None => false
+        }
+    }
+
+    async fn persist(&self, pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM tasks").execute(pool).await?;
+        for (id, task) in &self.tasks {
+            sqlx::query!(
+                "INSERT INTO tasks (id, title, done) VALUES ($1, $2, $3)",
+                id,
+                task.title,
+                task.done
+            )
+            .execute(pool)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+#[tokio::main]
+async fn main() -> ExitCode {
+    let args: Vec<String> = env::args().collect();
+    let command = args.get(1).map(String::as_str).unwrap_or("list");
+    let pool = match sqlx::PgPool::connect("postgres://localhost/todo").await {
+        Ok(pool) => pool,
+        Err(error) => {
+            eprintln!("cannot reach the database: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut store = match Store::restore(&pool).await {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("cannot load the tasks: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match command {
+        "add" => {
+            let title = args.get(2).cloned().unwrap_or_default();
+            let id = store.add(title);
+            println!("added task {id}");
+        }
+        "done" => {
+            let id = args.get(2).and_then(|text| text.parse::<u64>().ok()).unwrap_or(0);
+            if store.complete(id) {
+                println!("task {id} is done");
+            } else {
+                println!("no task {id}");
+            }
+        }
+        _ => {
+            for (id, task) in &store.tasks {
+                println!("{id} {} {}", if task.done { "x" } else { " " }, task.title);
+            }
+        }
+    }
+    if let Err(error) = store.persist(&pool).await {
+        eprintln!("cannot save the tasks: {error}");
+        return ExitCode::FAILURE;
+    }
+    ExitCode::SUCCESS
+}
+"#;
+
+/// The database rung: the store is the same map the file-backed rungs
+/// keep, and the sentence must say both ways it crosses the end of the
+/// run — filled from rows at the start, written back as rows at the
+/// end — with each way proven by the query that performs it.
+#[test]
+fn the_database_todo_states_both_ways_its_records_outlive_the_run() {
+    let said = kept(&[("src/main.rs", DATABASE_TODO)]);
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains("keeps `Task` records in `tasks` of `Store`, each found by a `u64`"),
+        "{said:?}"
+    );
+    assert!(
+        said[0].contains("`Store::add` adds a record"),
+        "the insert into the map is not read: {said:?}"
+    );
+    assert!(
+        said[0].contains("`Store::persist` writes the records to the database"),
+        "the insert query does not carry the store past the run: {said:?}"
+    );
+    assert!(
+        said[0].contains("`Store::restore` fills the records from the database"),
+        "the select query does not fill the store from an earlier run: {said:?}"
+    );
+    assert!(said[0].contains("so they outlive the run"), "{said:?}");
+    assert!(
+        !said[0].contains("nothing carries them past the end of the run"),
+        "a database-backed store must not claim to die with the process: {said:?}"
+    );
+}
 
 /// The server rung: the whole sentence, every clause standing on its
 /// own proof — the store behind the lock, the verbs of the four
