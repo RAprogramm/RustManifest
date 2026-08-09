@@ -67,6 +67,10 @@ pub fn fact_json(
         "choices": entry.choices.iter().map(choice_json).collect::<Vec<_>>(),
         "output-writes": entry.output_writes.iter().map(output_json).collect::<Vec<_>>(),
         "exits": entry.exits.iter().map(exit_json).collect::<Vec<_>>(),
+        "queries": entry.queries.iter().map(|site| serde_json::json!({
+            "statement": site.statement.to_string(),
+            "table": site.table
+        })).collect::<Vec<_>>(),
         "test": entry.flags.test(),
         "role": role(entry).to_string()
     });
