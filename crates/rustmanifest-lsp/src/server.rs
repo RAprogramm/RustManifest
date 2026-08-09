@@ -43,7 +43,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
-            commands: vec![command::WHY.to_owned()],
+            commands: vec![command::WHY.to_owned(), command::IMPLEMENT.to_owned()],
             ..lsp_types::ExecuteCommandOptions::default()
         }),
         ..ServerCapabilities::default()

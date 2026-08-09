@@ -455,3 +455,86 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// A type and a trait it does not implement: the implement command must
+/// answer with the written impl block, signatures from the declaration.
+const UNWRITTEN: &str = "struct Disk;\ntrait Sink {\n    fn write(&mut self, chunk: &[u8]) -> \
+                         usize;\n    fn flush(&mut self) {}\n}\n";
+
+#[test]
+fn the_implement_command_writes_the_impl_block() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": UNWRITTEN
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.implement",
+                "arguments": ["Disk", "Sink"]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    let text = held["text"].as_str().unwrap();
+    assert!(text.starts_with("impl Sink for Disk {"), "{text}");
+    assert!(
+        text.contains("fn write(&mut self, chunk: &[u8]) -> usize {"),
+        "{text}"
+    );
+    assert!(text.contains("todo!()"), "{text}");
+    assert!(!text.contains("fn flush"), "{text}");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}
