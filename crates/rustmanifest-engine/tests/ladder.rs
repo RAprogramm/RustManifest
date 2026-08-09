@@ -462,15 +462,24 @@ fn the_database_todo_states_both_ways_its_records_outlive_the_run() {
     );
 }
 
-/// The same rung, the clauses around the store: the command a run asks
-/// by carries a key traced to the command line, and the run's endings
-/// are stated. The title of `"add"` is the boundary of the flow table —
-/// a default written nowhere has no row — so it is left unasserted
-/// rather than pinned wrong.
+/// The same rung, the clauses around the store: each command a run asks
+/// by carries its payload traced to the command line, and the run's
+/// endings are stated. The title of `"add"` falls back to the type's
+/// default where no argument was given, and the sentence names that
+/// declaration without claiming its value — the flow table's one
+/// admitted row about something written elsewhere.
 #[test]
 fn the_database_todo_traces_its_command_key_and_states_its_endings() {
     let said = kept(&[("src/main.rs", DATABASE_TODO)]);
     assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains(
+            "\"add\" adds a record named by one of position 2 of the command-line and the \
+             default its type declares"
+        ),
+        "the title the command carries is not traced through the declared-default fallback: \
+         {said:?}"
+    );
     assert!(
         said[0].contains(
             "\"done\" changes a record named by one of the result of conversion to u64 over \

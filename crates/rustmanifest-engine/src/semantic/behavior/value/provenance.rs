@@ -67,6 +67,15 @@ pub enum Provenance {
     /// adapter's element, a combinator's held value — that answer stands
     /// and this one is not recorded.
     Supplied(String),
+    /// The value the receiver's type declares as its default.
+    ///
+    /// Named as a declaration, never as a value: which bytes the default
+    /// amounts to is written in an `impl Default` somewhere else, and
+    /// this answer does not claim to have read them. What the body
+    /// proves is only that the position falls back to that declaration —
+    /// the same kind of claim as `Supplied`, which names who decides a
+    /// value without naming the value.
+    Defaulted,
     /// No value: control leaves this position instead of producing one.
     ///
     /// A settled answer and not a refusal. `Err(_) => return code` hands
@@ -94,6 +103,7 @@ impl Provenance {
             Self::Constant(_) => "constant",
             Self::Constructed(_) => "constructed",
             Self::Supplied(_) => "supplied",
+            Self::Defaulted => "defaulted",
             Self::Leaves => "leaves",
             Self::NotDerived(gap) => gap.label()
         }

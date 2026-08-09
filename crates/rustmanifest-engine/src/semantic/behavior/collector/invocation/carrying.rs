@@ -71,6 +71,10 @@ impl FactCollector {
                     None => held
                 }
             }
+            Carried::HeldOrDefault => {
+                let held = self.origin_of(&call.receiver);
+                self.either(span, held, Provenance::Defaulted)
+            }
             Carried::ClosureOver(position) => {
                 let Some(syn::Expr::Closure(closure)) = call.args.iter().nth(position.into())
                 else {

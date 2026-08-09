@@ -37,6 +37,7 @@ pub(super) fn unfold(
         Provenance::Constant(named) => ComposedOrigin::Constant(named.clone()),
         Provenance::Constructed(type_name) => ComposedOrigin::Constructed(type_name.clone()),
         Provenance::Supplied(named) => ComposedOrigin::Supplied(named.clone()),
+        Provenance::Defaulted => ComposedOrigin::Defaulted,
         Provenance::Called(index) => called(settled, fact, *index, remaining),
         Provenance::Read(index) => drawn(fact, *index),
         Provenance::Computed(index) => computed(settled, fact, *index, remaining),

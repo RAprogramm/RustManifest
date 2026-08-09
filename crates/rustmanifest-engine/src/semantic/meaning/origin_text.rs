@@ -26,6 +26,7 @@ pub fn origin_text(origin: &ComposedOrigin) -> String {
         ComposedOrigin::Supplied(named) => {
             format!("the value handed to the closure as `{named}`")
         }
+        ComposedOrigin::Defaulted => "the default its type declares".to_owned(),
         ComposedOrigin::Beyond(candidate) => {
             format!("the value `{candidate}` hands back from outside this program")
         }

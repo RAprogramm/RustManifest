@@ -17,8 +17,12 @@
 //! here, and the reading refuses at it by name.
 //!
 //! What a row cannot say, it does not say. A method whose answer depends
-//! on something written nowhere — a type's own default, an element chosen
-//! at run time — has no row, and the reading refuses at it by name.
+//! on something written nowhere — an element chosen at run time — has no
+//! row, and the reading refuses at it by name. A fallback to the type's
+//! own default is the one admitted exception: the default's value is
+//! written elsewhere, but that the position falls back to that
+//! declaration is the library's guarantee, and the row names the
+//! declaration rather than claiming the value.
 
 /// Which input a library call hands back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +34,9 @@ pub(in crate::semantic) enum Carried {
     /// Whatever the receiver holds, or the argument at this position
     /// where it holds nothing.
     HeldOrArgument(u8),
+    /// Whatever the receiver holds, or the default its type declares
+    /// where it holds nothing.
+    HeldOrDefault,
     /// Whatever the closure written at this position hands back, applied
     /// to what the receiver holds.
     ///
@@ -44,7 +51,8 @@ pub(in crate::semantic) enum Carried {
 ///
 /// Read as one row of a models-as-data table: the input named here, the
 /// return value as the output, and value preservation as the kind.
-const FLOW_METHODS: [(&str, Carried); 16] = [
+const FLOW_METHODS: [(&str, Carried); 17] = [
+    ("unwrap_or_default", Carried::HeldOrDefault),
     ("map_err", Carried::Receiver),
     ("ok_or", Carried::Receiver),
     ("ok_or_else", Carried::Receiver),
@@ -110,7 +118,17 @@ mod tests {
     #[test]
     fn a_method_whose_answer_is_written_nowhere_has_no_row() {
         assert_eq!(carried_by("filter"), None);
-        assert_eq!(carried_by("unwrap_or_default"), None);
         assert_eq!(carried_by("len"), None);
+    }
+
+    /// The fallback names the declaration, never the value: the row says
+    /// the answer is the held value or what `Default` declares, and which
+    /// bytes that declaration amounts to stays unclaimed.
+    #[test]
+    fn a_fallback_to_the_declared_default_names_the_declaration() {
+        assert_eq!(
+            carried_by("unwrap_or_default"),
+            Some(Carried::HeldOrDefault)
+        );
     }
 }
