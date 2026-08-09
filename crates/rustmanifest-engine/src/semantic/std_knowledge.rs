@@ -122,6 +122,34 @@ pub(super) fn is_copy_type(name: &str) -> bool {
     COPY_TYPES.contains(&name)
 }
 
+/// Well-known owning std types by their last path segment: provably not
+/// `Copy`, so passing one by value provably moves it.
+pub(super) const OWNING_TYPES: [&str; 17] = [
+    "Arc",
+    "BTreeMap",
+    "BTreeSet",
+    "Box",
+    "File",
+    "HashMap",
+    "HashSet",
+    "Mutex",
+    "OsString",
+    "PathBuf",
+    "Rc",
+    "RwLock",
+    "String",
+    "TcpListener",
+    "TcpStream",
+    "Vec",
+    "VecDeque"
+];
+
+/// Returns whether the type with last path segment `name` is a known
+/// std owner: provably not `Copy` by std knowledge alone.
+pub(super) fn is_owning_type(name: &str) -> bool {
+    OWNING_TYPES.contains(&name)
+}
+
 /// Well-known external constructor functions by call name, with the
 /// concrete type each one produces (`Result`/`Option` wrappers already
 /// unwrapped, since these are consumed behind `unwrap`/`?`).
