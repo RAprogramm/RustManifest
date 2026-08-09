@@ -45,6 +45,12 @@ pub struct Surface {
     /// proven to hold a router value. Counted rather than assumed to be a
     /// registration, and rather than dropped.
     pub foreign_receiver: u32,
+    /// Framework-vocabulary calls written inside positions the walk does
+    /// not evaluate — the token stream of a macro invocation. What a
+    /// macro does with its tokens is the macro's own business, so nothing
+    /// is recovered there; counting the calls keeps the loss a number
+    /// instead of a silence.
+    pub unwalked:         u32,
     /// Composition arguments that name no resolvable provider function,
     /// with the composing method that held them.
     pub unresolved:       Vec<String>,

@@ -401,6 +401,19 @@ mod tests {
     }
 
     #[test]
+    fn a_registration_inside_macro_tokens_is_counted_not_lost() {
+        let recovered = surface(&source(
+            "fn routes() -> Router {\n    wrap!(Router::new().route(\"/hidden\", \
+             get(hidden)))\n}"
+        ));
+        assert!(recovered.routes.is_empty(), "a macro's tokens are its own");
+        assert_eq!(
+            recovered.unwalked, 1,
+            "the call inside the tokens must become a number, not a silence"
+        );
+    }
+
+    #[test]
     fn framework_vocabulary_on_a_foreign_receiver_is_counted_not_recovered() {
         let recovered = surface(&source(
             "fn inner() -> Router { Router::new().route(\"/x\", get(x)) }\nfn app() -> Router {\n \

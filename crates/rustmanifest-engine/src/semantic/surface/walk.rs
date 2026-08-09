@@ -143,4 +143,49 @@ impl<'ast> Visit<'ast> for Walk<'_> {
         self.visit_expr(&loop_expr.cond);
         self.under(|walk| walk.visit_block(&loop_expr.body));
     }
+
+    fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
+        self.recovered.unwalked += vocabulary_inside(invocation);
+        syn::visit::visit_macro(self, invocation);
+    }
+}
+
+/// Counts the framework-vocabulary method calls written inside a macro's
+/// tokens, where those tokens parse as expressions.
+///
+/// The walk does not evaluate a macro: what it does with its tokens is
+/// its own business, and recovering a registration from them would state
+/// a route a macro may never register. Counting is the honest side —
+/// each call becomes a number in the report instead of a silence. Tokens
+/// that parse as no expression list stay uncounted, and that boundary is
+/// this reading's own blind spot.
+fn vocabulary_inside(invocation: &syn::Macro) -> u32 {
+    let Ok(arguments) = invocation
+        .parse_body_with(syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated)
+    else {
+        return 0;
+    };
+    let mut census = VocabularyCensus {
+        counted: 0
+    };
+    for argument in &arguments {
+        census.visit_expr(argument);
+    }
+    census.counted
+}
+
+/// Visitor counting method calls whose name any model knows.
+struct VocabularyCensus {
+    /// Calls counted so far.
+    counted: u32
+}
+
+impl<'ast> Visit<'ast> for VocabularyCensus {
+    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        let name = call.method.to_string();
+        if MODELS.iter().any(|model| model.knows(&name)) {
+            self.counted += 1;
+        }
+        syn::visit::visit_expr_method_call(self, call);
+    }
 }
