@@ -31,6 +31,7 @@ mod field_group;
 mod fingerprint;
 mod graph;
 mod handover;
+mod implement;
 mod insight;
 mod invariant;
 mod io_forms;
@@ -92,6 +93,7 @@ pub use self::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
     handover::handover_at,
+    implement::impl_skeleton,
     invariant::{check_invariants, check_invariants_with},
     keeping::{
         Command, Direction, Ending, Feeding, Keeping, Outliving, Serving, Store, TableStore,
