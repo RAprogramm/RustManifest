@@ -39,7 +39,7 @@ pub(super) fn answer(
             format!("no opened document is named `{uri}`")
         );
     };
-    let path = std::path::PathBuf::from(uri);
+    let path = std::path::PathBuf::from(uri.strip_prefix("file://").unwrap_or(uri));
     let sources = [rustmanifest_engine::Source::new(path, held.clone())];
     let workspace = rustmanifest_engine::Workspace::new(&sources);
     let asked = rustmanifest_engine::semantic::why_effect(&workspace, function, effect);
