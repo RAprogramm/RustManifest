@@ -462,6 +462,28 @@ fn the_database_todo_states_both_ways_its_records_outlive_the_run() {
     );
 }
 
+/// The same rung, the clauses around the store: the command a run asks
+/// by carries a key traced to the command line, and the run's endings
+/// are stated. The title of `"add"` is the boundary of the flow table —
+/// a default written nowhere has no row — so it is left unasserted
+/// rather than pinned wrong.
+#[test]
+fn the_database_todo_traces_its_command_key_and_states_its_endings() {
+    let said = kept(&[("src/main.rs", DATABASE_TODO)]);
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains(
+            "\"done\" changes a record named by one of the result of conversion to u64 over \
+             position 2 of the command-line and the written value 0"
+        ),
+        "the key the command hands over is not traced to the command line: {said:?}"
+    );
+    assert!(
+        said[0].contains("the run can end with failure, can end with success"),
+        "{said:?}"
+    );
+}
+
 /// The server rung: the whole sentence, every clause standing on its
 /// own proof — the store behind the lock, the verbs of the four
 /// handlers, the four routes, and the record a one-parameter path
