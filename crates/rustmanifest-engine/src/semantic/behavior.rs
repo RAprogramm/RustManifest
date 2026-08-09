@@ -124,6 +124,22 @@ mod tests {
         assert_eq!(joined.table, None, "a join must not claim one table");
     }
 
+    /// The function form hands its arguments over one `bind` at a time,
+    /// and the chain lands on the statement site in written order; a
+    /// computed argument claims nothing.
+    #[test]
+    fn a_bind_chain_lands_its_plain_names_on_the_statement_in_written_order() {
+        let all = facts(
+            "async fn store(pool: &sqlx::PgPool, id: i64, title: String) {\n    \
+             sqlx::query(\"INSERT INTO tasks (id, title) VALUES ($1, $2)\")\n        \
+             .bind(id)\n        .bind(&title)\n        .bind(title.len())\n        \
+             .execute(pool)\n        .await;\n}"
+        );
+        let sites = &named(&all, "store").queries;
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        assert_eq!(sites[0].binds, vec!["id".to_owned(), "title".to_owned()]);
+    }
+
     /// The counter states the channel's own blind spot: a DDL statement
     /// proves the effect and nothing further, so the effect count
     /// exceeds the proven-kind count by exactly that site.

@@ -109,6 +109,36 @@ impl FactCollector {
         }
     }
 
+    /// Appends the plain name a `bind` call writes to the statement
+    /// site its receiver chain stands on.
+    ///
+    /// The function form hands its arguments over one `bind` at a time,
+    /// so the names stand outside the statement's own parentheses. Only
+    /// a plain name is taken, a borrow seen through: a computed
+    /// argument claims nothing, on the same terms as the macro's
+    /// argument list. Runs after the chain below it was walked, so the
+    /// statement site it appends to is already recorded and the names
+    /// land in written order.
+    pub(super) fn record_statement_bind(&mut self, call: &syn::ExprMethodCall) {
+        if call.method != "bind" {
+            return;
+        }
+        let Some(name) = plain_bound_name(call) else {
+            return;
+        };
+        let Some(range) = statement_carrier(&call.receiver) else {
+            return;
+        };
+        if let Some(site) = self
+            .facts
+            .queries
+            .iter_mut()
+            .find(|site| site.range == range)
+        {
+            site.binds.push(name);
+        }
+    }
+
     /// Marks the function as carrying the unsafe effect, citing the block
     /// itself as what proved it.
     pub(super) fn collect_unsafe_block(&mut self, block: &syn::ExprUnsafe) {
@@ -166,4 +196,39 @@ fn turbofish_row_type(path: &syn::Path) -> Option<String> {
             _ => None
         })
         .next_back()
+}
+
+/// The one plain name a `bind` call is handed, a borrow seen through.
+fn plain_bound_name(call: &syn::ExprMethodCall) -> Option<String> {
+    let [only] = &call.args.iter().collect::<Vec<_>>()[..] else {
+        return None;
+    };
+    let mut written = *only;
+    if let syn::Expr::Reference(borrowed) = written {
+        written = &borrowed.expr;
+    }
+    let syn::Expr::Path(path) = written else {
+        return None;
+    };
+    path.path.get_ident().map(ToString::to_string)
+}
+
+/// The byte range of the statement-carrying call a method chain stands
+/// on, awaits and propagation steps seen through.
+fn statement_carrier(receiver: &syn::Expr) -> Option<Range> {
+    let mut written = receiver;
+    loop {
+        match written {
+            syn::Expr::MethodCall(chained) => written = &chained.receiver,
+            syn::Expr::Await(awaited) => written = &awaited.base,
+            syn::Expr::Try(tried) => written = &tried.expr,
+            syn::Expr::Call(call) => {
+                let syn::Expr::Path(path) = call.func.as_ref() else {
+                    return None;
+                };
+                return Some(span_range(path.span()));
+            }
+            _ => return None
+        }
+    }
 }

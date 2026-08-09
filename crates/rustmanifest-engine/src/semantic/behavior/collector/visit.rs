@@ -68,6 +68,7 @@ impl<'ast> Visit<'ast> for FactCollector {
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
         self.collect_method_call(call);
+        self.record_statement_bind(call);
     }
 
     fn visit_expr_struct(&mut self, literal: &'ast syn::ExprStruct) {
