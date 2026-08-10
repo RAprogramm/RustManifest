@@ -4,6 +4,8 @@
 //! The write standing inside a loop, where the stream's own buffering
 //! turns every iteration into a separate write syscall.
 
+mod buffering;
+
 use super::{
     catalogue::{LOOP_WRITE, library_knowledge, support},
     finding::{detail, trace},
@@ -45,24 +47,31 @@ pub(in crate::semantic) fn loop_write_insights(workspace: &Workspace<'_>) -> Vec
             if loops == 0 {
                 continue;
             }
-            found.push(Insight::new(
-                fact.source,
-                write.site,
-                detail(
-                    &LOOP_WRITE,
-                    &fact.function,
-                    &format!(
-                        "a write to {} stands under {loops} loop construct(s)",
-                        write.stream
+            found.push(
+                Insight::new(
+                    fact.source,
+                    write.site,
+                    detail(
+                        &LOOP_WRITE,
+                        &fact.function,
+                        &format!(
+                            "a write to {} stands under {loops} loop construct(s)",
+                            write.stream
+                        ),
+                        1
                     ),
-                    1
-                ),
-                trace(
-                    &format!("the write site stands under {loops} loop construct(s)"),
-                    "recorded guard stack of the write site",
-                    derived
+                    trace(
+                        &format!("the write site stands under {loops} loop construct(s)"),
+                        "recorded guard stack of the write site",
+                        derived
+                    )
                 )
-            ));
+                .with_fixes(
+                    sources.get(fact.source).map_or_else(Vec::new, |source| {
+                        buffering::buffer_fixes(source, write.site)
+                    })
+                )
+            );
         }
     }
     found
@@ -83,6 +92,57 @@ mod tests {
 
     fn sources(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
+    }
+
+    /// The locked-handle shape with a written flush carries the
+    /// buffering fix: one edit wrapping the initializer.
+    #[test]
+    fn a_locked_and_flushed_handle_carries_the_buffering_fix() {
+        let text = "use std::io::Write;\nfn main() {\n    let stdout = std::io::stdout();\n    \
+                    let mut handle = stdout.lock();\n    for line in 0..9 {\n        \
+                    writeln!(handle, \"{line}\").ok();\n    }\n    handle.flush().ok();\n}";
+        let found = loop_write_insights(&Workspace::new(&sources(text)));
+        let fixes = &found[0].fixes;
+        assert_eq!(fixes.len(), 1, "{fixes:?}");
+        assert_eq!(
+            fixes[0].replacement,
+            "std::io::BufWriter::new(stdout.lock())"
+        );
+        let replaced = &text[fixes[0].range.start as usize..fixes[0].range.end as usize];
+        assert_eq!(replaced, "stdout.lock()");
+    }
+
+    /// Without a written flush the buffer would drain on drop with its
+    /// errors swallowed, so no fix is synthesized.
+    #[test]
+    fn a_handle_without_a_flush_gets_no_fix() {
+        let text = "use std::io::Write;\nfn main() {\n    let stdout = std::io::stdout();\n    \
+                    let mut handle = stdout.lock();\n    for line in 0..9 {\n        \
+                    writeln!(handle, \"{line}\").ok();\n    }\n}";
+        let found = loop_write_insights(&Workspace::new(&sources(text)));
+        assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
+    }
+
+    /// A handle that also leaves as a plain value is not provably a
+    /// write-only handle, so no fix is synthesized.
+    #[test]
+    fn a_handle_used_beyond_writing_gets_no_fix() {
+        let text = "use std::io::Write;\nfn keep(handle: &std::io::StdoutLock<'_>) { let _ = \
+                    handle; }\nfn main() {\n    let stdout = std::io::stdout();\n    let mut \
+                    handle = stdout.lock();\n    for line in 0..9 {\n        writeln!(handle, \
+                    \"{line}\").ok();\n    }\n    keep(&handle);\n    handle.flush().ok();\n}";
+        let found = loop_write_insights(&Workspace::new(&sources(text)));
+        assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
+    }
+
+    /// A bare println in a loop has no handle to buffer, so the finding
+    /// stays a suggestion.
+    #[test]
+    fn a_bare_println_in_a_loop_gets_no_fix() {
+        let found = loop_write_insights(&Workspace::new(&sources(
+            "fn main() {\n    for line in 0..9 {\n        println!(\"{line}\");\n    }\n}"
+        )));
+        assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
     }
 
     #[test]
