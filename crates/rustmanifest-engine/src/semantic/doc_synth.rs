@@ -240,7 +240,8 @@ mod tests {
         assert_eq!(draft(text, "compute_total"), draft(text, "compute_total"));
         assert_eq!(
             draft(text, "compute_total"),
-            "/// Computes a value from its inputs."
+            "/// Computes a value from its inputs.\n///\n/// # Arguments\n///\n/// * `values` — \
+             `[u64]`, borrowed."
         );
     }
 }

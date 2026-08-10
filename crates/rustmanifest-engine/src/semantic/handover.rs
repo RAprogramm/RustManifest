@@ -314,6 +314,27 @@ mod tests {
     }
 
     #[test]
+    fn a_slice_parameter_is_a_recorded_borrow_not_a_gap() {
+        let answer = asked(
+            "fn pack(text: String, bytes: &[u8]) {}\nfn main() { let s = String::new(); let b = \
+             vec![0u8]; pack(s, &b); }",
+            "pack(s, &b)"
+        )
+        .unwrap();
+        assert_eq!(answer.steps.len(), 2, "{answer:?}");
+        assert!(
+            answer.steps[1]
+                .fact
+                .contains("`bytes: &[u8]` is a shared borrow")
+        );
+        assert!(
+            answer
+                .conclusion
+                .contains("moves 1 value(s) in, borrows 1 value(s)")
+        );
+    }
+
+    #[test]
     fn the_innermost_covered_call_answers() {
         let answer = asked(
             "fn inner(value: String) -> u32 { value.len() as u32 }\nfn outer(count: u32) {}\nfn \
