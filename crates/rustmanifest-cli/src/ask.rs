@@ -47,7 +47,7 @@ pub(crate) fn run_ask(args: &AskArgs) -> anyhow::Result<ExitCode> {
     let answer =
         rustmanifest_engine::semantic::why_effect(&workspace, &args.function, &args.effect);
     let stdout = std::io::stdout();
-    let mut handle = stdout.lock();
+    let mut handle = std::io::BufWriter::new(stdout.lock());
     for (position, step) in answer.steps.iter().enumerate() {
         writeln!(handle, "{}. {}  [{}]", position + 1, step.fact, step.reason)
             .context("writing answer step")?;
