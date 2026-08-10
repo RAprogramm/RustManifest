@@ -153,6 +153,10 @@ pub struct IntentRecord {
     pub type_name:  String,
     /// The ability the evidence asks for.
     pub trait_name: String,
+    /// The function whose written call states the intent.
+    pub asked_by:   String,
+    /// The written call itself, as the body spells it.
+    pub call:       String,
     /// The written call standing as evidence.
     pub evidence:   ChainStep
 }
@@ -171,6 +175,8 @@ pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, EngineError> {
         .map(|intent| IntentRecord {
             type_name:  intent.type_name,
             trait_name: intent.trait_name,
+            asked_by:   intent.asked_by,
+            call:       intent.call,
             evidence:   ChainStep {
                 fact:   intent.evidence.fact,
                 reason: intent.evidence.reason

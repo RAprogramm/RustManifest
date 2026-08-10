@@ -243,6 +243,7 @@ fn implementations(held: &Derived<'_>, node: &rustmanifest_engine::TypeNode) -> 
         }
     }
     candidates.sort();
+    let asked = rustmanifest_engine::semantic::derived_intents_with(held.facts, held.types);
     let mut offered = Vec::new();
     for trait_name in candidates {
         let Some(written) = rustmanifest_engine::semantic::impl_skeleton(
@@ -256,8 +257,19 @@ fn implementations(held: &Derived<'_>, node: &rustmanifest_engine::TypeNode) -> 
         let Some(edit) = appended(held, node.source, &written) else {
             continue;
         };
+        let intent = asked
+            .iter()
+            .find(|held| held.type_name == node.name && held.trait_name == trait_name);
         offered.push(CodeAction {
-            title: format!("implement {trait_name} for {}", node.name),
+            title: intent.map_or_else(
+                || format!("implement {trait_name} for {}", node.name),
+                |proven| {
+                    format!(
+                        "implement {trait_name} for {} — fn {} calls {}",
+                        node.name, proven.asked_by, proven.call
+                    )
+                }
+            ),
             kind: Some(CodeActionKind::REFACTOR),
             edit: Some(edit),
             ..CodeAction::default()

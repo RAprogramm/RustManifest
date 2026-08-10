@@ -32,7 +32,11 @@ pub struct DerivedIntent {
     pub type_name:  String,
     /// The ability the evidence asks for.
     pub trait_name: String,
-    /// The written call standing as evidence.
+    /// The function whose written call states the intent.
+    pub asked_by:   String,
+    /// The written call itself, as the body spells it.
+    pub call:       String,
+    /// The written call standing as evidence, spelled as a chain step.
     pub evidence:   TraceStep
 }
 
@@ -44,10 +48,18 @@ const ASKING_CALLS: [(&str, &str); 2] = [("default", "Default"), ("to_string", "
 /// prove, deduplicated by type and ability.
 #[must_use]
 pub fn derived_intents(sources: &[Source]) -> Vec<DerivedIntent> {
-    let types = TypeGraph::from_sources(sources);
-    let facts = behavior(sources);
+    derived_intents_with(&behavior(sources), &TypeGraph::from_sources(sources))
+}
+
+/// Derives the intents over facts and a type graph already computed,
+/// so a caching caller pays for neither twice.
+#[must_use]
+pub fn derived_intents_with(
+    facts: &[super::behavior::FunctionFacts],
+    types: &TypeGraph
+) -> Vec<DerivedIntent> {
     let mut found: Vec<DerivedIntent> = Vec::new();
-    for fact in &facts {
+    for fact in facts {
         for call in &fact.calls {
             let Some((owner, method)) = call.split_once("::") else {
                 continue;
@@ -73,6 +85,8 @@ pub fn derived_intents(sources: &[Source]) -> Vec<DerivedIntent> {
             found.push(DerivedIntent {
                 type_name:  owner.to_owned(),
                 trait_name: (*trait_name).to_owned(),
+                asked_by:   fact.function.clone(),
+                call:       call.clone(),
                 evidence:   TraceStep {
                     fact:   format!(
                         "fn `{}` calls `{call}`, which only `{trait_name}` can satisfy",

@@ -1106,6 +1106,49 @@ fn the_intents_command_names_what_the_written_calls_ask_for() {
     closed(client, handle);
 }
 
+/// An action backed by a derived intent cites the asking call in its
+/// title: the author sees not only what can be installed but who in
+/// their own code already asked for it.
+#[test]
+fn an_intent_backed_action_cites_the_asking_call() {
+    let (client, handle) = opened(
+        "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
+         Job::default()\n}\n"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/codeAction".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "range": {
+                    "start": { "line": 0, "character": 12 },
+                    "end": { "line": 0, "character": 12 }
+                },
+                "context": { "diagnostics": [] }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a code action request must be answered");
+    };
+    let offered = answer.response_result.as_ref().unwrap().as_array().unwrap();
+    let titles: Vec<&str> = offered
+        .iter()
+        .filter_map(|action| action["title"].as_str())
+        .collect();
+    assert!(
+        titles.contains(&"implement Default for Job — fn make calls Job::default"),
+        "{titles:?}"
+    );
+    assert!(
+        titles.contains(&"implement Display for Job"),
+        "an intent must not decorate a trait nobody asked for: {titles:?}"
+    );
+    closed(client, handle);
+}
+
 /// The buffering measurement must reach the cursor: the card of a
 /// writing function says where it writes, through what buffering, and
 /// under what lock — the same reading the facts export carries.

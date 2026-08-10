@@ -113,12 +113,14 @@ fn implemented(request: &Request, held: &Derived<'_>) -> Response {
 /// program names what is missing before anyone asks.
 fn intended(request: &Request, held: &Derived<'_>) -> Response {
     let derived: Vec<serde_json::Value> =
-        rustmanifest_engine::semantic::derived_intents(held.sources)
+        rustmanifest_engine::semantic::derived_intents_with(held.facts, held.types)
             .into_iter()
             .map(|intent| {
                 serde_json::json!({
                     "type": intent.type_name,
                     "trait": intent.trait_name,
+                    "asked_by": intent.asked_by,
+                    "call": intent.call,
                     "evidence": {
                         "fact": intent.evidence.fact,
                         "reason": intent.evidence.reason

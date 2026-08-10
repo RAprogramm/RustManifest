@@ -104,7 +104,7 @@ pub use self::{
     },
     handover::{Mark, copyness, handover_at, handover_marks},
     implement::impl_skeleton,
-    intents::{DerivedIntent, derived_intents, fulfill_intents},
+    intents::{DerivedIntent, derived_intents, derived_intents_with, fulfill_intents},
     invariant::{check_invariants, check_invariants_with},
     keeping::{
         Command, Direction, Ending, Feeding, Keeping, Outliving, Serving, Store, TableStore,
