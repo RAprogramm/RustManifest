@@ -15,8 +15,11 @@
 //! way. A call of an external or unresolved callee, or one declaring no
 //! parameters, has no story and answers with nothing.
 
+mod marks;
+
 use rustmanifest_schema::TraceStep;
 
+pub use self::marks::{Mark, handover_marks};
 use super::{
     behavior::{CallSite, FunctionFacts, ParamFacts, ParamMode},
     calls::CallGraph,

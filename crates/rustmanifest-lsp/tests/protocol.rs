@@ -731,3 +731,84 @@ fn a_hover_on_a_type_name_cards_its_facts() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// The inlay hints of the interview program: the move visible at the
+/// argument itself, no hover asked.
+#[test]
+fn inlay_hints_mark_the_fate_of_each_argument() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": HANDED
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/inlayHint".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 2, "character": 0 }
+                }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("an inlay hint request must be answered");
+    };
+    let hints = answer.response_result.as_ref().unwrap().as_array().unwrap();
+    assert_eq!(hints.len(), 1, "{hints:?}");
+    assert_eq!(hints[0]["label"], "moves", "{hints:?}");
+    let line = HANDED.lines().nth(1).unwrap();
+    let argument = line.find("foo(s)").unwrap() + 4;
+    assert_eq!(hints[0]["position"]["line"], 1, "{hints:?}");
+    assert_eq!(hints[0]["position"]["character"], argument, "{hints:?}");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}

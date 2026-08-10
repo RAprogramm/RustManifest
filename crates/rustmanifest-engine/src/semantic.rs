@@ -93,7 +93,7 @@ pub use self::{
     graph::{
         Absorption, FieldNode, ImplNode, MethodNode, TraitNode, TypeGraph, TypeKind, TypeNode
     },
-    handover::handover_at,
+    handover::{Mark, handover_at, handover_marks},
     implement::impl_skeleton,
     invariant::{check_invariants, check_invariants_with},
     keeping::{

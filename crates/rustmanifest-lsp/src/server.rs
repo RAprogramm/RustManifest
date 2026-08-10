@@ -25,6 +25,7 @@ mod action;
 mod analysis;
 mod card;
 mod command;
+mod hint;
 mod hover;
 mod position;
 mod snapshot;
@@ -44,6 +45,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
+        inlay_hint_provider: Some(lsp_types::OneOf::Left(true)),
         execute_command_provider: Some(lsp_types::ExecuteCommandOptions {
             commands: vec![command::WHY.to_owned(), command::IMPLEMENT.to_owned()],
             ..lsp_types::ExecuteCommandOptions::default()
@@ -67,6 +69,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                     "textDocument/codeAction" => {
                         action::answer(&request, &held.derived(&documents))
                     }
+                    "textDocument/inlayHint" => hint::answer(&request, &held.derived(&documents)),
                     "workspace/executeCommand" => {
                         command::answer(&request, &held.derived(&documents))
                     }
