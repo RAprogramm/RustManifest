@@ -65,8 +65,8 @@ mod workspace;
 pub use self::{
     analyzer::{SemanticAnalyzer, semantic_findings},
     behavior::{
-        Acquisition, Alternative, Arguments, Arithmetic, CHOICE_SET, CallSite, Channel, Choice,
-        Closure, Comparison, Condition, Conduit, Conversion, Disposal, Effect, EffectSite,
+        Acquisition, Alternative, Arguments, Arithmetic, Buffering, CHOICE_SET, CallSite, Channel,
+        Choice, Closure, Comparison, Condition, Conduit, Conversion, Disposal, Effect, EffectSite,
         ExitRoute, ExitStatus, FunctionFacts, FunctionFlags, Grade, Guard, Guarding, HANDBACK_SET,
         Handback, Hole, HoleSource, INPUT_SOURCE_SET, InputRead, Intake, Junction, Literal,
         Multiplicity, Newline, OPERATION_SET, OUTPUT_SINK_SET, OpaqueReason, Operation,

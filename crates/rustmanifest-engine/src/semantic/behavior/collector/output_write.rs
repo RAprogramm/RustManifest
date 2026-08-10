@@ -28,6 +28,7 @@ impl FactCollector {
     ) {
         self.facts.output_writes.push(OutputWrite {
             stream: destination.stream,
+            buffering: destination.buffering,
             payload,
             newline,
             site: rustmanifest_schema::Range {
@@ -68,7 +69,8 @@ impl FactCollector {
             invocation.span().byte_range(),
             Destination {
                 stream,
-                acquisition: Acquisition::AtSite
+                acquisition: Acquisition::AtSite,
+                buffering: output::Buffering::StreamOwn
             },
             payload,
             newline,
@@ -181,7 +183,8 @@ impl FactCollector {
         let unreadable = Payload::Opaque(OpaqueReason::Unparsed);
         let unidentified = Destination {
             stream:      Stream::Unknown,
-            acquisition: Acquisition::Unknown
+            acquisition: Acquisition::Unknown,
+            buffering:   output::Buffering::Unknown
         };
         let Ok(arguments) = invocation.parse_body_with(
             syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated

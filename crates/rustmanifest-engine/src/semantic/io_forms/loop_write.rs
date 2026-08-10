@@ -12,7 +12,7 @@ use super::{
     shipped_code::shipped
 };
 use crate::semantic::{
-    behavior::{Guard, Multiplicity},
+    behavior::{Buffering, Guard, Multiplicity},
     insight::Insight,
     workspace::Workspace
 };
@@ -36,6 +36,9 @@ pub(in crate::semantic) fn loop_write_insights(workspace: &Workspace<'_>) -> Vec
                 continue;
             };
             if write.multiplicity != Multiplicity::Unbounded {
+                continue;
+            }
+            if write.buffering == Buffering::Block {
                 continue;
             }
             let loops = write
@@ -133,6 +136,32 @@ mod tests {
                     \"{line}\").ok();\n    }\n    keep(&handle);\n    handle.flush().ok();\n}";
         let found = loop_write_insights(&Workspace::new(&sources(text)));
         assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
+    }
+
+    /// A loop writing through a written block buffer is the prescribed
+    /// form: the stream is known, the buffering is known, and the
+    /// silence rests on that knowledge rather than on an unresolved
+    /// destination.
+    #[test]
+    fn a_buffered_loop_write_is_silent_by_knowledge() {
+        let found = loop_write_insights(&Workspace::new(&sources(
+            "use std::io::Write;\nfn main() {\n    let mut out = \
+             std::io::BufWriter::new(std::io::stdout().lock());\n    for line in 0..9 {\n        \
+             writeln!(out, \"{line}\").ok();\n    }\n    out.flush().ok();\n}"
+        )));
+        assert!(found.is_empty(), "{found:?}");
+    }
+
+    /// The two-step spelling — the stream held in its own binding, the
+    /// buffer bound over its lock — resolves the same as the inline one.
+    #[test]
+    fn a_buffered_write_over_a_bound_stream_is_silent_too() {
+        let found = loop_write_insights(&Workspace::new(&sources(
+            "use std::io::Write;\nfn main() {\n    let stdout = std::io::stdout();\n    let mut \
+             out = std::io::BufWriter::new(stdout.lock());\n    for line in 0..9 {\n        \
+             writeln!(out, \"{line}\").ok();\n    }\n    out.flush().ok();\n}"
+        )));
+        assert!(found.is_empty(), "{found:?}");
     }
 
     /// A bare println in a loop has no handle to buffer, so the finding

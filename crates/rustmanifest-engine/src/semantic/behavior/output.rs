@@ -40,9 +40,9 @@ pub use self::{
     multiplicity::Multiplicity,
     payload::{Hole, HoleSource, OpaqueReason, Payload, Segment},
     stream::Stream,
-    write::{Newline, OutputWrite}
+    write::{Buffering, Newline, OutputWrite}
 };
 
 /// Version of the recognized write-sink list. Stamped into claims so a
 /// negative result states which recognizer produced it.
-pub const OUTPUT_SINK_SET: u32 = 2;
+pub const OUTPUT_SINK_SET: u32 = 3;

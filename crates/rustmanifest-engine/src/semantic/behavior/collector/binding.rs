@@ -36,6 +36,20 @@ impl FactCollector {
         {
             self.local_wraps.insert(name, inner);
         }
+        if let Some(name) = name.clone() {
+            match local
+                .init
+                .as_ref()
+                .and_then(|init| self.buffered_stream_of(&init.expr))
+            {
+                Some(stream) => {
+                    self.buffered_streams.insert(name, stream);
+                }
+                None => {
+                    self.buffered_streams.remove(&name);
+                }
+            }
+        }
         if let (Some(name), init) = (name, &local.init) {
             let constructed = init.as_ref().and_then(|init| {
                 self.handle_type(&init.expr)

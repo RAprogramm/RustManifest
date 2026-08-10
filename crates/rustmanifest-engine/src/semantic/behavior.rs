@@ -62,7 +62,7 @@ pub use self::{
         OperationSite
     },
     output::{
-        Acquisition, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
+        Acquisition, Buffering, Conduit, Grade, Guard, Hole, HoleSource, Multiplicity, Newline,
         OUTPUT_SINK_SET, OpaqueReason, OutputWrite, Payload, Segment, SiteGuard, Stream
     },
     query::{QuerySite, Statement, StatementCoverage, statement_coverage},

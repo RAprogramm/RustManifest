@@ -12,7 +12,7 @@ use super::{
     shipped_code::shipped
 };
 use crate::semantic::{
-    behavior::{Conduit, Newline, OutputWrite, Payload, Stream},
+    behavior::{Buffering, Conduit, Newline, OutputWrite, Payload, Stream},
     insight::Insight,
     workspace::Workspace
 };
@@ -83,6 +83,9 @@ pub(in crate::semantic) fn literal_format_insights(workspace: &Workspace<'_>) ->
 /// surrounding style may prefer a bound handle — judgments the facts do
 /// not carry.
 fn byte_write_fix(text: &str, write: &OutputWrite) -> Vec<Fix> {
+    if write.buffering == Buffering::Block {
+        return Vec::new();
+    }
     let handle = match write.stream {
         Stream::Stdout => "stdout",
         Stream::Stderr => "stderr",

@@ -23,11 +23,26 @@ pub enum Newline {
     None
 }
 
+/// How the destination buffers what a site writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Buffering {
+    /// The stream's own declared buffering applies.
+    StreamOwn,
+    /// A block buffer stands in front of the stream: the destination
+    /// was bound through a written buffering wrapper, so bytes reach
+    /// the stream on flush, not per write.
+    Block,
+    /// Nothing is proven about the buffering.
+    Unknown
+}
+
 /// One observed write to an output stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputWrite {
     /// Where the bytes go.
     pub stream:       Stream,
+    /// How the destination buffers what this site writes.
+    pub buffering:    Buffering,
     /// What is written.
     pub payload:      Payload,
     /// Whether a line terminator is appended.

@@ -47,7 +47,7 @@ pub(super) fn function_facts(
     let census = name_census(block);
     let params = param_facts(signature, context.impl_type);
     let mut collector = FactCollector {
-        facts:       FunctionFacts {
+        facts:            FunctionFacts {
             function,
             source,
             range: Range {
@@ -77,34 +77,35 @@ pub(super) fn function_facts(
             exits: Vec::new(),
             queries: Vec::new()
         },
-        param_types: parameter_types(signature, context.impl_type),
-        elem_types:  parameter_elements(signature),
-        fn_returns:  known.tables.returns.clone(),
-        mutates:     known.tables.mutates.clone(),
-        field_types: known.tables.fields.clone(),
-        field_elems: known.tables.field_elems.clone(),
-        field_wraps: known.tables.field_wraps.clone(),
-        field_pairs: known.tables.field_pairs.clone(),
-        crates:      known.tables.crates.clone(),
-        declared:    known.tables.declared.clone(),
-        payloads:    known.tables.payloads.clone(),
-        settled:     known.settled.produced.clone(),
-        receivers:   known.settled.receivers.clone(),
-        held:        known.settled.fields.clone(),
-        src:         source,
-        bounds:      context.bounds.clone(),
-        local_wraps: std::collections::BTreeMap::new(),
-        imports:     known.imports.clone(),
-        fresh:       std::collections::BTreeSet::new(),
-        guards:      Vec::new(),
-        prior_exits: 0,
-        dead:        false,
-        slots:       param_slots(signature),
-        origins:     std::collections::BTreeMap::new(),
-        written:     census.written,
-        sole:        census.sole,
-        produced:    std::collections::BTreeMap::new(),
-        conditions:  Vec::new()
+        param_types:      parameter_types(signature, context.impl_type),
+        elem_types:       parameter_elements(signature),
+        fn_returns:       known.tables.returns.clone(),
+        mutates:          known.tables.mutates.clone(),
+        field_types:      known.tables.fields.clone(),
+        field_elems:      known.tables.field_elems.clone(),
+        field_wraps:      known.tables.field_wraps.clone(),
+        field_pairs:      known.tables.field_pairs.clone(),
+        crates:           known.tables.crates.clone(),
+        declared:         known.tables.declared.clone(),
+        payloads:         known.tables.payloads.clone(),
+        settled:          known.settled.produced.clone(),
+        receivers:        known.settled.receivers.clone(),
+        held:             known.settled.fields.clone(),
+        src:              source,
+        bounds:           context.bounds.clone(),
+        local_wraps:      std::collections::BTreeMap::new(),
+        imports:          known.imports.clone(),
+        fresh:            std::collections::BTreeSet::new(),
+        buffered_streams: std::collections::BTreeMap::new(),
+        guards:           Vec::new(),
+        prior_exits:      0,
+        dead:             false,
+        slots:            param_slots(signature),
+        origins:          std::collections::BTreeMap::new(),
+        written:          census.written,
+        sole:             census.sole,
+        produced:         std::collections::BTreeMap::new(),
+        conditions:       Vec::new()
     };
     if matches!(signature.safety, syn::Safety::Unsafe(_)) {
         collector.facts.effects.push(Effect::Unsafe);

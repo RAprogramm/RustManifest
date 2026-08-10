@@ -34,6 +34,11 @@ pub(super) fn output_json(write: &crate::semantic::OutputWrite) -> serde_json::V
         "newline": write.newline == crate::semantic::Newline::Appended,
         "conduit": write.conduit.label(),
         "lock": write.acquisition.label(),
+        "buffering": match write.buffering {
+            crate::semantic::Buffering::StreamOwn => "stream-own",
+            crate::semantic::Buffering::Block => "block",
+            crate::semantic::Buffering::Unknown => "unknown"
+        },
         "site": { "start": write.site.start, "end": write.site.end }
     })
 }

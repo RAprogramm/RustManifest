@@ -16,30 +16,35 @@ use super::{
     FactCollector,
     catalog::{STREAM_GUARD_SUFFIX, STREAM_LOCK_METHOD}
 };
-use crate::semantic::behavior::output::{Acquisition, Stream};
+use crate::semantic::behavior::output::{Acquisition, Buffering, Stream};
 
 /// What a write site's destination expression resolves to: the stream the
-/// bytes reach, and where that stream's lock was taken.
+/// bytes reach, where that stream's lock was taken, and how the
+/// destination buffers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Destination {
     /// Where the bytes go.
     pub(super) stream:      Stream,
     /// Where the stream's lock was taken relative to the site.
-    pub(super) acquisition: Acquisition
+    pub(super) acquisition: Acquisition,
+    /// How the destination buffers what the site writes.
+    pub(super) buffering:   Buffering
 }
 
 impl Destination {
     /// A destination nothing could be proven about.
     const UNKNOWN: Self = Self {
         stream:      Stream::Unknown,
-        acquisition: Acquisition::Unknown
+        acquisition: Acquisition::Unknown,
+        buffering:   Buffering::Unknown
     };
 
     /// A destination the caller handed in, so it points wherever the
     /// caller pointed it and no lock of this process's own is claimed.
     const CALLER_SUPPLIED: Self = Self {
         stream:      Stream::CallerSupplied,
-        acquisition: Acquisition::Unknown
+        acquisition: Acquisition::Unknown,
+        buffering:   Buffering::Unknown
     };
 }
 
@@ -64,7 +69,8 @@ impl FactCollector {
         if let Some(stream) = self.handle_stream(destination) {
             return Destination {
                 stream,
-                acquisition: Acquisition::AtSite
+                acquisition: Acquisition::AtSite,
+                buffering: Buffering::StreamOwn
             };
         }
         let syn::Expr::Path(path) = destination_root(destination) else {
@@ -73,6 +79,13 @@ impl FactCollector {
         let Some(name) = path.path.get_ident().map(ToString::to_string) else {
             return Destination::UNKNOWN;
         };
+        if let Some(stream) = self.buffered_streams.get(&name) {
+            return Destination {
+                stream:      *stream,
+                acquisition: Acquisition::Held,
+                buffering:   Buffering::Block
+            };
+        }
         if let Some(type_name) = self.param_types.get(&name)
             && let Some(stream) = named_stream(type_name)
         {
@@ -82,13 +95,47 @@ impl FactCollector {
                     Acquisition::Held
                 } else {
                     Acquisition::AtSite
-                }
+                },
+                buffering: Buffering::StreamOwn
             };
         }
         if self.facts.params.iter().any(|param| param.name == name) {
             return Destination::CALLER_SUPPLIED;
         }
         Destination::UNKNOWN
+    }
+
+    /// The process stream a written buffering wrapper is bound over:
+    /// `BufWriter::new(inner)` or `BufWriter::with_capacity(_, inner)`
+    /// where `inner` resolves to one of the process's own streams. The
+    /// stream identity carries through the wrapper; the buffering is
+    /// the wrapper's own, which is the point of writing one.
+    pub(super) fn buffered_stream_of(&self, expression: &syn::Expr) -> Option<Stream> {
+        let syn::Expr::Call(call) = expression else {
+            return None;
+        };
+        let syn::Expr::Path(path) = call.func.as_ref() else {
+            return None;
+        };
+        let segments = self.expanded_segments(&path.path);
+        let [.., wrapper, method] = segments.as_slice() else {
+            return None;
+        };
+        if wrapper != "BufWriter" {
+            return None;
+        }
+        let inner = match method.as_str() {
+            "new" => call.args.first(),
+            "with_capacity" => call.args.iter().nth(1),
+            _ => None
+        }?;
+        match self.write_destination(inner) {
+            Destination {
+                stream: stream @ (Stream::Stdout | Stream::Stderr),
+                ..
+            } => Some(stream),
+            _ => None
+        }
     }
 
     /// The library type an initializer expression produces, where that
