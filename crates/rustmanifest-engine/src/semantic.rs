@@ -23,6 +23,7 @@ mod dead;
 mod doc_synth;
 mod doc_truth;
 mod docs;
+mod emitted;
 mod entry;
 mod expansion;
 mod expr;
@@ -88,6 +89,7 @@ pub use self::{
     },
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
+    emitted::{Gain, install_impl},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
     extract::{Extraction, extract_function, extract_type},
