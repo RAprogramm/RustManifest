@@ -225,3 +225,102 @@ fn unknown_tool_is_an_error() {
     let responses = scripted();
     assert!(responses[&7].get("error").is_some());
 }
+
+/// A workspace carrying the evaluation bed serves it: the corpus
+/// manifest and the blessed baseline appear as resources and read back
+/// verbatim; the plain workspace above lists none of them.
+#[test]
+fn a_workspace_with_the_evaluation_bed_serves_its_measurement() {
+    let workspace = tempfile::tempdir().expect("workspace dir");
+    std::fs::create_dir(workspace.path().join("eval")).expect("eval dir");
+    std::fs::write(
+        workspace.path().join("eval/corpus.toml"),
+        "[[repo]]\nname = \"probe\"\npath = \"probe\"\nrev = \"0\"\n"
+    )
+    .expect("corpus manifest");
+    std::fs::write(
+        workspace.path().join("eval/baseline.json"),
+        "{\"repos\":{}}"
+    )
+    .expect("baseline");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rustmanifest-mcp"))
+        .current_dir(workspace.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("server spawns");
+    let mut stdin = child.stdin.take().expect("stdin handle");
+    let mut script = String::new();
+    for request in [
+        json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "conformance", "version": "0"}
+        }}),
+        json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+        json!({"jsonrpc": "2.0", "id": 2, "method": "resources/list"}),
+        json!({"jsonrpc": "2.0", "id": 3, "method": "resources/read", "params": {
+            "uri": "rustmanifest://corpus/baseline"
+        }})
+    ] {
+        script.push_str(&request.to_string());
+        script.push('\n');
+    }
+    stdin.write_all(script.as_bytes()).expect("script written");
+    drop(stdin);
+    let watchdog = {
+        let pid = child.id();
+        std::thread::spawn(move || {
+            std::thread::sleep(SESSION_TIMEOUT);
+            Command::new("kill").arg(pid.to_string()).status().ok();
+        })
+    };
+    let output = child.wait_with_output().expect("server exits");
+    drop(watchdog);
+    let mut responses = BTreeMap::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let Ok(message) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if let Some(id) = message.get("id").and_then(Value::as_i64) {
+            responses.insert(id, message);
+        }
+    }
+    let listed = responses[&2]["result"]["resources"]
+        .as_array()
+        .expect("resources array");
+    let corpus: Vec<&str> = listed
+        .iter()
+        .filter_map(|resource| resource["uri"].as_str())
+        .filter(|uri| uri.starts_with("rustmanifest://corpus/"))
+        .collect();
+    assert_eq!(
+        corpus,
+        [
+            "rustmanifest://corpus/manifest",
+            "rustmanifest://corpus/baseline"
+        ],
+        "the bed's two present files must be served, the absent report must not"
+    );
+    let read = responses[&3]["result"]["contents"][0]["text"]
+        .as_str()
+        .expect("baseline text");
+    assert_eq!(read, "{\"repos\":{}}");
+}
+
+/// A workspace without the bed keeps the corpus URIs out of the
+/// listing entirely: absent measurement, absent claims.
+#[test]
+fn a_workspace_without_the_bed_lists_no_corpus_resources() {
+    let responses = scripted();
+    let listed = responses[&3]["result"]["resources"]
+        .as_array()
+        .expect("resources array");
+    assert!(
+        listed
+            .iter()
+            .filter_map(|resource| resource["uri"].as_str())
+            .all(|uri| !uri.starts_with("rustmanifest://corpus/"))
+    );
+}

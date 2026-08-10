@@ -10,6 +10,7 @@
 
 mod answers;
 mod catalog;
+mod corpus;
 mod explanation;
 mod knowledge;
 mod methodology;
@@ -101,7 +102,9 @@ impl ServerHandler for ReviewServer {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>
     ) -> Result<ListResourcesResult, ErrorData> {
-        Ok(methodology::listing())
+        let mut listed = methodology::listing();
+        listed.resources.extend(corpus::listing(self.root.path()));
+        Ok(listed)
     }
 
     async fn read_resource(
@@ -109,6 +112,9 @@ impl ServerHandler for ReviewServer {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>
     ) -> Result<ReadResourceResponse, ErrorData> {
+        if let Some(answered) = corpus::read(self.root.path(), &request.uri) {
+            return answered;
+        }
         methodology::read(&request.uri)
     }
 }
