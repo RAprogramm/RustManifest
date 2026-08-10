@@ -30,7 +30,9 @@ pub fn impl_skeleton(
     trait_name: &str
 ) -> Option<String> {
     let asked = types.type_named(type_name)?;
-    if types.traits_implemented(type_name).contains(&trait_name) {
+    if types.traits_implemented(type_name).contains(&trait_name)
+        || asked.derives.iter().any(|derive| derive == trait_name)
+    {
         return None;
     }
     let declared = types.traits().iter().find(|node| node.name == trait_name);
@@ -134,6 +136,11 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn a_derived_canon_trait_is_refused_by_the_derive_itself() {
+        assert!(asked("#[derive(Default)]\nstruct Disk;", "Disk", "Default").is_none());
     }
 
     #[test]
