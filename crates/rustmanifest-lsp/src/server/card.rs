@@ -116,6 +116,7 @@ pub(super) fn why_section(effect: &str, answer: &rustmanifest_engine::semantic::
 /// The fact card of one type: what it is, what it holds, what it
 /// implements, and what a value of it weighs where that is derivable.
 pub(super) fn type_card(
+    types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
     shape: Option<&rustmanifest_engine::semantic::TypeShape>
@@ -130,20 +131,8 @@ pub(super) fn type_card(
     }
     fence.push("}\n```".to_owned());
     let mut lines = vec![fence.join("\n")];
-    if !node.derives.is_empty() {
-        let derived: Vec<String> = node
-            .derives
-            .iter()
-            .map(|name| format!("`{name}`"))
-            .collect();
-        lines.push("---".to_owned());
-        lines.push(format!("**derives** {}", derived.join(", ")));
-    }
-    if !implemented.is_empty() {
-        let written: Vec<String> = implemented.iter().map(|name| format!("`{name}`")).collect();
-        lines.push("---".to_owned());
-        lines.push(format!("**written impls** {}", written.join(", ")));
-    }
+    lines.push("---".to_owned());
+    lines.push(traits_section(types, node, implemented));
     if let Some(shape) = shape {
         let mut memory = Vec::new();
         if let Some(payload) = shape.payload {
@@ -164,6 +153,80 @@ pub(super) fn type_card(
         }
     }
     lines.join("\n\n")
+}
+
+/// Traits the workspace's canon asks about first, in asking order.
+const ASKED_TRAITS: [&str; 8] = [
+    "Copy",
+    "Clone",
+    "Debug",
+    "Default",
+    "Display",
+    "PartialEq",
+    "Eq",
+    "Hash"
+];
+
+/// The per-trait verdicts of one type: yes with the ground, no with
+/// the proof where one exists, "not written" where absence is all the
+/// facts can say — and the compiler's own territory named as such.
+fn traits_section(
+    types: &rustmanifest_engine::TypeGraph,
+    node: &rustmanifest_engine::TypeNode,
+    implemented: &[&str]
+) -> String {
+    let mut told = vec!["**traits**".to_owned()];
+    let mut named: Vec<&str> = ASKED_TRAITS.to_vec();
+    for extra in node
+        .derives
+        .iter()
+        .map(String::as_str)
+        .chain(implemented.iter().copied())
+    {
+        if !named.contains(&extra) {
+            named.push(extra);
+        }
+    }
+    for trait_name in named {
+        told.push(format!(
+            "- {}",
+            verdict(types, node, implemented, trait_name)
+        ));
+    }
+    told.push(
+        "- auto traits (`Send`, `Sync`) and blanket impls are the compiler's answer, not \
+         recorded here"
+            .to_owned()
+    );
+    told.join("\n")
+}
+
+/// One trait's verdict with its ground.
+fn verdict(
+    types: &rustmanifest_engine::TypeGraph,
+    node: &rustmanifest_engine::TypeNode,
+    implemented: &[&str],
+    trait_name: &str
+) -> String {
+    if node.derives.iter().any(|derive| derive == trait_name) {
+        return format!("`{trait_name}` — yes: the definition derives it");
+    }
+    if implemented.contains(&trait_name) {
+        return format!("`{trait_name}` — yes: a written impl");
+    }
+    if trait_name == "Copy" {
+        if let Some(owning) = node.fields.iter().find(|field| {
+            rustmanifest_engine::semantic::copyness(types, &field.type_name) == Some(false)
+        }) {
+            return format!(
+                "`Copy` — no: not derived, and `{}: {}` owns heap data — a type holding it \
+                 cannot be `Copy`",
+                owning.name, owning.type_name
+            );
+        }
+        return "`Copy` — not derived".to_owned();
+    }
+    format!("`{trait_name}` — not written in the workspace")
 }
 
 /// The ownership story of the written call under the cursor: one step

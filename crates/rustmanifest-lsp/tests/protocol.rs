@@ -708,8 +708,24 @@ fn a_hover_on_a_type_name_cards_its_facts() {
     let value = held["contents"]["value"].as_str().unwrap();
     assert!(value.contains("```rust\nstruct User {"), "{value}");
     assert!(value.contains("    name: String,"), "{value}");
-    assert!(value.contains("**derives** `Clone`, `Debug`"), "{value}");
-    assert!(value.contains("**written impls** `Display`"), "{value}");
+    assert!(value.contains("**traits**"), "{value}");
+    assert!(
+        value.contains("`Clone` — yes: the definition derives it"),
+        "{value}"
+    );
+    assert!(value.contains("`Display` — yes: a written impl"), "{value}");
+    assert!(
+        value.contains(
+            "`Copy` — no: not derived, and `name: String` owns heap data — a type holding it \
+             cannot be `Copy`"
+        ),
+        "{value}"
+    );
+    assert!(
+        value.contains("`Default` — not written in the workspace"),
+        "{value}"
+    );
+    assert!(value.contains("are the compiler's answer"), "{value}");
     assert!(value.contains("**memory**"), "{value}");
     client
         .sender
