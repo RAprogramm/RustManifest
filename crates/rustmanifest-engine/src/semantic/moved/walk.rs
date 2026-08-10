@@ -21,16 +21,57 @@ use crate::semantic::{graph::TypeGraph, handover, std_knowledge};
 pub(super) fn moved_uses(parsed: &syn::File, types: &TypeGraph) -> Vec<MovedUse> {
     let mut functions = Functions {
         types,
+        foreign: foreign_names(parsed),
         found: Vec::new()
     };
     functions.visit_file(parsed);
     functions.found
 }
 
+/// Type names this file imports from outside the workspace tree
+/// (`use` paths not rooted in `crate`, `self`, or `super`): a local
+/// spelled with such a name may be the import, not the workspace type
+/// of the same last segment, so no non-`Copy` claim can rest on it.
+fn foreign_names(parsed: &syn::File) -> std::collections::BTreeSet<String> {
+    let mut found = std::collections::BTreeSet::new();
+    for item in &parsed.items {
+        if let syn::Item::Use(used) = item
+            && let syn::UseTree::Path(path) = &used.tree
+            && !matches!(
+                path.ident.to_string().as_str(),
+                "crate" | "self" | "super" | "std" | "core" | "alloc"
+            )
+        {
+            leaves(&used.tree, &mut found);
+        }
+    }
+    found
+}
+
+/// The leaf names one `use` tree binds.
+fn leaves(tree: &syn::UseTree, found: &mut std::collections::BTreeSet<String>) {
+    match tree {
+        syn::UseTree::Path(path) => leaves(&path.tree, found),
+        syn::UseTree::Name(name) => {
+            found.insert(name.ident.to_string());
+        }
+        syn::UseTree::Rename(renamed) => {
+            found.insert(renamed.rename.to_string());
+        }
+        syn::UseTree::Group(group) => {
+            for item in &group.items {
+                leaves(item, found);
+            }
+        }
+        syn::UseTree::Glob(_) => {}
+    }
+}
+
 /// Finds every function body and runs one walker over each.
 struct Functions<'a> {
-    types: &'a TypeGraph,
-    found: Vec<MovedUse>
+    types:   &'a TypeGraph,
+    foreign: std::collections::BTreeSet<String>,
+    found:   Vec<MovedUse>
 }
 
 impl<'ast> Visit<'ast> for Functions<'_> {
@@ -50,20 +91,30 @@ impl Functions<'_> {
     fn walk(&mut self, sig: &syn::Signature, block: &syn::Block) {
         let mut walker = Walker {
             types:       self.types,
+            foreign:     &self.foreign,
             names:       std::collections::BTreeMap::new(),
             conditional: 0,
             found:       Vec::new()
         };
         for input in &sig.inputs {
             if let syn::FnArg::Typed(argument) = input
-                && let syn::Pat::Ident(pattern) = argument.pat.as_ref()
+                && let Some(name) = bound_ident(&argument.pat)
                 && let Some(type_name) = owned_type(&argument.ty)
             {
-                walker.rebind(&pattern.ident.to_string(), Some(type_name));
+                walker.rebind(&name, Some(type_name));
             }
         }
         walker.visit_block(block);
         self.found.append(&mut walker.found);
+    }
+}
+
+/// The one name a plain or type-ascribed binding pattern binds.
+fn bound_ident(pat: &syn::Pat) -> Option<String> {
+    match pat {
+        syn::Pat::Ident(pattern) => Some(pattern.ident.to_string()),
+        syn::Pat::Type(typed) => bound_ident(&typed.pat),
+        _ => None
     }
 }
 
@@ -78,26 +129,52 @@ struct Name {
 /// The in-order walk of one body.
 struct Walker<'a> {
     types:       &'a TypeGraph,
+    foreign:     &'a std::collections::BTreeSet<String>,
     names:       std::collections::BTreeMap<String, Name>,
     conditional: u32,
     found:       Vec<MovedUse>
+}
+
+/// Whether the attributes gate the construct by configuration: what
+/// runs then depends on the build, which written order cannot prove.
+fn cfg_gated(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("cfg"))
+}
+
+/// The outer attributes of a statement-position expression, for the
+/// variants a statement can carry them on.
+fn expr_attrs(expr: &syn::Expr) -> &[syn::Attribute] {
+    match expr {
+        syn::Expr::Call(held) => &held.attrs,
+        syn::Expr::MethodCall(held) => &held.attrs,
+        syn::Expr::Macro(held) => &held.attrs,
+        syn::Expr::If(held) => &held.attrs,
+        syn::Expr::Match(held) => &held.attrs,
+        syn::Expr::Block(held) => &held.attrs,
+        syn::Expr::ForLoop(held) => &held.attrs,
+        syn::Expr::While(held) => &held.attrs,
+        syn::Expr::Loop(held) => &held.attrs,
+        syn::Expr::Assign(held) => &held.attrs,
+        syn::Expr::Unsafe(held) => &held.attrs,
+        syn::Expr::Return(held) => &held.attrs,
+        _ => &[]
+    }
 }
 
 impl<'ast> Visit<'ast> for Walker<'_> {
     fn visit_stmt(&mut self, stmt: &'ast syn::Stmt) {
         match stmt {
             syn::Stmt::Item(_) => {}
+            syn::Stmt::Local(held) if cfg_gated(&held.attrs) => {}
+            syn::Stmt::Expr(held, _) if cfg_gated(expr_attrs(held)) => {}
+            syn::Stmt::Macro(held) if cfg_gated(&held.attrs) => {}
             syn::Stmt::Macro(held) => self.macro_scan(&held.mac),
             _ => syn::visit::visit_stmt(self, stmt)
         }
     }
 
     fn visit_local(&mut self, local: &'ast syn::Local) {
-        let bound = if let syn::Pat::Ident(pattern) = &local.pat {
-            Some(pattern.ident.to_string())
-        } else {
-            None
-        };
+        let bound = bound_ident(&local.pat);
         let mut recognized = None;
         if let Some(init) = &local.init {
             if let Some(ident) = bare(&init.expr) {
@@ -122,11 +199,26 @@ impl<'ast> Visit<'ast> for Walker<'_> {
             | syn::Expr::Match(_)
             | syn::Expr::While(_)
             | syn::Expr::ForLoop(_)
-            | syn::Expr::Loop(_)
-            | syn::Expr::Closure(_) => {
+            | syn::Expr::Loop(_) => {
                 self.conditional += 1;
                 syn::visit::visit_expr(self, expr);
                 self.conditional -= 1;
+            }
+            syn::Expr::Closure(closure) => {
+                let mut shadowed = Vec::new();
+                for input in &closure.inputs {
+                    if let Some(name) = bound_ident(input)
+                        && let Some(state) = self.names.remove(&name)
+                    {
+                        shadowed.push((name, state));
+                    }
+                }
+                self.conditional += 1;
+                syn::visit::visit_expr(self, expr);
+                self.conditional -= 1;
+                for (name, state) in shadowed {
+                    self.names.insert(name, state);
+                }
             }
             syn::Expr::Call(call) => {
                 let into = call_label(&call.func);
@@ -172,9 +264,13 @@ impl<'ast> Visit<'ast> for Walker<'_> {
 
 impl Walker<'_> {
     /// Tracks or forgets `name`: tracked only when its type is provably
-    /// not `Copy`, forgotten otherwise so no later claim rests on it.
+    /// not `Copy` and its name is not shadowed by a foreign import,
+    /// forgotten otherwise so no later claim rests on it.
     fn rebind(&mut self, name: &str, type_name: Option<String>) {
-        match type_name.filter(|held| handover::copyness(self.types, held) == Some(false)) {
+        match type_name
+            .filter(|held| !self.foreign.contains(held))
+            .filter(|held| handover::copyness(self.types, held) == Some(false))
+        {
             Some(held) => {
                 self.names.insert(
                     name.to_owned(),

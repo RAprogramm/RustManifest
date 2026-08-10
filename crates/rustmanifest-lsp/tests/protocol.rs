@@ -475,7 +475,7 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
     assert!(
         diagnostics
             .iter()
-            .any(|entry| entry["code"] == "RM-MEM-002"),
+            .any(|entry| entry["code"] == "RM-MEM-004"),
         "the use after the move must be diagnosed where it stands: {diagnostics:?}"
     );
     let line = HANDED.lines().nth(1).unwrap();
@@ -1005,7 +1005,18 @@ fn a_function_offers_its_extraction_into_its_own_file() {
     );
     assert!(created.contains("use super::{keep};"), "{created}");
     assert!(created.contains("pub(super) fn render"), "{created}");
-    let replaced = changes[2]["edits"][0]["newText"].as_str().unwrap();
-    assert_eq!(replaced, "mod render;\nuse self::render::render;");
+    let old_edits = changes[2]["edits"].as_array().unwrap();
+    assert!(
+        old_edits.iter().any(
+            |edit| edit["newText"] == "mod render;\nuse self::render::render;\n"
+                && edit["range"]["start"]["line"] == 0
+                && edit["range"]["start"]["character"] == 0
+        ),
+        "the mod line must land on top of the old file: {old_edits:?}"
+    );
+    assert!(
+        old_edits.iter().any(|edit| edit["newText"] == ""),
+        "the function must leave no residue: {old_edits:?}"
+    );
     closed(client, handle);
 }

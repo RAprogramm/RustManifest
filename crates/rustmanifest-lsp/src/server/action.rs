@@ -67,30 +67,26 @@ fn extraction(held: &Derived<'_>, params: &CodeActionParams) -> Vec<CodeAction> 
         return Vec::new();
     };
     let index = LineIndex::new(text);
-    let mut edits: Vec<OneOf<TextEdit, lsp_types::AnnotatedTextEdit>> =
-        vec![OneOf::Left(TextEdit {
-            range:    Range {
-                start: index.position(text, plan.replaced.start as usize),
-                end:   index.position(text, plan.replaced.end as usize)
-            },
-            new_text: plan.replacement.clone()
-        })];
-    for removed in &plan.removed_imports {
-        edits.push(OneOf::Left(TextEdit {
-            range:    Range {
-                start: index.position(text, removed.start as usize),
-                end:   index.position(text, removed.end.saturating_add(1) as usize)
-            },
-            new_text: String::new()
-        }));
-    }
+    let edits: Vec<OneOf<TextEdit, lsp_types::AnnotatedTextEdit>> = plan
+        .edits
+        .iter()
+        .map(|(range, replacement)| {
+            OneOf::Left(TextEdit {
+                range:    Range {
+                    start: index.position(text, range.start as usize),
+                    end:   index.position(text, range.end as usize)
+                },
+                new_text: replacement.clone()
+            })
+        })
+        .collect();
     let name = plan
         .new_file
         .file_stem()
         .and_then(|stem| stem.to_str())
         .unwrap_or("function");
     vec![CodeAction {
-        title: format!("extract `{name}` into {}", plan.new_file.display()),
+        title: format!("extract `{name}` into {}", shown_path(&plan.new_file)),
         kind: Some(CodeActionKind::REFACTOR_EXTRACT),
         edit: Some(WorkspaceEdit {
             document_changes: Some(DocumentChanges::Operations(vec![
@@ -132,6 +128,22 @@ fn extraction(held: &Derived<'_>, params: &CodeActionParams) -> Vec<CodeAction> 
         }),
         ..CodeAction::default()
     }]
+}
+
+/// The path as a person reads it: relative to the nearest enclosing
+/// `Cargo.toml` — in a workspace that is the member crate's own
+/// manifest — and the bare path only where no manifest is found.
+fn shown_path(new_file: &std::path::Path) -> String {
+    let mut probe = new_file.parent();
+    while let Some(dir) = probe {
+        if dir.join("Cargo.toml").is_file()
+            && let Ok(stripped) = new_file.strip_prefix(dir)
+        {
+            return stripped.display().to_string();
+        }
+        probe = dir.parent();
+    }
+    new_file.display().to_string()
 }
 
 /// The quickfix actions of every finding overlapping the requested

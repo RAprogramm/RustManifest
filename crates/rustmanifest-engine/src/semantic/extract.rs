@@ -10,11 +10,13 @@
 //! names its tokens mention, and a `super` import for the same-file
 //! items it references, which privacy already lets a child module see.
 //! A private function gains `pub(super)` so the parent keeps reaching
-//! it; the removed body becomes the `mod` line and a re-export in
-//! place, so every existing call keeps compiling; and the imports the
-//! remaining text no longer mentions are deleted whole. Methods of
-//! `impl` blocks are refused: moving a method is a different operation
-//! than moving a free function.
+//! it; the function's place is left clean — the `mod` line lands among
+//! the file's `mod` declarations in alphabetical order, or at the top
+//! where none exist, and the re-export lands at the imports — so every
+//! existing call keeps compiling; and the imports the remaining text no
+//! longer mentions are deleted whole. Methods of `impl` blocks are
+//! refused: moving a method is a different operation than moving a free
+//! function.
 
 mod names;
 
@@ -26,20 +28,16 @@ use self::names::{bound_names, mentioned_idents};
 use crate::source::Source;
 
 /// One planned extraction: the file to create and the edits to the
-/// file the function leaves.
+/// file the function leaves, each edit a byte range with the text that
+/// replaces it — an empty text deletes, an empty range inserts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extraction {
     /// Path of the module file to create.
-    pub new_file:        PathBuf,
+    pub new_file: PathBuf,
     /// Whole text of the new file.
-    pub new_text:        String,
-    /// Byte range of the moved function in the old file.
-    pub replaced:        Range,
-    /// What stands in its place: the `mod` line and the re-export.
-    pub replacement:     String,
-    /// Whole `use` items of the old file left without a single mention
-    /// once the function is gone, in text order.
-    pub removed_imports: Vec<Range>
+    pub new_text: String,
+    /// Edits to the old file, in no particular order.
+    pub edits:    Vec<(Range, String)>
 }
 
 /// Plans the extraction of the top-level function covering `offset` in
@@ -88,18 +86,117 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
     } else {
         format!("{}\n\n{moved}\n", lines.join("\n"))
     };
-    let replacement = if public {
-        format!("mod {name};\npub use self::{name}::{name};")
+    let mut edits: Vec<(Range, String)> = vec![(swallowed(text, span), String::new())];
+    let mod_line = format!("mod {name};\n");
+    let reexport = if public {
+        format!("pub use self::{name}::{name};\n")
     } else {
-        format!("mod {name};\nuse self::{name}::{name};")
+        format!("use self::{name}::{name};\n")
     };
+    let mod_at = mod_slot(text, &parsed, &name);
+    let use_at = parsed
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Use(used) => Some(line_start(
+                text,
+                ranged(syn::spanned::Spanned::span(used)).start
+            )),
+            _ => None
+        })
+        .unwrap_or(mod_at);
+    if use_at == mod_at {
+        edits.push((point(mod_at), format!("{mod_line}{reexport}")));
+    } else {
+        edits.push((point(mod_at), mod_line));
+        edits.push((point(use_at), reexport));
+    }
+    for removed in stale_imports(text, &parsed, span) {
+        edits.push((swallowed(text, removed), String::new()));
+    }
     Some(Extraction {
         new_file: module_file(source.path(), &name)?,
         new_text,
-        replaced: span,
-        replacement,
-        removed_imports: stale_imports(text, &parsed, span)
+        edits
     })
+}
+
+/// The insertion point of the `mod` line: its alphabetical slot among
+/// the file's `mod` declarations, or the top of the items where the
+/// file declares none. Inline `mod` blocks do not count — a test block
+/// at the bottom of a file is not the declaration list.
+fn mod_slot(text: &str, parsed: &syn::File, name: &str) -> u32 {
+    let declared: Vec<(String, Range)> = parsed
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Mod(held) if held.content.is_none() => Some((
+                held.ident.to_string(),
+                ranged(syn::spanned::Spanned::span(held))
+            )),
+            _ => None
+        })
+        .collect();
+    if let Some((_, span)) = declared
+        .iter()
+        .find(|(declared, _)| declared.as_str() > name)
+    {
+        return line_start(text, span.start);
+    }
+    if let Some((_, span)) = declared.last() {
+        return next_line_start(text, span.end);
+    }
+    parsed.items.first().map_or(0, |item| {
+        line_start(text, ranged(syn::spanned::Spanned::span(item)).start)
+    })
+}
+
+/// The deleted range widened over the blank line the deletion leaves;
+/// a deletion reaching the end of the file also takes the blank line
+/// standing before it, so the file keeps a single final newline.
+fn swallowed(text: &str, range: Range) -> Range {
+    let mut end = range.end as usize;
+    let mut eaten = 0;
+    while eaten < 2 && text.as_bytes().get(end) == Some(&b'\n') {
+        end += 1;
+        eaten += 1;
+    }
+    let mut start = range.start as usize;
+    if end == text.len() {
+        while start > 1 && text.as_bytes().get(start - 1) == Some(&b'\n') && {
+            text.as_bytes().get(start.wrapping_sub(2)) == Some(&b'\n')
+        } {
+            start -= 1;
+        }
+    }
+    Range {
+        start: u32::try_from(start).unwrap_or(u32::MAX),
+        end:   u32::try_from(end).unwrap_or(u32::MAX)
+    }
+}
+
+/// The byte offset where the line holding `at` begins.
+fn line_start(text: &str, at: u32) -> u32 {
+    let capped = (at as usize).min(text.len());
+    let begun = text[..capped].rfind('\n').map_or(0, |found| found + 1);
+    u32::try_from(begun).unwrap_or(u32::MAX)
+}
+
+/// The byte offset where the line after `at` begins.
+fn next_line_start(text: &str, at: u32) -> u32 {
+    let capped = (at as usize).min(text.len());
+    let begun = text[capped..]
+        .find('\n')
+        .map_or(text.len(), |found| capped + found + 1);
+    u32::try_from(begun).unwrap_or(u32::MAX)
+}
+
+/// An empty range standing at one offset: an insertion point.
+const fn point(at: u32) -> Range {
+    Range {
+        start: at,
+        end:   at
+    }
 }
 
 /// The module file the convention names: a folder after the current
@@ -214,6 +311,16 @@ mod tests {
         extract_function(&sources, 0, offset)
     }
 
+    fn applied(text: &str, plan: &Extraction) -> String {
+        let mut edits = plan.edits.clone();
+        edits.sort_by_key(|(range, _)| std::cmp::Reverse((range.start, range.end)));
+        let mut held = text.to_owned();
+        for (range, inserted) in edits {
+            held.replace_range(range.start as usize..range.end as usize, &inserted);
+        }
+        held
+    }
+
     const TASKS: &str = "use std::collections::BTreeMap;\nuse std::collections::HashSet;\nuse \
                          std::fmt::Write as _;\n\nfn keep(store: &BTreeMap<u64, String>) -> \
                          usize { store.len() }\n\nfn render(store: &BTreeMap<u64, String>) -> \
@@ -239,21 +346,26 @@ mod tests {
     }
 
     #[test]
-    fn the_old_file_gets_the_mod_line_and_the_re_export_in_place() {
+    fn the_function_leaves_no_residue_and_the_mod_line_lands_on_top() {
         let plan = planned("src/tasks.rs", TASKS, "fn render").unwrap();
-        assert_eq!(plan.replacement, "mod render;\nuse self::render::render;");
-        let replaced = &TASKS[plan.replaced.start as usize..plan.replaced.end as usize];
-        assert!(replaced.starts_with("fn render"));
-        assert!(replaced.ends_with('}'));
+        assert_eq!(
+            applied(TASKS, &plan),
+            "mod render;\nuse self::render::render;\nuse std::collections::BTreeMap;\nuse \
+             std::fmt::Write as _;\n\nfn keep(store: &BTreeMap<u64, String>) -> usize { \
+             store.len() }\n"
+        );
     }
 
     #[test]
-    fn an_import_only_the_moved_function_used_is_deleted_whole() {
-        let plan = planned("src/tasks.rs", TASKS, "fn render").unwrap();
-        assert_eq!(plan.removed_imports.len(), 1);
-        let removed =
-            &TASKS[plan.removed_imports[0].start as usize..plan.removed_imports[0].end as usize];
-        assert_eq!(removed, "use std::collections::HashSet;");
+    fn the_mod_line_takes_its_alphabetical_slot_among_declarations() {
+        let text = "mod alpha;\nmod zulu;\n\nfn render() -> u8 { 1 }\n\nfn keep() -> u8 { \
+                    render() }\n";
+        let plan = planned("src/tasks.rs", text, "fn render").unwrap();
+        assert_eq!(
+            applied(text, &plan),
+            "mod alpha;\nmod render;\nuse self::render::render;\nmod zulu;\n\nfn keep() -> u8 { \
+             render() }\n"
+        );
     }
 
     /// A nameless import (`as _`, a glob) is copied to the new file and
@@ -263,13 +375,7 @@ mod tests {
     fn a_nameless_import_is_kept_on_both_sides() {
         let plan = planned("src/tasks.rs", TASKS, "fn render").unwrap();
         assert!(plan.new_text.contains("use std::fmt::Write as _;"));
-        assert!(
-            !plan
-                .removed_imports
-                .iter()
-                .map(|range| &TASKS[range.start as usize..range.end as usize])
-                .any(|removed| removed == "use std::fmt::Write as _;")
-        );
+        assert!(applied(TASKS, &plan).contains("use std::fmt::Write as _;"));
     }
 
     #[test]
@@ -278,7 +384,10 @@ mod tests {
         let plan = planned("src/tasks.rs", text, "fn shout").unwrap();
         assert!(plan.new_text.contains("pub fn shout"));
         assert!(!plan.new_text.contains("pub(super)"));
-        assert_eq!(plan.replacement, "mod shout;\npub use self::shout::shout;");
+        assert_eq!(
+            applied(text, &plan),
+            "mod shout;\npub use self::shout::shout;\nfn keep() -> u8 { shout() }\n"
+        );
     }
 
     #[test]

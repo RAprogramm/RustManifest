@@ -216,4 +216,55 @@ mod tests {
             1
         );
     }
+
+    #[test]
+    fn a_type_ascribed_rebinding_revives_the_name() {
+        assert_eq!(
+            found(
+                "fn eat(value: String) {}\nfn main() { let s = String::from(\"x\"); eat(s); let \
+                 s: String = String::from(\"y\"); println!(\"{s}\"); }"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn a_closure_parameter_shadows_the_moved_name() {
+        assert_eq!(
+            found(
+                "fn eat(value: String) {}\nfn main() { let s = String::from(\"x\"); eat(s); let \
+                 tell = |s: String| s.len(); tell(String::new()); }"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn configuration_gated_statements_prove_nothing() {
+        assert_eq!(
+            found(
+                "fn eat(value: String) {}\nfn main() { let s = String::from(\"x\");\n    \
+                 #[cfg(feature = \"a\")]\n    eat(s);\n    #[cfg(not(feature = \"a\"))]\n    \
+                 println!(\"{s}\");\n}"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn a_foreign_import_shadowing_a_workspace_type_name_is_not_judged() {
+        let sources = [
+            Source::new(
+                PathBuf::from("src/layout.rs"),
+                "pub struct Layout { pub text: String }".to_owned()
+            ),
+            Source::new(
+                PathBuf::from("src/view.rs"),
+                "use iced::Layout;\nfn eat(layout: Layout) {}\nfn main() { let l = \
+                 Layout::new();\n    eat(l);\n    let again = &l;\n}"
+                    .to_owned()
+            )
+        ];
+        assert_eq!(insights(&Workspace::new(&sources)).len(), 0);
+    }
 }
