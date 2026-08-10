@@ -20,6 +20,7 @@ mod check;
 mod composition;
 mod coverage;
 mod dead;
+mod deduce;
 mod doc_synth;
 mod doc_truth;
 mod docs;
@@ -88,6 +89,7 @@ pub use self::{
         Coverage, coverage, coverage_indexed, coverage_with, origin_gaps, percent,
         unresolved_targets
     },
+    deduce::{Deduction, deduce_impl},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
     emitted::{Gain, Relocated, install_extraction, install_impl},

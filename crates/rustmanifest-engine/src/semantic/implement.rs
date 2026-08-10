@@ -15,7 +15,7 @@
 //! already implemented or derived, and a generic trait (whose `impl`
 //! header needs arguments no fact records) all answer with nothing.
 
-mod canon;
+pub(super) mod canon;
 
 use super::graph::TypeGraph;
 use crate::source::Source;

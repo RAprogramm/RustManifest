@@ -143,6 +143,22 @@ fn named_fields(node: &TypeNode) -> Option<Vec<(&str, &str)>> {
     }
 }
 
+/// Whether one field type provably carries `trait_name`, by the same
+/// tables and graph the canon bodies are written from — the single
+/// proof the deduction chains and the bodies must share, so a chain
+/// never claims what a body would refuse.
+pub(in crate::semantic) fn field_carries(
+    types: &TypeGraph,
+    field_type: &str,
+    trait_name: &str
+) -> bool {
+    match trait_name {
+        "Display" => proves(types, field_type, "Display", &DISPLAYED),
+        "Default" => proves(types, field_type, "Default", &DEFAULTED),
+        _ => false
+    }
+}
+
 /// Whether `type_name` provably carries `trait_name`: the std table
 /// answers for well-known types, the type graph for workspace types by
 /// written impls and, for derivable traits, derives.
