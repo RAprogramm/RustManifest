@@ -4,13 +4,15 @@
 //! The fully proven literal carried through the formatting machinery,
 //! where a direct byte write skips it.
 
+use rustmanifest_schema::{Applicability, Fix};
+
 use super::{
     catalogue::{CONSTANT_TEXT, library_knowledge, support},
     finding::{detail, memory_steps, trace},
     shipped_code::shipped
 };
 use crate::semantic::{
-    behavior::{Conduit, Payload},
+    behavior::{Conduit, Newline, OutputWrite, Payload, Stream},
     insight::Insight,
     workspace::Workspace
 };
@@ -45,28 +47,61 @@ pub(in crate::semantic) fn literal_format_insights(workspace: &Workspace<'_>) ->
             if text.is_empty() {
                 continue;
             }
-            found.push(Insight::new(
-                fact.source,
-                write.site,
-                detail(
-                    &CONSTANT_TEXT,
-                    &fact.function,
-                    &format!("the written text is fully proven: `{text}`"),
-                    1
-                ),
-                {
-                    let mut steps = trace(
+            found.push(
+                Insight::new(
+                    fact.source,
+                    write.site,
+                    detail(
+                        &CONSTANT_TEXT,
+                        &fact.function,
                         &format!("the written text is fully proven: `{text}`"),
-                        "payload recorded as a literal with no unproven positions",
-                        derived
-                    );
-                    steps.extend(memory_steps(text, write, library));
-                    steps
-                }
-            ));
+                        1
+                    ),
+                    {
+                        let mut steps = trace(
+                            &format!("the written text is fully proven: `{text}`"),
+                            "payload recorded as a literal with no unproven positions",
+                            derived
+                        );
+                        steps.extend(memory_steps(text, write, library));
+                        steps
+                    }
+                )
+                .with_fixes(byte_write_fix(text, write))
+            );
         }
     }
     found
+}
+
+/// The prescribed form as an edit: the proven text written to the
+/// locked handle directly, terminator kept, failure still ending the
+/// path as the macro would.
+///
+/// Marked as needing review rather than machine-applicable: the byte
+/// write is semantically faithful, but the panic message changes and a
+/// surrounding style may prefer a bound handle — judgments the facts do
+/// not carry.
+fn byte_write_fix(text: &str, write: &OutputWrite) -> Vec<Fix> {
+    let handle = match write.stream {
+        Stream::Stdout => "stdout",
+        Stream::Stderr => "stderr",
+        _ => return Vec::new()
+    };
+    let mut written = text.to_owned();
+    if write.newline == Newline::Appended {
+        written.push('\n');
+    }
+    vec![Fix {
+        file:          None,
+        rename_to:     None,
+        range:         write.site,
+        replacement:   format!(
+            "std::io::Write::write_all(&mut std::io::{handle}().lock(), \
+             {written:?}.as_bytes()).expect(\"write to {handle}\")"
+        ),
+        applicability: Applicability::MaybeIncorrect
+    }]
 }
 
 #[cfg(test)]
@@ -97,6 +132,34 @@ mod tests {
             "fn main() {\n    println!(\"{name}\");\n}"
         )));
         assert!(computed.is_empty());
+    }
+
+    /// The finding carries the prescribed form as an edit: the proven
+    /// text written to the locked handle, terminator kept, and the
+    /// escaping of the written literal preserved.
+    #[test]
+    fn the_finding_carries_the_prescribed_byte_write_as_a_fix() {
+        let text = "fn main() {\n    println!(\"hi \\\"there\\\"\");\n}";
+        let constant = literal_format_insights(&Workspace::new(&sources(text)));
+        let fixes = &constant[0].fixes;
+        assert_eq!(fixes.len(), 1);
+        assert_eq!(
+            fixes[0].replacement,
+            "std::io::Write::write_all(&mut std::io::stdout().lock(), \"hi \\\"there\\\"\\n\"\
+             .as_bytes()).expect(\"write to stdout\")"
+        );
+        let replaced = &text[fixes[0].range.start as usize..fixes[0].range.end as usize];
+        assert_eq!(replaced, "println!(\"hi \\\"there\\\"\")");
+    }
+
+    /// A write into a caller-supplied stream names no handle to lock,
+    /// so no fix is synthesized for it.
+    #[test]
+    fn a_caller_supplied_stream_gets_no_fix() {
+        let held = literal_format_insights(&Workspace::new(&sources(
+            "fn tell(out: &mut impl std::io::Write) {\n    writeln!(out, \"hi\").ok();\n}"
+        )));
+        assert!(held.iter().all(|insight| insight.fixes.is_empty()));
     }
 
     /// The form this check prescribes is not a deviation from itself: a
