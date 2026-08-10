@@ -36,6 +36,7 @@ mod graph;
 mod handover;
 mod implement;
 mod insight;
+mod intents;
 mod invariant;
 mod io_forms;
 mod keeping;
@@ -103,6 +104,7 @@ pub use self::{
     },
     handover::{Mark, copyness, handover_at, handover_marks},
     implement::impl_skeleton,
+    intents::{DerivedIntent, derived_intents, fulfill_intents},
     invariant::{check_invariants, check_invariants_with},
     keeping::{
         Command, Direction, Ending, Feeding, Keeping, Outliving, Serving, Store, TableStore,
