@@ -14,7 +14,10 @@
 //! the workspace's own precedent advising after the catalog's choice —
 //! with the block installed in memory and confirmed by re-reading, so
 //! the answer says not only what to write but why every claim holds;
-//! no byte touches a disk. The answer is the command's result, so any
+//! no byte touches a disk. `rust-manifest.intents` takes nothing and
+//! answers with every intent the workspace's own written calls prove,
+//! each citing the call as evidence. The answer is the command's
+//! result, so any
 //! client scripts it: an editor plugin, a keybinding, a pipeline.
 //! Nothing is shown or inserted by the server itself — how to use an
 //! answer is the asker's decision.
@@ -32,6 +35,9 @@ pub(super) const IMPLEMENT: &str = "rust-manifest.implement";
 /// The deducing command this server serves.
 pub(super) const DEDUCE: &str = "rust-manifest.deduce";
 
+/// The intent-listing command this server serves.
+pub(super) const INTENTS: &str = "rust-manifest.intents";
+
 /// Answers one `workspace/executeCommand` request over the snapshot.
 pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     if request.params["command"].as_str() == Some(IMPLEMENT) {
@@ -39,6 +45,9 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     }
     if request.params["command"].as_str() == Some(DEDUCE) {
         return deduced(request, held);
+    }
+    if request.params["command"].as_str() == Some(INTENTS) {
+        return intended(request, held);
     }
     let arguments = &request.params["arguments"];
     let (Some(_uri), Some(function), Some(effect)) = (
@@ -97,6 +106,30 @@ fn implemented(request: &Request, held: &Derived<'_>) -> Response {
         trait_name
     );
     Response::new_ok(request.id.clone(), serde_json::json!({ "text": written }))
+}
+
+/// Answers the intents command: every intent the workspace's own
+/// written calls prove, each with the call standing as evidence — the
+/// program names what is missing before anyone asks.
+fn intended(request: &Request, held: &Derived<'_>) -> Response {
+    let derived: Vec<serde_json::Value> =
+        rustmanifest_engine::semantic::derived_intents(held.sources)
+            .into_iter()
+            .map(|intent| {
+                serde_json::json!({
+                    "type": intent.type_name,
+                    "trait": intent.trait_name,
+                    "evidence": {
+                        "fact": intent.evidence.fact,
+                        "reason": intent.evidence.reason
+                    }
+                })
+            })
+            .collect();
+    Response::new_ok(
+        request.id.clone(),
+        serde_json::json!({ "intents": derived })
+    )
 }
 
 /// Answers the deduce command: the chain as data — conclusion, steps,

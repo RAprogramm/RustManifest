@@ -37,3 +37,10 @@ pub(super) struct SuppressionsAnswer {
     /// Suppressions in file-then-line order.
     pub(super) suppressions: Vec<crate::knowledge::SuppressionRecord>
 }
+
+/// The derived intents of one path.
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub(super) struct IntentsAnswer {
+    /// Intents in discovery order, deduplicated by type and ability.
+    pub(super) intents: Vec<crate::knowledge::IntentRecord>
+}

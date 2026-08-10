@@ -132,7 +132,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tool_router_exposes_all_ten_tools() {
+    fn tool_router_exposes_all_eleven_tools() {
         let tools = ReviewServer::tool_router().list_all();
         let mut names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
         names.sort_unstable();
@@ -141,6 +141,7 @@ mod tests {
             [
                 "check_rule",
                 "deduce_trait",
+                "derived_intents",
                 "explain_rule",
                 "function_facts",
                 "learn_conventions",

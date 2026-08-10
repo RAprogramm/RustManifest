@@ -1068,6 +1068,44 @@ fn a_type_offers_its_extraction_with_its_impls() {
     closed(client, handle);
 }
 
+/// The intents command must answer with what the workspace's own
+/// written calls prove is missing, each intent citing its evidence —
+/// the program naming its need before anyone asks.
+#[test]
+fn the_intents_command_names_what_the_written_calls_ask_for() {
+    let (client, handle) = opened(
+        "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
+         Job::default()\n}\n"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.intents",
+                "arguments": []
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    let intents = held["intents"].as_array().unwrap();
+    assert_eq!(intents.len(), 1, "{intents:?}");
+    assert_eq!(intents[0]["type"], "Job", "{intents:?}");
+    assert_eq!(intents[0]["trait"], "Default", "{intents:?}");
+    assert!(
+        intents[0]["evidence"]["fact"]
+            .as_str()
+            .unwrap()
+            .contains("Job::default"),
+        "{intents:?}"
+    );
+    closed(client, handle);
+}
+
 /// The buffering measurement must reach the cursor: the card of a
 /// writing function says where it writes, through what buffering, and
 /// under what lock — the same reading the facts export carries.

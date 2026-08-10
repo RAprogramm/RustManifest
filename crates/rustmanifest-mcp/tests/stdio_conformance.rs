@@ -42,6 +42,12 @@ fn session(requests: &[Value]) -> BTreeMap<i64, Value> {
         "pub fn shout(text: &str) {\n    println!(\"{text}\");\n}\n"
     )
     .expect("logic file");
+    std::fs::write(
+        workspace.path().join("need.rs"),
+        "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
+         Job::default()\n}\n"
+    )
+    .expect("need file");
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_rustmanifest-mcp"))
         .current_dir(workspace.path())
@@ -115,6 +121,9 @@ fn scripted() -> BTreeMap<i64, Value> {
             "name": "deduce_trait", "arguments": {
                 "path": "probe.rs", "type_name": "ConfigLoader", "trait_name": "Display"
             }
+        }}),
+        json!({"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {
+            "name": "derived_intents", "arguments": {"path": "need.rs"}
         }})
     ])
 }
@@ -130,7 +139,7 @@ fn handshake_reports_server_identity_and_capabilities() {
 }
 
 #[test]
-fn tools_list_exposes_exactly_the_ten_tools() {
+fn tools_list_exposes_exactly_the_eleven_tools() {
     let responses = scripted();
     let mut names: Vec<&str> = responses[&2]["result"]["tools"]
         .as_array()
@@ -144,6 +153,7 @@ fn tools_list_exposes_exactly_the_ten_tools() {
         [
             "check_rule",
             "deduce_trait",
+            "derived_intents",
             "explain_rule",
             "function_facts",
             "learn_conventions",
@@ -153,6 +163,24 @@ fn tools_list_exposes_exactly_the_ten_tools() {
             "review_path",
             "suppressions"
         ]
+    );
+}
+
+#[test]
+fn derived_intents_cite_the_written_call() {
+    let responses = scripted();
+    let intents = responses[&11]["result"]["structuredContent"]["intents"]
+        .as_array()
+        .expect("intents array");
+    assert_eq!(intents.len(), 1, "{intents:?}");
+    assert_eq!(intents[0]["type_name"], "Job", "{intents:?}");
+    assert_eq!(intents[0]["trait_name"], "Default", "{intents:?}");
+    assert!(
+        intents[0]["evidence"]["fact"]
+            .as_str()
+            .expect("evidence fact")
+            .contains("Job::default"),
+        "{intents:?}"
     );
 }
 

@@ -82,6 +82,25 @@ impl ReviewServer {
             .map(Json)
     }
 
+    /// Derive every intent the written calls under a path prove: a call
+    /// only an uninstalled ability can satisfy is the author's stated
+    /// intent, and each record cites the function that wrote it as
+    /// evidence.
+    #[tool(annotations(read_only_hint = true))]
+    async fn derived_intents(
+        &self,
+        Parameters(params): Parameters<PathParams>
+    ) -> Result<Json<super::answers::IntentsAnswer>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::intents(&path))
+            .await
+            .map(|intents| {
+                Json(super::answers::IntentsAnswer {
+                    intents
+                })
+            })
+    }
+
     /// Learn per-role convention clauses over a path and return them as
     /// an auditable rule list; training is deterministic.
     #[tool(annotations(read_only_hint = true))]

@@ -145,6 +145,40 @@ pub fn deduction(
     })
 }
 
+/// One derived intent on the wire: the ability a written call asks
+/// for, with the call standing as evidence.
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub struct IntentRecord {
+    /// The type the intent is about.
+    pub type_name:  String,
+    /// The ability the evidence asks for.
+    pub trait_name: String,
+    /// The written call standing as evidence.
+    pub evidence:   ChainStep
+}
+
+/// Derives every intent the written calls under `target` prove: a call
+/// only an uninstalled ability can satisfy is the author's stated
+/// intent, and each record cites the function that wrote it.
+///
+/// # Errors
+///
+/// Returns an [`EngineError`] when file discovery fails.
+pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, EngineError> {
+    let sources = sources_for(target)?;
+    Ok(rustmanifest_engine::semantic::derived_intents(&sources)
+        .into_iter()
+        .map(|intent| IntentRecord {
+            type_name:  intent.type_name,
+            trait_name: intent.trait_name,
+            evidence:   ChainStep {
+                fact:   intent.evidence.fact,
+                reason: intent.evidence.reason
+            }
+        })
+        .collect())
+}
+
 /// Expands `target` into readable Rust sources within the memory budget.
 fn sources_for(target: &Path) -> Result<Vec<Source>, EngineError> {
     let files: Vec<PathBuf> = if target.is_dir() {
