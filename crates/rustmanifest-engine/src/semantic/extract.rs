@@ -20,12 +20,14 @@
 
 mod carried;
 mod names;
+mod typed;
 
 use std::path::PathBuf;
 
 use rustmanifest_schema::Range;
 
 use self::names::{bound_names, mentioned_idents};
+pub use self::typed::extract_type;
 use crate::source::Source;
 
 /// One planned extraction: the file to create and the edits to the
@@ -103,7 +105,28 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
     } else {
         format!("use self::{name}::{name};\n")
     };
-    let mod_at = mod_slot(text, &parsed, &name);
+    edits.extend(mounted(text, &parsed, &name, mod_line, reexport));
+    for removed in stale_imports(text, &parsed, &[span]) {
+        edits.push((swallowed(text, removed), String::new()));
+    }
+    Some(Extraction {
+        new_file: module_file(source.path(), &name)?,
+        new_text,
+        edits: disjoint(edits)
+    })
+}
+
+/// The insertions mounting the new module in the old file: the `mod`
+/// line at its alphabetical slot and the re-export at the imports,
+/// combined into one where both land at the same offset.
+fn mounted(
+    text: &str,
+    parsed: &syn::File,
+    slot_name: &str,
+    mod_line: String,
+    reexport: String
+) -> Vec<(Range, String)> {
+    let mod_at = mod_slot(text, parsed, slot_name);
     let use_at = parsed
         .items
         .iter()
@@ -116,19 +139,10 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
         })
         .unwrap_or(mod_at);
     if use_at == mod_at {
-        edits.push((point(mod_at), format!("{mod_line}{reexport}")));
+        vec![(point(mod_at), format!("{mod_line}{reexport}"))]
     } else {
-        edits.push((point(mod_at), mod_line));
-        edits.push((point(use_at), reexport));
+        vec![(point(mod_at), mod_line), (point(use_at), reexport)]
     }
-    for removed in stale_imports(text, &parsed, span) {
-        edits.push((swallowed(text, removed), String::new()));
-    }
-    Some(Extraction {
-        new_file: module_file(source.path(), &name)?,
-        new_text,
-        edits: disjoint(edits)
-    })
 }
 
 /// The edits sorted and clamped so no two ranges overlap: two widened
@@ -276,11 +290,11 @@ fn sibling_names(parsed: &syn::File, moved: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whole `use` items with no mention left once the function is gone:
-/// every bound name absent from the remaining non-import text.
-fn stale_imports(text: &str, parsed: &syn::File, gone: Range) -> Vec<Range> {
+/// Whole `use` items with no mention left once the moved pieces are
+/// gone: every bound name absent from the remaining non-import text.
+fn stale_imports(text: &str, parsed: &syn::File, gone: &[Range]) -> Vec<Range> {
     let mut remaining = String::new();
-    let mut cuts: Vec<Range> = vec![gone];
+    let mut cuts: Vec<Range> = gone.to_vec();
     for item in &parsed.items {
         if let syn::Item::Use(used) = item {
             cuts.push(ranged(syn::spanned::Spanned::span(used)));
@@ -458,6 +472,60 @@ mod tests {
         let plan = planned("src/tasks.rs", text, "fn render").unwrap();
         assert!(!plan.new_text.contains("#[cfg(test)]"), "{}", plan.new_text);
         assert!(applied(text, &plan).contains("fn both()"));
+    }
+
+    const TYPED: &str = "use std::collections::BTreeMap;\n\nfn count(user: &UserStore) -> usize \
+                         { user.entries().len() }\n\nstruct UserStore {\n    held: BTreeMap<u64, \
+                         String>,\n}\n\nimpl UserStore {\n    fn entries(&self) -> &BTreeMap<u64, \
+                         String> {\n        &self.held\n    }\n}\n\nimpl std::fmt::Display for \
+                         UserStore {\n    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> \
+                         std::fmt::Result {\n        write!(out, \"{}\", self.held.len())\n    \
+                         }\n}\n";
+
+    #[test]
+    fn a_type_moves_with_its_impls_into_a_snake_named_file() {
+        let sources = [Source::new(PathBuf::from("src/tasks.rs"), TYPED.to_owned())];
+        let offset = u32::try_from(TYPED.find("struct UserStore").unwrap()).unwrap() + 1;
+        let plan = super::extract_type(&sources, 0, offset).unwrap();
+        assert_eq!(plan.new_file, PathBuf::from("src/tasks/user_store.rs"));
+        assert!(
+            plan.new_text.contains("pub(super) struct UserStore"),
+            "{}",
+            plan.new_text
+        );
+        assert!(
+            plan.new_text.contains("impl UserStore {"),
+            "{}",
+            plan.new_text
+        );
+        assert!(
+            plan.new_text
+                .contains("impl std::fmt::Display for UserStore {"),
+            "{}",
+            plan.new_text
+        );
+        assert!(
+            plan.new_text.contains("use std::collections::BTreeMap;"),
+            "{}",
+            plan.new_text
+        );
+        assert!(
+            plan.new_text.contains("pub(super) fn entries"),
+            "the method the staying file calls must widen: {}",
+            plan.new_text
+        );
+        let left = applied(TYPED, &plan);
+        assert!(
+            left.contains("mod user_store;\nuse self::user_store::UserStore;"),
+            "{left}"
+        );
+        assert!(!left.contains("struct UserStore"), "{left}");
+        assert!(!left.contains("impl"), "{left}");
+        assert!(left.contains("fn count"), "{left}");
+        assert!(
+            !left.contains("use std::collections::BTreeMap;"),
+            "the staying file no longer mentions the map, so the import must go: {left}"
+        );
     }
 
     #[test]

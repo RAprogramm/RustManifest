@@ -89,7 +89,7 @@ pub use self::{
     docs::{DocFacts, doc_facts},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
-    extract::{Extraction, extract_function},
+    extract::{Extraction, extract_function, extract_type},
     features::{Feature, features},
     fingerprint::behavior_fingerprint,
     graph::{

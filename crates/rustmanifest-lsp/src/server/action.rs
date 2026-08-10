@@ -56,11 +56,10 @@ fn extraction(held: &Derived<'_>, params: &CodeActionParams) -> Vec<CodeAction> 
     };
     let text = held.sources[file].text();
     let offset = offset_of(text, params.range.start);
-    let Some(plan) = rustmanifest_engine::semantic::extract_function(
-        held.sources,
-        file,
-        u32::try_from(offset).unwrap_or(u32::MAX)
-    ) else {
+    let at = u32::try_from(offset).unwrap_or(u32::MAX);
+    let planned = rustmanifest_engine::semantic::extract_function(held.sources, file, at)
+        .or_else(|| rustmanifest_engine::semantic::extract_type(held.sources, file, at));
+    let Some(plan) = planned else {
         return Vec::new();
     };
     let Ok(created): Result<Uri, _> = format!("file://{}", plan.new_file.display()).parse() else {
