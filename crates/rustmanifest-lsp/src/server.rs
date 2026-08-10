@@ -67,7 +67,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                 let answer = match request.method.as_str() {
                     "textDocument/hover" => hover::answer(&request, &held.derived(&documents)),
                     "textDocument/codeAction" => {
-                        action::answer(&request, &held.derived(&documents))
+                        action::answer(&request, &held.derived(&documents), &analysis)
                     }
                     "textDocument/inlayHint" => hint::answer(&request, &held.derived(&documents)),
                     "workspace/executeCommand" => {

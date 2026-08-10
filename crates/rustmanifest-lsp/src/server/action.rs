@@ -1,18 +1,21 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! The code-action request: the generating direction, offered in the
-//! editor's own action list.
+//! The code-action request: fixes and the generating direction, both
+//! offered in the editor's own action list.
 //!
-//! A cursor on a type's written name offers one action per trait the
-//! facts can implement for it — every workspace trait plus the std
-//! canon, each filtered through the same skeleton synthesis the
-//! implement command uses, so a trait already implemented, derived,
-//! or generic never reaches the list. Choosing an action appends the
-//! written impl block to the file that defines the type; the edit is
-//! carried in the answer, so the client applies it without asking the
-//! server anything further. A cursor anywhere else answers an empty
-//! list, never an error.
+//! A cursor on a diagnostic offers the finding's own byte-precise
+//! fixes as quickfixes — the same edits `check --fix` applies, every
+//! edit of one finding carried together, a fix needing human review
+//! saying so in its title. A cursor on a type's written name offers
+//! one action per trait the facts can implement for it — every
+//! workspace trait plus the std canon, each filtered through the same
+//! skeleton synthesis the implement command uses, so a trait already
+//! implemented, derived, or generic never reaches the list; the edit
+//! appends the written impl block to the file that defines the type.
+//! Everything is carried in the answer, so the client applies it
+//! without asking the server anything further. A cursor anywhere else
+//! answers an empty list, never an error.
 
 use lsp_server::{Request, Response};
 use lsp_types::{
@@ -22,12 +25,13 @@ use lsp_types::{
 };
 
 use super::{
+    analysis::Analysis,
     position::{LineIndex, offset_of},
     snapshot::{Derived, path_of}
 };
 
 /// Answers one code-action request over the snapshot's derivations.
-pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
+pub(super) fn answer(request: &Request, held: &Derived<'_>, analysis: &Analysis) -> Response {
     let Ok(params) = serde_json::from_value::<CodeActionParams>(request.params.clone()) else {
         return Response::new_err(
             request.id.clone(),
@@ -35,9 +39,76 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
             "malformed code action parameters".to_owned()
         );
     };
-    let offered =
-        named_type(held, &params).map_or_else(Vec::new, |node| implementations(held, node));
+    let mut offered = quickfixes(held, analysis, &params);
+    if let Some(node) = named_type(held, &params) {
+        offered.extend(implementations(held, node));
+    }
     Response::new_ok(request.id.clone(), offered)
+}
+
+/// The quickfix actions of every finding overlapping the requested
+/// range that carries byte-precise fixes.
+fn quickfixes(
+    held: &Derived<'_>,
+    analysis: &Analysis,
+    params: &CodeActionParams
+) -> Vec<CodeAction> {
+    let path = path_of(params.text_document.uri.as_str());
+    let Some(file) = held.sources.iter().position(|source| source.path() == path) else {
+        return Vec::new();
+    };
+    let text = held.sources[file].text();
+    let index = LineIndex::new(text);
+    let from = offset_of(text, params.range.start);
+    let until = offset_of(text, params.range.end);
+    let mut offered = Vec::new();
+    for finding in analysis.findings(path.clone(), text) {
+        let covered = finding.location.range.start as usize <= until
+            && from <= finding.location.range.end as usize;
+        if !covered || finding.fixes.is_empty() {
+            continue;
+        }
+        if finding.fixes.iter().any(|fix| fix.rename_to.is_some()) {
+            continue;
+        }
+        let edits: Vec<OneOf<TextEdit, lsp_types::AnnotatedTextEdit>> = finding
+            .fixes
+            .iter()
+            .map(|fix| {
+                OneOf::Left(TextEdit {
+                    range:    Range {
+                        start: index.position(text, fix.range.start as usize),
+                        end:   index.position(text, fix.range.end as usize)
+                    },
+                    new_text: fix.replacement.clone()
+                })
+            })
+            .collect();
+        let review = finding
+            .fixes
+            .iter()
+            .any(|fix| fix.applicability == rustmanifest_schema::Applicability::MaybeIncorrect);
+        offered.push(CodeAction {
+            title: format!(
+                "fix {}{}",
+                finding.rule_id,
+                if review { " (needs review)" } else { "" }
+            ),
+            kind: Some(CodeActionKind::QUICKFIX),
+            edit: Some(WorkspaceEdit {
+                document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+                    text_document: OptionalVersionedTextDocumentIdentifier {
+                        uri:     params.text_document.uri.clone(),
+                        version: None
+                    },
+                    edits
+                }])),
+                ..WorkspaceEdit::default()
+            }),
+            ..CodeAction::default()
+        });
+    }
+    offered
 }
 
 /// The type whose written name the request's range touches, if any.

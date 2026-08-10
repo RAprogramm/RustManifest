@@ -53,8 +53,8 @@ impl Analysis {
         })
     }
 
-    /// The diagnostics of one document text.
-    pub(super) fn diagnostics(&self, path: PathBuf, text: &str) -> Vec<Diagnostic> {
+    /// The findings of one document text, fixes included.
+    pub(super) fn findings(&self, path: PathBuf, text: &str) -> Vec<rustmanifest_schema::Finding> {
         let source = Source::new(path, text.to_owned());
         let mut findings: Vec<rustmanifest_schema::Finding> = self
             .tiered
@@ -68,8 +68,13 @@ impl Analysis {
             &self.semantic,
             &workspace
         ));
-        let index = LineIndex::new(text);
         findings
+    }
+
+    /// The diagnostics of one document text.
+    pub(super) fn diagnostics(&self, path: PathBuf, text: &str) -> Vec<Diagnostic> {
+        let index = LineIndex::new(text);
+        self.findings(path, text)
             .into_iter()
             .map(|finding| Diagnostic {
                 range: lsp_types::Range {

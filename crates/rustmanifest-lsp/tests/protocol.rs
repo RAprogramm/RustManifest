@@ -827,3 +827,110 @@ fn inlay_hints_mark_the_fate_of_each_argument() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// A finding that carries a synthesized fix must offer it as a
+/// quickfix action, edits included.
+const FIXABLE: &str = "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { \
+                       report.total }\n";
+
+#[test]
+fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": FIXABLE
+                }
+            })
+        )))
+        .unwrap();
+    let Message::Notification(published) = client.receiver.recv().unwrap() else {
+        panic!("the first message after an open must be the diagnostics");
+    };
+    let diagnostics = published.params["diagnostics"].as_array().unwrap().clone();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|entry| entry["code"] == "RM-MEM-001"),
+        "{diagnostics:?}"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/codeAction".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "range": {
+                    "start": { "line": 1, "character": 0 },
+                    "end": { "line": 1, "character": 10 }
+                },
+                "context": { "diagnostics": [] }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a code action request must be answered");
+    };
+    let offered = answer.response_result.as_ref().unwrap().as_array().unwrap();
+    let fix = offered
+        .iter()
+        .find(|action| action["kind"] == "quickfix")
+        .unwrap_or_else(|| panic!("a finding with a fix must offer a quickfix: {offered:?}"));
+    assert!(
+        fix["title"].as_str().unwrap().contains("RM-MEM-001"),
+        "{fix:?}"
+    );
+    let edits = &fix["edit"]["documentChanges"][0]["edits"];
+    let line = FIXABLE.lines().nth(1).unwrap();
+    let at = line.find("Report").unwrap();
+    assert!(
+        edits.as_array().unwrap().iter().any(|edit| {
+            edit["newText"] == "&"
+                && edit["range"]["start"]["line"] == 1
+                && edit["range"]["start"]["character"] == at
+        }),
+        "the quickfix must insert the borrow right before the owned type: {edits:?}"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}
