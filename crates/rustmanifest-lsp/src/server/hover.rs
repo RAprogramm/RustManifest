@@ -18,7 +18,7 @@ use lsp_server::{Request, Response};
 use lsp_types::{Hover, HoverContents, HoverParams, MarkupContent, MarkupKind};
 
 use super::{
-    card::{card, handover_section, why_section},
+    card::{card, handover_section, type_card, why_section},
     position::offset_of,
     snapshot::{Derived, path_of}
 };
@@ -41,7 +41,9 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
         .and_then(|file| {
             let text = held.sources[file].text();
             let offset = offset_of(text, params.text_document_position_params.position);
-            named_card(held, file, offset).or_else(|| call_story(held, file, offset))
+            named_card(held, file, offset)
+                .or_else(|| typed_card(held, file, offset))
+                .or_else(|| call_story(held, file, offset))
         })
         .map(|value| Hover {
             contents: HoverContents::Markup(MarkupContent {
@@ -81,6 +83,17 @@ fn named_card(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> 
         value.push_str(&why_section(&named, &asked));
     }
     Some(value)
+}
+
+/// The fact card of the type whose written name covers `offset`.
+fn typed_card(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> {
+    let node = held.types.types().iter().find(|node| {
+        node.source == file
+            && (node.range.start as usize..node.range.end as usize).contains(&offset)
+    })?;
+    let implemented = held.types.traits_implemented(&node.name);
+    let shape = held.shapes.iter().find(|shape| shape.name == node.name);
+    Some(type_card(node, &implemented, shape))
 }
 
 /// The ownership story of the written call covering `offset`, where a

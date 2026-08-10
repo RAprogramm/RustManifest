@@ -642,3 +642,92 @@ fn a_code_action_on_a_type_offers_the_unimplemented_traits() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// A type with fields, derives, and a written impl: the hover on its
+/// name must card what it holds, implements, and weighs.
+const TYPED: &str = "#[derive(Clone, Debug)]\nstruct User {\n    id: u64,\n    name: String,\n}\n\
+                     impl std::fmt::Display for User {\n    fn fmt(&self, out: &mut \
+                     std::fmt::Formatter<'_>) -> std::fmt::Result {\n        write!(out, \
+                     \"{}\", self.name)\n    }\n}\n";
+
+#[test]
+fn a_hover_on_a_type_name_cards_its_facts() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": TYPED
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    let line = TYPED
+        .lines()
+        .position(|held| held.contains("struct User"))
+        .unwrap();
+    let character = TYPED.lines().nth(line).unwrap().find("User").unwrap() + 1;
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/hover".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "position": { "line": line, "character": character }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a hover request must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    let value = held["contents"]["value"].as_str().unwrap();
+    assert!(value.contains("### `User`"), "{value}");
+    assert!(value.contains("struct with 2 recorded field(s)"), "{value}");
+    assert!(value.contains("- `name: String`"), "{value}");
+    assert!(value.contains("derives: `Clone`, `Debug`"), "{value}");
+    assert!(value.contains("written impls: `Display`"), "{value}");
+    assert!(value.contains("memory:"), "{value}");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}

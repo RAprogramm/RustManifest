@@ -75,6 +75,58 @@ pub(super) fn why_section(effect: &str, answer: &rustmanifest_engine::semantic::
     lines.join("\n")
 }
 
+/// The fact card of one type: what it is, what it holds, what it
+/// implements, and what a value of it weighs where that is derivable.
+pub(super) fn type_card(
+    node: &rustmanifest_engine::TypeNode,
+    implemented: &[&str],
+    shape: Option<&rustmanifest_engine::semantic::TypeShape>
+) -> String {
+    let mut lines = vec![format!("### `{}`", node.name)];
+    let kind = match node.kind {
+        rustmanifest_engine::TypeKind::Struct => "struct",
+        rustmanifest_engine::TypeKind::Enum => "enum"
+    };
+    lines.push(format!(
+        "{kind} with {} recorded field(s)",
+        node.fields.len()
+    ));
+    for field in &node.fields {
+        lines.push(format!("- `{}: {}`", field.name, field.type_name));
+    }
+    if !node.derives.is_empty() {
+        let derived: Vec<String> = node
+            .derives
+            .iter()
+            .map(|name| format!("`{name}`"))
+            .collect();
+        lines.push(format!("derives: {}", derived.join(", ")));
+    }
+    if !implemented.is_empty() {
+        let written: Vec<String> = implemented.iter().map(|name| format!("`{name}`")).collect();
+        lines.push(format!("written impls: {}", written.join(", ")));
+    }
+    if let Some(shape) = shape {
+        let mut memory = Vec::new();
+        if let Some(payload) = shape.payload {
+            memory.push(format!("at least {payload} guaranteed field byte(s)"));
+        }
+        if shape.indirections > 0 {
+            memory.push(format!("{} heap header(s)", shape.indirections));
+        }
+        if !shape.unresolved.is_empty() {
+            memory.push(format!(
+                "{} field(s) of unsized types",
+                shape.unresolved.len()
+            ));
+        }
+        if !memory.is_empty() {
+            lines.push(format!("memory: {}", memory.join(", ")));
+        }
+    }
+    lines.join("\n\n")
+}
+
 /// The ownership story of the written call under the cursor: one step
 /// per handed value, closing with where each one ends up.
 pub(super) fn handover_section(answer: &rustmanifest_engine::semantic::Answer) -> String {

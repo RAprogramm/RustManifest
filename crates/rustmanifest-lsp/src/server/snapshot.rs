@@ -12,7 +12,10 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use rustmanifest_engine::{FunctionFacts, Source, TypeGraph, semantic::Effect};
+use rustmanifest_engine::{
+    FunctionFacts, Source, TypeGraph,
+    semantic::{Effect, TypeShape, shapes}
+};
 
 /// The sources and derivations answers are computed over, rebuilt after
 /// document events.
@@ -42,7 +45,9 @@ struct Built {
     /// Per-function effects closed over the graph.
     reached: Vec<Vec<Effect>>,
     /// The type graph of the sources: definitions, derives, and impls.
-    types:   TypeGraph
+    types:   TypeGraph,
+    /// The memory shape of every captured type.
+    shapes:  Vec<TypeShape>
 }
 
 impl Snapshot {
@@ -72,12 +77,14 @@ impl Snapshot {
             );
             let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
             let types = TypeGraph::from_sources(&sources);
+            let shaped = shapes(&sources);
             self.built = Some(Built {
                 sources,
                 facts,
                 graph,
                 reached,
-                types
+                types,
+                shapes: shaped
             });
             self.dirty = false;
         }
@@ -89,14 +96,16 @@ impl Snapshot {
                 &rustmanifest_engine::semantic::ResolutionContext::default()
             ),
             reached: Vec::new(),
-            types:   TypeGraph::from_sources(&[])
+            types:   TypeGraph::from_sources(&[]),
+            shapes:  Vec::new()
         });
         Derived {
             sources: &held.sources,
             facts:   &held.facts,
             graph:   &held.graph,
             reached: &held.reached,
-            types:   &held.types
+            types:   &held.types,
+            shapes:  &held.shapes
         }
     }
 }
@@ -112,7 +121,9 @@ pub(super) struct Derived<'a> {
     /// Per-function effects closed over the graph.
     pub(super) reached: &'a [Vec<Effect>],
     /// The type graph of the sources: definitions, derives, and impls.
-    pub(super) types:   &'a TypeGraph
+    pub(super) types:   &'a TypeGraph,
+    /// The memory shape of every captured type.
+    pub(super) shapes:  &'a [TypeShape]
 }
 
 /// Builds the source slice: the root's files off disk, buffers overlaid,
