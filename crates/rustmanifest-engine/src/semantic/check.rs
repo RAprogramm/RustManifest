@@ -10,7 +10,7 @@
 
 use super::{
     composition, dead, doc_truth, field_group, insight::Insight, io_forms, loops, module_cycle,
-    naming, orphan, ownership, workspace::Workspace
+    moved, naming, orphan, ownership, workspace::Workspace
 };
 
 /// Built-in semantic checks addressable from `definition.semantic`.
@@ -26,6 +26,9 @@ pub(super) enum Check {
     /// `borrowable-params` — owned non-`Copy` parameters that only read
     /// fields and should be shared borrows.
     BorrowableParams,
+    /// `use-after-move` — names mentioned after their value provably
+    /// moved away.
+    UseAfterMove,
     /// `loop-invariant-clone` — clones of loop-invariant places that are
     /// only read and could be hoisted out of the loop.
     LoopInvariantClone,
@@ -65,6 +68,7 @@ impl Check {
             "module-cycles" => Some(Self::ModuleCycles),
             "structure-size" => Some(Self::StructureSize),
             "borrowable-params" => Some(Self::BorrowableParams),
+            "use-after-move" => Some(Self::UseAfterMove),
             "loop-invariant-clone" => Some(Self::LoopInvariantClone),
             "loop-allocation" => Some(Self::LoopAllocation),
             "deceptive-name" => Some(Self::DeceptiveName),
@@ -87,6 +91,7 @@ impl Check {
             Self::ModuleCycles => module_cycle::insights(workspace),
             Self::StructureSize => composition::insights(workspace.types()),
             Self::BorrowableParams => ownership::insights(workspace),
+            Self::UseAfterMove => moved::insights(workspace),
             Self::LoopInvariantClone => loops::clone_insights(workspace),
             Self::LoopAllocation => loops::allocation_insights(workspace),
             Self::DeceptiveName => naming::insights(workspace),

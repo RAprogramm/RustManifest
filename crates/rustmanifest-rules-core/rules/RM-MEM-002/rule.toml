@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 id = "RM-MEM-002"
-severity = "warning"
-title = "Loop-invariant clone inside loop"
-rationale-uri = "rustmanifest://methodology/performance-issues#clone-without-necessity"
+severity = "error"
+title = "Name used after its value moved"
+rationale-uri = "rustmanifest://methodology/structure#immutability-first"
 
 [definition.semantic]
-check = "loop-invariant-clone"
+check = "use-after-move"

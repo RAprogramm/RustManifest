@@ -44,6 +44,7 @@ mod meaning;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
+mod moved;
 mod naming;
 mod orphan;
 mod ownership;

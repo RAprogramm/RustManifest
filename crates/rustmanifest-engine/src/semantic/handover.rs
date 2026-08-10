@@ -184,7 +184,7 @@ fn told(param: &ParamFacts, types: &TypeGraph) -> (TraceStep, usize) {
 /// Whether `type_name` is `Copy`, where that is provable: the std
 /// tables answer for known library types, the type graph for workspace
 /// types by their derives and impls, and nothing answers otherwise.
-fn copyness(types: &TypeGraph, type_name: &str) -> Option<bool> {
+pub(super) fn copyness(types: &TypeGraph, type_name: &str) -> Option<bool> {
     if std_knowledge::is_copy_type(type_name) {
         return Some(true);
     }

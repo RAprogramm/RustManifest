@@ -371,7 +371,7 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
 /// and a caller handing its local over. The hover on the written call
 /// must tell the move.
 const HANDED: &str = "fn foo(value: String) {}\nfn main() { let s = String::from(\"hello\"); \
-                      foo(s); }\n";
+                      foo(s); println!(\"{s}\"); }\n";
 
 #[test]
 fn a_hover_on_a_written_call_tells_where_ownership_goes() {
@@ -407,7 +407,16 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
             })
         )))
         .unwrap();
-    let _diagnostics = client.receiver.recv().unwrap();
+    let Message::Notification(published) = client.receiver.recv().unwrap() else {
+        panic!("the first message after an open must be the diagnostics");
+    };
+    let diagnostics = published.params["diagnostics"].as_array().unwrap().clone();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|entry| entry["code"] == "RM-MEM-002"),
+        "the use after the move must be diagnosed where it stands: {diagnostics:?}"
+    );
     let line = HANDED.lines().nth(1).unwrap();
     let character = line.find("foo(s)").unwrap() + 1;
     client
