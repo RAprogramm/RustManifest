@@ -6,14 +6,17 @@
 //! sections divided by rules, section names in bold.
 //!
 //! Everything on a card is a recorded fact of the buffer's text and
-//! nothing else: what a function touches by memory, how each parameter
-//! takes its value, what effects its own body proves and what it
-//! reaches through calls; what a type holds, implements, and weighs. A
+//! nothing else: what a function touches by memory, where it writes
+//! and through what buffering, how each parameter takes its value,
+//! what effects its own body proves and what it reaches through calls;
+//! what a type holds, implements, and weighs. A
 //! section with nothing recorded is absent, so a short card is a
 //! smaller claim rather than a vaguer one. The declarations in the
 //! fences are reconstructed from the facts — parameter modes, field
 //! types — never sliced blindly, so the fence shows exactly what the
 //! facts carry.
+
+mod output;
 
 use rustmanifest_engine::{FunctionFacts, ParamMode, semantic::Effect};
 
@@ -38,6 +41,10 @@ pub(super) fn card(fact: &FunctionFacts, reached: &[Effect]) -> String {
     if !memory.is_empty() {
         lines.push("---".to_owned());
         lines.push(format!("**memory** — {}", memory.join(" · ")));
+    }
+    if let Some(spoken) = output::output_section(&fact.output_writes) {
+        lines.push("---".to_owned());
+        lines.push(spoken);
     }
     if !fact.params.is_empty() {
         lines.push("---".to_owned());

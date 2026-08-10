@@ -1068,6 +1068,35 @@ fn a_type_offers_its_extraction_with_its_impls() {
     closed(client, handle);
 }
 
+/// The buffering measurement must reach the cursor: the card of a
+/// writing function says where it writes, through what buffering, and
+/// under what lock — the same reading the facts export carries.
+#[test]
+fn a_hover_tells_where_the_function_writes_and_through_what() {
+    let (client, handle) = opened("fn shout() {\n    println!(\"hi\");\n}\n");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/hover".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "position": { "line": 0, "character": 4 }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a hover request must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    let value = held["contents"]["value"].as_str().unwrap();
+    assert!(value.contains("**output**"), "{value}");
+    assert!(value.contains("stdout: 1 write(s)"), "{value}");
+    assert!(value.contains("the stream's own buffering"), "{value}");
+    assert!(value.contains("lock taken at the site"), "{value}");
+    closed(client, handle);
+}
+
 /// The deduce command must answer with the chain itself as data: the
 /// conclusion, every step a recorded fact with its reason, and the
 /// confirmed gain — the "why installed" genre reaching the editor the
