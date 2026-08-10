@@ -11,7 +11,7 @@ use rmcp::{ErrorData, Json, handler::server::wrapper::Parameters, tool, tool_rou
 
 use super::{
     ReviewServer,
-    parameters::{FactsParams, OverviewParams, PathParams}
+    parameters::{DeduceParams, FactsParams, OverviewParams, PathParams}
 };
 
 #[tool_router(router = knowledge_router, vis = "pub(super)")]
@@ -64,6 +64,22 @@ impl ReviewServer {
                     suppressions
                 })
             })
+    }
+
+    /// Deduce the impl of a trait for a workspace type and answer with
+    /// the chain itself: one recorded fact per step, the workspace's own
+    /// precedent advising after the catalog's choice, the block
+    /// installed in memory and confirmed by re-reading — no byte
+    /// touches a disk.
+    #[tool(annotations(read_only_hint = true))]
+    async fn deduce_trait(
+        &self,
+        Parameters(params): Parameters<DeduceParams>
+    ) -> Result<Json<crate::knowledge::DeductionRecord>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::deduction(&path, &params.type_name, &params.trait_name))
+            .await
+            .map(Json)
     }
 
     /// Learn per-role convention clauses over a path and return them as

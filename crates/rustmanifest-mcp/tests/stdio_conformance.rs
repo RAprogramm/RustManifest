@@ -110,6 +110,11 @@ fn scripted() -> BTreeMap<i64, Value> {
         }}),
         json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {
             "name": "function_facts", "arguments": {"path": "logic.rs"}
+        }}),
+        json!({"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {
+            "name": "deduce_trait", "arguments": {
+                "path": "probe.rs", "type_name": "ConfigLoader", "trait_name": "Display"
+            }
         }})
     ])
 }
@@ -125,7 +130,7 @@ fn handshake_reports_server_identity_and_capabilities() {
 }
 
 #[test]
-fn tools_list_exposes_exactly_the_nine_tools() {
+fn tools_list_exposes_exactly_the_ten_tools() {
     let responses = scripted();
     let mut names: Vec<&str> = responses[&2]["result"]["tools"]
         .as_array()
@@ -138,6 +143,7 @@ fn tools_list_exposes_exactly_the_nine_tools() {
         names,
         [
             "check_rule",
+            "deduce_trait",
             "explain_rule",
             "function_facts",
             "learn_conventions",
@@ -147,6 +153,29 @@ fn tools_list_exposes_exactly_the_nine_tools() {
             "review_path",
             "suppressions"
         ]
+    );
+}
+
+#[test]
+fn deduce_trait_answers_with_the_chain() {
+    let responses = scripted();
+    let chain = &responses[&10]["result"]["structuredContent"];
+    assert_eq!(chain["gained"], true, "{chain}");
+    assert_eq!(chain["panics"], false, "{chain}");
+    assert!(
+        chain["conclusion"]
+            .as_str()
+            .expect("conclusion text")
+            .contains("by deduction"),
+        "{chain}"
+    );
+    let steps = chain["steps"].as_array().expect("steps array");
+    assert!(
+        steps.iter().any(|step| step["fact"]
+            .as_str()
+            .expect("fact")
+            .contains("`path: String`")),
+        "{steps:?}"
     );
 }
 

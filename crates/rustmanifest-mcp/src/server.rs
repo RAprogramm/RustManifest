@@ -32,7 +32,9 @@ use rmcp::{
 
 pub use self::{
     explanation::RuleExplanation,
-    parameters::{FactsParams, OverviewParams, PathParams, RuleIdParams, RulePathParams}
+    parameters::{
+        DeduceParams, FactsParams, OverviewParams, PathParams, RuleIdParams, RulePathParams
+    }
 };
 use crate::workspace::WorkspaceRoot;
 
@@ -130,7 +132,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tool_router_exposes_all_nine_tools() {
+    fn tool_router_exposes_all_ten_tools() {
         let tools = ReviewServer::tool_router().list_all();
         let mut names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
         names.sort_unstable();
@@ -138,6 +140,7 @@ mod tests {
             names,
             [
                 "check_rule",
+                "deduce_trait",
                 "explain_rule",
                 "function_facts",
                 "learn_conventions",

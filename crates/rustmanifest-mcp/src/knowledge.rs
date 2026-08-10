@@ -83,6 +83,68 @@ pub fn conventions(target: &Path) -> Result<Vec<ConventionClause>, EngineError> 
     .collect())
 }
 
+/// One step of a deduction chain on the wire.
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub struct ChainStep {
+    /// The recorded fact the step claims.
+    pub fact:   String,
+    /// The reason the fact counts as established.
+    pub reason: String
+}
+
+/// One finished deduction chain on the wire.
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub struct DeductionRecord {
+    /// What the chain concludes; a stopped chain names its failing
+    /// claim.
+    pub conclusion: String,
+    /// The reasoning, one recorded fact per step; the workspace's own
+    /// precedent advises after the catalog's choice where the admission
+    /// gate lets it speak.
+    pub steps:      Vec<ChainStep>,
+    /// Whether every step held and the re-reading confirmed the gain.
+    pub gained:     bool,
+    /// Whether an installed body can still end the path by panic;
+    /// absent where nothing was installed.
+    pub panics:     Option<bool>
+}
+
+/// Deduces the impl of `trait_name` for `type_name` over `target` and
+/// answers with the chain itself.
+///
+/// The block is installed in memory and confirmed by re-reading; no
+/// byte touches a disk. A chain that stops carries its steps up to the
+/// failing claim — the refusal is as auditable as the success.
+///
+/// # Errors
+///
+/// Returns an [`EngineError`] when file discovery fails.
+pub fn deduction(
+    target: &Path,
+    type_name: &str,
+    trait_name: &str
+) -> Result<DeductionRecord, EngineError> {
+    let sources = sources_for(target)?;
+    let held = rustmanifest_learn::deduce_with_precedent(&sources, type_name, trait_name)
+        .unwrap_or_else(|| {
+            rustmanifest_engine::semantic::deduce_impl(&sources, 0, type_name, trait_name)
+        });
+    Ok(DeductionRecord {
+        conclusion: held.chain.conclusion,
+        steps:      held
+            .chain
+            .steps
+            .into_iter()
+            .map(|step| ChainStep {
+                fact:   step.fact,
+                reason: step.reason
+            })
+            .collect(),
+        gained:     held.gain.is_some(),
+        panics:     held.gain.map(|gain| gain.panics)
+    })
+}
+
 /// Expands `target` into readable Rust sources within the memory budget.
 fn sources_for(target: &Path) -> Result<Vec<Source>, EngineError> {
     let files: Vec<PathBuf> = if target.is_dir() {
@@ -245,6 +307,40 @@ mod tests {
             .find(|record| record.rule_id == "RM-SEC-002")
             .unwrap();
         assert!(!stale.used, "{stale:?}");
+    }
+
+    #[test]
+    fn deduction_answers_with_the_chain_and_the_confirmed_gain() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("lib.rs"),
+            "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"
+        )
+        .unwrap();
+        let held = super::deduction(dir.path(), "User", "Display").unwrap();
+        assert!(held.gained, "{held:?}");
+        assert_eq!(held.panics, Some(false), "{held:?}");
+        assert!(held.conclusion.contains("by deduction"), "{held:?}");
+        assert!(
+            held.steps
+                .iter()
+                .any(|step| step.fact.contains("`name: String`")),
+            "{held:?}"
+        );
+    }
+
+    #[test]
+    fn a_stopped_deduction_reports_its_refusal() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("lib.rs"),
+            "pub struct Batch {\n    pub held: Vec<String>,\n}\n"
+        )
+        .unwrap();
+        let held = super::deduction(dir.path(), "Batch", "Display").unwrap();
+        assert!(!held.gained, "{held:?}");
+        assert_eq!(held.panics, None, "{held:?}");
+        assert!(held.conclusion.contains("`held`"), "{held:?}");
     }
 
     #[test]

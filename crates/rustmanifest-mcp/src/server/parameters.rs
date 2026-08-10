@@ -35,6 +35,17 @@ pub struct FactsParams {
     pub filter: Option<String>
 }
 
+/// Parameters for `deduce_trait`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DeduceParams {
+    /// File or directory path resolved against the workspace root.
+    pub path:       String,
+    /// Name of the workspace type the deduction is about.
+    pub type_name:  String,
+    /// Name of the trait to deduce, e.g. `Display` or `Default`.
+    pub trait_name: String
+}
+
 /// Parameters for `explain_rule`.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RuleIdParams {

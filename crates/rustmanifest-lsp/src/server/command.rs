@@ -9,7 +9,12 @@
 //! whole workspace snapshot, so the chain follows calls across files.
 //! `rust-manifest.implement` takes a type name and a trait name and
 //! answers with the written `impl` block, or with nothing where the
-//! facts cannot carry one. The answer is the command's result, so any
+//! facts cannot carry one. `rust-manifest.deduce` takes the same pair
+//! and answers with the deduction chain itself — conclusion and steps,
+//! the workspace's own precedent advising after the catalog's choice —
+//! with the block installed in memory and confirmed by re-reading, so
+//! the answer says not only what to write but why every claim holds;
+//! no byte touches a disk. The answer is the command's result, so any
 //! client scripts it: an editor plugin, a keybinding, a pipeline.
 //! Nothing is shown or inserted by the server itself — how to use an
 //! answer is the asker's decision.
@@ -24,10 +29,16 @@ pub(super) const WHY: &str = "rust-manifest.why";
 /// The generating command this server serves.
 pub(super) const IMPLEMENT: &str = "rust-manifest.implement";
 
+/// The deducing command this server serves.
+pub(super) const DEDUCE: &str = "rust-manifest.deduce";
+
 /// Answers one `workspace/executeCommand` request over the snapshot.
 pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     if request.params["command"].as_str() == Some(IMPLEMENT) {
         return implemented(request, held);
+    }
+    if request.params["command"].as_str() == Some(DEDUCE) {
+        return deduced(request, held);
     }
     let arguments = &request.params["arguments"];
     let (Some(_uri), Some(function), Some(effect)) = (
@@ -86,4 +97,43 @@ fn implemented(request: &Request, held: &Derived<'_>) -> Response {
         trait_name
     );
     Response::new_ok(request.id.clone(), serde_json::json!({ "text": written }))
+}
+
+/// Answers the deduce command: the chain as data — conclusion, steps,
+/// whether the re-reading confirmed the gain, and whether an installed
+/// body still carries a panic obligation.
+fn deduced(request: &Request, held: &Derived<'_>) -> Response {
+    let arguments = &request.params["arguments"];
+    let (Some(type_name), Some(trait_name)) = (arguments[0].as_str(), arguments[1].as_str())
+    else {
+        return Response::new_err(
+            request.id.clone(),
+            lsp_server::ErrorCode::InvalidParams as i32,
+            format!("`{DEDUCE}` takes [type, trait]")
+        );
+    };
+    let chained = rustmanifest_learn::deduce_with_precedent(held.sources, type_name, trait_name)
+        .unwrap_or_else(|| {
+            rustmanifest_engine::semantic::deduce_impl(held.sources, 0, type_name, trait_name)
+        });
+    let steps: Vec<serde_json::Value> = chained
+        .chain
+        .steps
+        .iter()
+        .map(|step| {
+            serde_json::json!({
+                "fact": step.fact,
+                "reason": step.reason
+            })
+        })
+        .collect();
+    Response::new_ok(
+        request.id.clone(),
+        serde_json::json!({
+            "conclusion": chained.chain.conclusion,
+            "steps": steps,
+            "gained": chained.gain.is_some(),
+            "panics": chained.gain.map(|gain| gain.panics)
+        })
+    )
 }

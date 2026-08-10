@@ -1067,3 +1067,81 @@ fn a_type_offers_its_extraction_with_its_impls() {
     assert!(created.contains("pub(super) fn len"), "{created}");
     closed(client, handle);
 }
+
+/// The deduce command must answer with the chain itself as data: the
+/// conclusion, every step a recorded fact with its reason, and the
+/// confirmed gain — the "why installed" genre reaching the editor the
+/// way "why effect" already does.
+#[test]
+fn the_deduce_command_carries_the_chain_to_the_client() {
+    let (client, handle) =
+        opened("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.deduce",
+                "arguments": ["User", "Display"]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    assert!(
+        held["conclusion"]
+            .as_str()
+            .unwrap()
+            .contains("by deduction"),
+        "{held}"
+    );
+    let steps = held["steps"].as_array().unwrap();
+    assert_eq!(steps.len(), 6, "{steps:?}");
+    assert!(
+        steps
+            .iter()
+            .any(|step| step["fact"].as_str().unwrap().contains("`name: String`")),
+        "{steps:?}"
+    );
+    assert!(
+        steps
+            .iter()
+            .all(|step| !step["reason"].as_str().unwrap().is_empty()),
+        "{steps:?}"
+    );
+    assert_eq!(held["gained"], true, "{held}");
+    assert_eq!(held["panics"], false, "{held}");
+    closed(client, handle);
+}
+
+/// A deduction that stops must reach the client as the same data shape:
+/// the failing claim in the conclusion, the steps up to it, no gain.
+#[test]
+fn a_stopped_deduction_reaches_the_client_with_its_refusal() {
+    let (client, handle) = opened("pub struct Batch {\n    pub held: Vec<String>,\n}\n");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.deduce",
+                "arguments": ["Batch", "Display"]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    assert!(
+        held["conclusion"].as_str().unwrap().contains("`held`"),
+        "{held}"
+    );
+    assert_eq!(held["gained"], false, "{held}");
+    assert_eq!(held["panics"], serde_json::Value::Null, "{held}");
+    closed(client, handle);
+}

@@ -2339,6 +2339,7 @@ name = "rustmanifest-learn"
 version = "0.0.0"
 dependencies = [
  "rustmanifest-engine",
+ "rustmanifest-schema",
  "tsetlin-rs",
 ]
 
@@ -2351,6 +2352,7 @@ dependencies = [
  "lsp-types",
  "rustmanifest-config",
  "rustmanifest-engine",
+ "rustmanifest-learn",
  "rustmanifest-rules-core",
  "rustmanifest-schema",
  "serde_json",

@@ -19,6 +19,7 @@ keywords = ["rust", "lsp", "lint", "editor"]
 rustmanifest-schema = { workspace = true }
 rustmanifest-engine = { workspace = true }
 rustmanifest-config = { workspace = true }
+rustmanifest-learn = { workspace = true }
 lsp-server = "0.10.0"
 lsp-types = "0.97.0"
 serde_json.workspace = true
