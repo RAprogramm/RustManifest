@@ -1,0 +1,20 @@
+<!--
+SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+SPDX-License-Identifier: MIT
+-->
+<idea-plugin>
+    <id>dev.rustmanifest.rustrover</id>
+    <name>Rust Manifest</name>
+    <vendor>RAprogramm</vendor>
+    <description><![CDATA[
+        Fact cards, ownership stories, and generating actions for Rust,
+        served by the rust-manifest language server running beside the
+        IDE's own Rust support. Install the binary first:
+        <code>cargo install rustmanifest-lsp</code>.
+    ]]></description>
+    <depends>com.intellij.modules.platform</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <platform.lsp.serverSupportProvider
+            implementation="dev.rustmanifest.rustrover.RustManifestLspServerSupportProvider"/>
+    </extensions>
+</idea-plugin>

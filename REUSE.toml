@@ -44,3 +44,9 @@ path = "crates/**/snapshots/*.snap"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 RAprogramm <andrey.rozanov.vl@gmail.com>"
 SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["editors/vscode/package.json", "editors/vscode/package-lock.json", "editors/vscode/tsconfig.json", "editors/vscode/.vscodeignore", "editors/rustrover/gradle.properties"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 RAprogramm <andrey.rozanov.vl@gmail.com>"
+SPDX-License-Identifier = "MIT"

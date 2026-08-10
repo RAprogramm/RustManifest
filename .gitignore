@@ -15,3 +15,8 @@ lcov.info
 /release-artifacts
 *.sbom.json
 *.provenance.json
+
+editors/vscode/node_modules/
+editors/vscode/out/
+editors/rustrover/build/
+editors/rustrover/.gradle/

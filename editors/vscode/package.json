@@ -1,0 +1,54 @@
+{
+  "name": "rust-manifest",
+  "displayName": "Rust Manifest",
+  "description": "Fact cards, ownership stories, and generating actions for Rust — a second language server running beside rust-analyzer.",
+  "version": "0.0.1",
+  "publisher": "RAprogramm",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RAprogramm/RustManifest"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:rust"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Rust Manifest",
+      "properties": {
+        "rust-manifest.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the rust-manifest language server for Rust files."
+        },
+        "rust-manifest.path": {
+          "type": "string",
+          "default": "rust-manifest",
+          "description": "Path to the rust-manifest binary (cargo install rustmanifest-lsp)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "^3.4.0",
+    "typescript": "^5.5.0"
+  }
+}
