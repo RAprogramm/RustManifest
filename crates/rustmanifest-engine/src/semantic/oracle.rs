@@ -101,6 +101,23 @@ impl TraitOracle {
         })
     }
 
+    /// Merges another emission's listings into this one, so a
+    /// multi-crate workspace answers from every documented crate rather
+    /// than the crate documented last; a listing both emissions carry
+    /// lands once.
+    #[must_use]
+    pub fn merged(mut self, other: Self) -> Self {
+        for (type_name, impls) in other.listed {
+            let held = self.listed.entry(type_name).or_default();
+            for one in impls {
+                if !held.contains(&one) {
+                    held.push(one);
+                }
+            }
+        }
+        self
+    }
+
     /// The implementations listed for `type_name`, empty where the
     /// index does not know the type.
     #[must_use]
@@ -186,5 +203,44 @@ mod tests {
     fn a_text_that_is_no_index_answers_nothing() {
         assert!(TraitOracle::from_rustdoc_json("{}").is_none());
         assert!(TraitOracle::from_rustdoc_json("not json").is_none());
+    }
+
+    /// A second crate's emission for another type.
+    const OTHER: &str = r#"{
+        "format_version": 57,
+        "index": {
+            "20": {"inner": {"impl": {
+                "trait": {"path": "Display", "id": 1, "args": null},
+                "for": {"resolved_path": {"path": "Report", "id": 5, "args": null}},
+                "is_synthetic": false,
+                "blanket_impl": null
+            }}},
+            "21": {"inner": {"impl": {
+                "trait": {"path": "Display", "id": 1, "args": null},
+                "for": {"resolved_path": {"path": "User", "id": 3, "args": null}},
+                "is_synthetic": false,
+                "blanket_impl": null
+            }}}
+        }
+    }"#;
+
+    /// Two crates' emissions merged answer for both crates' types, and
+    /// a listing both emissions carry lands once.
+    #[test]
+    fn merged_emissions_answer_for_every_documented_crate() {
+        let merged = TraitOracle::from_rustdoc_json(EMITTED)
+            .unwrap()
+            .merged(TraitOracle::from_rustdoc_json(OTHER).unwrap());
+        assert!(merged.knows("User"));
+        assert!(merged.knows("Report"));
+        assert!(merged.implements("Report", "Display").is_some());
+        assert_eq!(
+            merged
+                .traits_of("User")
+                .iter()
+                .filter(|held| held.trait_name == "Display")
+                .count(),
+            1
+        );
     }
 }

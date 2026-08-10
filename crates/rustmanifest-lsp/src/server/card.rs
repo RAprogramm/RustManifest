@@ -127,7 +127,7 @@ pub(super) fn type_card(
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
     shape: Option<&rustmanifest_engine::semantic::TypeShape>,
-    oracle: Option<&rustmanifest_engine::semantic::TraitOracle>
+    oracle: Option<&super::snapshot::Indexed>
 ) -> String {
     let kind = match node.kind {
         rustmanifest_engine::TypeKind::Struct => "struct",
@@ -189,7 +189,7 @@ fn traits_section(
     types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
-    oracle: Option<&rustmanifest_engine::semantic::TraitOracle>
+    oracle: Option<&super::snapshot::Indexed>
 ) -> String {
     let mut told = vec!["**traits**".to_owned()];
     let mut named: Vec<&str> = ASKED_TRAITS.to_vec();
@@ -203,7 +203,7 @@ fn traits_section(
             named.push(extra);
         }
     }
-    let asked = oracle.filter(|held| held.knows(&node.name));
+    let asked = oracle.filter(|held| held.oracle.knows(&node.name));
     for trait_name in named {
         told.push(format!(
             "- {}",
@@ -226,18 +226,21 @@ fn traits_section(
     told.join("\n")
 }
 
-/// One trait's verdict straight from the compiler's index.
-fn indexed(
-    index: &rustmanifest_engine::semantic::TraitOracle,
-    type_name: &str,
-    trait_name: &str
-) -> String {
+/// One trait's verdict straight from the compiler's index, its age
+/// named where a source is younger than the emission: degraded by
+/// words, never silenced.
+fn indexed(index: &super::snapshot::Indexed, type_name: &str, trait_name: &str) -> String {
     use rustmanifest_engine::semantic::OracleProvenance;
-    index.implements(type_name, trait_name).map_or_else(
-        || format!("✗ `{trait_name}` — the compiler's index lists no impl"),
+    let aged = if index.stale {
+        ", index older than the sources"
+    } else {
+        ""
+    };
+    index.oracle.implements(type_name, trait_name).map_or_else(
+        || format!("✗ `{trait_name}` — the compiler's index lists no impl{aged}"),
         |held| {
             format!(
-                "✓ `{trait_name}` — the compiler's index ({})",
+                "✓ `{trait_name}` — the compiler's index ({}{aged})",
                 match held.provenance {
                     OracleProvenance::Auto => "auto impl",
                     OracleProvenance::Blanket => "blanket impl",
@@ -254,7 +257,7 @@ fn verdict(
     types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
-    asked: Option<&rustmanifest_engine::semantic::TraitOracle>,
+    asked: Option<&super::snapshot::Indexed>,
     trait_name: &str
 ) -> String {
     if node.derives.iter().any(|derive| derive == trait_name) {

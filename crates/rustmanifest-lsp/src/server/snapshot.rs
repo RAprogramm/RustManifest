@@ -48,9 +48,19 @@ struct Built {
     types:   TypeGraph,
     /// The memory shape of every captured type.
     shapes:  Vec<TypeShape>,
-    /// The compiler's trait index, where the workspace carries one
-    /// (the newest rustdoc JSON under `target/doc`).
-    oracle:  Option<TraitOracle>
+    /// The compiler's trait index, where the workspace carries one.
+    oracle:  Option<Indexed>
+}
+
+/// The compiler's trait index with its freshness reading.
+pub(super) struct Indexed {
+    /// Every documented crate's emissions merged into one index.
+    pub(super) oracle: TraitOracle,
+    /// Whether some source is younger than the newest emission — the
+    /// index then speaks with its age named, degraded by words rather
+    /// than silenced: its knowledge does not become false wholesale
+    /// because one file is newer.
+    pub(super) stale:  bool
 }
 
 impl Snapshot {
@@ -81,7 +91,7 @@ impl Snapshot {
             let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
             let types = TypeGraph::from_sources(&sources);
             let shaped = shapes(&sources);
-            let oracle = compiler_index(self.root.as_deref());
+            let oracle = compiler_index(self.root.as_deref(), &sources);
             self.built = Some(Built {
                 sources,
                 facts,
@@ -117,24 +127,50 @@ impl Snapshot {
     }
 }
 
-/// The newest rustdoc JSON emission under the root's `target/doc`, read
-/// as the compiler's trait index; nothing where none exists. One file
-/// is read — the newest — so a multi-crate workspace answers for the
-/// crate documented last, and the boundary stays honest: absent index,
-/// absent answers.
-fn compiler_index(root: Option<&std::path::Path>) -> Option<TraitOracle> {
+/// Every rustdoc JSON emission under the root's `target/doc`, merged
+/// into one compiler trait index; nothing where none exists. Reading
+/// them all lets a multi-crate workspace answer for every documented
+/// crate rather than the one documented last, and the boundary stays
+/// honest: absent index, absent answers. The freshness reading
+/// compares the newest emission against the newest source on disk.
+fn compiler_index(root: Option<&std::path::Path>, sources: &[Source]) -> Option<Indexed> {
     let dir = root?.join("target").join("doc");
-    let newest = std::fs::read_dir(dir)
-        .ok()?
-        .flatten()
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .is_some_and(|extension| extension == "json")
+    let mut oracle: Option<TraitOracle> = None;
+    let mut newest_emission: Option<std::time::SystemTime> = None;
+    for entry in std::fs::read_dir(dir).ok()?.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|extension| extension != "json") {
+            continue;
+        }
+        let Some(read) = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|text| TraitOracle::from_rustdoc_json(&text))
+        else {
+            continue;
+        };
+        oracle = Some(match oracle {
+            Some(held) => held.merged(read),
+            None => read
+        });
+        if let Ok(written) = entry.metadata().and_then(|meta| meta.modified()) {
+            newest_emission = Some(newest_emission.map_or(written, |held| held.max(written)));
+        }
+    }
+    let newest_source = sources
+        .iter()
+        .filter_map(|source| {
+            std::fs::metadata(source.path())
+                .and_then(|meta| meta.modified())
+                .ok()
         })
-        .max_by_key(|entry| entry.metadata().and_then(|meta| meta.modified()).ok())?;
-    TraitOracle::from_rustdoc_json(&std::fs::read_to_string(newest.path()).ok()?)
+        .max();
+    Some(Indexed {
+        oracle: oracle?,
+        stale:  match (newest_emission, newest_source) {
+            (Some(emitted), Some(written)) => written > emitted,
+            _ => false
+        }
+    })
 }
 
 /// One borrowed view of everything a request computes its answer over.
@@ -151,8 +187,9 @@ pub(super) struct Derived<'a> {
     pub(super) types:   &'a TypeGraph,
     /// The memory shape of every captured type.
     pub(super) shapes:  &'a [TypeShape],
-    /// The compiler's trait index, where the workspace carries one.
-    pub(super) oracle:  Option<&'a TraitOracle>
+    /// The compiler's trait index with its freshness reading, where the
+    /// workspace carries one.
+    pub(super) oracle:  Option<&'a Indexed>
 }
 
 /// Builds the source slice: the root's files off disk, buffers overlaid,
