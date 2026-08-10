@@ -1,4 +1,4 @@
-<h1>Rust Code Style Guide</h1>
+<img width="1198" height="798" alt="small_manifest_logo" src="https://github.com/user-attachments/assets/fefa6b97-3857-4e10-b9f2-1e416b3dc0c2" />
 
 <p align="right">
   <strong>English</strong> | <a href="./README.ru.md">Русский</a>
