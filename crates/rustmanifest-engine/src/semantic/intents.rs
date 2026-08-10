@@ -15,7 +15,7 @@
 //! with the evidence standing as the chain's first step, so the
 //! finished chain reads from the written need to the confirmed gain.
 
-use rustmanifest_schema::TraceStep;
+use rustmanifest_schema::{Range, TraceStep};
 
 use super::{
     behavior::behavior,
@@ -36,6 +36,11 @@ pub struct DerivedIntent {
     pub asked_by:   String,
     /// The written call itself, as the body spells it.
     pub call:       String,
+    /// Index of the source whose body writes the call.
+    pub source:     usize,
+    /// Byte range of the calling construct — the evidence's written
+    /// address, so a surface can point at the site itself.
+    pub site:       Range,
     /// The written call standing as evidence, spelled as a chain step.
     pub evidence:   TraceStep
 }
@@ -60,8 +65,8 @@ pub fn derived_intents_with(
 ) -> Vec<DerivedIntent> {
     let mut found: Vec<DerivedIntent> = Vec::new();
     for fact in facts {
-        for call in &fact.calls {
-            let Some((owner, method)) = call.split_once("::") else {
+        for place in &fact.call_sites {
+            let Some((owner, method)) = place.candidate.split_once("::") else {
                 continue;
             };
             let Some((_, trait_name)) = ASKING_CALLS.iter().find(|(asking, _)| *asking == method)
@@ -86,11 +91,13 @@ pub fn derived_intents_with(
                 type_name:  owner.to_owned(),
                 trait_name: (*trait_name).to_owned(),
                 asked_by:   fact.function.clone(),
-                call:       call.clone(),
+                call:       place.candidate.clone(),
+                source:     fact.source,
+                site:       place.site,
                 evidence:   TraceStep {
                     fact:   format!(
-                        "fn `{}` calls `{call}`, which only `{trait_name}` can satisfy",
-                        fact.function
+                        "fn `{}` calls `{}`, which only `{trait_name}` can satisfy",
+                        fact.function, place.candidate
                     ),
                     reason: "a written call is the author's stated intent".to_owned()
                 }
@@ -176,6 +183,20 @@ mod tests {
             "{:?}",
             held.chain.steps[marker.step]
         );
+    }
+
+    /// The evidence carries its written address: the byte range slices
+    /// the citing source to the calling construct itself.
+    #[test]
+    fn the_evidence_carries_the_calls_written_address() {
+        let text = "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n\npub fn make() \
+                    -> User {\n    User::default()\n}\n";
+        let sources = one(text);
+        let intents = derived_intents(&sources);
+        let held = &intents[0];
+        assert_eq!(held.source, 0);
+        let spelled = &text[held.site.start as usize..held.site.end as usize];
+        assert!(spelled.contains("User::default"), "{spelled}");
     }
 
     /// A written `to_string` call asks for `Display` through the

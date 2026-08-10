@@ -16,7 +16,10 @@
 //! the answer says not only what to write but why every claim holds;
 //! no byte touches a disk. `rust-manifest.intents` takes nothing and
 //! answers with every intent the workspace's own written calls prove,
-//! each citing the call as evidence. The answer is the command's
+//! each citing the call as evidence and carrying the call's written
+//! address — the citing document's URI and the calling construct's
+//! positions — so the citation is a place to jump to, not a string to
+//! search for. The answer is the command's
 //! result, so any
 //! client scripts it: an editor plugin, a keybinding, a pipeline.
 //! Nothing is shown or inserted by the server itself — how to use an
@@ -24,7 +27,7 @@
 
 use lsp_server::{Request, Response};
 
-use super::snapshot::Derived;
+use super::{position::LineIndex, snapshot::Derived};
 
 /// The inference command this server serves.
 pub(super) const WHY: &str = "rust-manifest.why";
@@ -121,6 +124,7 @@ fn intended(request: &Request, held: &Derived<'_>) -> Response {
                     "trait": intent.trait_name,
                     "asked_by": intent.asked_by,
                     "call": intent.call,
+                    "site": sited(held, &intent),
                     "evidence": {
                         "fact": intent.evidence.fact,
                         "reason": intent.evidence.reason
@@ -132,6 +136,28 @@ fn intended(request: &Request, held: &Derived<'_>) -> Response {
         request.id.clone(),
         serde_json::json!({ "intents": derived })
     )
+}
+
+/// The written address of an intent's evidence, spelled the way the
+/// protocol spells locations: the citing document's URI and the
+/// calling construct's positions in it — so a client jumps to the
+/// site instead of searching for the quoted text.
+fn sited(
+    held: &Derived<'_>,
+    intent: &rustmanifest_engine::semantic::DerivedIntent
+) -> serde_json::Value {
+    let Some(source) = held.sources.get(intent.source) else {
+        return serde_json::Value::Null;
+    };
+    let text = source.text();
+    let index = LineIndex::new(text);
+    serde_json::json!({
+        "uri": format!("file://{}", source.path().display()),
+        "range": {
+            "start": index.position(text, intent.site.start as usize),
+            "end": index.position(text, intent.site.end as usize)
+        }
+    })
 }
 
 /// Answers the deduce command: the chain as data — conclusion, steps,

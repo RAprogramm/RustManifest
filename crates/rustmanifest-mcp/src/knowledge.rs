@@ -157,6 +157,12 @@ pub struct IntentRecord {
     pub asked_by:   String,
     /// The written call itself, as the body spells it.
     pub call:       String,
+    /// Path of the source whose body writes the call.
+    pub path:       String,
+    /// Byte range of the calling construct — the evidence's written
+    /// address, so a reader opens the site instead of searching for
+    /// the quoted text.
+    pub site:       rustmanifest_schema::Range,
     /// The written call standing as evidence.
     pub evidence:   ChainStep
 }
@@ -177,6 +183,11 @@ pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, EngineError> {
             trait_name: intent.trait_name,
             asked_by:   intent.asked_by,
             call:       intent.call,
+            path:       sources
+                .get(intent.source)
+                .map(|source| source.path().display().to_string())
+                .unwrap_or_default(),
+            site:       intent.site,
             evidence:   ChainStep {
                 fact:   intent.evidence.fact,
                 reason: intent.evidence.reason

@@ -29,6 +29,10 @@ use serde_json::{Value, json};
 /// Kills the server if the scripted session hangs.
 const SESSION_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// The fixture whose written call states an intent; the intents test
+/// slices this very text by the answered byte range.
+const NEED: &str = "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    Job::default()\n}\n";
+
 /// Runs one scripted stdio session and returns responses keyed by id.
 fn session(requests: &[Value]) -> BTreeMap<i64, Value> {
     let workspace = tempfile::tempdir().expect("workspace dir");
@@ -42,12 +46,7 @@ fn session(requests: &[Value]) -> BTreeMap<i64, Value> {
         "pub fn shout(text: &str) {\n    println!(\"{text}\");\n}\n"
     )
     .expect("logic file");
-    std::fs::write(
-        workspace.path().join("need.rs"),
-        "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
-         Job::default()\n}\n"
-    )
-    .expect("need file");
+    std::fs::write(workspace.path().join("need.rs"), NEED).expect("need file");
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_rustmanifest-mcp"))
         .current_dir(workspace.path())
@@ -182,6 +181,18 @@ fn derived_intents_cite_the_written_call() {
             .contains("Job::default"),
         "{intents:?}"
     );
+    assert!(
+        intents[0]["path"]
+            .as_str()
+            .expect("path")
+            .ends_with("need.rs"),
+        "{intents:?}"
+    );
+    let start = usize::try_from(intents[0]["site"]["start"].as_u64().expect("site start"))
+        .expect("start fits");
+    let end =
+        usize::try_from(intents[0]["site"]["end"].as_u64().expect("site end")).expect("end fits");
+    assert!(NEED[start..end].contains("Job::default"), "{intents:?}");
 }
 
 #[test]

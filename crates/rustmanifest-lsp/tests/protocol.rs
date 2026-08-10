@@ -1069,8 +1069,9 @@ fn a_type_offers_its_extraction_with_its_impls() {
 }
 
 /// The intents command must answer with what the workspace's own
-/// written calls prove is missing, each intent citing its evidence —
-/// the program naming its need before anyone asks.
+/// written calls prove is missing, each intent citing its evidence
+/// and the evidence carrying its written address — a place to jump
+/// to, not a string to search for.
 #[test]
 fn the_intents_command_names_what_the_written_calls_ask_for() {
     let (client, handle) = opened(
@@ -1103,6 +1104,11 @@ fn the_intents_command_names_what_the_written_calls_ask_for() {
             .contains("Job::default"),
         "{intents:?}"
     );
+    let site = &intents[0]["site"];
+    assert_eq!(site["uri"], "file:///demo/src/lib.rs", "{intents:?}");
+    assert_eq!(site["range"]["start"]["line"], 5, "{intents:?}");
+    assert_eq!(site["range"]["start"]["character"], 4, "{intents:?}");
+    assert_eq!(site["range"]["end"]["line"], 5, "{intents:?}");
     closed(client, handle);
 }
 
