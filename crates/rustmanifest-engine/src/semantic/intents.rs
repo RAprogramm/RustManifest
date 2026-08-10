@@ -99,6 +99,9 @@ pub fn fulfill_intents(sources: &[Source]) -> Vec<Deduction> {
             let mut held =
                 deduce_impl(sources, node.source, &intent.type_name, &intent.trait_name);
             held.chain.steps.insert(0, intent.evidence);
+            if let Some(choice) = held.catalog.as_mut() {
+                choice.step += 1;
+            }
             Some(held)
         })
         .collect()
@@ -138,6 +141,27 @@ mod tests {
         let held = &fulfilled[0];
         assert!(held.gain.as_ref().is_some_and(|gain| !gain.panics));
         assert!(held.chain.steps[0].fact.contains("User::default"));
+    }
+
+    /// The catalog marker survives the evidence insertion: after the
+    /// written call lands as step zero, the marker still names the very
+    /// step that states the choice.
+    #[test]
+    fn the_catalog_marker_survives_the_evidence_insertion() {
+        let sources = one(
+            "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n\npub fn make() -> \
+             User {\n    User::default()\n}\n"
+        );
+        let fulfilled = fulfill_intents(&sources);
+        let held = &fulfilled[0];
+        let marker = held.catalog.as_ref().unwrap();
+        assert!(
+            held.chain.steps[marker.step]
+                .fact
+                .contains("the catalog chooses"),
+            "{:?}",
+            held.chain.steps[marker.step]
+        );
     }
 
     /// A written `to_string` call asks for `Display` through the
