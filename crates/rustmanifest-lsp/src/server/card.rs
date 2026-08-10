@@ -227,10 +227,10 @@ fn indexed(
 ) -> String {
     use rustmanifest_engine::semantic::OracleProvenance;
     index.implements(type_name, trait_name).map_or_else(
-        || format!("`{trait_name}` — no: the compiler's index lists no impl"),
+        || format!("✗ `{trait_name}` — the compiler's index lists no impl"),
         |held| {
             format!(
-                "`{trait_name}` — yes: the compiler's index ({})",
+                "✓ `{trait_name}` — the compiler's index ({})",
                 match held.provenance {
                     OracleProvenance::Auto => "auto impl",
                     OracleProvenance::Blanket => "blanket impl",
@@ -251,10 +251,10 @@ fn verdict(
     trait_name: &str
 ) -> String {
     if node.derives.iter().any(|derive| derive == trait_name) {
-        return format!("`{trait_name}` — yes: the definition derives it");
+        return format!("✓ `{trait_name}` — the definition derives it");
     }
     if implemented.contains(&trait_name) {
-        return format!("`{trait_name}` — yes: a written impl");
+        return format!("✓ `{trait_name}` — a written impl");
     }
     if trait_name == "Copy"
         && let Some(owning) = node.fields.iter().find(|field| {
@@ -262,8 +262,8 @@ fn verdict(
         })
     {
         return format!(
-            "`Copy` — no: not derived, and `{}: {}` owns heap data — a type holding it cannot \
-             be `Copy`",
+            "✗ `Copy` — not derived, and `{}: {}` owns heap data — a type holding it cannot be \
+             `Copy`",
             owning.name, owning.type_name
         );
     }
@@ -271,9 +271,9 @@ fn verdict(
         return indexed(index, &node.name, trait_name);
     }
     if trait_name == "Copy" {
-        return "`Copy` — not derived".to_owned();
+        return "– `Copy` — not derived".to_owned();
     }
-    format!("`{trait_name}` — not written in the workspace")
+    format!("– `{trait_name}` — not written in the workspace")
 }
 
 /// The ownership story of the written call under the cursor: one step
