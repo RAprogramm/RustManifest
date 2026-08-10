@@ -85,7 +85,7 @@ impl ServerHandler for ReviewServer {
                 .build()
         )
         .with_server_info(Implementation::new(
-            env!("CARGO_PKG_NAME"),
+            "rust-manifest",
             env!("CARGO_PKG_VERSION")
         ))
         .with_instructions(
