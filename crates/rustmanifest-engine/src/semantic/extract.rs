@@ -18,6 +18,7 @@
 //! refused: moving a method is a different operation than moving a free
 //! function.
 
+mod carried;
 mod names;
 
 use std::path::PathBuf;
@@ -68,12 +69,14 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
             }
         }
     }
-    let siblings = sibling_names(&parsed, &name)
-        .into_iter()
-        .filter(|sibling| mentions.contains(sibling))
-        .collect::<Vec<_>>();
-    if !siblings.is_empty() {
-        lines.push(format!("use super::{{{}}};", siblings.join(", ")));
+    let siblings = sibling_names(&parsed, &name);
+    let bridged: Vec<&String> = siblings
+        .iter()
+        .filter(|sibling| mentions.contains(sibling.as_str()))
+        .collect();
+    if !bridged.is_empty() {
+        let named: Vec<&str> = bridged.iter().map(|held| held.as_str()).collect();
+        lines.push(format!("use super::{{{}}};", named.join(", ")));
     }
     let public = !matches!(function.vis, syn::Visibility::Inherited);
     let moved = if public {
@@ -81,12 +84,19 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
     } else {
         promoted(body, span.start, &function.sig)?
     };
-    let new_text = if lines.is_empty() {
+    let mut new_text = if lines.is_empty() {
         format!("{moved}\n")
     } else {
         format!("{}\n\n{moved}\n", lines.join("\n"))
     };
+    let followed = carried::carried_tests(text, &parsed, &name, &siblings);
+    if let Some(block) = &followed.block {
+        new_text.push('\n');
+        new_text.push_str(block);
+        new_text.push('\n');
+    }
     let mut edits: Vec<(Range, String)> = vec![(swallowed(text, span), String::new())];
+    edits.extend(followed.edits);
     let mod_line = format!("mod {name};\n");
     let reexport = if public {
         format!("pub use self::{name}::{name};\n")
@@ -117,8 +127,31 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
     Some(Extraction {
         new_file: module_file(source.path(), &name)?,
         new_text,
-        edits
+        edits: disjoint(edits)
     })
+}
+
+/// The edits sorted and clamped so no two ranges overlap: two widened
+/// deletions may both have swallowed the same blank line, and an
+/// applier owes each byte to at most one edit.
+fn disjoint(mut edits: Vec<(Range, String)>) -> Vec<(Range, String)> {
+    edits.sort_by_key(|(range, _)| (range.start, range.end));
+    let mut settled: Vec<(Range, String)> = Vec::new();
+    for (mut range, replacement) in edits {
+        if let Some((last, _)) = settled.last()
+            && range.start < last.end
+        {
+            range.start = last.end;
+            if range.end < range.start {
+                range.end = range.start;
+            }
+        }
+        if range.start == range.end && replacement.is_empty() {
+            continue;
+        }
+        settled.push((range, replacement));
+    }
+    settled
 }
 
 /// The insertion point of the `mod` line: its alphabetical slot among
@@ -399,5 +432,41 @@ mod tests {
     fn an_impl_method_is_refused() {
         let text = "struct Disk;\nimpl Disk { fn spin(&self) {} }\n";
         assert!(planned("src/tasks.rs", text, "fn spin").is_none());
+    }
+
+    const TESTED: &str = "fn keep() -> u8 { 1 }\n\nfn render() -> u8 { keep(); 2 }\n\n\
+                          #[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn \
+                          renders() {\n        assert_eq!(render(), 2);\n    }\n\n    #[test]\n    \
+                          fn keeps() {\n        assert_eq!(keep(), 1);\n    }\n}\n";
+
+    #[test]
+    fn a_test_of_the_moved_function_follows_it() {
+        let plan = planned("src/tasks.rs", TESTED, "fn render").unwrap();
+        assert!(plan.new_text.contains("#[cfg(test)]"), "{}", plan.new_text);
+        assert!(plan.new_text.contains("fn renders()"), "{}", plan.new_text);
+        assert!(!plan.new_text.contains("fn keeps()"), "{}", plan.new_text);
+        let left = applied(TESTED, &plan);
+        assert!(!left.contains("fn renders()"), "{left}");
+        assert!(left.contains("fn keeps()"), "{left}");
+    }
+
+    #[test]
+    fn a_test_resting_on_a_left_behind_sibling_stays_behind() {
+        let text = "fn keep() -> u8 { 1 }\n\nfn render() -> u8 { 2 }\n\n#[cfg(test)]\nmod tests \
+                    {\n    use super::*;\n\n    #[test]\n    fn both() {\n        \
+                    assert_eq!(render(), keep() + 1);\n    }\n}\n";
+        let plan = planned("src/tasks.rs", text, "fn render").unwrap();
+        assert!(!plan.new_text.contains("#[cfg(test)]"), "{}", plan.new_text);
+        assert!(applied(text, &plan).contains("fn both()"));
+    }
+
+    #[test]
+    fn an_emptied_test_module_is_deleted_whole() {
+        let text = "fn render() -> u8 { 2 }\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    \
+                    #[test]\n    fn renders() {\n        assert_eq!(render(), 2);\n    }\n}\n";
+        let plan = planned("src/tasks.rs", text, "fn render").unwrap();
+        let left = applied(text, &plan);
+        assert!(!left.contains("mod tests"), "{left}");
+        assert!(plan.new_text.contains("fn renders()"));
     }
 }
