@@ -163,6 +163,50 @@ mod tests {
 
     use super::{LearnOptions, learn_roles};
 
+    #[test]
+    fn precedent_above_the_gate_ranks_and_cites_its_clause() {
+        let mut precedents = Vec::new();
+        for _ in 0..12 {
+            precedents.push(super::FormPrecedent {
+                features: vec![1, 0],
+                chose:    "labeled-list".to_owned()
+            });
+            precedents.push(super::FormPrecedent {
+                features: vec![0, 1],
+                chose:    "bare-values".to_owned()
+            });
+        }
+        let ranked = super::rank_forms(
+            &precedents,
+            &["multi_field", "single_field"],
+            &[1, 0],
+            &["labeled-list", "bare-values"],
+            LearnOptions::default()
+        );
+        assert!(!ranked.is_empty());
+        assert_eq!(ranked[0].name, "labeled-list", "{ranked:?}");
+        assert!(!ranked[0].grounds.is_empty());
+    }
+
+    #[test]
+    fn precedent_below_the_gate_ranks_nothing() {
+        let precedents = vec![
+            super::FormPrecedent {
+                features: vec![1, 0],
+                chose:    "labeled-list".to_owned()
+            };
+            3
+        ];
+        let ranked = super::rank_forms(
+            &precedents,
+            &["multi_field", "single_field"],
+            &[1, 0],
+            &["labeled-list"],
+            LearnOptions::default()
+        );
+        assert!(ranked.is_empty());
+    }
+
     fn corpus() -> [Source; 1] {
         let mut text = String::new();
         for index in 0..25 {
@@ -218,4 +262,114 @@ mod tests {
         let learned = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
         assert!(learned.iter().all(|clause| clause.role != "mutator"));
     }
+}
+
+/// One precedent for form ranking: an instance's binary features and
+/// the form its author chose.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FormPrecedent {
+    /// Binary feature vector of the instance the choice was made for.
+    pub features: Vec<u8>,
+    /// Name of the chosen form.
+    pub chose:    String
+}
+
+/// One ranked form: its score and the satisfied clause literals that
+/// earned it, so a chain can cite the convention it followed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedForm {
+    /// Form name.
+    pub name:    String,
+    /// Satisfied positive clauses for `instance`, more is stronger.
+    pub score:   usize,
+    /// The literals of the strongest satisfied clause, as evidence.
+    pub grounds: Vec<String>
+}
+
+/// Ranks candidate `forms` for `instance` by the workspace's own
+/// precedent, one deterministic machine per form.
+///
+/// Forms whose precedent falls below the admission gate train nothing;
+/// when no form passes, the answer is empty and the caller's catalog
+/// default stands — a ranking below the gate is a guess, and guesses
+/// are not rankings.
+#[must_use]
+pub fn rank_forms(
+    precedents: &[FormPrecedent],
+    feature_names: &[&'static str],
+    instance: &[u8],
+    forms: &[&str],
+    options: LearnOptions
+) -> Vec<RankedForm> {
+    if precedents.len() < options.min_role_examples.max(1) {
+        return Vec::new();
+    }
+    let vectors: Vec<Vec<u8>> = precedents
+        .iter()
+        .map(|held| held.features.clone())
+        .collect();
+    let mut ranked = Vec::new();
+    for form in forms {
+        let targets: Vec<u8> = precedents
+            .iter()
+            .map(|held| u8::from(held.chose == *form))
+            .collect();
+        let positives: usize = targets.iter().copied().map(usize::from).sum();
+        if positives < options.min_role_examples.max(1) {
+            continue;
+        }
+        let mut machine =
+            TsetlinMachine::quick(options.clauses, feature_names.len(), options.threshold);
+        machine.fit(&vectors, &targets, options.epochs, options.seed);
+        let mut score = 0usize;
+        let mut grounds: Vec<String> = Vec::new();
+        for rule in machine.rules() {
+            if rule.polarity <= 0 || (rule.included.is_empty() && rule.negated.is_empty()) {
+                continue;
+            }
+            let satisfied = rule
+                .included
+                .iter()
+                .all(|index| instance.get(*index).copied() == Some(1))
+                && rule
+                    .negated
+                    .iter()
+                    .all(|index| instance.get(*index).copied() == Some(0));
+            if satisfied {
+                score += 1;
+                let mut literals = feature_names_of(feature_names, &rule.included);
+                literals.extend(
+                    feature_names_of(feature_names, &rule.negated)
+                        .into_iter()
+                        .map(|name| format!("not {name}"))
+                );
+                if literals.len() > grounds.len() {
+                    grounds = literals;
+                }
+            }
+        }
+        if score > 0 {
+            ranked.push(RankedForm {
+                name: (*form).to_owned(),
+                score,
+                grounds
+            });
+        }
+    }
+    ranked.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    ranked
+}
+
+/// Maps feature indices back to their stable names, for rankings.
+fn feature_names_of(names: &[&'static str], indices: &[usize]) -> Vec<String> {
+    indices
+        .iter()
+        .filter_map(|index| names.get(*index))
+        .map(|name| (*name).to_owned())
+        .collect()
 }
