@@ -26,6 +26,7 @@ mod docs;
 mod entry;
 mod expansion;
 mod expr;
+mod extract;
 mod features;
 mod field_group;
 mod fingerprint;
@@ -88,6 +89,7 @@ pub use self::{
     docs::{DocFacts, doc_facts},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
+    extract::{Extraction, extract_function},
     features::{Feature, features},
     fingerprint::behavior_fingerprint,
     graph::{

@@ -43,7 +43,95 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>, analysis: &Analysis)
     if let Some(node) = named_type(held, &params) {
         offered.extend(implementations(held, node));
     }
+    offered.extend(extraction(held, &params));
     Response::new_ok(request.id.clone(), offered)
+}
+
+/// The extract-to-file action, where a whole free function stands
+/// under the cursor: the new module file and both edits in one answer.
+fn extraction(held: &Derived<'_>, params: &CodeActionParams) -> Vec<CodeAction> {
+    let path = path_of(params.text_document.uri.as_str());
+    let Some(file) = held.sources.iter().position(|source| source.path() == path) else {
+        return Vec::new();
+    };
+    let text = held.sources[file].text();
+    let offset = offset_of(text, params.range.start);
+    let Some(plan) = rustmanifest_engine::semantic::extract_function(
+        held.sources,
+        file,
+        u32::try_from(offset).unwrap_or(u32::MAX)
+    ) else {
+        return Vec::new();
+    };
+    let Ok(created): Result<Uri, _> = format!("file://{}", plan.new_file.display()).parse() else {
+        return Vec::new();
+    };
+    let index = LineIndex::new(text);
+    let mut edits: Vec<OneOf<TextEdit, lsp_types::AnnotatedTextEdit>> =
+        vec![OneOf::Left(TextEdit {
+            range:    Range {
+                start: index.position(text, plan.replaced.start as usize),
+                end:   index.position(text, plan.replaced.end as usize)
+            },
+            new_text: plan.replacement.clone()
+        })];
+    for removed in &plan.removed_imports {
+        edits.push(OneOf::Left(TextEdit {
+            range:    Range {
+                start: index.position(text, removed.start as usize),
+                end:   index.position(text, removed.end.saturating_add(1) as usize)
+            },
+            new_text: String::new()
+        }));
+    }
+    let name = plan
+        .new_file
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("function");
+    vec![CodeAction {
+        title: format!("extract `{name}` into {}", plan.new_file.display()),
+        kind: Some(CodeActionKind::REFACTOR_EXTRACT),
+        edit: Some(WorkspaceEdit {
+            document_changes: Some(DocumentChanges::Operations(vec![
+                lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(
+                    lsp_types::CreateFile {
+                        uri:           created.clone(),
+                        options:       None,
+                        annotation_id: None
+                    }
+                )),
+                lsp_types::DocumentChangeOperation::Edit(TextDocumentEdit {
+                    text_document: OptionalVersionedTextDocumentIdentifier {
+                        uri:     created,
+                        version: None
+                    },
+                    edits:         vec![OneOf::Left(TextEdit {
+                        range:    Range {
+                            start: Position {
+                                line:      0,
+                                character: 0
+                            },
+                            end:   Position {
+                                line:      0,
+                                character: 0
+                            }
+                        },
+                        new_text: plan.new_text.clone()
+                    })]
+                }),
+                lsp_types::DocumentChangeOperation::Edit(TextDocumentEdit {
+                    text_document: OptionalVersionedTextDocumentIdentifier {
+                        uri:     params.text_document.uri.clone(),
+                        version: None
+                    },
+                    edits
+                }),
+            ])),
+            ..WorkspaceEdit::default()
+        }),
+        ..CodeAction::default()
+    }]
 }
 
 /// The quickfix actions of every finding overlapping the requested

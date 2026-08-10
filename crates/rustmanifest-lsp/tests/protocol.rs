@@ -954,3 +954,58 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// A cursor inside a free function offers the extraction: the new
+/// module file created and both files edited in one workspace edit.
+const CROWDED: &str = "use std::collections::BTreeMap;\n\nfn keep(store: &BTreeMap<u64, \
+                       String>) -> usize { store.len() }\n\nfn render(store: &BTreeMap<u64, \
+                       String>) -> usize {\n    keep(store)\n}\n";
+
+#[test]
+fn a_function_offers_its_extraction_into_its_own_file() {
+    let (client, handle) = opened(CROWDED);
+    let line = CROWDED
+        .lines()
+        .position(|held| held.contains("fn render"))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/codeAction".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "range": {
+                    "start": { "line": line, "character": 4 },
+                    "end": { "line": line, "character": 4 }
+                },
+                "context": { "diagnostics": [] }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a code action request must be answered");
+    };
+    let offered = answer.response_result.as_ref().unwrap().as_array().unwrap();
+    let extraction = offered
+        .iter()
+        .find(|action| action["kind"] == "refactor.extract")
+        .unwrap_or_else(|| panic!("the extraction must be offered: {offered:?}"));
+    assert_eq!(
+        extraction["title"], "extract `render` into /demo/src/render.rs",
+        "{extraction:?}"
+    );
+    let changes = extraction["edit"]["documentChanges"].as_array().unwrap();
+    assert_eq!(changes[0]["kind"], "create", "{changes:?}");
+    assert_eq!(changes[0]["uri"], "file:///demo/src/render.rs");
+    let created = changes[1]["edits"][0]["newText"].as_str().unwrap();
+    assert!(
+        created.contains("use std::collections::BTreeMap;"),
+        "{created}"
+    );
+    assert!(created.contains("use super::{keep};"), "{created}");
+    assert!(created.contains("pub(super) fn render"), "{created}");
+    let replaced = changes[2]["edits"][0]["newText"].as_str().unwrap();
+    assert_eq!(replaced, "mod render;\nuse self::render::render;");
+    closed(client, handle);
+}
