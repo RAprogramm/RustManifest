@@ -47,6 +47,7 @@ mod module_graph;
 mod module_overview;
 mod moved;
 mod naming;
+mod oracle;
 mod orphan;
 mod ownership;
 mod rename_detect;
@@ -110,6 +111,7 @@ pub use self::{
         Narrative, OutputClaim, completion_rule, origin_text, program_meaning
     },
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
+    oracle::{OracleImpl, OracleProvenance, TraitOracle},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,
     role::{Role, role},

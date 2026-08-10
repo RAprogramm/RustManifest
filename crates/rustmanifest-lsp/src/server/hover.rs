@@ -93,7 +93,13 @@ fn typed_card(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> 
     })?;
     let implemented = held.types.traits_implemented(&node.name);
     let shape = held.shapes.iter().find(|shape| shape.name == node.name);
-    Some(type_card(held.types, node, &implemented, shape))
+    Some(type_card(
+        held.types,
+        node,
+        &implemented,
+        shape,
+        held.oracle
+    ))
 }
 
 /// The ownership story of the written call covering `offset`, where a

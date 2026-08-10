@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use rustmanifest_engine::{
     FunctionFacts, Source, TypeGraph,
-    semantic::{Effect, TypeShape, shapes}
+    semantic::{Effect, TraitOracle, TypeShape, shapes}
 };
 
 /// The sources and derivations answers are computed over, rebuilt after
@@ -47,7 +47,10 @@ struct Built {
     /// The type graph of the sources: definitions, derives, and impls.
     types:   TypeGraph,
     /// The memory shape of every captured type.
-    shapes:  Vec<TypeShape>
+    shapes:  Vec<TypeShape>,
+    /// The compiler's trait index, where the workspace carries one
+    /// (the newest rustdoc JSON under `target/doc`).
+    oracle:  Option<TraitOracle>
 }
 
 impl Snapshot {
@@ -78,13 +81,15 @@ impl Snapshot {
             let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
             let types = TypeGraph::from_sources(&sources);
             let shaped = shapes(&sources);
+            let oracle = compiler_index(self.root.as_deref());
             self.built = Some(Built {
                 sources,
                 facts,
                 graph,
                 reached,
                 types,
-                shapes: shaped
+                shapes: shaped,
+                oracle
             });
             self.dirty = false;
         }
@@ -97,7 +102,8 @@ impl Snapshot {
             ),
             reached: Vec::new(),
             types:   TypeGraph::from_sources(&[]),
-            shapes:  Vec::new()
+            shapes:  Vec::new(),
+            oracle:  None
         });
         Derived {
             sources: &held.sources,
@@ -105,9 +111,30 @@ impl Snapshot {
             graph:   &held.graph,
             reached: &held.reached,
             types:   &held.types,
-            shapes:  &held.shapes
+            shapes:  &held.shapes,
+            oracle:  held.oracle.as_ref()
         }
     }
+}
+
+/// The newest rustdoc JSON emission under the root's `target/doc`, read
+/// as the compiler's trait index; nothing where none exists. One file
+/// is read — the newest — so a multi-crate workspace answers for the
+/// crate documented last, and the boundary stays honest: absent index,
+/// absent answers.
+fn compiler_index(root: Option<&std::path::Path>) -> Option<TraitOracle> {
+    let dir = root?.join("target").join("doc");
+    let newest = std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .max_by_key(|entry| entry.metadata().and_then(|meta| meta.modified()).ok())?;
+    TraitOracle::from_rustdoc_json(&std::fs::read_to_string(newest.path()).ok()?)
 }
 
 /// One borrowed view of everything a request computes its answer over.
@@ -123,7 +150,9 @@ pub(super) struct Derived<'a> {
     /// The type graph of the sources: definitions, derives, and impls.
     pub(super) types:   &'a TypeGraph,
     /// The memory shape of every captured type.
-    pub(super) shapes:  &'a [TypeShape]
+    pub(super) shapes:  &'a [TypeShape],
+    /// The compiler's trait index, where the workspace carries one.
+    pub(super) oracle:  Option<&'a TraitOracle>
 }
 
 /// Builds the source slice: the root's files off disk, buffers overlaid,

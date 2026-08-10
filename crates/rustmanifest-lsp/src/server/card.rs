@@ -119,7 +119,8 @@ pub(super) fn type_card(
     types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
-    shape: Option<&rustmanifest_engine::semantic::TypeShape>
+    shape: Option<&rustmanifest_engine::semantic::TypeShape>,
+    oracle: Option<&rustmanifest_engine::semantic::TraitOracle>
 ) -> String {
     let kind = match node.kind {
         rustmanifest_engine::TypeKind::Struct => "struct",
@@ -132,7 +133,7 @@ pub(super) fn type_card(
     fence.push("}\n```".to_owned());
     let mut lines = vec![fence.join("\n")];
     lines.push("---".to_owned());
-    lines.push(traits_section(types, node, implemented));
+    lines.push(traits_section(types, node, implemented, oracle));
     if let Some(shape) = shape {
         let mut memory = Vec::new();
         if let Some(payload) = shape.payload {
@@ -180,7 +181,8 @@ const ASKED_TRAITS: [&str; 8] = [
 fn traits_section(
     types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
-    implemented: &[&str]
+    implemented: &[&str],
+    oracle: Option<&rustmanifest_engine::semantic::TraitOracle>
 ) -> String {
     let mut told = vec!["**traits**".to_owned()];
     let mut named: Vec<&str> = ASKED_TRAITS.to_vec();
@@ -194,25 +196,58 @@ fn traits_section(
             named.push(extra);
         }
     }
+    let asked = oracle.filter(|held| held.knows(&node.name));
     for trait_name in named {
         told.push(format!(
             "- {}",
-            verdict(types, node, implemented, trait_name)
+            verdict(types, node, implemented, asked, trait_name)
         ));
     }
-    told.push(
-        "- auto traits (`Send`, `Sync`) and blanket impls are the compiler's answer, not \
-         recorded here"
-            .to_owned()
-    );
+    match asked {
+        Some(index) => {
+            for auto in ["Send", "Sync"] {
+                told.push(format!("- {}", indexed(index, &node.name, auto)));
+            }
+        }
+        None => told.push(
+            "- auto traits (`Send`, `Sync`) and blanket impls are the compiler's answer — \
+             build its index (`cargo rustdoc -- --output-format json`) and the card will \
+             carry them"
+                .to_owned()
+        )
+    }
     told.join("\n")
 }
 
-/// One trait's verdict with its ground.
+/// One trait's verdict straight from the compiler's index.
+fn indexed(
+    index: &rustmanifest_engine::semantic::TraitOracle,
+    type_name: &str,
+    trait_name: &str
+) -> String {
+    use rustmanifest_engine::semantic::OracleProvenance;
+    index.implements(type_name, trait_name).map_or_else(
+        || format!("`{trait_name}` — no: the compiler's index lists no impl"),
+        |held| {
+            format!(
+                "`{trait_name}` — yes: the compiler's index ({})",
+                match held.provenance {
+                    OracleProvenance::Auto => "auto impl",
+                    OracleProvenance::Blanket => "blanket impl",
+                    OracleProvenance::Written => "written impl"
+                }
+            )
+        }
+    )
+}
+
+/// One trait's verdict with its ground: the workspace facts answer
+/// first, and the compiler's index answers what the text cannot.
 fn verdict(
     types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
+    asked: Option<&rustmanifest_engine::semantic::TraitOracle>,
     trait_name: &str
 ) -> String {
     if node.derives.iter().any(|derive| derive == trait_name) {
@@ -221,16 +256,21 @@ fn verdict(
     if implemented.contains(&trait_name) {
         return format!("`{trait_name}` — yes: a written impl");
     }
-    if trait_name == "Copy" {
-        if let Some(owning) = node.fields.iter().find(|field| {
+    if trait_name == "Copy"
+        && let Some(owning) = node.fields.iter().find(|field| {
             rustmanifest_engine::semantic::copyness(types, &field.type_name) == Some(false)
-        }) {
-            return format!(
-                "`Copy` — no: not derived, and `{}: {}` owns heap data — a type holding it \
-                 cannot be `Copy`",
-                owning.name, owning.type_name
-            );
-        }
+        })
+    {
+        return format!(
+            "`Copy` — no: not derived, and `{}: {}` owns heap data — a type holding it cannot \
+             be `Copy`",
+            owning.name, owning.type_name
+        );
+    }
+    if let Some(index) = asked {
+        return indexed(index, &node.name, trait_name);
+    }
+    if trait_name == "Copy" {
         return "`Copy` — not derived".to_owned();
     }
     format!("`{trait_name}` — not written in the workspace")
