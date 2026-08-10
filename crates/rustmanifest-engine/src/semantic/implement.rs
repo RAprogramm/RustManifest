@@ -7,12 +7,15 @@
 //! A workspace trait is implemented from its own written declaration:
 //! every required method's signature is sliced verbatim from the source
 //! that declares it, so the skeleton compiles against the trait as it
-//! is, not as a table remembers it. A well-known std trait comes from a
-//! small catalog of canonical forms. Every body is a `todo!()` — the
-//! skeleton states the obligations, never invents behavior. Refusals
-//! are silence: an unknown type, an unknown trait, a trait already
-//! implemented or derived, and a generic trait (whose `impl` header
-//! needs arguments no fact records) all answer with nothing.
+//! is, not as a table remembers it. A well-known std trait comes from
+//! the canon, with a body written from the type's recorded fields
+//! where the facts prove one — and a `todo!()` where they cannot: the
+//! skeleton then states the obligation without inventing behavior.
+//! Refusals are silence: an unknown type, an unknown trait, a trait
+//! already implemented or derived, and a generic trait (whose `impl`
+//! header needs arguments no fact records) all answer with nothing.
+
+mod canon;
 
 use super::graph::TypeGraph;
 use crate::source::Source;
@@ -26,7 +29,7 @@ pub fn impl_skeleton(
     type_name: &str,
     trait_name: &str
 ) -> Option<String> {
-    types.type_named(type_name)?;
+    let asked = types.type_named(type_name)?;
     if types.traits_implemented(type_name).contains(&trait_name) {
         return None;
     }
@@ -36,7 +39,7 @@ pub fn impl_skeleton(
             let source = sources.get(node.source)?;
             written_impl(source.text(), type_name, trait_name)
         }
-        None => canonical_impl(type_name, trait_name)
+        None => canon::canonical_impl(types, asked, trait_name)
     }
 }
 
@@ -72,23 +75,6 @@ fn written_impl(text: &str, type_name: &str, trait_name: &str) -> Option<String>
     }
     lines.push("}".to_owned());
     Some(lines.join("\n"))
-}
-
-/// The canonical forms of well-known std traits: the catalog the
-/// generator reads forward.
-fn canonical_impl(type_name: &str, trait_name: &str) -> Option<String> {
-    let body = match trait_name {
-        "Display" => format!(
-            "impl std::fmt::Display for {type_name} {{\n    fn fmt(&self, out: &mut \
-             std::fmt::Formatter<'_>) -> std::fmt::Result {{\n        todo!()\n    }}\n}}"
-        ),
-        "Default" => format!(
-            "impl Default for {type_name} {{\n    fn default() -> Self {{\n        todo!()\n    \
-             }}\n}}"
-        ),
-        _ => return None
-    };
-    Some(body)
 }
 
 #[cfg(test)]
@@ -179,5 +165,79 @@ mod tests {
     #[test]
     fn an_unknown_trait_is_refused() {
         assert!(asked("struct Disk;", "Disk", "Serialize").is_none());
+    }
+
+    #[test]
+    fn a_display_body_is_written_from_provably_displayed_fields() {
+        let written = asked(
+            "struct User { id: String, name: String, age: u8 }",
+            "User",
+            "Display"
+        )
+        .unwrap();
+        assert!(
+            written.contains(
+                "write!(out, \"id: {}, name: {}, age: {}\", self.id, self.name, self.age)"
+            ),
+            "{written}"
+        );
+        assert!(!written.contains("todo!()"), "{written}");
+    }
+
+    #[test]
+    fn a_single_displayed_field_prints_as_the_bare_value() {
+        let written = asked("struct Tag { name: String }", "Tag", "Display").unwrap();
+        assert!(
+            written.contains("write!(out, \"{}\", self.name)"),
+            "{written}"
+        );
+    }
+
+    #[test]
+    fn an_unprovable_field_keeps_the_display_body_a_stub() {
+        let written = asked("struct Batch { entries: Vec<String> }", "Batch", "Display").unwrap();
+        assert!(written.contains("todo!()"), "{written}");
+    }
+
+    #[test]
+    fn a_workspace_field_with_a_written_display_counts_as_displayed() {
+        let written = asked(
+            "struct Tag { name: String }\nimpl std::fmt::Display for Tag { fn fmt(&self, out: \
+             &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(out, \"{}\", self.name) \
+             } }\nstruct Card { tag: Tag }",
+            "Card",
+            "Display"
+        )
+        .unwrap();
+        assert!(
+            written.contains("write!(out, \"{}\", self.tag)"),
+            "{written}"
+        );
+    }
+
+    #[test]
+    fn a_default_body_builds_the_value_field_by_field() {
+        let written = asked(
+            "struct User { id: String, name: String, age: u8 }",
+            "User",
+            "Default"
+        )
+        .unwrap();
+        assert!(written.contains("Self {"), "{written}");
+        assert!(written.contains("id: Default::default(),"), "{written}");
+        assert!(written.contains("age: Default::default(),"), "{written}");
+        assert!(!written.contains("todo!()"), "{written}");
+    }
+
+    #[test]
+    fn a_field_without_a_provable_default_keeps_the_stub() {
+        let written = asked("struct Held { moment: Instant }", "Held", "Default").unwrap();
+        assert!(written.contains("todo!()"), "{written}");
+    }
+
+    #[test]
+    fn an_enum_keeps_the_stub_body() {
+        let written = asked("enum State { On, Off }", "State", "Display").unwrap();
+        assert!(written.contains("todo!()"), "{written}");
     }
 }
