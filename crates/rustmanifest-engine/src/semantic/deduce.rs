@@ -101,12 +101,7 @@ pub fn deduce_impl(
         reason: "no written impl and no derive in the workspace".to_owned()
     });
     steps.push(TraceStep {
-        fact:   if node.fields.len() == 1 {
-            "the catalog chooses the bare-value form: one displayed field is the newtype reading"
-                .to_owned()
-        } else {
-            "the catalog chooses the labeled-list form, fields in declaration order".to_owned()
-        },
+        fact:   catalog_choice(trait_name, node.fields.len()),
         reason: "canonical forms are the catalog read forward".to_owned()
     });
     let Some(gain) = install_impl(sources, file, type_name, trait_name) else {
@@ -134,6 +129,23 @@ pub fn deduce_impl(
             steps
         },
         gain:  Some(gain)
+    }
+}
+
+/// The catalog's choice spoken in the vocabulary of the ability it
+/// writes: the display forms for `Display`, the field-by-field build
+/// for `Default` — a chain must not describe one ability in another's
+/// words.
+fn catalog_choice(trait_name: &str, fields: usize) -> String {
+    if trait_name == "Default" {
+        return "the catalog chooses the field-by-field build: every field to its own default"
+            .to_owned();
+    }
+    if fields == 1 {
+        "the catalog chooses the bare-value form: one displayed field is the newtype reading"
+            .to_owned()
+    } else {
+        "the catalog chooses the labeled-list form, fields in declaration order".to_owned()
     }
 }
 
@@ -183,6 +195,27 @@ mod tests {
         assert_eq!(held.chain.steps.len(), 6, "{:#?}", held.chain.steps);
         assert!(held.chain.steps[1].fact.contains("`name: String`"));
         assert!(held.chain.conclusion.contains("by deduction"));
+    }
+
+    /// A `Default` chain speaks its own vocabulary at the catalog step:
+    /// the field-by-field build, not a display form.
+    #[test]
+    fn a_default_chain_speaks_the_default_vocabulary() {
+        let held = deduce_impl(
+            &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
+            0,
+            "User",
+            "Default"
+        );
+        assert!(held.gain.is_some());
+        let choice = held
+            .chain
+            .steps
+            .iter()
+            .find(|step| step.fact.contains("the catalog chooses"))
+            .unwrap();
+        assert!(choice.fact.contains("field-by-field build"), "{choice:?}");
+        assert!(!choice.fact.contains("labeled-list"), "{choice:?}");
     }
 
     /// An unproven field stops the chain at itself, names itself, and
