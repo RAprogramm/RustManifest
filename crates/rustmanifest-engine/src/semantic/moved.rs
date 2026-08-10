@@ -252,6 +252,40 @@ mod tests {
     }
 
     #[test]
+    fn a_reference_ascription_outranks_the_constructor_guess() {
+        assert_eq!(
+            found(
+                "fn take(name: &str) -> usize { name.len() }\nfn main() { let name: &'static \
+                 str = Box::leak(String::from(\"x\").into_boxed_str()); take(name); let again = \
+                 name; }"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn an_unconventional_associated_call_types_nothing() {
+        assert_eq!(
+            found(
+                "fn main() { let leaked = Box::leak(String::from(\"x\").into_boxed_str()); \
+                 drop(leaked); let again = leaked; }"
+            ),
+            0
+        );
+    }
+
+    #[test]
+    fn a_path_segment_inside_a_macro_is_not_a_mention() {
+        assert_eq!(
+            found(
+                "fn main() { let vec = String::from(\"x\"); drop(vec); assert_eq!(1, \
+                 alloc::vec![1].len()); }"
+            ),
+            0
+        );
+    }
+
+    #[test]
     fn a_foreign_import_shadowing_a_workspace_type_name_is_not_judged() {
         let sources = [
             Source::new(

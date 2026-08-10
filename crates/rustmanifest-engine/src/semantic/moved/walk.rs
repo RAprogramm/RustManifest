@@ -175,6 +175,11 @@ impl<'ast> Visit<'ast> for Walker<'_> {
 
     fn visit_local(&mut self, local: &'ast syn::Local) {
         let bound = bound_ident(&local.pat);
+        let ascribed = if let syn::Pat::Type(typed) = &local.pat {
+            Some(owned_type(&typed.ty))
+        } else {
+            None
+        };
         let mut recognized = None;
         if let Some(init) = &local.init {
             if let Some(ident) = bare(&init.expr) {
@@ -184,7 +189,9 @@ impl<'ast> Visit<'ast> for Walker<'_> {
                 );
                 self.handed(&ident, &into, syn::spanned::Spanned::span(&init.expr));
             } else {
-                recognized = recognized_type(&init.expr);
+                recognized = ascribed
+                    .as_ref()
+                    .map_or_else(|| recognized_type(&init.expr), Clone::clone);
                 self.visit_expr(&init.expr);
             }
         }
@@ -344,12 +351,27 @@ impl Walker<'_> {
     }
 
     /// One token tree level: idents are mentions, string literals are
-    /// searched for inline captures of moved names.
+    /// searched for inline captures of moved names. An ident standing
+    /// in path or macro-name position — next to `::` or before `!` —
+    /// spells a path segment, not the local, and is passed over.
     fn token_scan(&mut self, stream: TokenStream) {
-        for token in stream {
+        let tokens: Vec<TokenTree> = stream.into_iter().collect();
+        for (position, token) in tokens.iter().enumerate() {
             match token {
                 TokenTree::Group(group) => self.token_scan(group.stream()),
-                TokenTree::Ident(ident) => self.mention(&ident.to_string(), ident.span()),
+                TokenTree::Ident(ident) => {
+                    let pathlike = |held: Option<&TokenTree>| {
+                        matches!(held, Some(TokenTree::Punct(punct))
+                            if punct.as_char() == ':' || punct.as_char() == '!')
+                    };
+                    let qualified = (position > 0
+                        && matches!(tokens.get(position - 1), Some(TokenTree::Punct(punct))
+                            if punct.as_char() == ':'))
+                        || pathlike(tokens.get(position + 1));
+                    if !qualified {
+                        self.mention(&ident.to_string(), ident.span());
+                    }
+                }
                 TokenTree::Literal(literal) => {
                     let written = literal.to_string();
                     let captured: Vec<String> = self
@@ -418,13 +440,24 @@ fn owned_type(ty: &syn::Type) -> Option<String> {
     }
 }
 
-/// The type a recognizable initializer provably produces.
+/// The type a recognizable initializer provably produces: only the
+/// constructor names whose convention hands the named type back count —
+/// an associated function like `Box::leak` returns something else
+/// entirely, and guessing there produced false moves.
 fn recognized_type(expr: &syn::Expr) -> Option<String> {
     match expr {
         syn::Expr::Call(call) => {
             if let syn::Expr::Path(path) = call.func.as_ref() {
                 let segments = &path.path.segments;
-                if segments.len() >= 2 {
+                if segments.len() >= 2
+                    && matches!(
+                        segments
+                            .last()
+                            .map(|segment| segment.ident.to_string())
+                            .as_deref(),
+                        Some("new" | "from" | "default" | "with_capacity")
+                    )
+                {
                     return segments
                         .iter()
                         .rev()
