@@ -15,6 +15,7 @@ use rustmanifest_schema::{Finding, Rule};
 
 use super::{
     ReviewServer,
+    answers::FindingsAnswer,
     catalog::find_rule,
     parameters::{PathParams, RulePathParams}
 };
@@ -25,12 +26,12 @@ const STRUCT_RULE_PREFIX: &str = "RM-STRUCT-";
 #[tool_router(router = review_router, vis = "pub(super)")]
 impl ReviewServer {
     /// Run every bundled rule against one file inside the workspace root and
-    /// return the findings as a JSON array.
+    /// return the findings as an object holding the findings list.
     #[tool(annotations(read_only_hint = true))]
     async fn review_file(
         &self,
         Parameters(params): Parameters<PathParams>
-    ) -> Result<Json<Vec<Finding>>, ErrorData> {
+    ) -> Result<Json<FindingsAnswer>, ErrorData> {
         let path = self.resolved(&params.path)?;
         if !path.is_file() {
             return Err(ErrorData::invalid_params(
@@ -38,30 +39,46 @@ impl ReviewServer {
                 None
             ));
         }
-        findings_for(RULES.clone(), path).await.map(Json)
+        findings_for(RULES.clone(), path).await.map(|findings| {
+            Json(FindingsAnswer {
+                findings
+            })
+        })
     }
 
     /// Run every bundled rule against a file or directory inside the
-    /// workspace root and return the findings as a JSON array.
+    /// workspace root and return the findings as an object holding the findings
+    /// list.
     #[tool(annotations(read_only_hint = true))]
     async fn review_path(
         &self,
         Parameters(params): Parameters<PathParams>
-    ) -> Result<Json<Vec<Finding>>, ErrorData> {
+    ) -> Result<Json<FindingsAnswer>, ErrorData> {
         let path = self.resolved(&params.path)?;
-        findings_for(RULES.clone(), path).await.map(Json)
+        findings_for(RULES.clone(), path).await.map(|findings| {
+            Json(FindingsAnswer {
+                findings
+            })
+        })
     }
 
     /// Run exactly one bundled rule against a file or directory inside the
-    /// workspace root and return the findings as a JSON array.
+    /// workspace root and return the findings as an object holding the findings
+    /// list.
     #[tool(annotations(read_only_hint = true))]
     async fn check_rule(
         &self,
         Parameters(params): Parameters<RulePathParams>
-    ) -> Result<Json<Vec<Finding>>, ErrorData> {
+    ) -> Result<Json<FindingsAnswer>, ErrorData> {
         let rule = find_rule(&params.rule_id)?;
         let path = self.resolved(&params.path)?;
-        findings_for(vec![rule.clone()], path).await.map(Json)
+        findings_for(vec![rule.clone()], path)
+            .await
+            .map(|findings| {
+                Json(FindingsAnswer {
+                    findings
+                })
+            })
     }
 
     /// Run only the structural rules (`RM-STRUCT-*`) against a file or
@@ -71,14 +88,18 @@ impl ReviewServer {
     async fn lint_structure(
         &self,
         Parameters(params): Parameters<PathParams>
-    ) -> Result<Json<Vec<Finding>>, ErrorData> {
+    ) -> Result<Json<FindingsAnswer>, ErrorData> {
         let path = self.resolved(&params.path)?;
         let rules: Vec<Rule> = RULES
             .iter()
             .filter(|rule| rule.id.starts_with(STRUCT_RULE_PREFIX))
             .cloned()
             .collect();
-        findings_for(rules, path).await.map(Json)
+        findings_for(rules, path).await.map(|findings| {
+            Json(FindingsAnswer {
+                findings
+            })
+        })
     }
 }
 
@@ -126,12 +147,13 @@ mod tests {
         )
         .unwrap();
         let server = server_for(dir.path());
-        let Json(findings) = server
+        let Json(answered) = server
             .review_file(Parameters(PathParams {
                 path: "bad.rs".to_owned()
             }))
             .await
             .unwrap();
+        let findings = answered.findings;
         assert!(
             findings
                 .iter()
@@ -148,7 +170,7 @@ mod tests {
                 path: ".".to_owned()
             }))
             .await
-            .map(|Json(findings)| findings)
+            .map(|Json(answered)| answered.findings)
             .unwrap_err();
         assert!(error.message.contains("is not a file"));
     }
@@ -165,7 +187,7 @@ mod tests {
                 path: "../secret.rs".to_owned()
             }))
             .await
-            .map(|Json(findings)| findings)
+            .map(|Json(answered)| answered.findings)
             .unwrap_err();
         assert!(error.message.contains("escapes workspace root"));
     }
@@ -175,12 +197,13 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("naming.rs"), "pub struct ConfigLoader;\n").unwrap();
         let server = server_for(dir.path());
-        let Json(findings) = server
+        let Json(answered) = server
             .review_path(Parameters(PathParams {
                 path: ".".to_owned()
             }))
             .await
             .unwrap();
+        let findings = answered.findings;
         assert!(
             findings
                 .iter()
@@ -197,12 +220,13 @@ mod tests {
         )
         .unwrap();
         let server = server_for(dir.path());
-        let Json(findings) = server
+        let Json(answered) = server
             .lint_structure(Parameters(PathParams {
                 path: ".".to_owned()
             }))
             .await
             .unwrap();
+        let findings = answered.findings;
         assert!(!findings.is_empty());
         assert!(
             findings
@@ -225,13 +249,14 @@ mod tests {
         )
         .unwrap();
         let server = server_for(dir.path());
-        let Json(findings) = server
+        let Json(answered) = server
             .check_rule(Parameters(RulePathParams {
                 rule_id: "RM-STRUCT-001".to_owned(),
                 path:    ".".to_owned()
             }))
             .await
             .unwrap();
+        let findings = answered.findings;
         assert!(!findings.is_empty());
         assert!(
             findings
@@ -250,7 +275,7 @@ mod tests {
                 path:    ".".to_owned()
             }))
             .await
-            .map(|Json(findings)| findings)
+            .map(|Json(answered)| answered.findings)
             .unwrap_err();
         assert!(error.message.contains("unknown rule id `RM-NOPE-999`"));
         assert!(error.message.contains("RM-STRUCT-001"));

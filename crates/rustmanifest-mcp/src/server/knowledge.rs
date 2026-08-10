@@ -37,11 +37,15 @@ impl ReviewServer {
     async fn function_facts(
         &self,
         Parameters(params): Parameters<FactsParams>
-    ) -> Result<Json<serde_json::Value>, ErrorData> {
+    ) -> Result<Json<super::answers::FactsAnswer>, ErrorData> {
         let path = self.resolved(&params.path)?;
         blocking(move || crate::knowledge::facts(&path, params.filter.as_deref()))
             .await
-            .map(Json)
+            .map(|facts| {
+                Json(super::answers::FactsAnswer {
+                    facts
+                })
+            })
     }
 
     /// Learn per-role convention clauses over a path and return them as
@@ -50,11 +54,15 @@ impl ReviewServer {
     async fn learn_conventions(
         &self,
         Parameters(params): Parameters<PathParams>
-    ) -> Result<Json<Vec<crate::knowledge::ConventionClause>>, ErrorData> {
+    ) -> Result<Json<super::answers::ClausesAnswer>, ErrorData> {
         let path = self.resolved(&params.path)?;
         blocking(move || crate::knowledge::conventions(&path))
             .await
-            .map(Json)
+            .map(|clauses| {
+                Json(super::answers::ClausesAnswer {
+                    clauses
+                })
+            })
     }
 }
 

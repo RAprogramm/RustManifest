@@ -8,6 +8,7 @@
 //! `rustmanifest://methodology/` URIs. All server-facing strings are
 //! English regardless of request language.
 
+mod answers;
 mod catalog;
 mod explanation;
 mod knowledge;

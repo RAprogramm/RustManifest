@@ -194,7 +194,7 @@ fn resources_read_returns_the_structure_document() {
 #[test]
 fn review_file_reports_findings_with_traces() {
     let responses = scripted();
-    let findings = responses[&5]["result"]["structuredContent"]
+    let findings = responses[&5]["result"]["structuredContent"]["findings"]
         .as_array()
         .expect("findings array");
     assert!(!findings.is_empty());
