@@ -46,6 +46,7 @@ mod meaning;
 mod module_cycle;
 mod module_graph;
 mod module_overview;
+mod montage;
 mod moved;
 mod naming;
 mod oracle;
@@ -89,7 +90,7 @@ pub use self::{
     },
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
-    emitted::{Gain, install_impl},
+    emitted::{Gain, Relocated, install_extraction, install_impl},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
     extract::{Extraction, extract_function, extract_type},
@@ -113,6 +114,7 @@ pub use self::{
         Narrative, OutputClaim, completion_rule, origin_text, program_meaning
     },
     module_overview::{ModuleEdge, ModuleInfo, ModuleOverview, module_overview},
+    montage::{Montage, applied as montage_applied},
     oracle::{OracleImpl, OracleProvenance, TraitOracle},
     rename_detect::{Rename, detect_renames},
     rename_op::rename_module_fixes,
