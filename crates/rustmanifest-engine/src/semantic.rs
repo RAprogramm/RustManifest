@@ -90,7 +90,7 @@ pub use self::{
         Coverage, coverage, coverage_indexed, coverage_with, origin_gaps, percent,
         unresolved_targets
     },
-    deduce::{Deduction, deduce_impl},
+    deduce::{CatalogChoice, Deduction, deduce_impl},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
     emitted::{Gain, Relocated, install_extraction, install_impl},

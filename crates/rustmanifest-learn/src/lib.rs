@@ -200,6 +200,37 @@ mod tests {
         assert!(held.gain.is_some());
     }
 
+    /// A printing precedent has no standing on a `Default` chain: the
+    /// catalog's marker names a form outside the ranked ones, and the
+    /// advisory step stays out.
+    #[test]
+    fn a_display_precedent_stays_silent_on_a_default_chain() {
+        let mut text = String::new();
+        for index in 0..12 {
+            use std::fmt::Write;
+            writeln!(
+                text,
+                "pub struct Wide{index} {{ pub name: String, pub age: u8 }}\nimpl \
+                 std::fmt::Display for Wide{index} {{ fn fmt(&self, out: &mut \
+                 std::fmt::Formatter<'_>) -> std::fmt::Result {{ write!(out, \"name: {{}}, age: \
+                 {{}}\", self.name, self.age) }} }}"
+            )
+            .unwrap();
+        }
+        text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
+        let held = super::deduce_with_precedent(&sources, "User", "Default").unwrap();
+        assert!(held.gain.is_some());
+        assert!(
+            held.chain
+                .steps
+                .iter()
+                .all(|step| !step.fact.contains("precedent")),
+            "{:#?}",
+            held.chain.steps
+        );
+    }
+
     #[test]
     fn precedent_above_the_gate_ranks_and_cites_its_clause() {
         let mut precedents = Vec::new();
@@ -457,14 +488,22 @@ fn display_precedents(workspace: &Workspace<'_>) -> Vec<FormPrecedent> {
     found
 }
 
+/// The display forms the precedent ranks — the only forms it has any
+/// standing to advise on.
+const DISPLAY_FORMS: [&str; 2] = ["labeled-list", "bare-values"];
+
 /// Runs the engine's deduction with the workspace's precedent advising
 /// the chain.
 ///
 /// Where enough precedent exists, the advisory ranking step lands
-/// after the catalog's choice: agreement is recorded as agreement,
-/// contradiction as contradiction — the catalog's choice stands either
-/// way, and the chain says which convention the workspace itself would
-/// rank first, citing the clause that earned the rank.
+/// after the catalog's choice, found by the chain's own structural
+/// marker rather than by parsing the step's prose: agreement is
+/// recorded as agreement, contradiction as contradiction — the
+/// catalog's choice stands either way, and the chain says which
+/// convention the workspace itself would rank first, citing the clause
+/// that earned the rank. A choice outside the ranked forms — the
+/// field-by-field build of `Default` — gets no advice: a printing
+/// precedent has no standing there.
 #[must_use]
 pub fn deduce_with_precedent(
     sources: &[rustmanifest_engine::Source],
@@ -481,20 +520,18 @@ pub fn deduce_with_precedent(
         &precedents,
         &FORM_FEATURES,
         &instance,
-        &["labeled-list", "bare-values"],
+        &DISPLAY_FORMS,
         LearnOptions::default()
     );
     let mut held =
         rustmanifest_engine::semantic::deduce_impl(sources, file, type_name, trait_name);
-    let catalog_at = held
-        .chain
-        .steps
-        .iter()
-        .position(|step| step.fact.contains("the catalog chooses"));
-    if let (Some(at), Some(top)) = (catalog_at, ranked.first()) {
-        let catalog_labeled = held.chain.steps[at].fact.contains("labeled-list");
-        let agreement = (top.name == "labeled-list") == catalog_labeled;
-        held.chain.steps.insert(at + 1, rustmanifest_schema::TraceStep {
+    let spoken_for = held
+        .catalog
+        .clone()
+        .filter(|choice| DISPLAY_FORMS.contains(&choice.form.as_str()));
+    if let (Some(choice), Some(top)) = (spoken_for, ranked.first()) {
+        let agreement = top.name == choice.form;
+        held.chain.steps.insert(choice.step + 1, rustmanifest_schema::TraceStep {
             fact:   format!(
                 "the workspace's own precedent ({} impl(s)) ranks `{}` first and {} the catalog \
                  — clause: {}",

@@ -29,9 +29,24 @@ use crate::source::Source;
 #[derive(Debug, Clone)]
 pub struct Deduction {
     /// The reasoning, one recorded fact per step.
-    pub chain: Answer,
+    pub chain:   Answer,
     /// The confirmed gain, present only when every step held.
-    pub gain:  Option<Gain>
+    pub gain:    Option<Gain>,
+    /// The structural marker of the catalog's choice, present where the
+    /// chain reached one.
+    pub catalog: Option<CatalogChoice>
+}
+
+/// The catalog's choice as data: the step stating it, and the form.
+///
+/// An adviser reads this marker instead of parsing the step's prose —
+/// a changed wording must not silently drop anyone's advice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogChoice {
+    /// Index of the chain step stating the choice.
+    pub step: usize,
+    /// The chosen form's catalog name.
+    pub form: String
 }
 
 /// Deduces, installs, and confirms the impl of `trait_name` for
@@ -100,15 +115,24 @@ pub fn deduce_impl(
         fact:   format!("`{type_name}` does not yet carry `{trait_name}`"),
         reason: "no written impl and no derive in the workspace".to_owned()
     });
+    let (spoken, form) = catalog_choice(trait_name, node.fields.len());
+    let catalog = CatalogChoice {
+        step: steps.len(),
+        form
+    };
     steps.push(TraceStep {
-        fact:   catalog_choice(trait_name, node.fields.len()),
+        fact:   spoken,
         reason: "canonical forms are the catalog read forward".to_owned()
     });
     let Some(gain) = install_impl(sources, file, type_name, trait_name) else {
-        return stopped(
-            steps,
-            "the montage or the re-reading refused the installation".to_owned()
-        );
+        return Deduction {
+            chain:   Answer {
+                conclusion: "the montage or the re-reading refused the installation".to_owned(),
+                steps
+            },
+            gain:    None,
+            catalog: Some(catalog)
+        };
     };
     steps.push(TraceStep {
         fact:   format!(
@@ -122,30 +146,40 @@ pub fn deduce_impl(
         reason: "the installed text was read back the way foreign code is read".to_owned()
     });
     Deduction {
-        chain: Answer {
+        chain:   Answer {
             conclusion: format!(
                 "`{type_name}` gained `{trait_name}` by deduction: every step is a recorded fact"
             ),
             steps
         },
-        gain:  Some(gain)
+        gain:    Some(gain),
+        catalog: Some(catalog)
     }
 }
 
 /// The catalog's choice spoken in the vocabulary of the ability it
-/// writes: the display forms for `Display`, the field-by-field build
-/// for `Default` — a chain must not describe one ability in another's
-/// words.
-fn catalog_choice(trait_name: &str, fields: usize) -> String {
+/// writes — the display forms for `Display`, the field-by-field build
+/// for `Default`, a chain must not describe one ability in another's
+/// words — paired with the chosen form's catalog name.
+fn catalog_choice(trait_name: &str, fields: usize) -> (String, String) {
     if trait_name == "Default" {
-        return "the catalog chooses the field-by-field build: every field to its own default"
-            .to_owned();
+        return (
+            "the catalog chooses the field-by-field build: every field to its own default"
+                .to_owned(),
+            "field-by-field".to_owned()
+        );
     }
     if fields == 1 {
-        "the catalog chooses the bare-value form: one displayed field is the newtype reading"
-            .to_owned()
+        (
+            "the catalog chooses the bare-value form: one displayed field is the newtype reading"
+                .to_owned(),
+            "bare-values".to_owned()
+        )
     } else {
-        "the catalog chooses the labeled-list form, fields in declaration order".to_owned()
+        (
+            "the catalog chooses the labeled-list form, fields in declaration order".to_owned(),
+            "labeled-list".to_owned()
+        )
     }
 }
 
@@ -153,11 +187,12 @@ fn catalog_choice(trait_name: &str, fields: usize) -> String {
 /// nothing.
 const fn stopped(steps: Vec<TraceStep>, conclusion: String) -> Deduction {
     Deduction {
-        chain: Answer {
+        chain:   Answer {
             conclusion,
             steps
         },
-        gain:  None
+        gain:    None,
+        catalog: None
     }
 }
 
@@ -216,6 +251,48 @@ mod tests {
             .unwrap();
         assert!(choice.fact.contains("field-by-field build"), "{choice:?}");
         assert!(!choice.fact.contains("labeled-list"), "{choice:?}");
+        assert_eq!(
+            held.catalog.as_ref().unwrap().form,
+            "field-by-field",
+            "{:?}",
+            held.catalog
+        );
+    }
+
+    /// The catalog's choice rides the chain as data: the marker names
+    /// the very step that states it and the form's catalog name, so an
+    /// adviser never parses prose.
+    #[test]
+    fn the_catalog_marker_names_its_step_and_its_form() {
+        let held = deduce_impl(
+            &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
+            0,
+            "User",
+            "Display"
+        );
+        let marker = held.catalog.unwrap();
+        assert_eq!(marker.form, "labeled-list");
+        assert!(
+            held.chain.steps[marker.step]
+                .fact
+                .contains("the catalog chooses"),
+            "{:?}",
+            held.chain.steps[marker.step]
+        );
+    }
+
+    /// A chain stopped before the choice carries no marker: nothing was
+    /// chosen, and the data must not claim otherwise.
+    #[test]
+    fn a_chain_stopped_before_the_choice_carries_no_marker() {
+        let held = deduce_impl(
+            &one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"),
+            0,
+            "Batch",
+            "Display"
+        );
+        assert!(held.gain.is_none());
+        assert!(held.catalog.is_none(), "{:?}", held.catalog);
     }
 
     /// An unproven field stops the chain at itself, names itself, and
