@@ -30,3 +30,10 @@ pub(super) struct ClausesAnswer {
     /// Clauses in training order.
     pub(super) clauses: Vec<crate::knowledge::ConventionClause>
 }
+
+/// The inline suppressions of one path.
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub(super) struct SuppressionsAnswer {
+    /// Suppressions in file-then-line order.
+    pub(super) suppressions: Vec<crate::knowledge::SuppressionRecord>
+}

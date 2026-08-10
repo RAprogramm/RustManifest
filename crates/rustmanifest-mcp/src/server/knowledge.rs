@@ -48,6 +48,24 @@ impl ReviewServer {
             })
     }
 
+    /// List every inline suppression under a path with whether the full
+    /// bundled-rules run used it: what is silenced, on what written
+    /// ground, and which silences have gone stale.
+    #[tool(annotations(read_only_hint = true))]
+    async fn suppressions(
+        &self,
+        Parameters(params): Parameters<PathParams>
+    ) -> Result<Json<super::answers::SuppressionsAnswer>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::suppressions(&path))
+            .await
+            .map(|suppressions| {
+                Json(super::answers::SuppressionsAnswer {
+                    suppressions
+                })
+            })
+    }
+
     /// Learn per-role convention clauses over a path and return them as
     /// an auditable rule list; training is deterministic.
     #[tool(annotations(read_only_hint = true))]

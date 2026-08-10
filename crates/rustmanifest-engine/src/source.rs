@@ -153,7 +153,8 @@ impl Source {
 
     /// Returns the sorted line indices of pragmas that suppressed at least
     /// one occurrence during this run.
-    pub(crate) fn used_pragma_lines(&self) -> Vec<usize> {
+    #[must_use]
+    pub fn used_pragma_lines(&self) -> Vec<usize> {
         let mut lines = self
             .used_pragma_lines
             .get()

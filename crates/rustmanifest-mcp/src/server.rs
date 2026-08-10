@@ -130,7 +130,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tool_router_exposes_all_eight_tools() {
+    fn tool_router_exposes_all_nine_tools() {
         let tools = ReviewServer::tool_router().list_all();
         let mut names: Vec<String> = tools.iter().map(|tool| tool.name.to_string()).collect();
         names.sort_unstable();
@@ -144,7 +144,8 @@ mod tests {
                 "lint_structure",
                 "project_overview",
                 "review_file",
-                "review_path"
+                "review_path",
+                "suppressions"
             ]
         );
     }

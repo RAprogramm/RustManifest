@@ -125,7 +125,7 @@ fn handshake_reports_server_identity_and_capabilities() {
 }
 
 #[test]
-fn tools_list_exposes_exactly_the_eight_tools() {
+fn tools_list_exposes_exactly_the_nine_tools() {
     let responses = scripted();
     let mut names: Vec<&str> = responses[&2]["result"]["tools"]
         .as_array()
@@ -144,7 +144,8 @@ fn tools_list_exposes_exactly_the_eight_tools() {
             "lint_structure",
             "project_overview",
             "review_file",
-            "review_path"
+            "review_path",
+            "suppressions"
         ]
     );
 }
