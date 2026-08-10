@@ -164,6 +164,43 @@ mod tests {
     use super::{LearnOptions, learn_roles};
 
     #[test]
+    fn the_chain_carries_the_precedent_step_with_its_verdict() {
+        let mut text = String::new();
+        for index in 0..12 {
+            writeln!(
+                text,
+                "pub struct Wide{index} {{ pub name: String, pub age: u8 }}\nimpl \
+                 std::fmt::Display for Wide{index} {{ fn fmt(&self, out: &mut \
+                 std::fmt::Formatter<'_>) -> std::fmt::Result {{ write!(out, \"name: {{}}, age: \
+                 {{}}\", self.name, self.age) }} }}"
+            )
+            .unwrap();
+        }
+        for index in 0..10 {
+            writeln!(
+                text,
+                "pub struct Slim{index} {{ pub name: String }}\nimpl std::fmt::Display for \
+                 Slim{index} {{ fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> \
+                 std::fmt::Result {{ write!(out, \"{{}}\", self.name) }} }}"
+            )
+            .unwrap();
+        }
+        text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
+        let held = super::deduce_with_precedent(&sources, "User", "Display").unwrap();
+        let step = held
+            .chain
+            .steps
+            .iter()
+            .find(|step| step.fact.contains("precedent"))
+            .unwrap_or_else(|| panic!("{:#?}", held.chain.steps));
+        assert!(step.fact.contains("labeled-list"), "{}", step.fact);
+        assert!(step.fact.contains("agrees with"), "{}", step.fact);
+        assert!(step.fact.contains("clause:"), "{}", step.fact);
+        assert!(held.gain.is_some());
+    }
+
+    #[test]
     fn precedent_above_the_gate_ranks_and_cites_its_clause() {
         let mut precedents = Vec::new();
         for _ in 0..12 {
@@ -372,4 +409,103 @@ fn feature_names_of(names: &[&'static str], indices: &[usize]) -> Vec<String> {
         .filter_map(|index| names.get(*index))
         .map(|name| (*name).to_owned())
         .collect()
+}
+
+/// The stable feature names of one type instance, for form ranking.
+const FORM_FEATURES: [&str; 2] = ["multi_field", "has_string_field"];
+
+/// The binary features of one type node, in [`FORM_FEATURES`] order.
+fn type_form_features(node: &rustmanifest_engine::TypeNode) -> Vec<u8> {
+    vec![
+        u8::from(node.fields.len() > 1),
+        u8::from(node.fields.iter().any(|field| field.type_name == "String")),
+    ]
+}
+
+/// The display-form precedents the workspace's own written `Display`
+/// impls state: the features of each implementing type, and whether
+/// its written template labels its holes or prints bare values.
+fn display_precedents(workspace: &Workspace<'_>) -> Vec<FormPrecedent> {
+    use rustmanifest_engine::semantic::{Payload, Segment};
+    let types = workspace.types();
+    let mut found = Vec::new();
+    for fact in workspace.facts() {
+        let Some(owner) = fact.function.strip_suffix("::fmt") else {
+            continue;
+        };
+        let Some(node) = types.type_named(owner) else {
+            continue;
+        };
+        if !types.traits_implemented(owner).contains(&"Display") {
+            continue;
+        }
+        let labeled = fact.output_writes.iter().any(|write| {
+            matches!(&write.payload, Payload::Template(segments)
+            if segments.iter().any(|segment| {
+                matches!(segment, Segment::Text(text) if text.contains(':'))
+            }))
+        });
+        found.push(FormPrecedent {
+            features: type_form_features(node),
+            chose:    if labeled {
+                "labeled-list".to_owned()
+            } else {
+                "bare-values".to_owned()
+            }
+        });
+    }
+    found
+}
+
+/// Runs the engine's deduction with the workspace's precedent advising
+/// the chain.
+///
+/// Where enough precedent exists, the advisory ranking step lands
+/// after the catalog's choice: agreement is recorded as agreement,
+/// contradiction as contradiction — the catalog's choice stands either
+/// way, and the chain says which convention the workspace itself would
+/// rank first, citing the clause that earned the rank.
+#[must_use]
+pub fn deduce_with_precedent(
+    sources: &[rustmanifest_engine::Source],
+    type_name: &str,
+    trait_name: &str
+) -> Option<rustmanifest_engine::semantic::Deduction> {
+    let workspace = Workspace::new(sources);
+    let types = workspace.types();
+    let node = types.type_named(type_name)?;
+    let file = node.source;
+    let instance = type_form_features(node);
+    let precedents = display_precedents(&workspace);
+    let ranked = rank_forms(
+        &precedents,
+        &FORM_FEATURES,
+        &instance,
+        &["labeled-list", "bare-values"],
+        LearnOptions::default()
+    );
+    let mut held =
+        rustmanifest_engine::semantic::deduce_impl(sources, file, type_name, trait_name);
+    let catalog_at = held
+        .chain
+        .steps
+        .iter()
+        .position(|step| step.fact.contains("the catalog chooses"));
+    if let (Some(at), Some(top)) = (catalog_at, ranked.first()) {
+        let catalog_labeled = held.chain.steps[at].fact.contains("labeled-list");
+        let agreement = (top.name == "labeled-list") == catalog_labeled;
+        held.chain.steps.insert(at + 1, rustmanifest_schema::TraceStep {
+            fact:   format!(
+                "the workspace's own precedent ({} impl(s)) ranks `{}` first and {} the catalog \
+                 — clause: {}",
+                precedents.len(),
+                top.name,
+                if agreement { "agrees with" } else { "contradicts" },
+                top.grounds.join(" AND ")
+            ),
+            reason: "learned clauses describe the codebase; the catalog's choice stands"
+                .to_owned()
+        });
+    }
+    Some(held)
 }

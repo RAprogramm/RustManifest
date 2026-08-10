@@ -17,6 +17,7 @@ keywords = ["rust", "lint", "static-analysis", "machine-learning"]
 
 [dependencies]
 rustmanifest-engine = { workspace = true }
+rustmanifest-schema = { workspace = true }
 tsetlin-rs = { workspace = true }
 
 [lints]
