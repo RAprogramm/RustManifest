@@ -162,15 +162,15 @@ fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
     };
     let held = answer.response_result.as_ref().unwrap();
     let value = held["contents"]["value"].as_str().unwrap();
-    assert!(value.contains("### `hoard`"), "{value}");
+    assert!(
+        value.contains("```rust\nfn hoard(input: &str)\n```"),
+        "{value}"
+    );
     assert!(value.contains("clones: 1"), "{value}");
     assert!(value.contains("allocations:"), "{value}");
     assert!(value.contains("taken borrowed"), "{value}");
-    assert!(
-        value.contains("effects reached through calls: `fs`"),
-        "{value}"
-    );
-    assert!(value.contains("why `fs`:"), "{value}");
+    assert!(value.contains("reached through calls: `fs`"), "{value}");
+    assert!(value.contains("**why `fs`**"), "{value}");
     assert!(
         value.contains("1. fn `hoard` calls fn `persist` — resolved call edge"),
         "the card must carry the inference, step by step: {value}"
@@ -435,7 +435,7 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
     };
     let held = answer.response_result.as_ref().unwrap();
     let value = held["contents"]["value"].as_str().unwrap();
-    assert!(value.contains("### ownership at this call"), "{value}");
+    assert!(value.contains("**ownership at this call**"), "{value}");
     assert!(
         value.contains("`value: String` is taken by value, and `String` is not `Copy`"),
         "{value}"
@@ -706,12 +706,11 @@ fn a_hover_on_a_type_name_cards_its_facts() {
     };
     let held = answer.response_result.as_ref().unwrap();
     let value = held["contents"]["value"].as_str().unwrap();
-    assert!(value.contains("### `User`"), "{value}");
-    assert!(value.contains("struct with 2 recorded field(s)"), "{value}");
-    assert!(value.contains("- `name: String`"), "{value}");
-    assert!(value.contains("derives: `Clone`, `Debug`"), "{value}");
-    assert!(value.contains("written impls: `Display`"), "{value}");
-    assert!(value.contains("memory:"), "{value}");
+    assert!(value.contains("```rust\nstruct User {"), "{value}");
+    assert!(value.contains("    name: String,"), "{value}");
+    assert!(value.contains("**derives** `Clone`, `Debug`"), "{value}");
+    assert!(value.contains("**written impls** `Display`"), "{value}");
+    assert!(value.contains("**memory**"), "{value}");
     client
         .sender
         .send(Message::Request(Request::new(

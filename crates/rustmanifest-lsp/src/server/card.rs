@@ -1,20 +1,33 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! The fact card of one function, for the reader's cursor.
+//! The fact cards for the reader's cursor, in the visual language
+//! editors already speak: the declaration in a highlighted code fence,
+//! sections divided by rules, section names in bold.
 //!
-//! Everything on the card is a recorded fact of the buffer's text and
-//! nothing else: what the function touches by memory — clones,
-//! allocations, how each parameter takes its value — what effects its
-//! own body proves and what it reaches through calls, and how many
-//! call sites it writes. A section with nothing recorded is absent, so
-//! a short card is a smaller claim rather than a vaguer one.
+//! Everything on a card is a recorded fact of the buffer's text and
+//! nothing else: what a function touches by memory, how each parameter
+//! takes its value, what effects its own body proves and what it
+//! reaches through calls; what a type holds, implements, and weighs. A
+//! section with nothing recorded is absent, so a short card is a
+//! smaller claim rather than a vaguer one. The declarations in the
+//! fences are reconstructed from the facts — parameter modes, field
+//! types — never sliced blindly, so the fence shows exactly what the
+//! facts carry.
 
-use rustmanifest_engine::{FunctionFacts, semantic::Effect};
+use rustmanifest_engine::{FunctionFacts, ParamMode, semantic::Effect};
 
 /// The markdown card of one function's recorded facts.
 pub(super) fn card(fact: &FunctionFacts, reached: &[Effect]) -> String {
-    let mut lines = vec![format!("### `{}`", fact.function)];
+    let mut lines = vec![format!(
+        "```rust\nfn {}({})\n```",
+        fact.function,
+        fact.params
+            .iter()
+            .map(spelled)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )];
     let mut memory = Vec::new();
     if fact.clones > 0 {
         memory.push(format!("clones: {}", fact.clones));
@@ -23,29 +36,36 @@ pub(super) fn card(fact: &FunctionFacts, reached: &[Effect]) -> String {
         memory.push(format!("allocations: {}", fact.allocations));
     }
     if !memory.is_empty() {
-        lines.push(format!("memory: {}", memory.join(", ")));
+        lines.push("---".to_owned());
+        lines.push(format!("**memory** — {}", memory.join(" · ")));
     }
-    for param in &fact.params {
-        lines.push(format!(
-            "- `{}: {}` taken {}, used {} time(s){}",
-            param.name,
-            param.type_name,
-            param.mode,
-            param.uses,
-            if param.field_reads > 0 {
-                format!(", {} field read(s)", param.field_reads)
-            } else {
-                String::new()
-            }
-        ));
+    if !fact.params.is_empty() {
+        lines.push("---".to_owned());
+        let mut told = vec!["**parameters**".to_owned()];
+        for param in &fact.params {
+            told.push(format!(
+                "- `{}: {}` — taken {}, used {} time(s){}",
+                param.name,
+                param.type_name,
+                param.mode,
+                param.uses,
+                if param.field_reads > 0 {
+                    format!(", {} field read(s)", param.field_reads)
+                } else {
+                    String::new()
+                }
+            ));
+        }
+        lines.push(told.join("\n"));
     }
+    let mut effects = Vec::new();
     if !fact.effects.is_empty() {
         let owned: Vec<String> = fact
             .effects
             .iter()
             .map(|effect| format!("`{effect}`"))
             .collect();
-        lines.push(format!("effects of its own body: {}", owned.join(", ")));
+        effects.push(format!("own body: {}", owned.join(", ")));
     }
     let inherited: Vec<String> = reached
         .iter()
@@ -53,25 +73,43 @@ pub(super) fn card(fact: &FunctionFacts, reached: &[Effect]) -> String {
         .map(|effect| format!("`{effect}`"))
         .collect();
     if !inherited.is_empty() {
-        lines.push(format!(
-            "effects reached through calls: {}",
-            inherited.join(", ")
-        ));
+        effects.push(format!("reached through calls: {}", inherited.join(", ")));
+    }
+    if !effects.is_empty() {
+        lines.push("---".to_owned());
+        lines.push(format!("**effects** — {}", effects.join(" · ")));
     }
     if !fact.call_sites.is_empty() {
-        lines.push(format!("call sites written: {}", fact.call_sites.len()));
+        lines.push("---".to_owned());
+        lines.push(format!("**call sites written** {}", fact.call_sites.len()));
     }
     lines.join("\n\n")
+}
+
+/// One parameter as the declaration spells it, mode included.
+fn spelled(param: &rustmanifest_engine::ParamFacts) -> String {
+    if param.name == "self" {
+        return match param.mode {
+            ParamMode::Owned => "self".to_owned(),
+            ParamMode::Borrowed => "&self".to_owned(),
+            ParamMode::BorrowedMut => "&mut self".to_owned()
+        };
+    }
+    match param.mode {
+        ParamMode::Owned => format!("{}: {}", param.name, param.type_name),
+        ParamMode::Borrowed => format!("{}: &{}", param.name, param.type_name),
+        ParamMode::BorrowedMut => format!("{}: &mut {}", param.name, param.type_name)
+    }
 }
 
 /// The inference section of one inherited effect: the numbered steps
 /// from the function to the written call that proves the effect.
 pub(super) fn why_section(effect: &str, answer: &rustmanifest_engine::semantic::Answer) -> String {
-    let mut lines = vec![format!("why `{effect}`:")];
+    let mut lines = vec![format!("---\n\n**why `{effect}`**")];
     for (position, step) in answer.steps.iter().enumerate() {
         lines.push(format!("{}. {} — {}", position + 1, step.fact, step.reason));
     }
-    lines.push(format!("=> {}", answer.conclusion));
+    lines.push(format!("⇒ {}", answer.conclusion));
     lines.join("\n")
 }
 
@@ -82,29 +120,29 @@ pub(super) fn type_card(
     implemented: &[&str],
     shape: Option<&rustmanifest_engine::semantic::TypeShape>
 ) -> String {
-    let mut lines = vec![format!("### `{}`", node.name)];
     let kind = match node.kind {
         rustmanifest_engine::TypeKind::Struct => "struct",
         rustmanifest_engine::TypeKind::Enum => "enum"
     };
-    lines.push(format!(
-        "{kind} with {} recorded field(s)",
-        node.fields.len()
-    ));
+    let mut fence = vec![format!("```rust\n{kind} {} {{", node.name)];
     for field in &node.fields {
-        lines.push(format!("- `{}: {}`", field.name, field.type_name));
+        fence.push(format!("    {}: {},", field.name, field.type_name));
     }
+    fence.push("}\n```".to_owned());
+    let mut lines = vec![fence.join("\n")];
     if !node.derives.is_empty() {
         let derived: Vec<String> = node
             .derives
             .iter()
             .map(|name| format!("`{name}`"))
             .collect();
-        lines.push(format!("derives: {}", derived.join(", ")));
+        lines.push("---".to_owned());
+        lines.push(format!("**derives** {}", derived.join(", ")));
     }
     if !implemented.is_empty() {
         let written: Vec<String> = implemented.iter().map(|name| format!("`{name}`")).collect();
-        lines.push(format!("written impls: {}", written.join(", ")));
+        lines.push("---".to_owned());
+        lines.push(format!("**written impls** {}", written.join(", ")));
     }
     if let Some(shape) = shape {
         let mut memory = Vec::new();
@@ -121,7 +159,8 @@ pub(super) fn type_card(
             ));
         }
         if !memory.is_empty() {
-            lines.push(format!("memory: {}", memory.join(", ")));
+            lines.push("---".to_owned());
+            lines.push(format!("**memory** — {}", memory.join(" · ")));
         }
     }
     lines.join("\n\n")
@@ -130,10 +169,10 @@ pub(super) fn type_card(
 /// The ownership story of the written call under the cursor: one step
 /// per handed value, closing with where each one ends up.
 pub(super) fn handover_section(answer: &rustmanifest_engine::semantic::Answer) -> String {
-    let mut lines = vec!["### ownership at this call".to_owned()];
+    let mut lines = vec!["**ownership at this call**".to_owned()];
     for (position, step) in answer.steps.iter().enumerate() {
         lines.push(format!("{}. {} — {}", position + 1, step.fact, step.reason));
     }
-    lines.push(format!("=> {}", answer.conclusion));
+    lines.push(format!("⇒ {}", answer.conclusion));
     lines.join("\n")
 }
