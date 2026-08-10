@@ -15,6 +15,67 @@
 use lsp_server::{Connection, Message, Notification, Request};
 use lsp_types::notification::Notification as _;
 
+/// Opens one document over a fresh in-memory server and swallows the
+/// published diagnostics: the boilerplate every surface test shares.
+fn opened(text: &str) -> (Connection, std::thread::JoinHandle<()>) {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": text
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    (client, handle)
+}
+
+/// Shuts a session opened by [`opened`] down and joins the server.
+fn closed(client: Connection, handle: std::thread::JoinHandle<()>) {
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            99.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap();
+}
+
 /// A source the bundled rules flag: a hardcoded credential.
 const FLAGGED: &str = "fn main() {\n    let password = \"hunter2\";\n}\n";
 
@@ -652,39 +713,7 @@ const TYPED: &str = "#[derive(Clone, Debug)]\nstruct User {\n    id: u64,\n    n
 
 #[test]
 fn a_hover_on_a_type_name_cards_its_facts() {
-    let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            1.into(),
-            "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
-        )))
-        .unwrap();
-    let _initialize_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "initialized".to_owned(),
-            serde_json::json!({})
-        )))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
-            serde_json::json!({
-                "textDocument": {
-                    "uri": "file:///demo/src/lib.rs",
-                    "languageId": "rust",
-                    "version": 1,
-                    "text": TYPED
-                }
-            })
-        )))
-        .unwrap();
-    let _diagnostics = client.receiver.recv().unwrap();
+    let (client, handle) = opened(TYPED);
     let line = TYPED
         .lines()
         .position(|held| held.contains("struct User"))
@@ -727,24 +756,15 @@ fn a_hover_on_a_type_name_cards_its_facts() {
     );
     assert!(value.contains("are the compiler's answer"), "{value}");
     assert!(value.contains("**memory**"), "{value}");
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    assert!(
+        value.contains("byte(s) on the stack — that is what every move or copy of it touches"),
+        "{value}"
+    );
+    assert!(
+        value.contains("own heap data: the contents live in the heap"),
+        "{value}"
+    );
+    closed(client, handle);
 }
 
 /// The inlay hints of the interview program: the move visible at the

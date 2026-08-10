@@ -62,7 +62,7 @@ fn quickfixes(
     let from = offset_of(text, params.range.start);
     let until = offset_of(text, params.range.end);
     let mut offered = Vec::new();
-    for finding in analysis.findings(path.clone(), text) {
+    for finding in analysis.findings(path, text) {
         let covered = finding.location.range.start as usize <= until
             && from <= finding.location.range.end as usize;
         if !covered || finding.fixes.is_empty() {

@@ -136,20 +136,27 @@ pub(super) fn type_card(
     if let Some(shape) = shape {
         let mut memory = Vec::new();
         if let Some(payload) = shape.payload {
-            memory.push(format!("at least {payload} guaranteed field byte(s)"));
+            memory.push(format!(
+                "- the value itself takes at least {payload} byte(s) on the stack — that is \
+                 what every move or copy of it touches, whatever the contents are"
+            ));
         }
         if shape.indirections > 0 {
-            memory.push(format!("{} heap header(s)", shape.indirections));
+            memory.push(format!(
+                "- {} of its field(s) own heap data: the contents live in the heap, sized at \
+                 runtime, and are freed when the value drops",
+                shape.indirections
+            ));
         }
         if !shape.unresolved.is_empty() {
             memory.push(format!(
-                "{} field(s) of unsized types",
+                "- {} field type(s) the facts cannot size",
                 shape.unresolved.len()
             ));
         }
         if !memory.is_empty() {
             lines.push("---".to_owned());
-            lines.push(format!("**memory** — {}", memory.join(" · ")));
+            lines.push(format!("**memory**\n{}", memory.join("\n")));
         }
     }
     lines.join("\n\n")
