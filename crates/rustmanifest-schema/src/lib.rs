@@ -175,9 +175,19 @@ pub struct Location {
 #[serde(deny_unknown_fields)]
 pub struct Range {
     /// Inclusive start byte offset.
+    #[schemars(schema_with = "byte_offset_schema")]
     pub start: u32,
     /// Exclusive end byte offset.
+    #[schemars(schema_with = "byte_offset_schema")]
     pub end:   u32
+}
+
+/// The schema of a byte offset: a non-negative integer, stated without
+/// the nonstandard integer-width format annotation that over-strict
+/// schema validators warn on. The format was only ever an annotation;
+/// the non-negativity it implied is kept as a stated minimum.
+fn byte_offset_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({ "type": "integer", "minimum": 0 })
 }
 
 /// User-supplied configuration from `rustmanifest.toml`.

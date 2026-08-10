@@ -127,13 +127,11 @@
         "end": {
           "description": "Exclusive end byte offset.",
           "type": "integer",
-          "format": "uint32",
           "minimum": 0
         },
         "start": {
           "description": "Inclusive start byte offset.",
           "type": "integer",
-          "format": "uint32",
           "minimum": 0
         }
       },
