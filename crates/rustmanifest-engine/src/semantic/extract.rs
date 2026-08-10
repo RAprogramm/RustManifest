@@ -145,19 +145,28 @@ fn mounted(
     }
 }
 
-/// The edits sorted and clamped so no two ranges overlap: two widened
-/// deletions may both have swallowed the same blank line, and an
-/// applier owes each byte to at most one edit.
+/// The edits sorted, clamped, and merged so no two ranges overlap and
+/// no two share a boundary: two widened deletions may both have
+/// swallowed the same blank line, and an insertion standing exactly on
+/// a deletion's start would leave the application order ambiguous —
+/// an applier owes each byte to at most one edit, in one order.
 fn disjoint(mut edits: Vec<(Range, String)>) -> Vec<(Range, String)> {
     edits.sort_by_key(|(range, _)| (range.start, range.end));
     let mut settled: Vec<(Range, String)> = Vec::new();
     for (mut range, replacement) in edits {
-        if let Some((last, _)) = settled.last()
-            && range.start < last.end
-        {
-            range.start = last.end;
-            if range.end < range.start {
-                range.end = range.start;
+        if let Some((last, held)) = settled.last_mut() {
+            if range.start < last.end {
+                range.start = last.end;
+                if range.end < range.start {
+                    range.end = range.start;
+                }
+            }
+            let touching = range.start == last.end;
+            let one_is_a_point = last.start == last.end || range.start == range.end;
+            if touching && one_is_a_point {
+                last.end = range.end;
+                held.push_str(&replacement);
+                continue;
             }
         }
         if range.start == range.end && replacement.is_empty() {
