@@ -538,3 +538,98 @@ fn the_implement_command_writes_the_impl_block() {
     drop(client);
     handle.join().unwrap().unwrap();
 }
+
+/// A cursor on the type's written name must offer the implementable
+/// traits in the editor's action list, each carrying its edit.
+#[test]
+fn a_code_action_on_a_type_offers_the_unimplemented_traits() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": UNWRITTEN
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    let character = UNWRITTEN.find("Disk").unwrap() + 1;
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "textDocument/codeAction".to_owned(),
+            serde_json::json!({
+                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "range": {
+                    "start": { "line": 0, "character": character },
+                    "end": { "line": 0, "character": character }
+                },
+                "context": { "diagnostics": [] }
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("a code action request must be answered");
+    };
+    let offered = answer.response_result.as_ref().unwrap().as_array().unwrap();
+    let titles: Vec<&str> = offered
+        .iter()
+        .map(|action| action["title"].as_str().unwrap())
+        .collect();
+    assert!(titles.contains(&"implement Sink for Disk"), "{titles:?}");
+    assert!(titles.contains(&"implement Display for Disk"), "{titles:?}");
+    let written = offered
+        .iter()
+        .find(|action| action["title"] == "implement Sink for Disk")
+        .unwrap();
+    let edits = &written["edit"]["documentChanges"][0];
+    assert_eq!(edits["textDocument"]["uri"], "file:///demo/src/lib.rs");
+    let text = edits["edits"][0]["newText"].as_str().unwrap();
+    assert!(text.contains("impl Sink for Disk {"), "{text}");
+    assert!(
+        text.contains("fn write(&mut self, chunk: &[u8]) -> usize {"),
+        "{text}"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            3.into(),
+            "shutdown".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    let _shutdown_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "exit".to_owned(),
+            serde_json::Value::Null
+        )))
+        .unwrap();
+    drop(client);
+    handle.join().unwrap().unwrap();
+}
