@@ -107,6 +107,114 @@ pub fn whence_value_over(
     }
 }
 
+/// Answers where the value at one written position comes from: the
+/// innermost recorded site covering `offset` in source `file`, spoken
+/// as the value it produces and restated across calls. The channels
+/// asked are the ones that record positions producing a value — calls,
+/// operations, choices, reads, and handbacks; a byte no record covers
+/// is refused by its address, never guessed at.
+#[must_use]
+pub fn whence_at_over(
+    sources: &[Source],
+    facts: &[FunctionFacts],
+    graph: &CallGraph,
+    file: usize,
+    offset: u32
+) -> Answer {
+    let mut innermost: Option<(usize, rustmanifest_schema::Range, Provenance, String)> = None;
+    let mut consider =
+        |fact: usize, site: rustmanifest_schema::Range, value: Provenance, spoken: String| {
+            if !(site.start..site.end).contains(&offset) {
+                return;
+            }
+            let tighter = innermost
+                .as_ref()
+                .is_none_or(|(_, held, _, _)| site.end - site.start < held.end - held.start);
+            if tighter {
+                innermost = Some((fact, site, value, spoken));
+            }
+        };
+    for (index, fact) in facts.iter().enumerate() {
+        if fact.source != file {
+            continue;
+        }
+        for (position, held) in fact.call_sites.iter().enumerate() {
+            consider(
+                index,
+                held.site,
+                Provenance::Called(u32::try_from(position).unwrap_or(u32::MAX)),
+                format!("the value `{}` hands back", held.candidate)
+            );
+        }
+        for (position, held) in fact.operations.iter().enumerate() {
+            consider(
+                index,
+                held.site,
+                Provenance::Computed(u32::try_from(position).unwrap_or(u32::MAX)),
+                format!("the operation at position {position}")
+            );
+        }
+        for (position, held) in fact.choices.iter().enumerate() {
+            consider(
+                index,
+                held.site,
+                Provenance::Chosen(u32::try_from(position).unwrap_or(u32::MAX)),
+                format!("the choice at position {position}")
+            );
+        }
+        for (position, held) in fact.input_reads.iter().enumerate() {
+            consider(
+                index,
+                held.site,
+                Provenance::Read(u32::try_from(position).unwrap_or(u32::MAX)),
+                format!("the read at position {position}")
+            );
+        }
+        for held in &fact.handbacks {
+            consider(
+                index,
+                held.site,
+                held.value.clone(),
+                "the handback".to_owned()
+            );
+        }
+    }
+    let Some((index, site, value, spoken)) = innermost else {
+        let named = sources
+            .get(file)
+            .map_or_else(String::new, |source| source.path().display().to_string());
+        return Answer {
+            conclusion: format!(
+                "no recorded position covers byte {offset} of {named} — nothing to answer for"
+            ),
+            steps:      Vec::new()
+        };
+    };
+    let fact = &facts[index];
+    let qualifiers = qualifiers_by_fact(sources, facts);
+    let composed = composition_with(sources, None, facts, graph, &qualifiers);
+    let text = origin_text(&composed.of(index, &value));
+    Answer {
+        conclusion: format!("the value at bytes {}..{} is {text}", site.start, site.end),
+        steps:      vec![
+            TraceStep {
+                fact:   format!(
+                    "byte {offset} falls inside {spoken} at bytes {}..{} of `{}`",
+                    site.start, site.end, fact.function
+                ),
+                reason: "the innermost recorded site covering the asked byte answers for it"
+                    .to_owned()
+            },
+            TraceStep {
+                fact:   format!("restated across calls, that position produces {text}"),
+                reason: "a summary's only free variables are the function's own inputs, so \
+                         every call the value passes through is restated"
+                    .to_owned()
+            },
+        ]
+    }
+}
+
 /// The in-body citation of one origin: the channel that recorded it and
 /// the position it stands at, before any call is restated.
 fn cited(fact: &FunctionFacts, origin: &Provenance) -> String {
@@ -245,6 +353,45 @@ mod tests {
         assert!(held.conclusion.contains("ambiguous"), "{held:?}");
         assert!(held.conclusion.contains("src/lib.rs"), "{held:?}");
         assert!(held.conclusion.contains("`A::make`"), "{held:?}");
+    }
+
+    /// A byte inside a written call answers with what the callee hands
+    /// back, restated: the positional form of the same question.
+    #[test]
+    fn a_byte_inside_a_call_answers_with_the_callees_value() {
+        let text = "fn seed() -> u32 {\n    7\n}\n\npub fn make() -> u32 {\n    let held = \
+                    seed();\n    held\n}\n";
+        let sources = one(text);
+        let workspace = Workspace::new(&sources);
+        let offset = u32::try_from(text.rfind("seed()").unwrap()).unwrap() + 1;
+        let held = crate::semantic::whence_at_over(
+            &sources,
+            workspace.facts(),
+            workspace.calls(),
+            0,
+            offset
+        );
+        assert!(held.conclusion.contains("the written value"), "{held:?}");
+        assert!(
+            held.steps
+                .iter()
+                .any(|step| step.fact.contains("`seed` hands back")),
+            "{held:?}"
+        );
+    }
+
+    /// A byte no record covers is refused by its address.
+    #[test]
+    fn an_uncovered_byte_is_refused_by_address() {
+        let sources = one("pub struct Empty;\n");
+        let workspace = Workspace::new(&sources);
+        let held =
+            crate::semantic::whence_at_over(&sources, workspace.facts(), workspace.calls(), 0, 5);
+        assert!(
+            held.conclusion
+                .contains("no recorded position covers byte 5"),
+            "{held:?}"
+        );
     }
 
     /// A function with no handback answers honestly: the channel is

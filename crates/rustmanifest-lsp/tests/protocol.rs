@@ -1152,6 +1152,45 @@ fn the_whence_command_restates_the_value_across_calls() {
     closed(client, handle);
 }
 
+/// The whence command's positional form answers for a byte: the
+/// cursor on a written call names what the callee hands back.
+#[test]
+fn the_whence_command_answers_for_a_position() {
+    let (client, handle) = opened(
+        "fn seed() -> u32 {\n    7\n}\n\npub fn make() -> u32 {\n    let held = seed();\n             held\n}\n"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.whence",
+                "arguments": ["file:///demo/src/lib.rs", 5, 16]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    assert!(
+        held["conclusion"]
+            .as_str()
+            .unwrap()
+            .contains("the written value"),
+        "{held:?}"
+    );
+    assert!(
+        held["steps"][0]["fact"]
+            .as_str()
+            .unwrap()
+            .contains("`seed` hands back"),
+        "{held:?}"
+    );
+    closed(client, handle);
+}
+
 /// An opened document whose written call states an intent receives the
 /// intent as a diagnostic on the call site, its related information
 /// leading to the cited type's declaration — a jump from either end,

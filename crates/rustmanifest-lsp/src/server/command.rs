@@ -22,8 +22,10 @@
 //! search for. `rust-manifest.whence` takes a function name and
 //! answers with the question layer's second form: where the value the
 //! function hands back comes from, each written position cited with
-//! its byte range and restated across calls. The answer is the command's
-//! result, so any
+//! its byte range and restated across calls; given [uri, line,
+//! character] instead, it answers for the innermost recorded position
+//! covering that written place — the same question asked of any byte. The
+//! answer is the command's result, so any
 //! client scripts it: an editor plugin, a keybinding, a pipeline.
 //! Nothing is shown or inserted by the server itself — how to use an
 //! answer is the asker's decision.
@@ -125,19 +127,46 @@ fn implemented(request: &Request, held: &Derived<'_>) -> Response {
 /// chain-of-steps shape the why command answers with.
 fn sourced(request: &Request, held: &Derived<'_>) -> Response {
     let arguments = &request.params["arguments"];
-    let Some(function) = arguments[0].as_str() else {
+    let Some(first) = arguments[0].as_str() else {
         return Response::new_err(
             request.id.clone(),
             lsp_server::ErrorCode::InvalidParams as i32,
-            format!("`{WHENCE}` takes [function]")
+            format!("`{WHENCE}` takes [function] or [uri, line, character]")
         );
     };
-    let asked = rustmanifest_engine::semantic::whence_value_over(
-        held.sources,
-        held.facts,
-        held.graph,
-        function
-    );
+    let positioned = (arguments[1].as_u64(), arguments[2].as_u64());
+    let asked = if let (Some(line), Some(character)) = positioned {
+        let path = super::snapshot::path_of(first);
+        let Some(file) = held.sources.iter().position(|source| source.path() == path) else {
+            return Response::new_err(
+                request.id.clone(),
+                lsp_server::ErrorCode::InvalidParams as i32,
+                format!("`{WHENCE}` knows no source at `{first}`")
+            );
+        };
+        let text = held.sources[file].text();
+        let offset = super::position::offset_of(
+            text,
+            lsp_types::Position {
+                line:      u32::try_from(line).unwrap_or(u32::MAX),
+                character: u32::try_from(character).unwrap_or(u32::MAX)
+            }
+        );
+        rustmanifest_engine::semantic::whence_at_over(
+            held.sources,
+            held.facts,
+            held.graph,
+            file,
+            u32::try_from(offset).unwrap_or(u32::MAX)
+        )
+    } else {
+        rustmanifest_engine::semantic::whence_value_over(
+            held.sources,
+            held.facts,
+            held.graph,
+            first
+        )
+    };
     let steps: Vec<serde_json::Value> = asked
         .steps
         .iter()

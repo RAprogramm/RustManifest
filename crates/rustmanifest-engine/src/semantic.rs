@@ -131,7 +131,7 @@ pub use self::{
         composition_with, summaries, summaries_with
     },
     surface::{FrameworkModel, Route, Surface, surface},
-    whence::{whence_value, whence_value_over},
+    whence::{whence_at_over, whence_value, whence_value_over},
     why::{Answer, why_effect, why_effect_over},
     workspace::Workspace
 };
