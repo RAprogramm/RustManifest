@@ -124,6 +124,33 @@ mod tests {
         assert_eq!(joined.table, None, "a join must not claim one table");
     }
 
+    /// A statement built at runtime proves the database effect with its
+    /// kind unproven: the constructor call is the proof, the statement
+    /// channel stays empty, and the honesty counter shows the gap — a
+    /// body that provably sends a statement must not read as pure.
+    #[test]
+    fn a_runtime_statement_proves_the_effect_without_a_kind() {
+        let all =
+            facts("async fn purge(pool: &sqlx::PgPool, sql: &str) {\n    sqlx::query(sql);\n}");
+        let held = named(&all, "purge");
+        assert!(
+            held.effects.contains(&super::Effect::Database),
+            "{:?}",
+            held.effects
+        );
+        assert!(
+            held.effect_sites
+                .iter()
+                .any(|site| site.effect == super::Effect::Database && site.proof == "sqlx::query"),
+            "{:?}",
+            held.effect_sites
+        );
+        assert!(held.queries.is_empty(), "{:?}", held.queries);
+        let coverage = super::query::statement_coverage(std::slice::from_ref(held));
+        assert_eq!(coverage.effect_sites, 1, "{coverage:?}");
+        assert_eq!(coverage.kinds_proven, 0, "{coverage:?}");
+    }
+
     /// A name captured inline in a template is a use of the parameter it
     /// names, counted where the capture is read — no path visit ever
     /// sees it.

@@ -100,7 +100,9 @@ pub fn statement_coverage(facts: &[super::FunctionFacts]) -> StatementCoverage {
             .filter(|site| {
                 matches!(
                     site.effect,
-                    super::Effect::DatabaseRead | super::Effect::DatabaseWrite
+                    super::Effect::DatabaseRead
+                        | super::Effect::DatabaseWrite
+                        | super::Effect::Database
                 )
             })
             .count();

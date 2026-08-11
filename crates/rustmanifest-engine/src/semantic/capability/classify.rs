@@ -37,7 +37,9 @@ pub(super) fn of(site: &EffectSite) -> Option<Capability> {
         } else {
             Capability::Fetches
         }),
-        Effect::DatabaseRead | Effect::DatabaseWrite => Some(Capability::Stores),
+        Effect::DatabaseRead | Effect::DatabaseWrite | Effect::Database => {
+            Some(Capability::Stores)
+        }
         Effect::Environment => Some(Capability::Configures),
         Effect::FileSystem => Some(Capability::Persists),
         Effect::ConsoleIo => Some(Capability::Reports),

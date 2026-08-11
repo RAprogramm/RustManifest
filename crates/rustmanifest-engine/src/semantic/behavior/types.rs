@@ -45,7 +45,12 @@ pub enum Effect {
     DatabaseRead,
     /// Database statement provably mutating state: SQL starting with a
     /// write keyword (`INSERT`, `UPDATE`, `DELETE`, DDL).
-    DatabaseWrite
+    DatabaseWrite,
+    /// Database statement provably sent with its kind unproven: the
+    /// query-constructor call is the proof, and the statement's text is
+    /// built at runtime — the call is recorded, the kind is not
+    /// guessed.
+    Database
 }
 
 impl fmt::Display for Effect {
@@ -58,7 +63,8 @@ impl fmt::Display for Effect {
             Self::Environment => "env",
             Self::ConsoleIo => "console",
             Self::DatabaseRead => "db-read",
-            Self::DatabaseWrite => "db-write"
+            Self::DatabaseWrite => "db-write",
+            Self::Database => "db"
         };
         out.write_str(name)
     }

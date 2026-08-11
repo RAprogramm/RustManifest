@@ -127,7 +127,9 @@ fn summary(fact: &FunctionFacts, graph: &TypeGraph) -> String {
                     Effect::Process => Some("child processes"),
                     Effect::Environment => Some("the process environment"),
                     Effect::ConsoleIo => Some("the console"),
-                    Effect::DatabaseRead | Effect::DatabaseWrite => Some("the database"),
+                    Effect::DatabaseRead | Effect::DatabaseWrite | Effect::Database => {
+                        Some("the database")
+                    }
                     Effect::Unsafe => None
                 })
                 .collect();

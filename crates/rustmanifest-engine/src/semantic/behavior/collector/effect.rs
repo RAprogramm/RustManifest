@@ -78,16 +78,26 @@ impl FactCollector {
     /// Records the database effect a SQL-carrying function call proves:
     /// the crate and function name say the argument is a statement, and
     /// the first written argument — where it is a string literal — says
-    /// what kind. A statement built at runtime proves the call and not
-    /// the kind, and yields nothing.
+    /// what kind. A statement built at runtime proves the call and only
+    /// the call: the effect is recorded with its kind unproven, because
+    /// a body that provably sends a statement must not read as pure —
+    /// and the kind is not guessed from anything but written text.
     pub(super) fn record_sql_call(&mut self, call: &syn::ExprCall) {
         let syn::Expr::Path(path) = call.func.as_ref() else {
             return;
         };
+        let segments = self.expanded_segments(&path.path);
         let Some(sql) = first_literal(call) else {
+            if knowledge::sql_call(&segments) {
+                self.facts.effects.push(Effect::Database);
+                self.facts.effect_sites.push(EffectSite {
+                    effect: Effect::Database,
+                    proof:  segments.join("::"),
+                    range:  span_range(path.span())
+                });
+            }
             return;
         };
-        let segments = self.expanded_segments(&path.path);
         if let Some(effect) = knowledge::sql_call_effect(&segments, &sql) {
             self.facts.effects.push(effect);
             self.facts.effect_sites.push(EffectSite {

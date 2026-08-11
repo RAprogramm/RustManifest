@@ -89,6 +89,16 @@ pub(super) const PROJECTION_VIEWS: [&str; 2] = ["Projection", "ProjectionRef"];
 /// to that service's own `call`.
 pub(super) const SERVICE_CALL: &str = "call";
 
+/// Whether a call by these segments is one of the `sqlx` crate's
+/// query constructors: the crate's own contract says the first
+/// argument is a statement headed for the database, whatever built it.
+pub(super) fn sql_call(segments: &[String]) -> bool {
+    let (Some(first), Some(last)) = (segments.first(), segments.last()) else {
+        return false;
+    };
+    first == "sqlx" && SQL_MACROS.contains(&last.as_str())
+}
+
 /// SQL-carrying macro names of the `sqlx` crate.
 const SQL_MACROS: [&str; 6] = [
     "query",
