@@ -923,6 +923,20 @@ effect_sites: [EffectSite { effect: DatabaseWrite, proof: "sqlx::query", range: 
 queries: [QuerySite { statement: Deletes, table: Some("sessions"), record: None, binds: [], range: Range { start: 43, end: 54 } }]
 coverage: StatementCoverage { effect_sites: 1, kinds_proven: 1, tables_named: 1 }</pre>
 <p>Прежний путь доказанного вида не сдвинут: вид <code>Deletes</code> с первого ключевого слова, таблица <code>sessions</code> из собственного грамматического слота, покрытие без разрыва — новая градация срабатывает только там, где старый код не записывал ничего.</p>
+
+<h3><span class="sn">Б.51</span>Пробы имени градации <code>db</code>: набор в чистой копии, живой словарь help команды <code>ask</code> и живой запрет на настоящем дереве с точностным негативом на срезе <code>7f6e577</code> (2026-08-11)</h3>
+<p>Метод — Б.47 поверх дисциплины срезов: наборы сняты в чистой рабочей копии <code>7f6e577</code>, поднятой через <code>git worktree</code>, главная копия не тронута; живые счёты говорят не со сборкой из копии, а с установленным бинарём <code>rustmanifest</code>, чьи временные метки моложе коммита, — тем самым, что обслуживает машину. Стенд запрета — настоящее дерево на диске: <code>src/lib.rs</code> из одной строки <code>mod api;</code>, <code>src/api.rs</code> с телом фикстуры нового теста дословно — <code>pub async fn purge(pool: &amp;sqlx::PgPool, sql: &amp;str) { sqlx::query(sql); }</code> — и <code>rustmanifest.toml</code> с одним объявлением: <code>[[invariants]]</code>, <code>id = "NO-DB"</code>, <code>effect = "db"</code>, <code>deny-in = ["crate::api"]</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1054</span> зелёных при нуле упавших; среди новых — <code>a_db_ban_catches_a_runtime_statement</code>; отфильтрованный прогон имени — 1 из 1. <code>cargo clippy --workspace --all-targets</code> отвечает <code>Finished</code> без единой строки; <code>reuse lint</code> — 715 файлов из 715, соответствие REUSE 3.3. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — живой словарь поверхности: <code>rustmanifest ask --help</code> установленного бинаря, строка аргумента дословно:</p>
+<pre>&lt;EFFECT&gt;  Effect asked about: `fs`, `net`, `process`, `env`, `console`, `db-read`, `db-write`, `db` (a statement provably sent with its kind unproven), or `unsafe`</pre>
+<p>Строка help и есть док поля — clap печатает его сам, словарь и поверхность один текст; сверено с доком на срезе дословно.</p>
+<p>Третий счёт — живой запрет: <code>rustmanifest check --config &lt;дерево&gt;/rustmanifest.toml &lt;дерево&gt;</code> отвечает кодом 1 и одной находкой, сообщение и трасса дословно:</p>
+<pre>"message": "invariant violated: `purge` performs `db` inside module `crate::api`, but the effect is denied in [crate::api]"
+"fact": "fn `purge` performs `db`"
+"fact": "fn `purge` lives in module `crate::api`"
+"fact": "denied in: [crate::api]"</pre>
+<p>Каждый шаг трассы несёт причину — «observed effect-sink call or block in the body», «module graph maps its file to this path», «module is covered by a denied prefix». Байты находки 13..18 сверены с фикстурой: диапазон режет ровно написанный идентификатор <code>purge</code> — находка называет функцию своим местом, как обещал юнит.</p>
+<p>Четвёртый счёт — точностный негатив: то же дерево, оператор написан литералом — <code>sqlx::query("SELECT id FROM sessions")</code>, — и тот же запрет <code>db</code> отвечает пустым списком с кодом 0; запрет <code>effect = "db-read"</code> на том же литеральном дереве срабатывает кодом 1. Молчание первого — датум о точности градации, не пропуск: доказанный вид носит другое имя, и <code>db</code> называет ровно недоказанный.</p>
 </section>
 </main>
 </div>
