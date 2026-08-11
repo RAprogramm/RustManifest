@@ -22,14 +22,16 @@ mod effects;
 mod graph;
 mod overlay;
 mod reach;
+mod rows;
 mod tables;
 mod target;
 
 pub use self::{
-    build::{call_graph, call_graph_with},
+    build::{call_graph, call_graph_rows, call_graph_with},
     context::{ResolutionContext, resolution_context, resolution_segments},
     effects::transitive_effects,
-    graph::CallGraph
+    graph::CallGraph,
+    rows::RefusalRow
 };
 
 #[cfg(test)]
@@ -47,6 +49,55 @@ mod tests {
         semantic::behavior::{Effect, behavior},
         source::Source
     };
+
+    /// Every refused candidate's row is the accounting's own answer,
+    /// and the rows agree with the graph's counters by construction:
+    /// the sum of each named row equals its counter exactly.
+    #[test]
+    fn the_rows_agree_with_the_counters_by_construction() {
+        let text = concat!(
+            "pub struct A;\nimpl A {\n    pub fn run(&self) {}\n}\n",
+            "pub struct B;\nimpl B {\n    pub fn run(&self) {}\n}\n",
+            "pub fn go(a: &A) {\n    a.run();\n    std::fs::read(\"x\").ok();\n    ",
+            "A::missing();\n}\n"
+        );
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let all = behavior(&sources);
+        let context = crate::semantic::calls::resolution_context(&sources);
+        let (graph, rows) = super::call_graph_rows(&all, &context);
+        let count = |wanted: super::RefusalRow| -> u64 {
+            rows.iter()
+                .flatten()
+                .filter(|(_, row)| *row == wanted)
+                .count() as u64
+        };
+        assert_eq!(count(super::RefusalRow::Foreign), graph.external());
+        assert_eq!(
+            count(super::RefusalRow::UnknownReceiver),
+            graph.unknown_receiver()
+        );
+        assert_eq!(count(super::RefusalRow::Ambiguous), graph.ambiguous());
+        assert_eq!(
+            count(super::RefusalRow::OwnerWithoutMember),
+            graph.owned_unmatched()
+        );
+        let total: usize = rows.iter().map(Vec::len).sum();
+        assert_eq!(total as u64, graph.unresolved(), "{rows:?}");
+        assert!(
+            rows.iter()
+                .flatten()
+                .any(|(candidate, row)| candidate == "A::missing"
+                    && *row == super::RefusalRow::OwnerWithoutMember),
+            "{rows:?}"
+        );
+        assert!(
+            rows.iter()
+                .flatten()
+                .any(|(candidate, row)| candidate == "fs::read"
+                    && *row == super::RefusalRow::Foreign),
+            "{rows:?}"
+        );
+    }
 
     fn facts(text: &str) -> Vec<crate::semantic::behavior::FunctionFacts> {
         behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])

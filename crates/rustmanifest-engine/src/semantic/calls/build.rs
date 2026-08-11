@@ -8,8 +8,13 @@
 use std::collections::BTreeSet;
 
 use super::{
-    context::ResolutionContext, dispatch::dispatch_targets, graph::CallGraph,
-    overlay::apply_overlay, reach::linkable, tables::name_tables
+    context::ResolutionContext,
+    dispatch::dispatch_targets,
+    graph::CallGraph,
+    overlay::apply_overlay,
+    reach::linkable,
+    rows::{RefusalRow, refusal_row},
+    tables::name_tables
 };
 use crate::semantic::behavior::FunctionFacts;
 
@@ -37,6 +42,33 @@ pub fn call_graph_with(
     facts: &[FunctionFacts],
     context: &ResolutionContext,
     overlay: Option<&[Vec<usize>]>
+) -> CallGraph {
+    built(facts, context, overlay, None)
+}
+
+/// Builds the call graph and reports every refused candidate's row.
+///
+/// The per-fact rows are the accounting's own answer, not a
+/// reconstruction: the rows and the graph's counters pass through the
+/// same decision point, so the two cannot disagree.
+#[must_use]
+pub fn call_graph_rows(
+    facts: &[FunctionFacts],
+    context: &ResolutionContext
+) -> (CallGraph, Vec<Vec<(String, RefusalRow)>>) {
+    let mut rows: Vec<Vec<(String, RefusalRow)>> = vec![Vec::new(); facts.len()];
+    let graph = built(facts, context, None, Some(&mut rows));
+    (graph, rows)
+}
+
+/// The one builder both public forms call: resolves every candidate,
+/// books each refusal into its row, and hands the row to the collector
+/// where one listens.
+fn built(
+    facts: &[FunctionFacts],
+    context: &ResolutionContext,
+    overlay: Option<&[Vec<usize>]>,
+    mut rows: Option<&mut Vec<Vec<(String, RefusalRow)>>>
 ) -> CallGraph {
     let module_segments = &context.segments;
     let (by_qualified, by_bare_free, by_method) = name_tables(facts);
@@ -97,7 +129,7 @@ pub fn call_graph_with(
                 tallies.resolved += 1;
                 continue;
             }
-            tallies.count_refusal(
+            let row = refusal_row(
                 candidate,
                 named.is_some(),
                 matches.as_deref(),
@@ -105,6 +137,10 @@ pub fn call_graph_with(
                 module_segments,
                 context
             );
+            tallies.book(row);
+            if let Some(collected) = rows.as_deref_mut() {
+                collected[index].push((candidate.clone(), row));
+            }
         }
         edges[index].sort_unstable();
     }
@@ -136,44 +172,16 @@ struct Tallies {
 }
 
 impl Tallies {
-    /// Books one refused candidate into exactly one row, so no refusal
-    /// is derivable only by subtraction.
-    fn count_refusal(
-        &mut self,
-        candidate: &str,
-        named: bool,
-        matches: Option<&[usize]>,
-        workspace_owners: &BTreeSet<&str>,
-        module_segments: &BTreeSet<String>,
-        context: &ResolutionContext
-    ) {
+    /// Books one decided row, so the counters and the per-candidate
+    /// report cannot disagree: both are fed by the same decision.
+    const fn book(&mut self, row: RefusalRow) {
         self.unresolved += 1;
-        if candidate.strip_prefix("?::").is_some() {
-            match matches {
-                Some([]) => self.unreachable_named += 1,
-                Some(_) => self.unknown_receiver += 1,
-                None => self.external += 1
-            }
-            return;
-        }
-        match matches {
-            Some([]) => self.unreachable_named += 1,
-            Some(_) => self.ambiguous += 1,
-            None => {
-                let foreign = candidate.rsplit_once("::").map_or_else(
-                    || !named,
-                    |(owner, _)| {
-                        !workspace_owners.contains(owner)
-                            && !module_segments.contains(owner)
-                            && !context.trait_impls.contains_key(owner)
-                    }
-                );
-                if foreign {
-                    self.external += 1;
-                } else {
-                    self.owned_unmatched += 1;
-                }
-            }
+        match row {
+            RefusalRow::Foreign => self.external += 1,
+            RefusalRow::UnknownReceiver => self.unknown_receiver += 1,
+            RefusalRow::NamedElsewhere => self.unreachable_named += 1,
+            RefusalRow::Ambiguous => self.ambiguous += 1,
+            RefusalRow::OwnerWithoutMember => self.owned_unmatched += 1
         }
     }
 
