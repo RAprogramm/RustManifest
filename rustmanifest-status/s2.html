@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html" aria-current="page"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="s2">
+<h2><span class="sn">2</span>Машина</h2>
+
+<h3><span class="sn">2.1</span>Конвейер</h3>
+<p>Схема каноническая для фактовых движков — тупой тотальный экстрактор, типизированная база фактов, декларативный вывод; к ней сходятся CodeQL, Glean и Kythe (<code>docs/RESEARCH-2026-07-behavioral-tier.md:33</code>). Три яруса объявлены в корне движка (<code>crates/rustmanifest-engine/src/lib.rs:4-16</code>). Весь конвейер помещается на один экран; всё дальнейшее в разделе 2 — увеличение одного из прямоугольников.</p>
+<pre><code>sources -- walker --&gt; Source[]
+   |
+   +-- tier 1: regex patterns ---------------------&gt; findings RM-SEC-*
+   +-- tier 2: AST (syn) per file -----------------&gt; findings RM-STRUCT-*
+   +-- tier 3: workspace semantics
+         behavior() --&gt; FunctionFacts --&gt; roles
+             |                |
+         type graph      call graph  (edge = unique match only)
+             |                |
+             |        transitive effects (fixpoint)
+             |                |
+         rule syllogisms + user invariants
+             |
+             v
+         finding + derivation trace + file-addressed fix</code></pre>
+<p>Из картинки надо унести одно: находка — всегда <em>вывод</em> из базы фактов, и потому к ней можно приложить трассу. Отчёт-обзор, экспорт фактов и MCP-инструменты рендерятся из той же базы (<code>crates/rustmanifest-engine/src/facts_export.rs:4-9</code>): второго источника истины в системе нет.</p>
+
+<h3><span class="sn">2.2</span>Факты вместо мнений</h3>
+<p>Единица знания — факт функции: чтения, записи, сборки, конструирования, типы ошибок, эффекты, вызовы, счётчики клонов и аллокаций (<code>crates/rustmanifest-engine/src/facts_export.rs:70-90</code>). Правило поверх фактов — силлогизм. У «обманчивого имени» он такой: таксономия глаголов — данные, не мнение (<code>crates/rustmanifest-engine/src/semantic/naming.rs:25</code>); имя с читающим глаголом обещает наблюдение; факты тела дают наблюдаемое; противоречие — находка с трассой из трёх шагов (<code>naming.rs:74-87</code>). Существенно, что чтение окружения, файлов или сети обещание <em>не</em> ломает — это наблюдение; ломают печать и запуск процессов (<code>naming.rs:27-30</code>). Суффикс <code>_mut</code> снимает обещание явно (<code>naming.rs:101-103</code>).</p>
+<p>Между двумя закреплениями страницы у экстрактора фактов появились две типизирующие таблицы, построенные по тому же принципу «единственное совпадение или ничего». Таблица возвратов сопоставляет каждой уникально именованной функции, включая ассоциированные фабрики вида <code>Type::open()</code>, её тип возврата; у <code>Result</code>/<code>Option</code> она отдельно несёт тип успеха, так что <code>let</code>-биндинг типизируется и сквозь <code>?</code>, и сквозь <code>.await</code> в инициализаторе (<code>crates/rustmanifest-engine/src/semantic/behavior.rs:186-227,250-270</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:104-150</code>). Конфликт наблюдений выбрасывает ключ из таблицы (<code>behavior.rs:229-248</code>). Таблица полей отображает <code>Type.field</code> в тип поля из определений структур и точно так же роняет ключ при конфликте (<code>behavior.rs:134-175</code>). Типизация дала и новое различение. Запись поля значения, доказуемо сконструированного в самом теле — литералом, фабрикой из таблицы, <code>?</code>-развёрнутой или <code>.await</code>-нутой фабрикой, — записывается <em>сборкой</em>: отдельным фактом, не записью (<code>collector.rs:71-86,239-268</code>). Перепривязка имени на чужое состояние возвращает записи (тест <code>behavior.rs:546-556</code>). Почему это различие стоило отдельного факта, а не исключения в правиле, показывает живой случай в разделе 6.6.</p>
+
+<h3><span class="sn">2.3</span>Ворота доказуемости: три правила, три первых прогона</h3>
+<p>Механизм лучше всего виден на том, как три правила семейства качества добирались до корпуса. Сырые счётчики — журнальные записи (коммит <code>6ca4091</code>); классы шума — код, читаемый и на <code>cabc917</code> без изменений: каждое уточнение точности записано как данные, а не как костыль в условии.</p>
+<p><strong>Обманчивое имя.</strong> Первый прогон — 13 сырых срабатываний (журнал). Разбор каждого дал три класса шума, и все три стали фактами: недоказанные записи через неразрешённый получатель отфильтрованы (<code>naming.rs:46</code>), тесты и trait-имплементации исключены (<code>naming.rs:37-39</code>), наблюдательные эффекты отделены от ломающих (<code>naming.rs:27-30</code>). Итог на корпусе: 2 настоящих, 0 ложных — обе находки в базлайне (<code>eval/baseline.json</code>, hydebar).</p>
+<p><strong>Осиротевший файл.</strong> Кейс из практики: автор написал модуль, забыл <code>mod</code>, и компилятор «не видит» хэндлеры. Такой код не мёртвый — он потерян. Правило срабатывает только при правдоподобном родителе (именованный файл каталога первым, <code>mod.rs</code> наследием последним, <code>crates/rustmanifest-engine/src/semantic/orphan.rs:116-129</code>) и несёт файло-адресную правку «вот строка <code>mod имя;</code>, вот куда», помеченную как требующую человека (<code>orphan.rs:90-99</code>). Страж смирения: если текст родителя упоминает <code>mod имя</code> где угодно, включая макрообёртки, сквозь которые резолвер не видит, объявление недоказуемо отсутствует, и правило молчит (<code>orphan.rs:18-21,63-65</code>). Первый прогон — 21 сырое срабатывание; 17 из них на fork-hyper оказались объявлениями в макрообёртках, где сработало «недоказуемо», остальное закрыло обучение резолвера монтированию через <code>#[path = "..."]</code> (<code>crates/rustmanifest-engine/src/semantic/module_graph/builder.rs:162-181</code>). Итог: 0 ложных при 0 настоящих. Правило на корпусе молчит, точность на нём вырождена; это записано как ограничение, а не засчитано в успехи (журнал; раздел 8).</p>
+<p><strong>Мёртвая функция.</strong> Приговор «мёртвое» требует полного отсутствия упоминаний, и «упоминание» определено широко: пути-значения и вызовы (<code>crates/rustmanifest-engine/src/semantic/dead.rs:124-134</code>), листья <code>use</code> (<code>dead.rs:136-147</code>), слова в токенах макросов вроде <code>format!</code> и <code>select!</code> (<code>dead.rs:158-163</code>), строки атрибутов вроде <code>serde(default = "...")</code> (<code>dead.rs:149-156</code>); проза doc-комментариев упоминанием не считается (<code>dead.rs:150</code>). Неоднозначное совпадение — уже причина молчать (<code>dead.rs:12-14</code>). Первый прогон — 160 сырых; три круга ручного ревью выборок, каждый закрывал настоящий класс промаха: колбэки-значения, вызовы в макросах, serde-строки, dbus-имплементации с атрибутом (журнал). Итог: 0 ложных. Диагнозы разделены: функция в неподключённом файле — сирота, не мёртвая (<code>dead.rs:66-68,234-240</code>).</p>
+
+<h3><span class="sn">2.4</span>Граф вызовов: где рождается транзитивность</h3>
+<p>Ребро появляется, только когда кандидат совпадает ровно с одной известной функцией (<code>crates/rustmanifest-engine/src/semantic/calls.rs:156-162</code>); неоднозначное и внешнее считается неразрешённым (<code>calls.rs:7-11</code>). На собственном воркспейсе на <code>32089c2</code>: <span class="num">1066</span> разрешённых рёбер при 3868 неразрешённых кандидатах (замер, приложение Б.1); журнал этапа пять записал 867 рёбер — рост дала не одна фича, а месяц работы, и крейт-квалификаторы добавляют на этом воркспейсе лишь 2 ребра (Б.1). Поверх графа эффекты замыкаются до неподвижной точки (<code>calls.rs:13-16,186-192</code>): функций с прямыми эффектами 96, с транзитивными — 176 (Б.1); граница с внешним миром почти удвоилась, как только эффекты стали свойством программы, а не функции. Из того же графа выводятся слои: глубина — длиннейшая ациклическая цепочка вниз, взаимно вызывающиеся модули помечаются запутанными и не ранжируются (<code>crates/rustmanifest-engine/src/semantic/layers.rs:8-12</code>); на движке — глубины от 0 до 7 и 13 запутанных модулей из 83 (Б.2). С <code>cabc917</code> бухгалтерию кандидатов движок ведёт сам: отчёт покрытия раскладывает их по вёдрам «разрешён — внешний — неизвестный получатель» той же учётной дисциплиной, что и цели <code>use</code>; числа и замер — в 6.7.</p>
+<p>У ворот единственного совпадения есть условие, которого в них не было заложено: множество кандидатов, по которому эта единственность считается, обязано состоять из достижимых. Пока оно составлено по всему воркспейсу, единственным совпадением может оказаться функция из цели сборки, с которой вызывающий не компилируется; замеренные последствия — в 6.18.</p>
+
+<h3><span class="sn">2.5</span>Один инвариант насквозь</h3>
+<p>Всё выше — механика словами. Здесь одно настоящее объявление прогнано через неё целиком; каждый артефакт — живой вывод от 2026-08-01, команда повторения — в приложении В. Если из раздела 2 читать что-то одно — читайте это.</p>
+<p><strong>Артефакт 1: объявление.</strong> Пользовательский инвариант в конфигурации (формат: <code>crates/rustmanifest-schema/src/lib.rs:198-215</code>):</p>
+<pre><code>[[invariants]]
+id      = "RM-INV-001"
+effect  = "fs"
+deny-in = ["crate"]</code></pre>
+<p><strong>Артефакт 2: факт.</strong> В бенчмарке движка есть функция, готовящая файлы на диске. Её факт, извлечённый командой <code>facts</code> (сокращено; поля-пустышки опущены):</p>
+<pre><code>{
+  "function": "populate",
+  "file": "crates/rustmanifest-engine/benches/orchestrator.rs",
+  "calls": ["File::create", "Path::join", "Vec::with_capacity", "?::write_all", ...],
+  "effects": ["fs"],
+  "role": "io"
+}</code></pre>
+<p><strong>Артефакт 3: ребро.</strong> <code>bench_orchestrator</code> зовёт <code>populate</code>; кандидат совпал с единственной известной функцией и стал ребром (механика — <code>calls.rs:156-162</code>). У самого <code>bench_orchestrator</code> эффекта <code>fs</code> в теле нет.</p>
+<p><strong>Артефакт 4: замыкание.</strong> Транзитивное замыкание доносит <code>fs</code> от <code>populate</code> до вызывающего; запрет проверяется уже над транзитивным множеством (<code>crates/rustmanifest-engine/src/semantic/invariant.rs:13-17</code>).</p>
+<p><strong>Артефакт 5: находка.</strong> Живой вывод <code>check</code> с этим инвариантом:</p>
+<pre><code>"message": "invariant violated: `bench_orchestrator` transitively performs
+            `fs` through `populate` inside module `crate`,
+            but the effect is denied in [crate]",
+"trace": [
+  { "fact": "fn `bench_orchestrator` calls fn `populate`",
+    "reason": "resolved call edge" },
+  { "fact": "fn `populate` performs `fs`",
+    "reason": "observed effect-sink call or block in the body" },
+  { "fact": "fn `bench_orchestrator` lives in module `crate`",
+    "reason": "module graph maps its file to this path" },
+  { "fact": "denied in: [crate]",
+    "reason": "module is covered by a denied prefix" }
+]</code></pre>
+<p>Трасса — не журналирование, а сам вывод: убери любое звено, и находки нет. Манёвр «спрятать эффект за один уровень косвенности» больше не работает; пока эффекты были фактами функции, а не программы, такой запрет снимался одним вызовом-посредником.</p>
+
+<h3><span class="sn">2.6</span>Почему «просто поднять охват» заблокировано</h3>
+<p>Молчащие правила легко принять за лень: добавьте эвристик — и сироты в hyper найдутся, и мёртвый код в макросах. Причина структурная. Синтаксический ярус не видит сквозь макрообёртки и не имеет ни типов вызываемого, ни MIR; любое «наверное, это вызов той самой функции» — догадка. В графе вызовов догадка догадкой не остаётся: она становится ложным ребром, ложное ребро — ложным транзитивным эффектом, а тот — ложной находкой инварианта с убедительной трассой. Ошибка умножается, потому что на графе стоят потребители: транзитивные запреты (2.4), слои, мёртвый код. Выходов три, и каждый — отдельный проект со своей ценой: семантический экстрактор на <code>ra_ap_hir</code> с закреплённой версией и бюджетом на её дрейф — путь, которым пошли CodeQL и cargo-scan (<code>docs/RESEARCH-2026-07-behavioral-tier.md:57</code>); MIR-уточнитель на <code>rustc_public</code>, который ещё не вышел на crates.io (<code>docs/PLAN.md:90</code>); разворачивание макросов через nightly-развёртку, которое движок уже делает для derive в режиме <code>--expand</code>, но не для произвольных объявлений. На <code>cabc917</code> ни один не оплачен, и у охвата есть потолок. С 2026-08-02 у потолка есть высота: эталонный замер 6.9 оценивает недостающее в четверть рёбер графа, и оба класса потерь лежат там, куда синтаксис не достаёт. Тем же днём первый выход оплачен на срезе поверх закрепления — SCIP-слой поставлен как необязательный оверлей и добавляет до 29% рёбер (6.11). Признание потолка — вместе с неизмеренным recall правил — единственная позиция, совместимая с заявлением о точности.</p>
+
+<div class="recap"><span class="caps">Раздел 2 в одну строку каждый</span>
+2.1 — один конвейер, одна база фактов, всё остальное — рендеры. 2.2 — правило есть силлогизм над фактами, и потому несёт трассу; типизирующие таблицы берут только единственные совпадения, запись в свежесобранное — сборка, не запись. 2.3 — точность добыта записанными в код классами шума: 13 → 2 настоящих, 21 → молчание, 160 → 0 за три круга. 2.4 — ребро только при единственном совпадении; эффекты — свойство программы: 96 прямых → 176 транзитивных. 2.5 — инвариант ловит эффект через посредника и приносит вывод целиком. 2.6 — охвату не хватает типов и MIR; догадки в графе умножаются, а не складываются.</div>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

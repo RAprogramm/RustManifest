@@ -50,3 +50,9 @@ path = ["editors/vscode/package.json", "editors/vscode/package-lock.json", "edit
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 RAprogramm <andrey.rozanov.vl@gmail.com>"
 SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["rustmanifest-status.html", "rustmanifest-status/*.html"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 RAprogramm <andrey.rozanov.vl@gmail.com>"
+SPDX-License-Identifier = "MIT"

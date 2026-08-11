@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html" aria-current="page"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="s3">
+<h2><span class="sn">3</span>Жёсткие ограничения, извлечённые из репозитория</h2>
+<p>Каждое — факт о коде на <code>cabc917</code> или замер с приложением. Это стены пространства решений раздела 5.</p>
+<p><strong>О1. Недоказуемое молчит, и молчание — спроектированное поведение.</strong> Страж смирения сироты (<code>orphan.rs:18-21,63-65</code>), полное упоминание у мёртвого кода (<code>dead.rs:12-14</code>), фильтр неразрешённых получателей у имени (<code>naming.rs:46</code>). Цена нарушения показана историей: 17 из 21 сырых сирот были бы ложными обвинениями пользователю, который ничего не забыл.</p>
+<p><strong>О2. Ложное ребро хуже отсутствующего.</strong> Ребро — только при единственном совпадении (<code>calls.rs:156-162</code>). Нарушить дёшево: разреши совпадение «по имени похоже» — и на этом же воркспейсе 3868 неразрешённых кандидатов (замер Б.1, срез 32089c2; сегодняшняя бухгалтерия остатка — 6.7) начнут превращаться в рёбра, каждое из которых умеет родить ложный транзитивный запрет с безупречной на вид трассой (раздел 2.6). Обратная сторона того же ограничения показана замером в 6.8: часть рёбер, «разрешённых» при бедной типизации, была ложной, и рост типизации их убил — метрика упала, граф стал точнее. С 2026-08-02 у ставки есть и внешняя проверка: эталонный индекс подтверждает 96.9% построенных рёбер, а почти все опровергнутые — коллизии имён с внешними типами (6.9).</p>
+<p><strong>О3. Макрос — зона недоказуемости.</strong> Объявления в макрообёртках дают молчание, не находку (<code>orphan.rs:18-21</code>); упоминание в токенах макроса спасает функцию от приговора (<code>dead.rs:158-163</code>). Derive — исключение, оплаченное отдельно: nightly-развёртка в режиме покрытия.</p>
+<p><strong>О4. Отпечаток поведения видит, <em>что</em> трогается, но не <em>что делается</em>.</strong> Отпечаток хеширует режимы и типы параметров, множества чтений, записей, сборок, конструирований, ошибок, вызовов и счётчики — но не операторы (<code>crates/rustmanifest-engine/src/semantic/fingerprint.rs:32-53</code>). Замер: тела <code>w.b += a</code> и <code>w.b -= a</code> дают один отпечаток (приложение Б.3). Для доказательства переименований этого достаточно — пара берётся только при уникальном совпадении с обеих сторон (<code>crates/rustmanifest-engine/src/semantic/rename_detect.rs:6-10</code>) — но границу гранулярности обязана помнить любая будущая надстройка.</p>
+<p><strong>О5. Запутанное не ранжируется.</strong> Взаимно вызывающиеся модули не получают глубины и не участвуют в глубине соседей (<code>layers.rs:8-12,61-75</code>). Цена нарушения измерена: наивная релаксация, пущенная сквозь циклы на том же графе, даёт «глубину» 252 против настоящих 7 (приложение Б.2) — журнал этапа одиннадцать зафиксировал тот же класс артефакта в первой версии, после чего порядок сменили на «сначала запутанность, потом глубина».</p>
+<p><strong>О6. Правка несёт адрес файла.</strong> В схеме правки поле файла; пусто — файл самой находки (<code>crates/rustmanifest-schema/src/lib.rs:112-114</code>). Журнал этапа девять записал вскрытый собственным тестом дефект: межфайловые правки ложились бы по смещениям чужого файла. Сегодня и сирота адресует правку в родителя (<code>orphan.rs:177-194</code>), и заимствование параметра переписывает вызывающего в соседнем файле — сквозной тест <code>crates/rustmanifest-cli/tests/fix.rs:150</code>.</p>
+<p><strong>О7. Метки обучаемого яруса выведены из той же базы фактов.</strong> Протокол говорит это сам: замер выразимости и восстановимости клауз, не открытия; до накопления настоящих меток accept/suppress выученные правила не поставляются (<code>docs/RESEARCH-2026-07-behavioral-tier.md:198-203</code>).</p>
+<p><strong>О8. Корпус смещён, recall не измерен.</strong> Из шести репозиториев сторонний — один fork-hyper; остальные пять — того же автора (<code>eval/corpus.toml</code>), и расширение корпуса двумя производственными API усилило пропорцию смещения, а не ослабило её. У находок правил меряется только точность; ворота могли купить ноль ложных ценой молчания, и никакое число на этой странице этого не опровергает. Полнота измерена на одном уровне ниже — у рёбер графа вызовов, против внешнего эталона (6.9); на полноту правил этот замер не переносится.</p>
+<p><strong>О9. Точностная поправка — новый факт, а не исключение в правиле.</strong> Запись поля свежесобранного значения — отдельный факт <code>builds</code> (<code>crates/rustmanifest-engine/src/semantic/behavior/types.rs:145-147</code>; <code>collector.rs:71-86</code>): правило имени молчит на сборках просто потому, что читает записи (<code>naming.rs:43-46</code>); роли классифицируют сборщика конструктором (<code>crates/rustmanifest-engine/src/semantic/role.rs:72-74</code>); синтез документации говорит о сборщике «Creates a new [<code>Тип</code>]» (<code>crates/rustmanifest-engine/src/semantic/doc_synth.rs:87-101</code>); обучаемые признаки получили свой термометр (<code>crates/rustmanifest-engine/src/semantic/features.rs:90-94</code>); отпечаток поведения различает сборку и запись (<code>fingerprint.rs:39</code>). Цена нарушения показана живым срабатыванием из 6.6: поправка веткой в условии одного правила погасила бы один симптом и оставила бы четырёх других потребителей фактов со старой, более грубой картиной; следующее правило над записями воспроизвело бы ту же ложь заново.</p>
+<p><strong>О10. Правило стоит на доказуемом свойстве языка, рантайма или компилятора; вкусовое — территория делегирования, не правил.</strong> Ограничение выкристаллизовалось позже девяти первых и записано кодом на срезах 2026-08-10. Каноническая форма вывода не вписывает библиотечную гарантию в этот репозиторий — она называет свойство по имени, а свойство выведено из исходников самой стандартной библиотеки, приезжающих с тулчейном, и цитирует их текст (<code>crates/rustmanifest-engine/src/semantic/io_forms/catalogue.rs:16-21</code>; <code>semantic/std_derive.rs:4-16</code>): сискол на строку у цикла записи лицензирован свойством <code>line-buffered:stdout</code>, прочитанным из объявления писательской цепочки потока, байты карточки памяти сосчитаны из объявления типа (<code>semantic/layout.rs:11-13</code>), use-after-move обещает отказ компилятора его собственным кодом E0382 (<code>semantic/moved.rs:13</code>), повышение видимости при перестройке — ровно то, чего требуют правила видимости языка (6.36). Следствие — по построению, не по прилежанию: находка в этом пакете есть трасса фактов с ценой в именованной единице, и «шум» здесь не категория жалобы, а невозможность — то, что выглядит шумом, есть дефект движка, и его протокол один: вскрыть механизм, починить фактом, перегнать корпус до нуля. Протокол исполнен дважды за один день 2026-08-10 — восемью ложными находками use-after-move (6.35) и граничным дефектом применителя правок, который вскрыл первый же прогон компиляторного харнесса (6.39). Обратная сторона того же ограничения решает спор о нише: правилам запрещено дублировать clippy — вкусовые линты держит сосед (раздел 4), а этому пакету остаётся только то, что выводимо из свойства с адресом; суждение вкуса, не сводимое к такому свойству, уходит в делегирование, не в правило.</p>
+
+<h3>Десять ограничений на одном дыхании</h3>
+<div class="tbl"><table>
+<thead><tr><th></th><th>Одной фразой</th></tr></thead>
+<tbody>
+<tr><td><strong>О1</strong></td><td>Не доказано — молчи, и молчание записано как данные.</td></tr>
+<tr><td><strong>О2</strong></td><td>Ребро только при единственном совпадении: ложное ребро умножается потребителями графа.</td></tr>
+<tr><td><strong>О3</strong></td><td>Макросы — зона молчания; оплачена только развёртка derive.</td></tr>
+<tr><td><strong>О4</strong></td><td>Отпечаток видит «что трогается», не «что делается»: += и -= неразличимы.</td></tr>
+<tr><td><strong>О5</strong></td><td>Циклы помечаются, не ранжируются, иначе глубина 252 вместо 7.</td></tr>
+<tr><td><strong>О6</strong></td><td>Правка без адреса файла портит чужие файлы; адрес — часть схемы.</td></tr>
+<tr><td><strong>О7</strong></td><td>Метки из своей же базы фактов измеряют выразимость, не открытие.</td></tr>
+<tr><td><strong>О8</strong></td><td>Корпус смещён к одному автору; recall никто не мерил.</td></tr>
+<tr><td><strong>О9</strong></td><td>Ложное срабатывание чинится расколом факта; исключение в правиле оставило бы ложь соседним потребителям.</td></tr>
+<tr><td><strong>О10</strong></td><td>Правило стоит на доказуемом свойстве с адресом; «шум» невозможен по построению — бывают дефекты движка, и их перегоняют до нуля.</td></tr>
+</tbody>
+</table></div>
+<p>Семь из десяти (О1, О2, О3, О5, О6, О9, О10) — одна и та же дисциплина с разных сторон: система предпочитает знать меньше, но точно, и всякое уточнение записывает как данные. О4 — граница выбранной гранулярности фактов, О7 и О8 — границы того, что вообще измерено. Ни одно не о вкусе — О10 проводит эту черту явно.</p>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

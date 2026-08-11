@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html" aria-current="page"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="apB">
+<h2><span class="sn">Б</span>Приложение Б: пробы</h2>
+<p>Всё выполнено 2026-08-01, release-профиль, <code>rustc 1.95.0</code>. Пробы Б.1–Б.3, Б.5 и Б.7 — на чистом срезе <code>32089c2</code> (извлечён через <code>git archive</code>) и помечены так в заголовке; Б.4, Б.6 и Б.8–Б.10 — на <code>cabc917</code>. Пробы Б.1–Б.3 — один бинарь на 90 строк с path-зависимостью от <code>rustmanifest-engine</code>, читающий публичный API движка: <code>behavior</code>, <code>call_graph</code>, <code>resolution_segments</code>, <code>layers</code>, <code>behavior_fingerprint</code>, <code>transitive_effects</code>.</p>
+
+<h3><span class="sn">Б.1</span>Граф вызовов и эффекты (срез 32089c2)</h3>
+<pre><code>files: 165          functions: 1090
+resolved edges: 1066     unresolved: 3868
+resolved edges (module segments only): 1064
+effectful direct: 96, transitive: 176</code></pre>
+<p>«Module segments only» повторяет разрешение без крейт-квалификаторов: их вклад на этом воркспейсе — 2 ребра, то есть рост с журнальных 867 дал в основном новый код и остальные улучшения разрешения, а не одна фича.</p>
+
+<h3><span class="sn">Б.2</span>Слои: честная стратификация против наивной релаксации (срез 32089c2)</h3>
+<p>Наивная версия — релаксация глубины сквозь циклы с потолком по числу модулей, то есть в точности класс алгоритма, чей артефакт журнал этапа одиннадцать описал словами «первая версия завышала глубины»; конкретное журнальное число не сохранилось, и страница его не утверждает.</p>
+<pre><code>modules with functions: 83
+naive relaxation max depth (through cycles, capped at 83 rounds): 252
+scc-first max depth: 7, entangled modules: 13</code></pre>
+
+<h3><span class="sn">Б.3</span>Гранулярность отпечатка (срез 32089c2)</h3>
+<pre><code>snapshot A:  fn credit(w: &amp;mut W, a: i64) { w.b += a; }
+snapshot B:  fn credit(w: &amp;mut W, a: i64) { w.b -= a; }
+fingerprint(A) == fingerprint(B): true</code></pre>
+<p>Оба тела читаются как «пишет <code>W.b</code>, владеет теми же параметрами, зовёт то же»: множества фактов совпадают, оператор в факты не входит (<code>fingerprint.rs:32-53</code>). Это граница О4, показанная руками.</p>
+
+<h3><span class="sn">Б.4</span>Полный прогон тестов</h3>
+<pre><code>$ cargo test --workspace        # on cabc917
+462 passed; 0 failed; exit code 0
+$ cargo test --workspace        # on the 32089c2 slice
+388 passed; 0 failed; exit code 0</code></pre>
+<p>Сумма по всем «test result: ok» строкам; крупнейший набор на <code>cabc917</code> — 308 модульных тестов движка (на срезе <code>32089c2</code> — 297). Прирост между закреплениями — тесты типизации фабрик, сборок, вёдер бухгалтерии и типизированных получателей.</p>
+
+<h3><span class="sn">Б.5</span>Корпус из четырёх репозиториев: базлайн и тайминги (срез 32089c2)</h3>
+<pre><code>entity-derive: 230 files, 45406 lines, 128 findings, p95 5.5 ms,  semantic 1.52 s
+fork-hyper:     98 files, 34326 lines,  92 findings, p95 8.4 ms,  semantic 1.46 s
+hydebar:       318 files, 70288 lines, 267 findings, p95 6.5 ms,  semantic 3.23 s
+masterror:     169 files, 40749 lines,  65 findings, p95 9.8 ms,  semantic 1.78 s
+warn: hydebar checkout drifted; analyzing the pinned revision from git archive</code></pre>
+<p>Все счётчики находок совпали с <code>eval/baseline.json</code>. Собственный воркспейс: <code>check</code> 0.92 с, <code>overview</code> 0.67 с; внутри семантического яруса — извлечение фактов 38 мс, граф вызовов 37 мс, слои 114 мс. Тайминги машинно-зависимы.</p>
+
+<h3><span class="sn">Б.6</span>Объём кода</h3>
+<pre><code>$ find crates -name '*.rs' | xargs wc -l | tail -1
+22513 total     # on cabc917, tests included; 22010 on the 32089c2 slice</code></pre>
+
+<h3><span class="sn">Б.7</span>Самозамер понимания на masterror (срез 32089c2)</h3>
+<pre><code>files parsed     169/169  100.0%
+reachable from crate roots: 127/169  75.1%  (standalone roots: 42)
+use targets 1461: resolved in-workspace 687, external 771,
+                  unresolved 3 — accounted 99.8%</code></pre>
+<p>Журнал записывал 58.6% достижимости и 91.9% учтённых импортов; разница — работа резолвера <code>#[path]</code> и учёта одиночных корней между теми прогонами и <code>32089c2</code>.</p>
+
+<h3><span class="sn">Б.8</span>Корпус из шести репозиториев: базлайн и тайминги (cabc917)</h3>
+<pre><code>aura-api:          259 files, 47266 lines, 305 findings, p95 5.4 ms,  semantic 2.85 s
+entity-derive:     230 files, 45406 lines, 128 findings, p95 6.0 ms,  semantic 2.03 s
+fork-hyper:         98 files, 34326 lines,  92 findings, p95 9.6 ms,  semantic 1.96 s
+hydebar:           318 files, 70288 lines, 267 findings, p95 5.8 ms,  semantic 5.37 s
+masterror:         169 files, 40749 lines,  65 findings, p95 8.8 ms,  semantic 2.33 s
+ratma-studio-api:  463 files, 39921 lines, 368 findings, p95 3.2 ms,  semantic 2.49 s
+warn: hydebar checkout drifted; analyzing the pinned revision from git archive</code></pre>
+<p>Все счётчики находок совпали с <code>eval/baseline.json</code>, сумма — 1225; ворота харнесса вышли зелёными (нулевой код возврата). Файлы, строки и p95 — из вывода харнесса, тайминги семантического яруса — из его отчёта <code>eval/report.json</code>. Оговорка Б.5 о машинной зависимости таймингов действует и здесь.</p>
+
+<h3><span class="sn">Б.9</span>Сборка против записи: правило имени на фикстуре (cabc917)</h3>
+<pre><code>pub struct Order { pub items: u32 }
+impl Order {
+    pub fn load() -> Result&lt;Self, String&gt; { Ok(Self { items: 0 }) }
+}
+pub struct Repo;
+impl Repo {
+    pub fn get_order(&amp;self) -> Result&lt;Order, String&gt; {
+        let mut order = Order::load()?;
+        order.items = 3;
+        Ok(order)
+    }
+}
+pub fn get_total(order: &amp;mut Order) -> u32 {
+    order.items = 3;
+    order.items
+}</code></pre>
+<pre><code>$ cargo run -q -p rustmanifest-cli -- check probe --format json   # RM-QUAL-001 only
+findings: 1 (get_total; Repo::get_order is silent)
+message: Name promises a read: fn `get_total` is named as a read
+         (`get`) but writes [Order.items]; rename it to state what
+         it does, or remove the side effects
+trace:   read-verb `get` -&gt; body writes [Order.items] -&gt; contradiction
+facts:   Repo::get_order  builds=[Order.items]  writes=[]</code></pre>
+<p>Одна и та же операция <code>order.items = 3</code> в двух телах: на свежесобранном значении — факт-сборка и молчание правила, на пришедшем извне состоянии — факт-запись и находка с трассой из трёх шагов. Полный вывод содержит и находки <code>RM-STRUCT-002</code> о самом префиксе <code>get_</code> — они к разбираемому механизму не относятся и здесь опущены.</p>
+
+<h3><span class="sn">Б.10</span>Бухгалтерия кандидатов вызовов на двух коммитах</h3>
+<pre><code># cabc917
+call candidates  5143   resolved in-workspace 1103  21.4%
+                        external 1412   unknown receiver 2077   accounted 48.9%
+# f71cc8e — the same command in a git worktree of that commit
+call candidates  5112   resolved in-workspace 1106  21.6%
+                        external 1266   unknown receiver 2192   accounted 46.4%</code></pre>
+<p>Команда одна: <code>cargo run -q -p rustmanifest-cli -- coverage crates</code>, из корня каждого среза. Остаток арифметики на <code>cabc917</code>: 5143 − 1103 − 1412 − 2077 = 551 кандидат вне трёх вёдер (разбор в 6.7).</p>
+
+<h3><span class="sn">Б.11</span>Эталонный замер графа вызовов против SCIP (срез 6077de4, 2026-08-02)</h3>
+<pre><code># ground truth: rust-analyzer scip (stable toolchain), six corpus repos
+# engine side: rustmanifest facts; join on (file, qualified name); in-workspace edges only
+aggregate precision  96.9%   (11085 confirmed / 11435 engine edges)
+aggregate recall     74.3%   (13811 resolved  / 18590 scip workspace edges)
+false-edge lead class: 39x syn::Error::new bound to workspace Error::new (masterror-derive)
+
+discarded run — fork-hyper, default features (blind ground truth):
+  caller match 31.5%, apparent precision 78.0%
+re-indexed with cargo.features = "all": caller match 83.2%, precision 92.7%
+
+operator desugarings excluded by construction of the edge sets:
+  ? as Result::branch    2757 edges
+  .await as Future::poll 6507 edges</code></pre>
+<p>Числа по каждому репозиторию — таблица в 6.9; исключение десахаризаций заложено в построение множеств рёбер с обеих сторон, поэтому у него нет счётчика «отфильтровано после сравнения».</p>
+
+<h3><span class="sn">Б.12</span>Запрет сети по всему воркспейсу fork-hyper с индексом и без (срез <code>e1cc212</code>, 2026-08-03)</h3>
+<p>Объявление инварианта — три строки; корпусный базлайн его не содержит, харнесс инвариантов не объявляет.</p>
+<pre><code>[[invariants]]
+id = "ANY-NET"
+effect = "net"
+deny-in = ["crate"]</code></pre>
+<pre><code>$ rust-analyzer scip .            # в checkout 173bc33, cargo.features = "all"
+$ rustmanifest check --config any-inv.toml --format json &lt;fork-hyper&gt; &gt; plain.json
+$ rustmanifest check --config any-inv.toml --scip index.scip \
+                     --format json &lt;fork-hyper&gt; &gt; scip.json</code></pre>
+<pre><code>ANY-NET findings                 194  ->  301      (всего находок 286 -> 393)
+trace steps with index provenance  0  ->  334
+distinct violating functions     177  ->  278
+
+by effect sink blamed:
+  TestClient::request (tests target)  19  ->  126
+  effect in the function's own body   99  ->   99
+  the other 12 sinks                  76  ->   76
+
+traces carrying the `TestClient::get` hop   17  ->  124
+  of which violators in src                 16  ->  112
+  in benches / examples / tests            0/1/0 -> 4/1/7</code></pre>
+<p>Пересчёт снят по выводу обоих прогонов группировкой по имени исполнителя эффекта из текста находки и по шагам трасс; сток называется в сообщении, поэтому разбор не требует ничего, кроме самих JSON-выводов. Пример группировки: <code>jq '[.[] | select(."rule-id"=="ANY-NET") | .message | capture("through `(?&lt;p&gt;[^`]+)`").p] | group_by(.) | map({p:.[0],n:length})'</code>.</p>
+<p>Самая короткая трасса, существующая только с индексом, — та, что разобрана в 6.18; её вторая строка ложна, и всё, что ниже неё, верно.</p>
+<pre><code>fn `Dispatcher::poll_read_head` calls fn `Conn::poll_read_head`
+      name-resolved call edge, read from the SCIP index
+fn `Conn::poll_read_head` calls fn `TestClient::get`      &lt;- невозможное ребро
+      resolved call edge
+fn `TestClient::get` calls fn `TestClient::request`
+      resolved call edge
+fn `TestClient::request` performs `net`
+      observed effect-sink call or block in the body</code></pre>
+<p>Исходник вызывающего в закреплённом checkout: <code>self.state.allow_trailer_fields = msg.head.headers.get(TE).map_or(...)</code> — <code>src/proto/h1/conn.rs:327-330</code>. Определение вызываемого: <code>tests/server.rs:3951</code>, цель сборки <code>tests</code>.</p>
+
+<h3><span class="sn">Б.13</span>Тот же запрет после отсева по целям сборки (срез <code>4885c0d</code>, 2026-08-03)</h3>
+<p>Команды и конфигурация — из Б.12, бинарь собран из этого среза.</p>
+<pre><code>ANY-NET findings         188  ==  188      (без индекса / с индексом)
+message sets                identical      (diff отсортированных сообщений пуст)
+trace steps with index provenance      0
+
+против прогона до починки, 194 -> 188:
+  removed 17   все обвиняли TestClient::request (ложный класс 6.18)
+  added   11   все обвиняют setup_duplex_test_server
+               tests/client.rs:1612 и tests/server.rs:1007 — два объявления
+               одного имени в двух тестовых крейтах; до отсева они
+               сталкивались, и вызов не разрешался вовсе
+findings blaming TestClient::request after the repair: 2 (обе из tests/server.rs)</code></pre>
+<p>Разница снята сравнением отсортированных списков сообщений двух прогонов: <code>comm -23</code> даёт ушедшие, <code>comm -13</code> — пришедшие. Обе величины однородны по стоку, поэтому разложение не требует ручной разметки.</p>
+
+<h3><span class="sn">Б.14</span>Ярус смысла на четырёх программах (срез <code>dce8a28</code>, 2026-08-03)</h3>
+<p>Бинарь собран из чистого дерева этого среза; вывод приведён дословно, пути сокращены.</p>
+<pre><code>--- наименьшая программа: fn main() { println!("Hello, world!"); }
+- the process unconditionally writes the string `Hello, world!` followed by a
+  line terminator to its standard output stream
+  [src/main.rs in `main`, attempted: the library can divert or fail the write]
+
+--- три деградации сразу:
+    if flag { println!("a"); }
+    for _ in 0..3 { eprintln!("b {name}"); }
+    let x = dbg!(1);
+- the process may write the string `a` followed by a line terminator to its
+  standard output stream, weakened by a branch
+- the process may write text of the form `b &lt;hole:name&gt;` followed by a line
+  terminator, where each hole is a runtime value this analysis does not
+  determine to its standard error stream, once per iteration of the loop
+  around it, weakened by a loop that may not run
+- the process unconditionally writes a value this analysis cannot read (the
+  debugging macro embeds its own source position) to its standard error stream
+
+--- программа без распознанной записи: fn main() { let value = 1 + 1; }
+- no recognized write to a standard stream (recognizer set v1); this states
+  the recognizer found none, not that the program writes nothing
+
+--- срез без бинарной цели: crates/rustmanifest-engine
+no process entry point found — this source slice declares no program
+
+--- калькулятор, пишущий ответ через writeln! в дескриптор потока
+- the process unconditionally writes the string `calc` followed by a line
+  terminator to its standard output stream   (единственное заявление)</code></pre>
+<p>Последняя строка — измеренный предел, а не сбой: набор распознаваемых стоков версии 1 покрывает пять макросов печати и не покрывает <code>write!</code>/<code>writeln!</code>, поэтому основной вывод калькулятора ярусу невидим.</p>
+
+<h3><span class="sn">Б.15</span>Таблица маршрутов против объявленного эталона (срез <code>dce8a28</code>, 2026-08-03)</h3>
+<p>Сторона движка — <code>overview --top 1000</code>, из секции внешней поверхности взяты уникальные пути. Сторона эталона — пути из атрибутов разметки OpenAPI, извлечённые сопоставлением скобок вокруг <code>utoipa::path(</code> с чтением поля <code>path</code> внутри; наивный <code>grep</code> по <code>path = "…"</code> для этого не годится — он захватывает посторонние строки (в aura-api их три, включая фрагмент SVG).</p>
+<pre><code>aura-api                 восстановлено 88   объявлено 75
+                         в обоих 72   только объявлено 3   только восстановлено 16
+                         конечных точек 108 из 21 функции-провайдера
+                         dynamic 2   unresolved 11   entangled нет
+
+ratma-studio-api         восстановлено 129  объявлено 116
+                         в обоих 116  только объявлено 0   только восстановлено 13
+                         конечных точек 156 из 14 функций-провайдеров
+                         dynamic 1   unresolved 1    entangled нет
+
+три расхождения aura-api, разобранные по исходнику:
+  /api/nft/{season}/shard/{entry_id}.json   разметка против кода: зарегистрировано
+        как /{season}/shard/{*entry_id}, src/domains/nft/handlers.rs:225 — не промах
+  /api/health, /api/ready                   настоящий промах: регистрация внутри if,
+        src/utils/handlers.rs:87-91 — обходчик выражений не имеет рукава для ветки</code></pre>
+<p>Минимальная фикстура, воспроизводящая промах, — в 6.20; важна не потеря маршрута, а её беззвучность: счётчики <code>dynamic</code> и <code>unresolved</code> остаются нулевыми.</p>
+
+<h3><span class="sn">Б.16</span>Состояние проверок на срезе <code>dce8a28</code> (2026-08-03)</h3>
+<pre><code>cargo test --workspace                 556 passed, 0 failed
+    27 тестовых бинарей + 10 наборов doc-тестов = 37 строк `test result`
+cargo test -p rustmanifest-engine --lib
+    на 7a3980f (до яруса смысла)       365 passed
+    на dce8a28                         396 passed          (+31)
+    добавленные тестовые функции: 1ffbf75 +6, 97efff2 +9, 6b6b217 +6, dce8a28 +10
+
+cargo clippy --workspace --all-targets  код возврата 0, ни одной строки warning/error
+    уровни воркспейса: clippy::all / pedantic / nursery / cargo = deny,
+    плюс unwrap_used, expect_used, panic, todo, dbg_macro, print_stdout,
+    print_stderr = deny; послаблений на уровне воркспейса нет
+
+reuse lint                              REUSE 3.3, 282/282 файлов, 0 ошибок
+
+git rev-parse &lt;коммит&gt;:eval/baseline.json
+    7a3980f 1ffbf75 5fc94d1 97efff2 6b6b217 dce8a28 — один и тот же блоб 662531f
+
+живой прогон корпуса на срезе:
+    aura-api 259 файлов 305 находок      entity-derive 230 файлов 128 находок
+    fork-hyper 98 файлов  92 находки     hydebar     318 файлов 267 находок
+    masterror 169 файлов  65 находок     ratma-studio-api 463 файла 368 находок
+    сумма 1225 — сравнимая секция совпадает с закреплённым базлайном полностью</code></pre>
+<p>Живой checkout hydebar на этой машине ушёл от закреплённой ревизии, и прогон честно сказал об этом в предупреждении, проанализировав закреплённый снимок через <code>git archive</code>; на сравнимость это не влияет, потому что сравнивается именно закреплённая ревизия.</p>
+
+<h3><span class="sn">Б.17</span>Предложения яруса хранения о двух ступенях лестницы (срез <code>3426071</code>, 2026-08-09)</h3>
+<p>Проба — бинарь на двадцать строк с path-зависимостью от <code>rustmanifest-engine</code>, читающий публичный API <code>purpose</code> по тексту фикстур, извлечённых из <code>tests/ladder.rs</code> без изменений; рабочее дерево чистое, HEAD равен <code>3426071</code>. Вывод дословный, переносы строк добавлены.</p>
+<pre><code>--- DATABASE_TODO (ladder.rs:330-432)
+keeps `Task` records in `tasks` of `Store`, each found by a `u64`;
+of its own methods, `Store::add` adds a record, `Store::complete` changes
+  a record, `Store::persist` reads the records, `main` reads the records;
+a run asks by name:
+  "add" adds a record named by the value `?::unwrap_or_default` hands back
+        from outside this program,
+  "done" changes a record named by one of the result of conversion to u64
+        over position 2 of the command-line and the written value 0;
+what it holds is printed in `main`;
+`Store::persist` writes the records to the database,
+`Store::restore` fills the records from the database, so they outlive the run;
+the run can end with failure, can end with success
+
+--- API_SERVER (ladder.rs:168-220)
+keeps `Task` records in `tasks` of `AppState`, each found by a `u64`;
+of its own methods, `create` adds a record, `list` reads the records,
+  `read` reads the records, `remove` takes a record out;
+a request asks by route: `GET /tasks` reads the records,
+  `POST /tasks` adds a record,
+  `DELETE /tasks/{id}` takes a record out named by the `{id}` the path carries,
+  `GET /tasks/{id}` reads the records named by the `{id}` the path carries;
+nothing carries them past the end of the run</code></pre>
+<p>Серверное предложение кончается словами «nothing carries them past the end of the run» — карта в памяти не претендует пережить прогон; предложение базы данных несёт обе стороны переноса и не несёт этой строки. Разница двух концовок — весь смысл яруса переноса, показанный на двух программах с одинаковым хранилищем.</p>
+
+<h3><span class="sn">Б.18</span>Проба запасного рукава глагола (срез <code>3426071</code>, 2026-08-09)</h3>
+<p>Фикстура — <code>TASK_STORE</code> из тестов яруса (<code>keeping.rs:56-96</code>), у которой оставлен метод <code>add</code> и добавлены два метода, не читающие записи.</p>
+<pre><code>pub fn wipe(&amp;mut self) {
+    self.tasks = BTreeMap::new();
+}
+pub fn replace(&amp;mut self, other: BTreeMap&lt;u64, Task&gt;) {
+    self.tasks = other;
+}
+
+--- вывод purpose, та же проба, что в Б.17:
+keeps `Task` records in `tasks` of `Store`, each found by a `u64`;
+of its own methods, `Store::add` adds a record,
+  `Store::replace` reads the records, `Store::wipe` reads the records;
+nothing carries them past the end of the run</code></pre>
+<p><code>Store::wipe</code> доказуемо выбрасывает все записи разом — перепривязка поля на свежепостроенную пустую коллекцию, по О9 это сборка, — и входит в предложение как читающий; <code>Store::replace</code> вливает чужое состояние и читающим тоже назван. Оба ярлыка выданы последним рукавом <code>verb_of</code> (<code>verb.rs:126</code>) вопреки контракту молчания из дока модуля (<code>verb.rs:13-16</code>). Разбор — 6.25, развилка починки — вопрос 16; перегон той же пробы после починки — Б.20.</p>
+
+<h3><span class="sn">Б.19</span>Состояние проверок на срезе <code>3426071</code> (2026-08-09)</h3>
+<pre><code>cargo test --workspace                 872 passed, 0 failed
+    42 строки `test result` (тестовые бинари + наборы doc-тестов)
+cargo test -p rustmanifest-engine --lib          662 passed
+cargo test -p rustmanifest-engine --test ladder   15 passed
+
+cargo clippy --workspace --all-targets  код возврата 0, без warning/error
+reuse lint                              REUSE 3.3, 639/639 файлов, 0 ошибок
+
+правил в каталоге crates/rustmanifest-rules-core/rules: 25
+    (к 21 на cabc917 добавились RM-IO-001..004 — промежуток,
+     который страница не описывает, см. 0.4)
+
+git rev-parse &lt;коммит&gt;:eval/baseline.json
+    dce8a28                                  662531f
+    0ddf078                                  6f8cbe6   (три сдвига в
+        неописанном промежутке: cbb8aac, 1f6e7b9, b311754)
+    5a39034 … 40203fe … 54406ea … 3426071    14ead88   (один блоб на всю
+        дугу хранения; единственный сдвиг дуги значений — 5a39034, 6.24)</code></pre>
+<p>Числа находок базлайна на <code>3426071</code>: aura-api 306, entity-derive 128, fork-hyper 110, hydebar 267, masterror 182, ratma-studio-api 372, сумма <span class="num">1365</span> против 1225 на <code>dce8a28</code>. Рост почти целиком принадлежит неописанному промежутку — четырём правилам <code>RM-IO</code> и ремонтам яруса смысла; страница эти находки не разбирала, и их точность не заявляется (приложение Г). Дуга хранения к ним не добавила ни одной, дуга значений — одну разобранную (6.24).</p>
+
+<h3><span class="sn">Б.20</span>Перегон обеих проб после разрешения развилок (срез <code>2883ecf</code>, 2026-08-09)</h3>
+<p>Тот же бинарь, что в Б.17: path-зависимость от <code>rustmanifest-engine</code>, публичный API <code>purpose</code>, фикстура <code>DATABASE_TODO</code> извлечена из <code>tests/ladder.rs</code> без изменений; рабочее дерево чистое, HEAD равен <code>2883ecf</code>. Вывод дословный, переносы строк добавлены.</p>
+<pre><code>--- DATABASE_TODO (ladder.rs)
+keeps `Task` records in `tasks` of `Store`, each found by a `u64`;
+of its own methods, `Store::add` adds a record, `Store::complete` changes
+  a record, `Store::persist` reads the records, `main` reads the records;
+a run asks by name:
+  "add" adds a record named by one of position 2 of the command-line
+        and the default its type declares,
+  "done" changes a record named by one of the result of conversion to u64
+        over position 2 of the command-line and the written value 0;
+what it holds is printed in `main`;
+`Store::persist` writes the records to the database,
+`Store::restore` fills the records from the database, so they outlive the run;
+the run can end with failure, can end with success</code></pre>
+<p>Против дословного вывода Б.17 изменилась одна клауза — титул <code>"add"</code>: вместо «the value <code>?::unwrap_or_default</code> hands back from outside this program» предложение называет обе половины происхождения, позицию командной строки и объявление дефолта (вопрос 15, 6.26).</p>
+<p>Вторая проба — фикстура Б.18 (методы <code>wipe</code> и <code>replace</code> поверх хранилища с <code>add</code>), дополненная читающим методом <code>titles</code> из исходного <code>TASK_STORE</code>, чтобы уцелевшее чтение было видно рядом с молчанием:</p>
+<pre><code>keeps `Task` records in `tasks` of `Store`, each found by a `u64`;
+of its own methods, `Store::add` adds a record, `Store::titles` reads the records;
+nothing carries them past the end of the run</code></pre>
+<p><code>Store::wipe</code> и <code>Store::replace</code> из предложения исчезли: касание, записанное одной записью самого поля, глагола не получает. <code>Store::titles</code>, чьё чтение записано каналом чтений, свой глагол держит. Контракт молчания из дока модуля выполняется кодом (вопрос 16, 6.25).</p>
+
+<h3><span class="sn">Б.21</span>Состояние проверок на срезе <code>2883ecf</code> (2026-08-09)</h3>
+<pre><code>cargo test --workspace                 874 passed, 0 failed
+    42 строки `test result` (тестовые бинари + наборы doc-тестов)
+cargo test -p rustmanifest-engine --lib          664 passed
+cargo test -p rustmanifest-engine --test ladder   15 passed
+
+cargo clippy --workspace --all-targets  код возврата 0, без warning/error
+reuse lint                              REUSE 3.3, 639/639 файлов, 0 ошибок
+правил в каталоге crates/rustmanifest-rules-core/rules: 25
+
+git rev-parse &lt;коммит&gt;:eval/baseline.json
+    3426071 · 34984c5 · 2883ecf                  14ead88   (один блоб)
+
+cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;
+    aura-api 306 · entity-derive 128 · fork-hyper 110
+    hydebar 267 · masterror 182 · ratma-studio-api 372
+    check passed: counts match baseline, budgets hold</code></pre>
+<p>Прирост против Б.19 — два теста: расколотый закрепляющий тест таблицы потока получил вторую половину (<code>a_fallback_to_the_declared_default_names_the_declaration</code>), и проба глагола легла регрессионным тестом (<code>a_touch_that_proves_no_verb_gets_none_rather_than_reads</code>). Базлайн корпуса за оба разрешения не сдвинулся ни на строку: блоб тот же, живой перегон корпуса сошёлся с ним по всем шести репозиториям.</p>
+
+<h3><span class="sn">Б.22</span>Ступень сервера над базой: предложение, молчание родителя, счётчики канала (срез <code>3e432ad</code>, 2026-08-09)</h3>
+<p>Первая проба — тот же бинарь, что в Б.17: path-зависимость от <code>rustmanifest-engine</code>, публичный API <code>purpose</code>, фикстура <code>API_OVER_DATABASE</code> извлечена из <code>tests/ladder.rs</code> без изменений; рабочее дерево чистое, HEAD равен <code>3e432ad</code>. Вывод дословный, переносы строк добавлены.</p>
+<pre><code>--- API_OVER_DATABASE (ladder.rs:500-545)
+keeps its records as rows of the `tasks` table, named in its own statements;
+of its own methods, `complete` changes a record, `create` adds a record,
+  `list` reads the records, `remove` takes a record out;
+a request asks by route: `GET /tasks` reads the records,
+  `POST /tasks` adds a record, `DELETE /tasks/{id}` takes a record out,
+  `PUT /tasks/{id}` changes a record;
+the rows stay in the database past the end of the run</code></pre>
+<p>Тот же бинарь, пересобранный против рабочего дерева родительского среза <code>2883ecf</code> (git worktree, дерево чистое), на ту же фикстуру печатает <code>sentences: 0</code> — до коммитов среза ярус хранения молчал обо всей программе.</p>
+<p>Вторая проба — счёт канала по экспорту фактов: <code>rustmanifest facts &lt;репозиторий&gt;</code> на бинаре среза, суммирование полей <code>queries</code> и площадок эффектов <code>db-read</code>/<code>db-write</code> по JSON.</p>
+<pre><code>aura-api           площадок эффекта базы 287 · записей канала 287
+                   таблица открыта у 80 · select 156, update 62,
+                   insert 56, delete 13
+ratma-studio-api   площадок 184 · записей 184 · открыто 22
+masterror          площадок 8 · записей 7; разрыв один — CREATE TABLE
+                   из examples/sqlx-database/src/main.rs:22-28: DDL,
+                   исключённый по построению (query.rs:17-22)</code></pre>
+<p>Третья проба — <code>tables</code> из публичного API на исходниках aura-api: 26 таблиц-хранилищ, от <code>audit_log</code> до <code>users</code>. Эти предложения не закреплены ни одним тестом; счёт приведён как данные о том, что чтение срабатывает на производственном коде, без заявления об их точности.</p>
+
+<h3><span class="sn">Б.23</span>Состояние проверок на срезе <code>3e432ad</code> (2026-08-09)</h3>
+<pre><code>cargo test --workspace                 883 passed, 0 failed
+    42 строки `test result` (тестовые бинари + наборы doc-тестов)
+cargo test -p rustmanifest-engine --lib          672 passed
+cargo test -p rustmanifest-engine --test ladder   16 passed
+
+cargo clippy --workspace --all-targets  код возврата 0, без warning/error
+reuse lint                              REUSE 3.3, 642/642 файлов, 0 ошибок
+    (639 → 642: query.rs, knowledge/statement.rs, keeping/table.rs)
+правил в каталоге crates/rustmanifest-rules-core/rules: 25
+
+git rev-parse &lt;коммит&gt;:eval/baseline.json
+    5b08e71 · dd06290 · e5bc630 · 3e432ad       14ead88   (один блоб,
+        тот же, что на всей дуге хранения с 40203fe)
+
+cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;
+    aura-api 306 · entity-derive 128 · fork-hyper 110
+    hydebar 267 · masterror 182 · ratma-studio-api 372
+    check passed: counts match baseline, budgets hold
+    (checkout hydebar сдвинут; харнесс сам взял закреплённую ревизию
+     через git archive и предупредил об этом — штатное поведение)</code></pre>
+<p>Прирост против Б.21 — девять тестов: один тест канала (<code>written_statements_record_their_kind_and_their_table</code>), четыре юнита классификатора, три теста яруса (<code>a_table_named_in_the_programs_own_statements_is_a_store</code>, <code>a_table_tied_to_a_declared_store_is_not_a_second_store</code>, <code>a_join_builds_no_table_store</code>) и ступень лестницы. Стабильность базлайна при сотнях новых записей канала на корпусе (Б.22) — следствие того, что канал не питает ни одно правило; сдвиг находок был бы дефектом, а о правильности записей стабильность не говорит.</p>
+
+<h3><span class="sn">Б.24</span>Перегон ступени после закрытия обеих клауз и счётчик в отчёте (срез <code>ddae227</code>, 2026-08-09)</h3>
+<p>Первая проба — тот же бинарь, что в Б.17 и Б.22: path-зависимость от <code>rustmanifest-engine</code>, публичный API <code>purpose</code>, фикстура <code>API_OVER_DATABASE</code> извлечена из <code>tests/ladder.rs</code> без изменений (с <code>c4a6b73</code> её обработчик <code>list</code> пишет строко-типизирующую форму с объявленным struct <code>Task</code>); рабочее дерево чистое, HEAD равен <code>ddae227</code>. Вывод дословный, переносы строк добавлены.</p>
+<pre><code>--- API_OVER_DATABASE (ladder.rs:500-550)
+keeps `Task` records as rows of the `tasks` table, named in its own statements;
+of its own methods, `complete` changes a record, `create` adds a record,
+  `list` reads the records, `remove` takes a record out;
+a request asks by route: `GET /tasks` reads the records,
+  `POST /tasks` adds a record,
+  `DELETE /tasks/{id}` takes a record out named by the `{id}` the path carries,
+  `PUT /tasks/{id}` changes a record named by the `{id}` the path carries;
+the rows stay in the database past the end of the run</code></pre>
+<p>Против дословного вывода Б.22 изменились ровно три места: открывающая клауза несёт имя записи, и оба маршрута с параметром получили «named by the <code>{id}</code> the path carries»; остальной текст совпадает буква в букву.</p>
+<p>Вторая проба — тот же счёт, что вторая проба Б.22: <code>rustmanifest facts &lt;репозиторий&gt;</code> на бинаре среза, суммирование по JSON; поля <code>record</code> и <code>binds</code> теперь в экспорте.</p>
+<pre><code>aura-api           площадок эффекта базы 287 · записей канала 287
+                   таблица названа у 207, открыта у 80 · запись названа у 66,
+                   binds непусты у 200 · select 156, update 62, insert 56, delete 13
+ratma-studio-api   площадок 184 · записей 184 · названо 162, открыто 22
+                   запись у 58, binds у 70
+masterror          площадок 8 · записей 7 · названо 7; разрыв прежний — DDL</code></pre>
+<p>Третья проба — секция честности <code>rustmanifest report</code> на исходниках aura-api, строка дословно:</p>
+<pre><code>- database statements with a proven kind: 287/287, naming their table: 207/287</code></pre>
+<p>Числа строки — те же, что во второй пробе и в Б.22: 287 записей на 287 площадок, 80 открытых таблиц (287&#8239;−&#8239;207); счётчик движка и ручной пересчёт по экспорту сходятся.</p>
+
+<h3><span class="sn">Б.25</span>Состояние проверок на срезе <code>ddae227</code> (2026-08-09)</h3>
+<pre><code>cargo test --workspace                 886 passed, 0 failed
+    42 строки `test result` (тестовые бинари + наборы doc-тестов)
+cargo test -p rustmanifest-engine --lib          675 passed
+cargo test -p rustmanifest-engine --test ladder   16 passed
+
+cargo clippy --workspace --all-targets  код возврата 0, без warning/error
+reuse lint                              REUSE 3.3, 642/642 файлов, 0 ошибок
+правил в каталоге crates/rustmanifest-rules-core/rules: 25
+
+git rev-parse &lt;коммит&gt;:eval/baseline.json
+    c4a6b73 · ddae227                            14ead88   (один блоб,
+        тот же, что на всей дуге хранения с 40203fe)
+
+cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;
+    aura-api 306 · entity-derive 128 · fork-hyper 110
+    hydebar 267 · masterror 182 · ratma-studio-api 372
+    check passed: counts match baseline, budgets hold
+    (checkout hydebar сдвинут; харнесс сам взял закреплённую ревизию —
+     то же штатное предупреждение, что в Б.23)</code></pre>
+<p>Прирост против Б.23 — три юнита движка: единогласие имени записи, привязка bind к параметру пути, счётчик слепого пятна. Лестница осталась при 16 тестах: обе новые клаузы закреплены внутри прежней ступени, а не новой. Базлайн корпуса за оба коммита не сдвинулся ни на байт, живой перегон корпуса сошёлся с ним по всем шести репозиториям.</p>
+
+<h3><span class="sn">Б.26</span>Бухгалтерия отказов по именованным строкам (срез <code>62dd9c3</code>, 2026-08-09)</h3>
+<p>Та же команда, что в Б.10, — <code>cargo run -q -p rustmanifest-cli -- coverage crates</code> из корня; рабочее дерево чистое, HEAD равен <code>62dd9c3</code>. Строка кандидатов дословно, переносы строк добавлены:</p>
+<pre><code>call candidates     13101     resolved in-workspace 3539  27.0%   external 8220
+                              unknown receiver 208   named elsewhere 0   ambiguous 808
+                              owner without member 326   accounted 89.8%</code></pre>
+<p>Арифметика строк: 3539&#8239;+&#8239;8220&#8239;+&#8239;208&#8239;+&#8239;0&#8239;+&#8239;808&#8239;+&#8239;326 = 13&#8239;101 — остатка, выводимого вычитанием, нет. Учтённость 89.8% — разрешённое, чужое и named-elsewhere. Вторая поверхность — секция честности <code>cargo run -q -p rustmanifest-cli -- report crates</code>, строка дословно:</p>
+<pre><code>- refused calls by row: foreign 8220, named-elsewhere 0, ambiguous 808, owner-without-member 326</code></pre>
+<p>Сравнивать построчно с Б.10 нельзя по двум причинам сразу: срез и резолвер ушли далеко (13&#8239;101 кандидат против 5143 на <code>cabc917</code>), а класс «названо, но недостижимо» переехал из ведра внешних в named-elsewhere, и смысл ведра внешних сменился. Для вопроса 5 пригодно только разложение вне классических трёх вёдер на нынешнем срезе: 808 неоднозначных, 326 владельцев-без-члена, 0 named-elsewhere. Юнит-тесты движка на срезе — 679 зелёных, среди них оба закрепляющих: <code>every_refusal_lands_in_exactly_one_named_row</code> и <code>a_name_defined_only_in_an_unlinkable_target_is_its_own_row</code>.</p>
+
+<h3><span class="sn">Б.27</span>Записи в поток по машинерии на шести закреплённых деревьях (срез <code>362abdc</code>, 2026-08-09)</h3>
+<p>Бинарь собран из чистого дерева <code>362abdc</code> (<code>cargo build --release -p rustmanifest-cli</code>). Каждый репозиторий корпуса материализован на своей закреплённой ревизии из <code>eval/corpus.toml</code>: <code>git -C &lt;checkout&gt; archive &lt;rev&gt; | tar -x -C &lt;каталог&gt;</code> — существенно для hydebar и aura-api, чьи живые checkouts стоят на <code>7d3db9f</code> и <code>5a7e2f2</code> вместо закреплённых; остальные четыре стоят на закреплённых чистыми. По каждому дереву — <code>rustmanifest facts &lt;дерево&gt;</code> без развёртки (обычная вселенная), счёт по JSON: каждая запись <code>output-writes</code> отнесена к машинерии по написанию исходника на её байтовом диапазоне <code>site</code> — макрос печати, писательский макрос, метод; у метода <code>conduit</code> равен <code>"bytes"</code>. Перекрёстная проверка: правило только по полям экспорта — запись печати ⇔ <code>conduit</code> <code>"formatting"</code>, <code>lock</code> <code>"lock taken at the site"</code> и поток stdout либо stderr — дало на всех 777 записях тот же раздел, ноль расхождений.</p>
+<pre><code>                функций · с записями · с записью печати · только писательские
+fork-hyper         1240 ·  135 ·  31 · 104
+masterror          2143 ·   70 ·  20 ·  50
+hydebar            3213 ·   31 ·   1 ·  30
+entity-derive      1686 ·   21 ·   3 ·  18
+aura-api           1629 ·   14 ·   4 ·  10
+ratma-studio-api   1096 ·   28 ·   4 ·  24
+итого             11007 ·  299 ·  63 · 236
+
+записи:          печать · писательский макрос · write_all/write_str
+fork-hyper           63 ·  11 · 156        aura-api          10 · 25 ·  2
+masterror           199 ·  91 ·  26        ratma-studio-api  12 · 37 · 15
+hydebar               1 ·  85 ·   5        entity-derive      5 · 33 ·  1
+итого               290 · 282 · 205 — писательская форма 487 из 777, 62.7%
+
+потоки писательской формы: caller-supplied 302 · unknown 185 ·
+    stdout 0 · stderr 0; lock у всех 487 — «lock unknown»</code></pre>
+<p>Все 255 записей в stdout и 35 в stderr — макросы печати; 185 записей с потоком <code>unknown</code> стоят в 118 функциях. Колонка «с записью печати» — вывод из одного прогона, не второй бинарь: писательские записи существуют только через распознаватели расширенного набора, поэтому функции, у которых есть хоть одна запись печати, — это в точности множество, видимое набору 1; счёт с двумя бинарями страница не выполняла.</p>
+
+<h3><span class="sn">Б.28</span>Живые ответы вопросного слоя на самом движке (срез <code>597f15c</code>, 2026-08-09)</h3>
+<p>Прогоны выполнены на HEAD <code>597f15c</code> при чистом рабочем дереве; аналитическая половина не менялась с <code>aed9b26</code> — четыре коммита между ними трогают только LSP-крейт, <code>Cargo.lock</code>, пин тулчейна и эту страницу (<code>git diff --stat aed9b26 597f15c</code>), поэтому ответы читаются как ответы среза <code>aed9b26</code>. Команда — <code>cargo run -q -p rustmanifest-cli -- ask &lt;функция&gt; &lt;эффект&gt; crates</code> из корня. Транзитивный ответ дословно, перенос строк добавлен только внутри длинных строк:</p>
+<pre><code>$ rustmanifest ask Orchestrator::run fs crates
+1. fn `Orchestrator::run` calls fn `Orchestrator::analyze_one_file`  [resolved call edge]
+2. fn `Orchestrator::analyze_one_file` performs `fs`, proven by the written call
+   `std::fs::metadata` in crates/rustmanifest-engine/src/orchestrator/file_pass.rs
+   [effect-sink call observed in the body]
+3. fn `Orchestrator::analyze_one_file` performs `fs`, proven by the written call
+   `std::fs::read_to_string` in crates/rustmanifest-engine/src/orchestrator/file_pass.rs
+   [effect-sink call observed in the body]
+=&gt; `Orchestrator::run` reaches `fs` through `Orchestrator::analyze_one_file`</code></pre>
+<p>Оба написанных вызова проверены по исходнику: <code>orchestrator/file_pass.rs:29,46</code>. Три отказа тем же прогоном, дословно:</p>
+<pre><code>$ rustmanifest ask Orchestrator::run net crates
+=&gt; the recorded facts prove no `net` for `Orchestrator::run` — its own proven effects
+   are [], and no resolved call chain reaches a body performing `net`
+
+$ rustmanifest ask run fs crates
+=&gt; `run` names 4 functions — `run`, `Orchestrator::run`, `run`, `run` — and an answer
+   about one of them would not be an answer about the asked name
+
+$ rustmanifest ask FindingsCache::open fs crates
+=&gt; the recorded facts prove no `fs` for `FindingsCache::open` — its own proven effects
+   are [], and no resolved call chain reaches a body performing `fs`</code></pre>
+<p>Последний отказ — граница, разобранная в 6.28: <code>Self::open_with_capacity</code> стоит в одном написанном вызове от тела с <code>fs::create_dir_all</code> (<code>crates/rustmanifest-engine/src/cache.rs:92,103</code>), но <code>Self</code>-квалифицированный кандидат не разрешён в ребро, и формулировка отказа называет именно разрешённую цепочку, которой действительно нет. Код выхода всех четырёх прогонов — 0.</p>
+
+<h3><span class="sn">Б.29</span>Проба протокола живого сервера и состояние проверок на срезе <code>597f15c</code> (2026-08-09)</h3>
+<p>Проба — скрипт, говорящий с бинарём <code>rust-manifest</code> поверх stdio кадрами <code>Content-Length</code>: <code>initialize</code> с пустыми способностями клиента, <code>initialized</code>, затем <code>didOpen</code> с фикстурой протокольного теста (<code>tests/protocol.rs:19</code> — зашитый пароль). Прогнана дважды: на установленном бинаре (<code>~/.cargo/bin/rust-manifest</code>, собран 2026-08-09 11:41, минута коммита <code>bda66a2</code>) и на бинаре, собранном из HEAD <code>597f15c</code>; вывод побайтово совпал. Результат рукопожатия и диагностика дословно:</p>
+<pre><code>initialize.result: {"capabilities": {"textDocumentSync": 1}}
+
+textDocument/publishDiagnostics:
+{ "uri": "file:///demo/src/lib.rs",
+  "diagnostics": [ {
+      "code": "RM-SEC-001",
+      "message": "Hardcoded credentials: matched at bytes 20..32",
+      "range": { "start": { "line": 1, "character": 8 },
+                 "end":   { "line": 1, "character": 20 } },
+      "severity": 1,
+      "source": "rust-manifest" } ] }</code></pre>
+<p>Способности приходят без двойной обёртки — до починки <code>bda66a2</code> здесь стояло бы <code>{"capabilities": {"capabilities": …}}</code>. Диапазон сверен с байтами фикстуры: байты 20..32 — это <code>password = "</code>, строка 1, колонки 8..20 в UTF-16, перевод верен. Вторая половина пробы — завершение: на <code>shutdown</code> сервер отвечает корректно (<code>{"id": 2, "result": null}</code>), но после <code>exit</code> при закрытом stdin процесс жив спустя 15 секунд — обе прогонки, оба бинаря; разбор механизма — 6.29, границы, строка риска — раздел 8.</p>
+<p>Состояние проверок на HEAD <code>597f15c</code>, всё собственными прогонами этого дня: <code>cargo test --workspace</code> — 44 строки результата, <span class="num">896</span> зелёных при нуле упавших; <code>cargo clippy --workspace --all-targets</code> — чисто на прежних deny-уровнях; <code>reuse lint</code> — 649 файлов из 649, соответствие REUSE 3.3; тулчейн — <code>rustc 1.97.1</code> по пину <code>597f15c</code>. Базлайн корпуса — один блоб <code>14ead88</code> на всех пяти коммитах среза (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> от <code>362abdc</code> до <code>597f15c</code>), живой перегон <code>rustmanifest-eval check</code> сошёлся по всем шести репозиториям: «check passed: counts match baseline, budgets hold», p95 на репозиторий 0.37–1.02 мс. Стабильность — по построению: ни один из пяти коммитов не трогает ни правила, ни движок фактов; она говорит о непотреблении, не о правильности новых поверхностей.</p>
+
+<h3><span class="sn">Б.30</span>Проба поверхности впитывания и чистого завершения, состояние проверок на срезе <code>bf2b02f</code> (2026-08-09)</h3>
+<p>Проба — тот же жанр, что Б.29: скрипт поверх stdio кадрами <code>Content-Length</code>, бинарь собран из HEAD <code>bf2b02f</code> (<code>cargo build -p rustmanifest-lsp</code>, <code>target/debug/rust-manifest</code>). Последовательность: <code>initialize</code> с пустыми способностями клиента → <code>initialized</code> → <code>didOpen</code> фикстуры двух функций из протокольного теста (<code>tests/protocol.rs:109-112</code>: <code>persist</code> пишет в файл, <code>hoard</code> клонирует, аллоцирует и зовёт <code>persist</code>) → <code>textDocument/hover</code> на имени <code>hoard</code> (строка 1, колонка 4) → hover в теле функции → <code>workspace/executeCommand</code> → <code>shutdown</code> → <code>exit</code>. Рукопожатие дословно: <code>{"capabilities": {"executeCommandProvider": {"commands": ["rust-manifest.why"]}, "hoverProvider": true, "textDocumentSync": 1}}</code>; первым извещением приходит диагностика самой фикстуры — <code>RM-QUAL-004</code> о неупомянутом приватном <code>hoard</code>, источник <code>rust-manifest</code>. Карточка наведения дословно — в 6.30, живая проба; она кончается секцией <code>why `fs`:</code> с двумя нумерованными шагами и заключением. Наведение в тело (строка 2, колонка 8) отвечает <code>result: null</code> — протокольное молчание, не пустая карточка. Команда <code>rust-manifest.why</code> с аргументами <code>["file:///demo/src/lib.rs", "hoard", "fs"]</code> отвечает данными: заключение <code>`hoard` reaches `fs` through `persist`</code> и два шага, каждый парой fact/reason — тот же вывод, что в карточке, с расхождением имени файла, разобранным в 6.30, границы. Финал: на <code>shutdown</code> — <code>{"result": null}</code>, после <code>exit</code> при закрытом stdin процесс завершился кодом выхода 0 за 0.003 секунды — тот самый остаток Б.29, где оба бинаря жили спустя 15 секунд, закрыт строкой <code>drop(connection)</code> среза <code>5a8cb4f</code> (<code>src/main.rs:25</code>).</p>
+<p>Состояние проверок на HEAD <code>bf2b02f</code>, всё собственными прогонами этого дня: <code>cargo test --workspace</code> — 44 строки результата, <span class="num">898</span> зелёных при нуле упавших (плюс два против <code>597f15c</code> — карточка с цепочкой и команда как данные); <code>cargo clippy --workspace --all-targets</code> — чисто на прежних deny-уровнях; <code>reuse lint</code> — 652 файла из 652, соответствие REUSE 3.3; тулчейн — <code>rustc 1.97.1</code> по пину <code>597f15c</code>. Базлайн корпуса — один блоб <code>14ead88</code> на всех шести коммитах от <code>bee05ce</code> до <code>bf2b02f</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>); живой перегон <code>rustmanifest-eval check</code> сошёлся по всем шести репозиториям: «check passed: counts match baseline, budgets hold», p95 на репозиторий 0.37–1.09 мс; живые checkouts aura-api и hydebar ушли с закреплённых ревизий, и харнесс анализировал закреплённые через <code>git archive</code>, о чём предупредил в журнале прогона. Стабильность — по построению: все пять коммитов среза живут в <code>rustmanifest-lsp</code> и <code>Cargo.lock</code> (<code>git diff --name-status 597f15c bf2b02f</code>), ни правила, ни движок фактов не тронуты.</p>
+
+<h3><span class="sn">Б.31</span>Кросс-файловая цепочка, предел закрытия оговорки, цена наведения и состояние проверок на срезе <code>bc5e142</code> (2026-08-09)</h3>
+<p>Проба — тот же жанр, что Б.29 и Б.30: скрипт поверх stdio кадрами <code>Content-Length</code>, бинарь собран из HEAD <code>bc5e142</code> в release-профиле (<code>cargo build --release -p rustmanifest-lsp</code>, <code>target/release/rust-manifest</code>). Три части.</p>
+<p>Первая — цепочка через два документа. <code>initialize</code> без корня → <code>didOpen</code> двух документов фикстуры четвёртого теста (<code>tests/protocol.rs:305-313</code>): <code>file:///demo/src/store.rs</code> с <code>persist</code>, пишущим в файл, и <code>file:///demo/src/lib.rs</code> с <code>keep</code>, зовущим <code>crate::store::persist</code>. Первым на <code>lib.rs</code> приходит диагностика его собственного кода — <code>RM-QUAL-004</code> о неупомянутом приватном <code>keep</code>. Команда <code>rust-manifest.why</code> с аргументами <code>["file:///demo/src/lib.rs", "keep", "fs"]</code> отвечает дословно: <code>{"conclusion": "`keep` reaches `fs` through `persist`", "steps": [{"fact": "fn `keep` calls fn `persist`", "reason": "resolved call edge"}, {"fact": "fn `persist` performs `fs`, proven by the written call `std::fs::write` in /demo/src/store.rs", "reason": "effect-sink call observed in the body"}]}</code>. Наведение на имя <code>keep</code> (строка 1, колонка 4) отвечает карточкой с той же цепочкой <code>why `fs`:</code> и тем же именем файла в доказательстве — <code>/demo/src/store.rs</code>, путём в обоих каналах: расхождение Б.30 не воспроизводится. Финал: <code>shutdown</code> → <code>exit</code> → код выхода 0 за 0.003 секунды.</p>
+<p>Вторая — перегон фикстуры Б.30 на новом срезе. Тот же <code>didOpen</code> текста <code>HUNGRY</code> (<code>tests/protocol.rs:109-112</code>) и наведение на <code>hoard</code>: карточка по-прежнему пишет <code>used 2 time(s)</code> при трёх написаниях <code>input</code> — захват внутри <code>format!("{input}")</code> употреблением не стал, потому что <code>format!</code> не проходит через <code>settle_hole_origins</code> (<code>collector/expansion.rs:34-36,49-60</code>); закрытие оговорки срезом <code>6c914a3</code> действует только для печатных и писательских макросов, что и закрепляет его тест на <code>println!</code> с двумя захватами (<code>behavior.rs:127-135</code>).</p>
+<p>Третья — цена наведения над настоящим деревом. <code>initialize</code> с <code>rootUri</code> корня этого репозитория — под ним 537 файлов <code>.rs</code> после <code>.gitignore</code>, — <code>didOpen</code> файла <code>crates/rustmanifest-lsp/src/server/snapshot.rs</code>, затем шесть наведений подряд на имя <code>path_of</code> (строка 77, колонка 15 в нумерации протокола): первый ответ 1.342 с — в нём сборка снапшота с диска, — последующие пять от 1.102 до 1.143 с; каждый отвечает карточкой <code>### `path_of`</code>. Замер одного дня на одной машине, без прогрева и статистики — порядок величины, не бенчмарк.</p>
+<p>Состояние проверок на HEAD <code>bc5e142</code>, всё собственными прогонами этого дня: <code>cargo test --workspace</code> — 44 строки результата, <span class="num">900</span> зелёных при нуле упавших (плюс два против <code>bf2b02f</code> — <code>an_inline_template_capture_counts_as_a_use</code> и четвёртый протокольный); <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 653 файла из 653; тулчейн — <code>rustc 1.97.1</code>. Базлайн корпуса: блоб <code>eval/baseline.json</code> одинаков у <code>bf2b02f</code> и <code>bc5e142</code> — <code>14ead88</code>, — но срез трогает движок фактов, и стабильность сверена живым перегоном: <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code> — «check passed: counts match baseline, budgets hold» по всем шести репозиториям, p95 0.39–1.02 мс; живые checkout aura-api и hydebar ушли с закреплённых ревизий, и харнесс проанализировал закреплённые через <code>git archive</code>, о чём предупредил в журнале прогона.</p>
+
+<h3><span class="sn">Б.32</span>История владения, порождённые impl-блоки, дефект derive, цена наведения и состояние проверок на срезе <code>7eb6c21</code> (2026-08-10)</h3>
+<p>Проба — тот же жанр, что Б.29—Б.31: скрипт поверх stdio кадрами <code>Content-Length</code>, бинарь собран из HEAD <code>7eb6c21</code> в release-профиле. Шесть частей.</p>
+<p>Первая — наведение на написанный вызов. <code>didOpen</code> фикстуры пятого протокольного теста (<code>tests/protocol.rs:373-374</code>) и <code>textDocument/hover</code> с позицией внутри <code>foo(s)</code>: карточка «### ownership at this call» с единственным шагом «<code>value: String</code> is taken by value, and <code>String</code> is not <code>Copy</code> — the value moves: the parameter owns it now, and the caller's name for it is unusable after this line» и заключением «calling <code>foo</code> moves 1 value(s) in» — дословно в 6.32. Наведение на имя <code>foo</code> в объявлении отвечает прежней карточкой фактов <code>### `foo`</code>. Финал: <code>shutdown</code> → <code>exit</code> → код выхода 0 за тысячные доли секунды.</p>
+<p>Вторая — история короче вызова. <code>didOpen</code> документа с <code>fn pack(name: String, bytes: &amp;[u8]) {}</code> и вызовом <code>pack(s, &amp;b)</code>, наведение внутрь вызова: один шаг — про <code>name</code>, — заключение «calling <code>pack</code> moves 1 value(s) in», второго шага нет: <code>bytes</code> отсутствует в параметровых фактах (<code>behavior/signature/parameter.rs:41-47</code>). Разбор — 6.32, границы; вопрос 23.</p>
+<p>Третья — команда и список действий. <code>didOpen</code> фикстуры <code>UNWRITTEN</code> (<code>tests/protocol.rs:461-462</code>); <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.implement", "arguments": ["Disk", "Sink"]}</code> отвечает блоком из 6.33 дословно, <code>flush</code> в нём нет; <code>["Disk", "Serialize"]</code> — <code>{"text": null}</code>. <code>textDocument/codeAction</code> на имени <code>Disk</code> — три заголовка: «implement Default for Disk», «implement Display for Disk», «implement Sink for Disk»; правка действия <code>Sink</code> едет как <code>documentChanges</code> по адресу того же документа с нулевым диапазоном на строке 5 — конец файла.</p>
+<p>Четвёртая — тела канона. <code>didOpen</code> документа <code>struct User { id: String, name: String, age: u8 }</code>; <code>["User", "Display"]</code> и <code>["User", "Default"]</code> отвечают телами из 6.33 дословно — помеченный список трёх полей у <code>write!</code> и <code>Self</code> поле за полем; <code>["User", "Sink"]</code> — <code>{"text": null}</code>: такого трейта в этом документе нет.</p>
+<p>Пятая — дефект derive. <code>didOpen</code> документа <code>#[derive(Default)]\nstruct Disk;</code>; команда <code>["Disk", "Default"]</code> отвечает <code>{"text": "impl Default for Disk {\n    fn default() -&gt; Self {\n        todo!()\n    }\n}"}</code>, а список действий на имени <code>Disk</code> предлагает «implement Default for Disk» и «implement Display for Disk» — derive написан, и ворота отказа его не читают. Разбор — 6.33, границы.</p>
+<p>Шестая — цена наведения над настоящим деревом, перезамер Б.31. <code>initialize</code> с <code>rootUri</code> корня этого репозитория — под ним 541 файл <code>.rs</code> после <code>.gitignore</code>, — <code>didOpen</code> файла <code>crates/rustmanifest-lsp/src/server/snapshot.rs</code>, четыре наведения подряд на вызов <code>build(…)</code> внутри <code>derived</code>: первый ответ 1.21 с — в нём сборка снапшота с диска и всех выводов, — последующие три меньше миллисекунды каждый; каждый отвечает секцией «### ownership at this call» с ведром unsettled у <code>root: Option</code> и заёмом у <code>documents: &amp;BTreeMap</code>. Замер одного дня на одной машине — порядок величины, не бенчмарк.</p>
+<p>Состояние проверок на HEAD <code>7eb6c21</code>, всё собственными прогонами этого дня: <code>cargo test --workspace</code> — 44 строки результата, <span class="num">926</span> зелёных при нуле упавших; <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 657 файлов из 657; тулчейн — <code>rustc 1.97.1</code>. Базлайн корпуса: блоб <code>eval/baseline.json</code> одинаков на всех семи коммитах <code>1492351</code>…<code>7eb6c21</code> — <code>14ead88</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>), — и живой перегон <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code> — «check passed: counts match baseline, budgets hold» по всем шести репозиториям, p95 0.44–1.04 мс; живые checkout aura-api и hydebar ушли с закреплённых ревизий, и харнесс проанализировал закреплённые через <code>git archive</code>, о чём предупредил в журнале прогона.</p>
+
+<h3><span class="sn">Б.33</span>Красный тест, красные ворота корпуса и разбор восьми находок по исходникам, состояние проверок на срезе <code>9cfa11f</code> (2026-08-10)</h3>
+<p>Жанр этого приложения иной, чем у Б.29—Б.32: не проба stdio, а четыре собственных прогона наборов и чтение чужих исходников — потому что главный результат среза отрицательный и живёт не на проводе, а в счётчиках.</p>
+<p>Первый прогон — полный тестовый, с <code>--no-fail-fast</code>, чтобы красный тест не оборвал счёт: <code>cargo test --workspace --no-fail-fast</code> — 44 строки результата, <span class="num">947</span> зелёных при одном красном. Красный — <code>hoist_fix_moves_the_clone_before_the_loop_and_rerun_is_clean</code> (<code>crates/rustmanifest-cli/tests/fix.rs:84-114</code>): тест строит дерево с выносимым из цикла клоном и требует от <code>check</code> находку <code>RM-MEM-002</code>; после захвата идентификатора проверка над этой фикстурой молчит, <code>check</code> отвечает <code>[]</code> с кодом 0, и харнесс падает с «Unexpected success». Без <code>--no-fail-fast</code> прогон обрывается на 7 строках из 44 — число «926 зелёных» прежних срезов этим тестом уже не воспроизводится.</p>
+<p>Второй и третий — <code>cargo clippy --workspace --all-targets</code> чист на прежних deny-уровнях; <code>reuse lint</code> — 661 файл из 661, соответствие REUSE 3.3.</p>
+<p>Четвёртый — живой перегон корпуса: <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code> кончается «check failed: 3 count drift(s), 0 budget breach(es)», дословные строки дрейфа: «count drift: repo fork-hyper rule RM-MEM-002: baseline 0, current 1», «…repo hydebar…: baseline 0, current 5», «…repo masterror…: baseline 0, current 2»; p95 на репозиторий 0.40–1.06 мс, живые checkout aura-api и hydebar дрейфанули, и харнесс проанализировал закреплённые ревизии через <code>git archive</code> с предупреждением в журнале.</p>
+<p>Разбор находок — <code>cargo run --release -p rustmanifest-cli -- check --format json &lt;checkout&gt;</code> по трём репозиториям и чтение байтовых диапазонов находок в исходниках. masterror и fork-hyper стоят на закреплённых ревизиях (<code>git rev-parse HEAD</code> сверен со строками <code>rev</code> в <code>eval/corpus.toml</code>), их находки — те самые из перегона; hydebar ушёл с закреплённой ревизии, живое дерево даёт 10 находок против 5 закреплённых, и его механика читана по живому дереву с этой оговоркой. Четыре механизма: masterror <code>src/app_error/core/builder.rs</code>, байты 10823-10832, — два блока под <code>#[cfg(feature = "backtrace")]</code> и <code>#[cfg(not(…))]</code>, движение <code>backtrace</code> в первом обличает употребление во втором; masterror <code>tests/error_derive.rs</code>, байты 21508-21514, — <code>.and_then(|source| source.downcast_ref…)</code> затеняет перемещённое <code>source</code> параметром замыкания; fork-hyper <code>src/proto/h2/mod.rs</code> — <code>let _ = kind;</code> под <code>cfg(not(feature = "client"))</code> против <code>matches!(kind, …)</code> под <code>cfg(feature = "client")</code>; hydebar — собственный <code>struct Layout(pub i32, pub LayoutProps, pub Vec&lt;Self&gt;)</code> (<code>core/src/services/tray/dbus/menu.rs:10</code>) отвечает за <code>Copy</code>-тип <code>iced::core::Layout</code> в <code>position_button/events.rs</code> и <code>tooltip/anchor/widget.rs</code>, а <code>let command: Arc&lt;str&gt; = Arc::from(command);</code> в <code>core/src/utils/hyde_shell.rs</code> не читается оживлением из-за типовой аннотации, и флагуется инлайн-захват <code>{command}</code> строкой ниже. Разбор — 6.34, границы; ни одна из восьми находок не защитима: все три репозитория компилируются.</p>
+<p>Состояние проверок на HEAD <code>9cfa11f</code>, всё собственными прогонами этого дня, — сводкой: тесты 947/948 при одном названном красном, clippy чист, REUSE 661/661, перегон корпуса красный тремя строками дрейфа выше; блоб базлайна <code>14ead88</code> одинаков на всех десяти коммитах <code>25036ea</code>…<code>9cfa11f</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>); тулчейн — <code>rustc 1.97.1</code>.</p>
+<h3><span class="sn">Б.34</span>Два перегона корпуса — красный на полпути и зелёный в конце, — чтение двух последних находок, проверка обёрток и состояние проверок на срезе <code>59c6c26</code> (2026-08-10)</h3>
+<p>Жанр — Б.33: не проба stdio, а собственные прогоны наборов и чтение чужих исходников. Оговорка метода прежде счётов: к моменту прогонов рабочее дерево главной копии уже несло коммит следующего среза, поэтому всё нижеследующее снято в чистой рабочей копии, поднятой <code>git worktree</code> на <code>59c6c26</code> и переключённой на <code>428acd1</code> для промежуточного перегона; главная копия не трогалась.</p>
+<p>Первый счёт — промежуточный перегон на <code>428acd1</code>, после четырёх починок <code>20d36e3</code> и до <code>2e182e1</code>: <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code> кончается «check failed: 2 count drift(s), 0 budget breach(es)», дословные строки дрейфа: «count drift: repo hydebar rule RM-MEM-004: baseline 0, current 1», «count drift: repo masterror rule RM-MEM-004: baseline 0, current 1». Чтение обеих находок: masterror стоит на закреплённой ревизии чистым (<code>git rev-parse HEAD</code> сверен со строкой <code>rev</code> в <code>eval/corpus.toml</code>) — <code>src/app_error/inline_vec.rs</code>, байты 13454-13457: <code>vec.into_iter()</code> двинул <code>vec</code>, находка стоит на <code>alloc::vec![1, 2]</code> внутри <code>assert_eq!</code>; hydebar читан без оговорки живого дерева — закреплённая ревизия материализована <code>git archive</code> в чистый каталог и прогнана <code>check --format json</code>: <code>crates/hydebar-core/src/components/icons/optical.rs</code>, байты 6340-6344, <code>let name: &amp;'static str = Box::leak(family.clone().into_boxed_str())</code>, и сообщение находки называет тип имени <code>Box</code> — догадка по конструктору поверх написанной аскрипции.</p>
+<p>Второй счёт — финальный перегон на <code>59c6c26</code>: «check passed: counts match baseline, budgets hold» по всем шести репозиториям; p95 — aura-api 0.64, entity-derive 0.74, fork-hyper 1.14, hydebar 0.73, masterror 1.02, ratma-studio-api 0.38 мс; живые checkout aura-api и hydebar ушли с закреплённых ревизий, и харнесс проанализировал закреплённые через <code>git archive</code> с предупреждением в журнале. Блоб <code>eval/baseline.json</code> одинаков на всех коммитах от <code>20d36e3</code> до <code>59c6c26</code> — <code>14ead88</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>).</p>
+<p>Третий счёт — воркспейс на <code>59c6c26</code>: <code>cargo test --workspace</code> — 44 строки результата, <span class="num">969</span> зелёных при нуле упавших; <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 683 файла из 683, соответствие REUSE 3.3. Возврат правила клона сверен байтово: <code>git diff</code> всех трёх файлов <code>RM-MEM-002</code> против <code>25036ea~1</code> — родителя захватившего коммита — пуст. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Четвёртый счёт — обёртки: <code>luac -p</code> по обоим lua-файлам — без ошибок; в <code>editors/vscode</code> <code>npm ci</code> по закоммиченному <code>package-lock.json</code> и компиляция строгим <code>tsc</code> — код выхода 0, <code>out/extension.js</code> собран. Сборка RustRover-плагина не выполнялась: нужны JDK и платформа IDE, шаг задокументирован его README как пользовательский.</p>
+<h3><span class="sn">Б.35</span>Наборы, перегон корпуса, синтез правки на до-правочном <code>ask.rs</code>, карточка с индексом и без, проба MCP-конверта и состояние проверок на срезе <code>0da8dc9</code> (2026-08-10)</h3>
+<p>Метод — Б.34: все счёты сняты в чистой рабочей копии <code>0da8dc9</code>, поднятой через <code>git worktree</code>; главная копия не трогалась. Пробные крейты — вне репозитория.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">980</span> зелёных при нуле упавших; сорок пятую строку добавил новый интеграционный набор <code>applied_fixes</code>. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 687 файлов из 687, соответствие REUSE 3.3.</p>
+<p>Второй счёт — перегон корпуса: <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code> кончается «check passed: counts match baseline, budgets hold» по всем шести репозиториям; p95 — aura-api 0.63, entity-derive 0.67, fork-hyper 1.08, hydebar 0.67, masterror 1.02, ratma-studio-api 0.38 мс; живые checkout aura-api и hydebar ушли с закреплённых ревизий, и харнесс проанализировал закреплённые через <code>git archive</code> с предупреждением в журнале. Блоб <code>eval/baseline.json</code> одинаков на всех десяти коммитах от <code>f6ce622</code> до <code>0da8dc9</code> — <code>14ead88</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>).</p>
+<p>Третий счёт — замкнутый круг 6.39: текст <code>ask.rs</code> среза <code>bd415c7</code> — состояния после поставки синтеза и до применения правки — материализован <code>git show</code> в пробный крейт и прогнан <code>check --format json</code> бинарём среза. Единственная находка <code>RM-IO-003</code> несёт одну правку: диапазон 1795–1808 — по байтам файла ровно <code>stdout.lock()</code>, — замена <code>std::io::BufWriter::new(stdout.lock())</code>, applicability maybe-incorrect; дифф коммита <code>b1f8742</code> меняет ровно этот текст на ровно эту замену.</p>
+<p>Четвёртый счёт — карточка типа 6.38, живой release-бинарь <code>rust-manifest</code> и проба stdio жанра Б.29 над пробным крейтом со структурой <code>User { id: String, name: String, age: u8 }</code>. Без индекса секция трейтов кончается строкой «auto traits (<code>Send</code>, <code>Sync</code>) and blanket impls are the compiler's answer — build its index (<code>cargo rustdoc -- --output-format json</code>) and the card will carry them». Индекс собран на закреплённом stable-тулчейне через <code>RUSTC_BOOTSTRAP=1 cargo rustdoc --lib -- --output-format json -Z unstable-options</code>; эмиссия несёт <code>format_version</code> 57 — тот же номер, что в закреплённой тестом эмиссии (<code>oracle.rs:140-146</code>). Повторное наведение тем же ходом: «✓ <code>Send</code> — the compiler's index (auto impl)», «✓ <code>Sync</code> — the compiler's index (auto impl)», невыполненные канонные трейты — «✗ … — the compiler's index lists no impl».</p>
+<p>Пятый счёт — MCP 6.40—6.41: проба через инструменты сервера, зарегистрированного у живого клиента, — <code>function_facts</code> по <code>crates/rustmanifest-cli/src/ask.rs</code> с фильтром <code>run_ask</code>. Ответ корится в объекте <code>{"facts": […]}</code>; обе записи ответа в фактах несут <code>"stream": "stdout"</code>, <code>"lock": "lock already held"</code>, <code>"buffering": "block"</code>; строки конвертов остальных инструментов закреплены conformance-тестом (<code>tests/stdio_conformance.rs:197</code>). Тулчейн — <code>rustc 1.97.1</code>.</p>
+
+<h3><span class="sn">Б.36</span>Пробы цепи дедукции и совещательного шага, живая перепись молчаний по собственному дереву и состояние проверок на срезе <code>ecad89f</code> (2026-08-10)</h3>
+<p>Метод — Б.34: все счёты сняты в чистой рабочей копии <code>ecad89f</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Пробный бинарь — крейт вне репозитория с path-зависимостью от <code>rustmanifest-engine</code> и <code>rustmanifest-learn</code>, жанр Б.22.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">998</span> зелёных при нуле упавших. Помодульно: <code>cargo test -p rustmanifest-engine --lib deduce</code> — 3, <code>--lib intents</code> — 3, <code>--lib emitted</code> — 4, <code>--lib montage</code> — 2; <code>cargo test -p rustmanifest-learn</code> — 8; юнит переписи — <code>suppressions_tell_the_used_from_the_stale</code>. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 692 файла из 692, соответствие REUSE 3.3. Блоб <code>eval/baseline.json</code> одинаков на обоих концах дуги — <code>14ead88</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Оговорка среза: <code>ecad89f</code> несёт манифест обучаемого крейта с новой зависимостью <code>rustmanifest-schema</code>, но закоммиченный <code>Cargo.lock</code> этой строки не несёт — первый же <code>cargo</code>-прогон в чистой копии дописывает её сам; счёты этой пробы сняты с таким локальным дописыванием. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — цепь намерения, дословный вывод пробного бинаря на фикстуре <code>User { name: String, age: u8 }</code> с <code>make()</code>, зовущей <code>User::default()</code>; строки <code>reason</code> шагов опущены, каждая — одна строка вида «reason: …» из 6.43:</p>
+<pre>intent: User wants Default | evidence: fn `make` calls `User::default`, which only `Default` can satisfy
+  step 0: fn `make` calls `User::default`, which only `Default` can satisfy
+  step 1: `User` is a declared struct with 2 recorded field(s)
+  step 2: `name: String` provably carries `Default`
+  step 3: `age: u8` provably carries `Default`
+  step 4: `User` does not yet carry `Default`
+  step 5: the catalog chooses the labeled-list form, fields in declaration order
+  step 6: the re-reading confirms `User` now carries `Default`, panic-free
+  conclusion: `User` gained `Default` by deduction: every step is a recorded fact
+  gain: implemented=Default panics=false effects=[]</pre>
+<p>Хвост установленного текста — <code>fn default()</code> с <code>Self { name: Default::default(), age: Default::default() }</code>. Отказ: <code>batch.to_string()</code> у <code>Batch { held: Vec&lt;String&gt; }</code> — цепь из трёх шагов, последний — «<code>held: Vec</code> does not provably carry <code>Display</code>», заключение — «the chain stops at <code>held</code>: an unproven field», gain: none. Совещательный шаг: на воркспейсе из 22 impl — двенадцать размеченных <code>WideN</code> и десять голых <code>SlimN</code> — пятым шагом цепи <code>User</code>/<code>Display</code> стоит «the workspace's own precedent (22 impl(s)) ranks `labeled-list` first and agrees with the catalog — clause: multi_field AND has_string_field», перечтение — panic-free.</p>
+<p>Третий счёт — перепись молчаний: живой бинарь <code>rustmanifest-mcp</code>, JSON-RPC поверх stdio из корня рабочей копии: <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/list</code> → <code>tools/call</code> <code>suppressions</code> с <code>{"path": "crates"}</code>. Список инструментов — девять, <code>suppressions</code> среди них; рукопожатие называет сервер <code>rust-manifest</code>. Ответ инструмента — за 6.1 секунды, две записи; поля дословно, пути записей — абсолютные пути рабочей копии, здесь приведены от корня репозитория: <code>crates/rustmanifest-engine/src/pragma.rs:9</code>, <code>RM-RULE-ID</code>, <code>used=false</code>, reason «why this is fine»; <code>crates/rustmanifest-engine/src/pragma.rs:158</code>, <code>RM-SEC-001</code>, <code>used=true</code>, reason «test fixture intentionally hardcodes a credential». Отрицательный результат метода — как данные: сценарная сессия жанра conformance-тестов, закрывающая stdin сразу после записи запросов, ответа не дождалась — сервер записал в журнал «timed out draining in-flight responses» и вышел; перепись по целому дереву не укладывается в дренаж после EOF, и проба перешла на сессию с открытым stdin до прихода ответа.</p>
+<h3><span class="sn">Б.37</span>Пробы цепи на обеих поверхностях, словаря каталога и секции вывода, состояние проверок на срезе <code>bf41d5e</code> (2026-08-10)</h3>
+<p>Метод — Б.34: все счёты сняты в чистой рабочей копии <code>bf41d5e</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Пробный бинарь цепей — крейт вне репозитория с path-зависимостью от <code>rustmanifest-engine</code> и <code>rustmanifest-learn</code>, жанр Б.22; пробный крейт MCP-сессии — тоже вне репозитория.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1012</span> зелёных при нуле упавших. Помодульно: <code>cargo test -p rustmanifest-engine --lib deduce</code> — 6, <code>--lib oracle</code> — 3, <code>--lib intents</code> — 3, <code>--lib emitted</code> — 4, <code>--lib montage</code> — 2; <code>cargo test -p rustmanifest-learn</code> — 9; <code>cargo test -p rustmanifest-lsp --test protocol</code> — 15, <code>--lib</code> — 4, три из них — секция вывода; <code>cargo test -p rustmanifest-mcp</code> — 25 юнитов и 12 conformance-тестов по живому бинарю. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 693 файла из 693, соответствие REUSE 3.3. Блоб <code>eval/baseline.json</code> одинаков на всех пяти коммитах дуги — <code>14ead88</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Оговорка Б.36 о локе снята: чистая копия собирается без локального дописывания, строка <code>rustmanifest-schema</code> закоммичена срезом <code>7c40389</code>. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — цепь намерения на фикстуре Б.36 (<code>User { name: String, age: u8 }</code> с <code>make()</code>, зовущей <code>User::default()</code>), дословный вывод пробного бинаря вместе с маркером:</p>
+<pre>conclusion: `User` gained `Default` by deduction: every step is a recorded fact
+  step 0: fn `make` calls `User::default`, which only `Default` can satisfy
+  step 1: `User` is a declared struct with 2 recorded field(s)
+  step 2: `name: String` provably carries `Default`
+  step 3: `age: u8` provably carries `Default`
+  step 4: `User` does not yet carry `Default`
+  step 5: the catalog chooses the field-by-field build: every field to its own default
+  step 6: the re-reading confirms `User` now carries `Default`, panic-free
+  catalog marker: step=4 form=field-by-field
+  gain: implemented=Default panics=false effects=[]</pre>
+<p>Пятый шаг говорит словарём <code>Default</code> — граница 6.43, записанная Б.36 строкой «labeled-list form», снята. Рядом отрицательный датум как данные: маркер называет <code>step=4</code>, а выбор напечатан пятым шагом — свидетельство, вставленное нулевым, сдвинуло цепь, но не маркер (вопрос 31).</p>
+<p>Третий счёт — совещательные цепи на воркспейсе из 22 impl Б.36. <code>User</code>/<code>Display</code>: семь шагов, маркер <code>step=4 form=labeled-list</code>, пятый шаг — «the workspace's own precedent (22 impl(s)) ranks `labeled-list` first and agrees with the catalog — clause: multi_field AND has_string_field», перечтение panic-free. <code>User</code>/<code>Default</code> на том же воркспейсе: шесть шагов, маркер <code>step=4 form=field-by-field</code>, ни одного шага со словом «precedent» — прецедент печати молчит на чужой способности, выигрыш подтверждён.</p>
+<p>Четвёртый счёт — цепь по проводу: живой бинарь <code>rustmanifest-mcp</code>, JSON-RPC поверх stdio из каталога пробного крейта с той же фикстурой, stdin открыт до прихода ответа (урок Б.36): <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/list</code> → <code>tools/call</code> <code>deduce_trait</code> с <code>{"path": "lib.rs", "type_name": "User", "trait_name": "Default"}</code>. Рукопожатие называет <code>rust-manifest</code>; инструментов десять, <code>deduce_trait</code> среди них; ответ за 0.9 секунды, <code>structuredContent</code> корится в объекте: <code>gained=true</code>, <code>panics=false</code>, шесть шагов с фактом и причиной на каждом, пятый — «the catalog chooses the field-by-field build: every field to its own default».</p>
+<p>Пятый счёт — секция вывода на живой карточке: бинарь <code>rust-manifest</code>, проба stdio жанра Б.29 — <code>didOpen</code> текста <code>fn shout() { println!("hi"); }</code> и <code>textDocument/hover</code> на имени функции. Карточка несёт строку «<strong>output</strong> — stdout: 1 write(s) with the stream's own buffering, lock taken at the site» и следом секцию эффектов; <code>shutdown</code>/<code>exit</code> — код 0.</p>
+<p>Шестой счёт — отрицательный, как данные: эмиссий rustdoc нет нигде — в чистой копии каталог <code>target/doc</code> отсутствует, в главном дереве под ним нет ни одного JSON, — поэтому слияние эмиссий и возраст индекса 6.48 живой эмиссией на этом дереве не пробовались: их держат юнит двух эмиссий (<code>oracle.rs:230</code>) и чтение <code>snapshot.rs</code>; жанр живой сборки индекса записан в Б.35.</p>
+
+<h3><span class="sn">Б.38</span>Пробы намерений на обеих поверхностях, сдвинутого маркера и украшенного заголовка, состояние проверок на срезе <code>a1b5526</code> (2026-08-10)</h3>
+<p>Метод — Б.34: все счёты сняты в чистой рабочей копии <code>a1b5526</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Пробный бинарь цепей — крейт вне репозитория с path-зависимостью от <code>rustmanifest-engine</code>, жанр Б.22; пробный крейт MCP — каталог вне репозитория с единственным <code>lib.rs</code>, дословно фикстурой <code>need.rs</code> conformance-стенда.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1016</span> зелёных при нуле упавших. Помодульно: <code>cargo test -p rustmanifest-engine --lib intents</code> — 4, <code>--lib deduce</code> — 6; <code>cargo test -p rustmanifest-lsp --test protocol</code> — 17, <code>--lib</code> — 4; <code>cargo test -p rustmanifest-mcp</code> — 25 юнитов и 13 conformance-тестов по живому бинарю. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 693 файла из 693, соответствие REUSE 3.3: дуга не добавила ни одного файла. Блоб <code>eval/baseline.json</code> одинаков на всех трёх коммитах дуги — <code>14ead88</code> (<code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — цепь намерения на фикстуре Б.36 (<code>User { name: String, age: u8 }</code> с <code>make()</code>, зовущей <code>User::default()</code>), дословный вывод пробного бинаря вместе с маркером:</p>
+<pre>conclusion: `User` gained `Default` by deduction: every step is a recorded fact
+  step 0: fn `make` calls `User::default`, which only `Default` can satisfy
+  step 1: `User` is a declared struct with 2 recorded field(s)
+  step 2: `name: String` provably carries `Default`
+  step 3: `age: u8` provably carries `Default`
+  step 4: `User` does not yet carry `Default`
+  step 5: the catalog chooses the field-by-field build: every field to its own default
+  step 6: the re-reading confirms `User` now carries `Default`, panic-free
+  catalog marker: step=5 form=field-by-field
+  gain: implemented=Default panics=false effects=[]</pre>
+<p>Маркер называет <code>step=5</code> — шаг, чей факт и есть выбор каталога. Отрицательный датум Б.37 — <code>step=4</code> при выборе, напечатанном пятым шагом, — закрыт на том же выводе, где был найден (вопрос 31, 6.49).</p>
+<p>Третий счёт — намерения по проводу: живой бинарь <code>rustmanifest-mcp</code>, JSON-RPC поверх stdio из каталога пробного крейта, stdin открыт до прихода ответа (урок Б.36): <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/list</code> → <code>tools/call</code> <code>derived_intents</code> с <code>{"path": "lib.rs"}</code>. Рукопожатие называет <code>rust-manifest</code>; инструментов одиннадцать, <code>derived_intents</code> среди них; ответ приходит быстрее десятой доли секунды, <code>structuredContent</code> корится в объекте: единственная запись — <code>type_name=Job</code>, <code>trait_name=Default</code>, <code>asked_by=make</code>, <code>call=Job::default</code>, свидетельство дословно — факт «fn `make` calls `Job::default`, which only `Default` can satisfy», причина «a written call is the author's stated intent».</p>
+<p>Четвёртый счёт — украшенный заголовок рядом с голым: бинарь <code>rust-manifest</code>, проба stdio жанра Б.29 — <code>didOpen</code> текста той же Job-фикстуры и <code>textDocument/codeAction</code> на имени типа. Ответ несёт три предложения: «implement Default for Job — fn make calls Job::default» — украшение стоит только там, где написанный вызов доказал нужду, — «implement Display for Job» голым заголовком и экстракцию «extract `job` into /demo/src/job.rs». Той же сессией <code>workspace/executeCommand</code> <code>rust-manifest.intents</code> с пустыми аргументами отвечает списком из одной записи с <code>asked_by</code> и <code>call</code>; <code>shutdown</code>/<code>exit</code> — код 0.</p>
+<p>Пятый счёт — границы как данные: спрашивающих вызовов в каталоге два — <code>default</code> и <code>to_string</code> (<code>intents.rs:45</code>), намерений другого рода срез не выводит; заголовок украшается только на курсоре имени типа; байтового диапазона свидетельство не несёт — на площадку вызова из ответа не прыгнуть ни одной поверхностью (вопрос 32).</p>
+
+<h3><span class="sn">Б.39</span>Пробы адреса свидетельства на обеих поверхностях, срез фикстуры байтами ответа и негативный датум CLI, состояние проверок на срезе <code>511191f</code> (2026-08-11)</h3>
+<p>Метод — Б.34: счёты сняты в чистой рабочей копии <code>511191f</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Живые сессии гнались установленными бинарями <code>rustmanifest</code>, <code>rustmanifest-mcp</code> и <code>rust-manifest</code>; их принадлежность срезу доказана самим ответом — поле <code>site</code> у записи намерения существует только с этого коммита. Пробный крейт — каталог вне репозитория с единственным <code>lib.rs</code>, дословно фикстурой <code>need.rs</code> conformance-стенда: <code>Job { name: String }</code> без <code>Default</code> и <code>make()</code>, зовущая <code>Job::default()</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1017</span> зелёных при нуле упавших. Помодульно: <code>cargo test -p rustmanifest-engine --lib intents</code> — 5, среди них новый <code>the_evidence_carries_the_calls_written_address</code>; <code>cargo test -p rustmanifest-lsp --test protocol</code> — 17; <code>cargo test -p rustmanifest-mcp</code> — 25 юнитов и 13 conformance-тестов по живому бинарю. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 693 файла из 693, соответствие REUSE 3.3. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse 511191f:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — намерение с адресом по проводу инструмента: JSON-RPC поверх stdio из каталога пробного крейта, stdin открыт до прихода ответа (урок Б.36): <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/list</code> → <code>tools/call</code> <code>derived_intents</code> с <code>{"path": "lib.rs"}</code>. Инструментов одиннадцать; единственная запись <code>structuredContent</code>, дословно — путь источника, абсолютный путь фикстуры, здесь сокращён:</p>
+<pre>"intents": [{"asked_by": "make", "call": "Job::default",
+  "evidence": {"fact": "fn `make` calls `Job::default`, which only `Default` can satisfy",
+               "reason": "a written call is the author's stated intent"},
+  "path": ".../lib.rs", "site": {"end": 83, "start": 69},
+  "trait_name": "Default", "type_name": "Job"}]</pre>
+<p>Третий счёт — срез по ответу: байты 69..83 текста фикстуры — дословно <code>Job::default()</code>, четырнадцать байт вызывающей конструкции, без отступа слева и без точки с запятой справа. Тот же срез тем же диапазоном делает conformance-тест на каждом прогоне (<code>stdio_conformance.rs:191-195</code>).</p>
+<p>Четвёртый счёт — адрес в диалекте редактора: бинарь <code>rust-manifest</code>, проба stdio жанра Б.29 — <code>didOpen</code> текста той же фикстуры под <code>file:///demo/src/lib.rs</code> и <code>workspace/executeCommand</code> <code>rust-manifest.intents</code> с пустыми аргументами. Ответ несёт ту же запись с <code>site</code> объектом протокола: <code>uri file:///demo/src/lib.rs</code>, диапазон от <code>{"line": 5, "character": 4}</code> до <code>{"line": 5, "character": 18}</code> — шестая строка текста и есть строка вызова, и позиции называют ту же конструкцию, что байты 69..83; <code>shutdown</code>/<code>exit</code> — код 0.</p>
+<p>Пятый счёт — негативный датум CLI: <code>rustmanifest --help</code> перечисляет команды от <code>ask</code> до <code>report</code> — слова intents среди них нет, жанр намерений на этой поверхности не выведен. Субстрат адреса при этом виден и здесь: <code>rustmanifest facts lib.rs</code> печатает у <code>make</code> площадку <code>{"candidate": "Job::default", "site": {"start": 69, "end": 83}}</code> — те же байты, что отвечают обе серверные поверхности.</p>
+
+<h3><span class="sn">Б.40</span>Пробы семейства <code>default</code> на живой цепи, молчание ниже ворот, написание <code>Self</code> в канале фактов и состояние проверок на срезе <code>bb0b7fc</code> (2026-08-11)</h3>
+<p>Метод — Б.34: счёты сняты в чистой рабочей копии <code>bb0b7fc</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Живые сессии гнались установленными бинарями <code>rust-manifest</code> и <code>rustmanifest</code>; принадлежность серверного бинаря срезу доказана самим ответом — совещательный шаг по написанным телам <code>default</code> существует только с этого коммита. Пробный воркспейс цепи — дословно фикстура юнита <code>a_written_default_precedent_advises_the_default_chain</code>: двенадцать <code>Wide{N} { name, age }</code> с телом <code>Self::fresh()</code>, десять <code>Slim{N} { name }</code> с литералом <code>Self { name: String::new() }</code>, целевой <code>User { name, age }</code> без <code>Default</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1023</span> зелёных при нуле упавших. Помодульно: <code>cargo test -p rustmanifest-learn</code> — 15, среди них четыре юнита семейств и оба новых совещательных — <code>a_written_default_precedent_advises_the_default_chain</code> и <code>a_widened_vector_raises_the_gate</code>. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 694 файла из 694, соответствие REUSE 3.3: единственный новый файл — <code>forms.rs</code>. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse bb0b7fc:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — цепь с противоречащим прецедентом: бинарь <code>rust-manifest</code>, проба stdio жанра Б.29 — <code>didOpen</code> текста фикстуры под <code>file:///demo/src/lib.rs</code> и <code>workspace/executeCommand</code> <code>rust-manifest.deduce</code> с <code>["User", "Default"]</code>. Ответ — заключение «<code>User</code> gained <code>Default</code> by deduction» и семь шагов; пятый и шестой дословно:</p>
+<pre>{"fact": "the catalog chooses the field-by-field build: every field to its own default",
+ "reason": "canonical forms are the catalog read forward"}
+{"fact": "the workspace's own precedent (22 impl(s)) ranks `delegating` first
+          and contradicts the catalog — clause: multi_field AND has_string_field",
+ "reason": "learned clauses describe the codebase; the catalog's choice stands"}</pre>
+<p>Совет стоит сразу за выбором, противоречие названо противоречием, и установка по-полевой формы состоялась — перечтение седьмым шагом подтверждает <code>Default</code> без паники; <code>shutdown</code>/<code>exit</code> — код 0.</p>
+<p>Третий счёт — молчание ниже ворот: та же сессия над воркспейсом без единого написанного тела <code>default</code> — фикстура <code>need.rs</code> conformance-стенда — даёт цепи <code>Job</code>/<code>Default</code> пять шагов, и ни один не содержит слова precedent: пул прецедента пуст, ворота не пройдены, совета нет. Молчание — данные, не отказ: выбор каталога и перечтение стоят как в любой цепи.</p>
+<p>Четвёртый счёт — написание <code>Self</code> в канале фактов: <code>rustmanifest facts</code> на двухфункциональной фикстуре печатает у ассоциированной <code>Slim::default</code> без получателя <code>constructs: ["Self"]</code>, у метода <code>Slim::touch</code> с получателем — <code>["Slim"]</code>: разрешение написания живёт только у получателя, и граница 6.52 снята живым каналом, не только чтением. Канал коммитом не тронут — датум показывает состояние, под которое построено чтение обоих написаний в <code>default_precedents</code>.</p>
+
+<h3><span class="sn">Б.41</span>Пробы двух маршрутов приземления, развёртка мест записи движка и состояние проверок на срезе <code>d3a61f7</code> (2026-08-11)</h3>
+<p>Метод — Б.34: счёты сняты в чистой рабочей копии <code>d3a61f7</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Коммит тестовый, бинари против <code>bb0b7fc</code> не менялись, поэтому принадлежность срезу доказана не ответом, а сборкой: серверный бинарь <code>rust-manifest</code> собран из самой рабочей копии, монтажная сторона снята пробным крейтом с path-зависимостью на движок копии — жанр Б.36. Фикстура обеих сторон — дословно <code>need.rs</code> conformance-стенда: <code>Job { name: String }</code> без <code>Default</code> и <code>make()</code>, зовущая <code>Job::default()</code>.</p>
+<p>Первый счёт — судья и наборы: <code>cargo test -p rustmanifest-engine --test applied_fixes</code> — 6 тестов, все зелёные, строка результата дословно «ok. 6 passed; 0 failed», поимённо среди них три новых — <code>an_installed_canon_impl_survives_the_compiler</code>, <code>an_installed_skeleton_compiles_with_its_panic_debt_open</code>, <code>every_fulfilled_intent_survives_the_compiler</code>. Полный прогон: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1026</span> зелёных при нуле упавших. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 694 файла из 694, соответствие REUSE 3.3: новых файлов нет. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse d3a61f7:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — правка редактора: проба stdio жанра Б.29 — <code>didOpen</code> текста фикстуры под <code>file:///demo/src/lib.rs</code> и <code>textDocument/codeAction</code> с позицией <code>{"line": 0, "character": 12}</code> на имени типа. Действий три — украшенное намерением «implement Default for Job — fn make calls Job::default», голое «implement Display for Job» и экстракция, — и правка первого несёт единственную вставку в <code>{"line": 7, "character": 0}</code>, конец файла; её <code>newText</code> — 122 байта, дословно:</p>
+<pre>\nimpl Default for Job {\n    fn default() -> Self {\n        Self {\n            name: Default::default(),\n        }\n    }\n}\n</pre>
+<p><code>shutdown</code>/<code>exit</code> — код 0.</p>
+<p>Третий счёт — монтажная сторона и байтовая сверка: пробный крейт печатает <code>install_impl(&amp;sources, 0, "Job", "Default")</code> — <code>panics=false</code>, и хвост установленного текста за текстом фикстуры — те же 122 байта. Оба полных текста записаны в файлы: текст фикстуры плюс <code>newText</code> правки против <code>gain.installed</code> монтажа — <code>cmp</code> молчит, SHA-256 обоих <code>d0db0baa…</code> — приземление байт в байт одно. Сам приземлённый текст отдан <code>rustc --edition 2024 --crate-type lib --emit metadata</code> — компилируется, тем же судом, каким харнесс судит каждую установку.</p>
+<p>Четвёртый счёт — развёртка мест записи: <code>grep -rn 'fs::write\|File::create\|OpenOptions' crates/rustmanifest-engine/src</code> — 18 строк в восьми файлах. Девять — записи тестовых модулей в собственные ложа (<code>cfg(test)</code> оркестратора, кэша и подрезки кэша), семь — строки-фикстуры внутри тестов, одна — строка таблицы знаний <code>method_effect.rs:40</code>, называющая чужой метод. Исполняемая запись вне тестов одна: <code>cache.rs:172</code>, сериализация кэша анализа. В модулях монтажа, установки, дедукции и намерений — ни одного попадания.</p>
+
+<h3><span class="sn">Б.42</span>Пробы диагностики намерения живой сессией, молчание на нажатии и состояние проверок на срезе <code>7638d9e</code> (2026-08-11)</h3>
+<p>Метод — Б.34: счёты сняты в чистой рабочей копии <code>7638d9e</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Живая сессия гналась установленным бинарём <code>rust-manifest</code>; принадлежность бинаря срезу доказана самим ответом — диагностика с кодом <code>intent</code> существует только с этого коммита. Фикстура — дословно текст протокольного теста (<code>tests/protocol.rs:1148-1149</code>): <code>Job { name: String }</code> без <code>Default</code> и <code>make()</code>, зовущая <code>Job::default()</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1027</span> зелёных при нуле упавших; <code>cargo test -p rustmanifest-lsp --test protocol</code> — 18 тестов, среди них новый <code>an_opened_document_with_a_written_intent_receives_its_diagnostic</code>. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 695 файлов из 695, соответствие REUSE 3.3: единственный новый файл — <code>server/intent.rs</code>. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse 7638d9e:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — первое извещение после открытия: проба stdio жанра Б.29 — <code>didOpen</code> фикстуры под <code>file:///demo/src/lib.rs</code>, и первым же извещением приходит <code>publishDiagnostics</code> с единственной диагностикой, дословно:</p>
+<pre>{"code": "intent", "source": "rust-manifest", "severity": 3,
+ "message": "fn `make` calls `Job::default`, which only `Default` can satisfy",
+ "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 18}},
+ "relatedInformation": [{"location": {"uri": "file:///demo/src/lib.rs",
+   "range": {"start": {"line": 0, "character": 11}, "end": {"line": 0, "character": 14}}},
+  "message": "`Job` is declared here, without `Default` —
+              the implement action is offered on its name"}]}</pre>
+<p>Диапазон — четырнадцать символов вызывающей конструкции на строке 5, та же площадка, что байтовый срез Б.39; связанная информация стоит на трёх символах имени типа на строке 0. Пофайловых находок у фикстуры нет — диагностика намерения и есть весь список.</p>
+<p>Третий счёт — молчание на нажатии как данные: <code>didChange</code> с тем же текстом переиздаёт пустой список — диагностики намерения нет, пофайловых находок у фикстуры нет, и клавиша не оплатила ни одного воркспейсного обхода; <code>didSave</code> с текстом возвращает ту же диагностику тем же диапазоном. Отрицательный результат — спроектированная граница 6.54, показанная живьём, не пропуск публикации; <code>shutdown</code>/<code>exit</code> — код 0.</p>
+
+<h3><span class="sn">Б.43</span>Пробы инварианта как диагностики над настоящим корнем, молчание на нажатии, согласие двух поверхностей и состояние проверок на срезе <code>1a16eb7</code> (2026-08-11)</h3>
+<p>Метод — Б.34: счёты сняты в чистой рабочей копии <code>1a16eb7</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Живая сессия гналась установленным бинарём <code>rust-manifest</code>; принадлежность бинаря срезу доказана самим ответом — диагностика с кодом объявленного инварианта существует только с этого коммита. Стенд — настоящий корень на диске, не виртуальный URI, дословно материал протокольного теста (<code>tests/protocol.rs:1193-1214</code>): каталог с <code>rustmanifest.toml</code>, объявляющим <code>WALLET-BALANCE</code> с <code>field = "Wallet.balance"</code> и <code>write-only-from = ["crate::ledger"]</code>, и тремя файлами — <code>lib.rs</code> с <code>Wallet</code>, законный писатель <code>post</code> в <code>ledger.rs</code>, нарушитель <code>hack</code> в <code>api.rs</code>. Путь стенда в дословном выводе ниже заменён на <code>&lt;корень&gt;</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1029</span> зелёных при нуле упавших; <code>cargo test -p rustmanifest-lsp --test protocol</code> — 19 тестов, среди них новый <code>a_declared_invariant_violation_receives_its_diagnostic_with_the_trace</code>; юнит контракта <code>a_precomputed_snapshot_judges_the_same_violation</code> зелен в движке. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 696 файлов из 696, соответствие REUSE 3.3: единственный новый файл — <code>server/invariant.rs</code>. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse 1a16eb7:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — первое извещение после открытия: проба stdio жанра Б.29, но <code>initialize</code> несёт <code>workspaceFolders</code> на корень стенда; после <code>didOpen</code> нарушающего <code>api.rs</code> первым же извещением приходит <code>publishDiagnostics</code> с единственной диагностикой, дословно:</p>
+<pre>{"code": "WALLET-BALANCE", "source": "rust-manifest", "severity": 1,
+ "message": "invariant violated: `hack` writes `Wallet.balance` from module
+   `crate::api`, but only [crate::ledger] may write it
+   • fn `hack` writes `Wallet.balance` — observed assignment or mutating call in the body
+   • fn `hack` lives in module `crate::api` — module graph maps its file to this path
+   • allowed writers: [crate::ledger] — module is not covered by any allowed prefix",
+ "range": {"start": {"line": 1, "character": 7}, "end": {"line": 1, "character": 11}},
+ "uri": "file://&lt;корень&gt;/src/api.rs"}</pre>
+<p>Диапазон — четыре символа имени <code>hack</code> на строке 1: сама нарушающая функция. Сообщение несёт трассу целиком — три шага, каждый строкой «факт — причина», те же три, что у пакетной находки 2.5 этого рода. Пофайловых находок у стенда нет — диагностика инварианта и есть весь список.</p>
+<p>Третий счёт — молчание на нажатии как данные: <code>didChange</code> с тем же текстом переиздаёт пустой список — диагностики инварианта нет, и клавиша не оплатила ни воркспейсного обхода, ни чтения конфигурации; <code>didSave</code> с текстом возвращает ту же диагностику тем же диапазоном. Тот же жанр спроектированного отсутствия, что Б.42; <code>shutdown</code>/<code>exit</code> — код 0.</p>
+<p>Четвёртый счёт — согласие двух поверхностей: <code>rustmanifest check --config &lt;корень&gt;/rustmanifest.toml --format json &lt;корень&gt;</code> установленным CLI над тем же стендом отвечает единственной находкой — <code>rule-id</code> <code>WALLET-BALANCE</code>, severity <code>error</code>, то же сообщение «invariant violated: `hack` writes `Wallet.balance` from module `crate::api`, but only [crate::ledger] may write it» и та же трасса теми же тремя шагами дословно; байтовый диапазон находки — 26–30, те же четыре символа <code>hack</code>, что диапазон диагностики. Одно объявление — два вердикта, совпавшие дословно: редактор показывает ровно то, что обеспечивает пакетная проверка.</p>
+
+<h3><span class="sn">Б.44</span>Пробы корпусного судьи над установками: живые вердикты обеих пород, воспроизведение обоих отказов против родительского среза и состояние проверок на срезе <code>5ae76c5</code> (2026-08-11)</h3>
+<p>Метод — Б.34: счёты сняты в чистой рабочей копии <code>5ae76c5</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Стенд судьи — копии деревьев корпуса entity-derive и masterror в рабочем каталоге страницы, со снятыми <code>target/</code> и <code>.git</code>; закреплённые checkouts не тронуты. Ревизии копий по снятому <code>.git</code> не доказуемы; все адреса файлов ниже прочитаны в самих копиях. Пути стендов в дословном выводе заменены на <code>&lt;копия&gt;</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1032</span> зелёных при нуле упавших; среди новых — <code>a_nested_declaration_carries_the_nesting_flag</code>, <code>a_type_declared_inside_an_inline_module_is_refused</code>, <code>a_generic_type_is_refused</code>. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 696 файлов из 696, соответствие REUSE 3.3. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse 5ae76c5:eval/baseline.json</code>); перегон корпуса на этом срезе не выполнялся. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — кандидаты движка среза на копии entity-derive: проба с path-зависимостью перечисляет пары «тип → способность» с подтверждённой перечтением установкой, первые строки дословно:</p>
+<pre>CANDIDATE  Pagination     Display  &lt;копия&gt;/crates/entity-core/src/lib.rs  panics=false
+CANDIDATE  SortDirection  Display  &lt;копия&gt;/crates/entity-core/src/lib.rs  panics=true
+CANDIDATE  EventKind      Display  &lt;копия&gt;/crates/entity-core/src/lib.rs  panics=true</pre>
+<p>В 248 перечисленных строках кандидатов — включая головные, из того самого <code>lib.rs</code>, где объявлен <code>Patch</code>, — ни <code>Patch</code>, ни <code>PolicyError</code> нет; точечная просьба приземлить любую из двух пар кончается отказом движка — <code>install_impl</code> возвращает <code>None</code>, и проба валится собственным <code>expect("an install the reading confirms")</code>. Отсутствие — данные: лжецы больше не кандидаты.</p>
+<p>Третий счёт — живые вердикты приёма: приземление подтверждённой установки <code>Pagination</code> + <code>Display</code> в копию — в конец <code>crates/entity-core/src/lib.rs</code> дописаны шесть строк:</p>
+<pre>impl std::fmt::Display for Pagination {
+    fn fmt(&amp;self, out: &amp;mut std::fmt::Formatter&lt;'_&gt;) -&gt; std::fmt::Result {
+        write!(out, "limit: {}, offset: {}", self.limit, self.offset)
+    }
+}</pre>
+<p>— и <code>cargo check --workspace --offline</code> в копии отвечает «Finished» с кодом 0; файл восстановлен. Тот же протокол на копии masterror: <code>CreateUserRequest</code> + <code>Display</code> в <code>examples/axum-rest-api/src/lib.rs</code> — код 0, файл восстановлен. Первый выбранный кандидат masterror лёг в файл бенчмарка, которого <code>cargo check --workspace</code> не компилирует, — тот вердикт отброшен как пустой, и засчитан только кандидат из библиотечной цели.</p>
+<p>Четвёртый счёт — воспроизведение обоих отказов: та же проба, пересобранная против рабочей копии родительского среза <code>d84695c</code>, обе установки подтверждает — <code>LANDED</code>, ложь перечтения до починки, — и настоящая сборка копии отвечает дословно:</p>
+<pre>error[E0425]: cannot find type `Patch` in this scope
+   --&gt; crates/entity-core/src/lib.rs:634:28
+
+error[E0107]: missing generics for enum `PolicyError`
+   --&gt; crates/entity-core/src/policy.rs:151:18
+    |
+151 | impl Default for PolicyError {
+    |                  ^^^^^^^^^^^ expected 2 generic arguments</pre>
+<p>Оба файла восстановлены после вердикта. Полные счёты трёх прогонов дня — семь кандидатов с одним отказом <code>Patch</code>, двадцать с одним отказом <code>PolicyError</code> после первой починки, тридцать из тридцати и пятнадцать из пятнадцати после обеих — протокольная запись; страница их целиком не перегоняла, обе породы вердиктов подтверждены выборочными живыми прогонами выше.</p>
+
+<h3><span class="sn">Б.45</span>Пробы корпусного судьи над оставшимися деревьями: список кандидатов без лжецов, живые приёмы на четырёх деревьях, воспроизведение E0119 против до-починочного среза и опустошение вердиктов fork-hyper на срезе <code>d49c50f</code> (2026-08-11)</h3>
+<p>Метод — Б.44: счёты сняты в чистой рабочей копии <code>d49c50f</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Стенд судьи — копии деревьев корпуса aura-api, hydebar, ratma-studio-api и fork-hyper в дисковом кеш-каталоге, куда они переехали после переполнения tmpfs; закреплённые checkouts не тронуты, ревизии копий по снятому <code>.git</code> не доказуемы, адреса файлов прочитаны в самих копиях. Пути копий в дословном выводе заменены на <code>&lt;копия&gt;</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1034</span> зелёных при нуле упавших; среди новых — <code>an_error_derive_grants_display_and_refuses_the_install</code>, <code>an_error_derive_leaves_no_display_intent</code>. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 696 файлов из 696, соответствие REUSE 3.3. Блоб <code>eval/baseline.json</code> тот же <code>14ead88</code> (<code>git rev-parse d49c50f:eval/baseline.json</code>). Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — кандидаты движка среза на копии aura-api, пересобранная проба, первые строки дословно:</p>
+<pre>CANDIDATE  MailError      Default  &lt;копия&gt;/crates/mail/src/lib.rs      panics=true
+CANDIDATE  OutboundEmail  Display  &lt;копия&gt;/crates/mail/src/lib.rs      panics=true
+CANDIDATE  PayError       Default  &lt;копия&gt;/crates/payments/src/lib.rs  panics=true</pre>
+<p>В пятнадцати строках списка ни <code>MailError</code> + <code>Display</code>, ни <code>PayError</code> + <code>Display</code> нет, а оба типа стоят кандидатами на <code>Default</code>: отказ адресный — по способности, не по типу. Точечная просьба приземлить любую из двух пар кончается отказом движка — <code>install_impl</code> возвращает <code>None</code>, и проба валится собственным <code>expect("an install the reading confirms")</code>.</p>
+<p>Третий счёт — живые вердикты приёма, по одному на дерево, каждый файл восстановлен после вердикта: <code>OutboundEmail</code> + <code>Display</code> в <code>crates/mail/src/lib.rs</code> копии aura-api — <code>cargo check --workspace --offline</code> отвечает «Finished» с кодом 0; <code>AppState</code> + <code>Display</code> в <code>src/builder.rs</code> копии ratma-studio-api — код 0; <code>Args</code> + <code>Display</code> в <code>app/src/application.rs</code> копии hydebar — код 0. На копии hydebar страница заодно перепроверила чтением довод о времени её прогона: <code>MainError</code> в <code>app/src/error.rs</code> не несёт дерива <code>Error</code> — <code>#[derive(Debug)]</code> и написанный руками <code>impl Display</code>, — так что error-деривных кандидатов у прогона до третьей починки не было.</p>
+<p>Четвёртый счёт — воспроизведение третьего улова: та же проба, пересобранная против рабочей копии до-починочного среза <code>5ae76c5</code> (<code>git worktree add</code>), установку <code>MailError</code> + <code>Display</code> подтверждает — <code>LANDED</code>, ложь перечтения, — и настоящая сборка копии отвечает дословно:</p>
+<pre>error[E0119]: conflicting implementations of trait `std::fmt::Display` for type `MailError`
+  --&gt; crates/mail/src/lib.rs:25:17
+   |
+25 | #[derive(Debug, thiserror::Error)]
+   |                 ^^^^^^^^^^^^^^^^ conflicting implementation for `MailError`</pre>
+<p>Файл восстановлен после вердикта. Отказ <code>PayError</code> + <code>Display</code> того же класса дословно не перегонялся — протокольная запись дня; его отсутствие в списке кандидатов движка среза снято живьём вторым счётом.</p>
+<p>Пятый счёт — опустошение вердиктов fork-hyper. Все десять судимых кандидатов копии лежат в <code>benches/</code> и <code>examples/</code>; заведомо не-Rust строка, дописанная в <code>examples/client_json.rs</code>, проходит <code>cargo check --workspace --offline</code> зелёной с кодом 0 — эти цели протокол дня не компилировал. В самой копии при этом стояло не восстановленное приземление прежнего прогона — скелет <code>impl std::fmt::Display for TokioExecutor</code> с телом <code>todo!()</code> в <code>benches/support/tokiort.rs</code>, — переживший проверки незамеченным; после снятия счёта он из копии вычеркнут. Настоящий канал: <code>cargo check --offline --features full --examples</code> ту же не-Rust строку отвергает — «error: could not compile <code>hyper</code> (example "client_json")», — а живое приземление <code>User</code> + <code>Display</code> в тот же файл принимает с кодом 0; файл восстановлен. Бенчи недостижимы и этим каналом: на stable их валит собственный <code>#![feature]</code> — «error[E0554]: <code>#![feature]</code> may not be used on the stable release channel».</p>
+
+<h3><span class="sn">Б.46</span>Пробы экстракционного судьи: наборы, живое перечисление планов, живое приземление с настоящей сборкой и живой отказ на срезе <code>f5db05f</code> (2026-08-11)</h3>
+<p>Метод — Б.44 и Б.45: счёты сняты в чистой рабочей копии <code>f5db05f</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Стенд судьи прежний — копии деревьев корпуса на стенде страницы и в дисковом кеш-каталоге; проба с path-зависимостью от движка выросла режимами перечисления планов экстракции и приземления одного плана.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1039</span> зелёных при нуле упавших; среди новых — <code>a_public_reexport_survives_the_import_pruning</code>, <code>an_async_helper_promotes_before_its_qualifier</code>, <code>a_foreign_ability_call_refuses_the_move</code>, <code>a_flat_target_file_refuses_the_move</code>, <code>the_reexport_carries_the_written_visibility</code>; отфильтрованный прогон пяти имён — 5 из 5. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 696 файлов из 696, соответствие REUSE 3.3. Временные метки установленных бинарей моложе коммита <code>f5db05f</code>. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — живое перечисление планов на копии entity-derive, первые строки дословно:</p>
+<pre>XCANDIDATE  const_str_eq   &lt;копия&gt;/crates/entity-core/src/lib.rs     …/src/const_str_eq.rs
+XCANDIDATE  process_rows   &lt;копия&gt;/crates/entity-core/src/outbox.rs  …/src/outbox/process_rows.rs
+XCANDIDATE  backoff_delay  &lt;копия&gt;/crates/entity-core/src/outbox.rs  …/src/outbox/backoff_delay.rs</pre>
+<p>Третий счёт — живое приземление <code>backoff_delay</code> в копию entity-derive: проба отвечает <code>XLANDED</code> с обоими адресами — правленный <code>outbox.rs</code> и новый <code>outbox/backoff_delay.rs</code>, — а <code>cargo check --workspace --offline</code> в копии проходит оба крейта и отвечает <code>Finished</code> с кодом 0. Старый файл восстановлен, файл модуля снят, пустой каталог убран.</p>
+<p>Четвёртый счёт — живой отказ: та же проба именем <code>tick</code> на копии ratma-studio-api умирает на ожидании плана — движок не выдаёт плана функции в файле прямо под <code>src/bin</code>; в копию не записано ничего, отказ случается до всякого приземления.</p>
+<p>Пятый счёт — история уловов: пять цитат компилятора (E0432, «expected one of … found keyword <code>pub</code>», E0599, E0583 с E0433, E0364) — протокольная запись дня; первые три сняты движком <code>f743b20</code>, четвёртая и пятая — промежуточными состояниями между <code>0dba57f</code> и <code>f5db05f</code>. Дословно они не перегонялись: каждая закреплена тестом первого счёта и доком своей починки, а по одному представителю каждого исхода — приём и отказ — перепроверено заживо счётами выше.</p>
+
+<h3><span class="sn">Б.47</span>Пробы второй формы вопросного слоя: наборы и живая stdio-сессия команды <code>whence</code> на срезе <code>9429b81</code> (2026-08-11)</h3>
+<p>Метод — жанр Б.29 поверх дисциплины срезов: наборы сняты в чистой рабочей копии <code>9429b81</code>, поднятой через <code>git worktree</code>, главная копия не тронута; живая сессия говорит не со сборкой из копии, а с установленным бинарём <code>rust-manifest</code>, чьи временные метки моложе коммита, — тем самым, что обслуживает машину.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1045</span> зелёных при нуле упавших; среди новых — <code>a_written_value_answers_as_itself</code>, <code>a_called_value_is_restated_across_the_call</code>, <code>an_input_stays_the_free_variable</code>, <code>an_ambiguous_name_is_refused_with_files</code>, <code>a_function_handing_nothing_back_says_so</code> и протокольный <code>the_whence_command_restates_the_value_across_calls</code>; отфильтрованные прогоны — 5 из 5 юнитов и 1 из 1. <code>cargo clippy --workspace --all-targets</code> — чисто; <code>reuse lint</code> — 697 файлов из 697, соответствие REUSE 3.3. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — живая сессия поверх stdio: <code>initialize</code> → <code>initialized</code> → <code>didOpen</code> фикстуры из двух функций — <code>seed</code> отдаёт литерал <code>7</code>, <code>make</code> отдаёт <code>seed()</code>. Список команд в ответе <code>initialize</code> несёт пять имён, пятое — <code>rust-manifest.whence</code>. <code>workspace/executeCommand</code> c <code>{"command": "rust-manifest.whence", "arguments": ["make"]}</code> отвечает дословно:</p>
+<pre>"conclusion": "`make` hands back the written value 7"
+"fact": "`make` records 1 position(s) handing a value back"
+"fact": "position 0 at bytes 55..61 draws from the value `seed` hands back"
+"fact": "restated across calls, position 0 hands back the written value 7"</pre>
+<p>Байты 55..61 сверены с фикстурой: диапазон режет ровно написанный вызов <code>seed()</code> — цитата площадки есть место, не пересказ. Заключение и третий шаг называют написанное значение вызываемого — пересказ сквозь вызов, обещанный доком модуля, стоит в живом ответе.</p>
+<p>Третий счёт — живой отказ: та же сессия, <code>whence</code> с аргументом <code>["nowhere"]</code> — «no function named <code>nowhere</code> is recorded» при пустом списке шагов; выдумки нет, различить отказ от ответа скрипту по-прежнему нечем — код процесса тут ни при чём: <code>shutdown</code> → <code>exit</code> завершают сессию кодом 0, и это код жизненного цикла сервера, не ответа (второй долг вопроса 20, 6.59).</p>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html" aria-current="page"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="s11">
+<h2><span class="sn">11</span>Что обобщается</h2>
+<p>Выводы изложены без имён из разобранного случая.</p>
+<p><strong>1. Точность покупается молчанием — сделайте молчание проверяемым.</strong> Инструмент статического вывода честен не тогда, когда мало ошибается, а когда различает «нарушения нет» и «нарушение недоказуемо» и второе умеет показать. Каждое закрытие класса шума записывайте как данные в коде правила, а не как ветку в условии: тогда исключение можно ревьюить, датировать и оспорить.</p>
+<p><strong>2. В выводимом графе ложное ребро хуже отсутствующего.</strong> На графе всегда вырастают потребители — транзитивные замыкания, стратификации, приговоры о мёртвом, — и каждый умножает ошибку ребра, снабжая её убедительным обоснованием. Правило «связь только при единственном совпадении» плюс явный счётчик неразрешённого — дешёвая страховка от целого класса каскадных ложных находок.</p>
+<p><strong>3. Циклы помечайте до ранжирования.</strong> Любая метрика глубины, пущенная релаксацией сквозь взаимные зависимости, произведёт числа, которые выглядят как архитектура и являются артефактом обхода. Сначала найдите неранжируемое, объявите его неранжируемым, и только потом меряйте остальное.</p>
+<p><strong>4. Обучаемый слой пропускайте через ворота против тривиального базлайна на идентичных признаках.</strong> И помните, чем являются метки: выведенные из той же базы фактов, они измеряют выразимость модели, а не её способность открывать. Смешение этих двух замеров — самый лёгкий способ соврать себе красивым числом.</p>
+<p><strong>5. У каждого отпечатка есть гранулярность — запишите её рядом с отпечатком.</strong> Хеш «что трогается» доказывает тождество ровно до границы «что делается»; пока граница записана, отпечаток — инструмент, как только забыта — источник тихих ложных тождеств.</p>
+<p><strong>6. Правка, пересекающая файлы, обязана нести адрес.</strong> Смещения без файла — дефект схемы, который отладка находит поздно и больно; адрес в самой структуре правки делает ошибку непредставимой — тот же приём, что новый тип вместо списка запретов.</p>
+<p><strong>7. Гоняйте инструмент по нему самому раньше, чем по чужому коду.</strong> Самоприменение — самый дешёвый источник настоящих регрессий: собственные циклы, мис-адресации, открытые вопросы. Инструмент, который заставил измениться собственный код, заслуживает доверия быстрее, чем инструмент с идеальным бенчмарком.</p>
+<p><strong>8. Ложное срабатывание чините на уровне фактов, а не правил.</strong> Исключение в условии правила гасит один симптом и оставляет остальным потребителям фактов ту же грубую картину мира; новый примитивный факт чинит причину всюду сразу и превращает починку в данные, которые можно цитировать, тестировать и оспаривать. Если поправка не выражается как факт, вы ещё не поняли, что именно увидели.</p>
+<p><strong>9. Улучшение зрения инструмента — регрессионное событие; закрепите базлайн, чтобы это видеть.</strong> Новая способность понимать порождает и новые находки, и смерть старых артефактов, и без точного сравнения с закреплённым базлайном до благословения оба сдвига неотличимы от шума. Метрика, упавшая от честности, — это рост; записывайте падение вместе с объяснением, а не подкручивайте метрику обратно.</p>
+<p><strong>10. Слой точности меряйте вердиктами, а не рёбрами.</strong> Прирост рёбер, доля совпадения с эталоном, процент покрытия — свойства промежуточного представления, и ни одно из них не говорит, стал ли инструмент полезнее. Между графом и вердиктом стоит замыкание, которое умножает одно плохое ребро на десятки находок с убедительным обоснованием, поэтому оценка слоя начинается с самого короткого вывода, обязанного этому слою, прочитанного прыжок за прыжком по исходнику. Разбор одной трассы стоит меньше прогона по корпусу и способен отменить вывод, который прогон по корпусу подтверждал.</p>
+<p><strong>11. Область видимости — часть резолюции имён, а не деталь системы сборки.</strong> Единица компиляции решает, какие имена вообще могут встретиться в одном выводе, и резолвер, который этого не знает, связывает невозможное с полной уверенностью. Фильтр по достижимости обязан стоять перед решением о единственности: после него он уже опоздал, потому что единственность посчитана по множеству, часть которого для вызывающего не существует.</p>
+<p><strong>12. Форма канала решает, какие утверждения выразимы; неверную форму не чинят переименованием.</strong> Отсортированное дедуплицированное множество не научится нести порядок, кратность и полезную нагрузку, сколько ни расщепляй его элементы, — расщепление покупает ярлык и платит за него длиной вектора признаков, воспроизводимостью обучаемого слоя, молчаливыми совпадениями пользовательских правил и байтовой стабильностью базлайна. Прежде чем чинить категорию, выпишите целевое предложение целиком и посмотрите, какие его слова канал не может выразить в принципе; если таких слов больше одного, нужен новый канал, а старый остаётся грубым сводным ярлыком с записанным сроком вывода из обращения.</p>
+<p><strong>13. Уверенность — это вектор, и сворачивать его в число значит стирать ровно то, что спрашивают.</strong> «Исполняется ли на каждом пути через свою функцию» и «достигается ли эта функция от точки входа» — независимые свойства с разными свидетельствами и разной ценой ошибки. Одно число вместо двух не даёт читателю ни починить слабое место, ни оспорить вывод: он видит «0.6» вместо «под веткой» или «через цепочку вызовов, которая может не сработать». Складывайте оси слабейшей, храните раздельно, а деградацию заявления делайте по полям — тогда просевшее поле само себя называет.</p>
+<p><strong>14. Счётчик честности проверяет только те способы солгать, которые вы уже придумали.</strong> Восстановление, объявившее «динамическое считаю, неразрешимое записываю, тихо не выбрасываю ничего», выбрасывало тихо целый класс — регистрации под условием, — потому что счётчики покрывали модель предметной области, а дыра сидела в полноте обхода синтаксиса. Внутренний контроль такое не ловит по построению: он смотрит туда, куда смотрел автор. Ловит первая сверка с эталоном, объявленным самим анализируемым проектом для собственных нужд, — и она же показывает, что эталон беднее кода, поэтому её нельзя читать как замер точности в одну сторону. Правильная защита сильнее счётчика: отказывать по умолчанию на всём неперечисленном, что содержит знакомый вызов, — тогда незнание превращается в строку отчёта без знания о том, чего именно вы не знаете.</p>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

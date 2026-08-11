@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html" aria-current="page"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="apA">
+<h2><span class="sn">А</span>Приложение А: указатель доказательств</h2>
+<p>Каждое несущее утверждение с местом, которое его устанавливает. Пути — от корня репозитория, строки — на <code>cabc917</code>. Журнальные утверждения адресуются в коммит журнала; замеры — в приложение Б.</p>
+<div class="tbl"><table>
+<thead><tr><th>Утверждение</th><th>Доказательство</th></tr></thead>
+<tbody>
+<tr><td>Три яруса анализа объявлены в корне движка</td><td><code>crates/rustmanifest-engine/src/lib.rs:4-16</code></td></tr>
+<tr><td>Единая проекция фактов для CLI и MCP</td><td><code>crates/rustmanifest-engine/src/facts_export.rs:4-9</code></td></tr>
+<tr><td>Таксономия читающих глаголов — данные</td><td><code>crates/rustmanifest-engine/src/semantic/naming.rs:25</code></td></tr>
+<tr><td>Наблюдательные эффекты не ломают обещание чтения</td><td><code>crates/rustmanifest-engine/src/semantic/naming.rs:27-30</code></td></tr>
+<tr><td>Недоказанные записи «?.» отфильтрованы; тесты и trait-impl исключены; <code>_mut</code> снимает обещание</td><td><code>crates/rustmanifest-engine/src/semantic/naming.rs:37-39,46,101-103</code></td></tr>
+<tr><td>Трасса «обещание → наблюдение → противоречие»</td><td><code>crates/rustmanifest-engine/src/semantic/naming.rs:74-87</code></td></tr>
+<tr><td>Мёртвое: полное упоминание, макро-токены, атрибуты, use-листья; проза doc — не упоминание</td><td><code>crates/rustmanifest-engine/src/semantic/dead.rs:12-14,124-163</code></td></tr>
+<tr><td>Сирота ≠ мёртвое: недостижимый файл — другой диагноз</td><td><code>crates/rustmanifest-engine/src/semantic/dead.rs:66-68,234-240</code></td></tr>
+<tr><td>Страж смирения сироты: упоминание у родителя — молчание</td><td><code>crates/rustmanifest-engine/src/semantic/orphan.rs:18-21,63-65</code></td></tr>
+<tr><td>Кандидаты родителя: именованный файл каталога → корень → <code>mod.rs</code></td><td><code>crates/rustmanifest-engine/src/semantic/orphan.rs:116-129</code></td></tr>
+<tr><td>Правка сироты адресована в файл родителя, помечена «может быть неверна»</td><td><code>crates/rustmanifest-engine/src/semantic/orphan.rs:90-99,177-194</code></td></tr>
+<tr><td>Резолвер знает монтирование <code>#[path = "..."]</code></td><td><code>crates/rustmanifest-engine/src/semantic/module_graph/builder.rs:162-181</code></td></tr>
+<tr><td>Ребро вызова — только при единственном совпадении</td><td><code>crates/rustmanifest-engine/src/semantic/calls.rs:7-11,156-162</code></td></tr>
+<tr><td>Крейт- и модульные имена как квалификаторы разрешения</td><td><code>crates/rustmanifest-engine/src/semantic/calls.rs:26-31,144-150</code></td></tr>
+<tr><td>Эффекты замыкаются до неподвижной точки</td><td><code>crates/rustmanifest-engine/src/semantic/calls.rs:13-16,186-192</code></td></tr>
+<tr><td>Вёдра «внешний» и «неизвестный получатель» в графе вызовов</td><td><code>crates/rustmanifest-engine/src/semantic/calls.rs:68-73,163-171</code></td></tr>
+<tr><td>Бухгалтерия кандидатов вызовов в отчёте покрытия: поля, доли, рендер</td><td><code>crates/rustmanifest-engine/src/semantic/coverage.rs:88-97,132-148</code>; <code>crates/rustmanifest-cli/src/coverage.rs:221-233</code></td></tr>
+<tr><td>Таблица возвратов: ассоциированные фабрики <code>Type::name</code>, конфликт роняет ключ</td><td><code>crates/rustmanifest-engine/src/semantic/behavior.rs:186-248</code></td></tr>
+<tr><td><code>Result</code>/<code>Option</code> несут тип успеха, <code>Self</code> разрешается во владельца</td><td><code>crates/rustmanifest-engine/src/semantic/behavior.rs:250-293</code></td></tr>
+<tr><td><code>?</code> и <code>.await</code> видятся насквозь при типизации инициализатора</td><td><code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:104-150</code></td></tr>
+<tr><td>Свежесть биндинга: конструирование в теле, раскол запись/сборка, перепривязка возвращает записи</td><td><code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:32-33,71-86,239-268</code></td></tr>
+<tr><td>Поле <code>builds</code> в фактах и в канонической проекции</td><td><code>crates/rustmanifest-engine/src/semantic/behavior/types.rs:145-147</code>; <code>crates/rustmanifest-engine/src/facts_export.rs:75</code></td></tr>
+<tr><td>Правило имени читает записи, не сборки</td><td><code>crates/rustmanifest-engine/src/semantic/naming.rs:43-46</code></td></tr>
+<tr><td>Сборщик классифицируется конструктором</td><td><code>crates/rustmanifest-engine/src/semantic/role.rs:72-74</code></td></tr>
+<tr><td>Синтез документации: «Creates a new [<code>Тип</code>]» для сборщика; тест доверия телу, не имени</td><td><code>crates/rustmanifest-engine/src/semantic/doc_synth.rs:87-101,198-212</code></td></tr>
+<tr><td>Термометр <code>builds</code> в признаках; вектор из 40 закреплён тестом</td><td><code>crates/rustmanifest-engine/src/semantic/features.rs:36,90-94,187</code></td></tr>
+<tr><td>Тест «геттер собирает возврат»: сборка, не запись</td><td><code>crates/rustmanifest-engine/src/semantic/behavior.rs:533-544</code></td></tr>
+<tr><td>Таблица полей структур; типизация получателя <code>self.field</code></td><td><code>crates/rustmanifest-engine/src/semantic/behavior.rs:134-175</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:309-320</code></td></tr>
+<tr><td>Транзитивные запреты с цепочкой вызовов в трассе</td><td><code>crates/rustmanifest-engine/src/semantic/invariant.rs:13-17,178-201</code></td></tr>
+<tr><td>Схема инварианта: <code>effect</code> + <code>deny-in</code>, <code>field</code> + <code>write-only-from</code></td><td><code>crates/rustmanifest-schema/src/lib.rs:198-215</code></td></tr>
+<tr><td>Слои: глубина по ациклической цепочке; запутанное без ранга</td><td><code>crates/rustmanifest-engine/src/semantic/layers.rs:8-12,61-75</code></td></tr>
+<tr><td>Отпечаток хеширует поведение без имени; состав перечислен</td><td><code>crates/rustmanifest-engine/src/semantic/fingerprint.rs:6-11,32-53</code></td></tr>
+<tr><td>Переименование доказывается уникальным совпадением с обеих сторон</td><td><code>crates/rustmanifest-engine/src/semantic/rename_detect.rs:6-10</code></td></tr>
+<tr><td>Правка несёт адрес файла; пусто — файл находки</td><td><code>crates/rustmanifest-schema/src/lib.rs:112-114</code></td></tr>
+<tr><td>Межфайловая правка вызывающего — сквозной тест</td><td><code>crates/rustmanifest-cli/tests/fix.rs:150</code>; ворота синтеза — <code>crates/rustmanifest-engine/src/semantic/borrow_fix.rs:8-16</code></td></tr>
+<tr><td>Пять сквозных тестов «нашёл → починил → доказал тишину»</td><td><code>crates/rustmanifest-cli/tests/fix.rs:35,48,84,129,150</code></td></tr>
+<tr><td>База знаний std: 26 Copy-типов, 31 мутирующий метод — как данные</td><td><code>crates/rustmanifest-engine/src/semantic/std_knowledge.rs:15,46</code></td></tr>
+<tr><td>Консервативность правила владения: три фронта</td><td><code>crates/rustmanifest-engine/src/semantic/ownership.rs:9-16</code></td></tr>
+<tr><td>Обманчивый doc: глаголы-обещания, builder-конвенция исключена</td><td><code>crates/rustmanifest-engine/src/semantic/doc_truth.rs:22,42,93</code></td></tr>
+<tr><td>Синтез rustdoc детерминирован, без модели</td><td><code>crates/rustmanifest-engine/src/semantic/doc_synth.rs:4-12</code></td></tr>
+<tr><td>Ровно 8 MCP-инструментов, закреплено тестом</td><td><code>crates/rustmanifest-mcp/src/server.rs:573-591</code></td></tr>
+<tr><td>21 правило в пакете</td><td>каталог <code>crates/rustmanifest-rules-core/rules</code></td></tr>
+<tr><td>Ворота допуска Цетлина: протокол, числа, +17.3 п.п.</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:183-197</code></td></tr>
+<tr><td>Эталонный замер резолвера: постановка, числа по репозиториям, таксономия промахов, отброшенный слепой прогон, вердикт по форме экстрактора, рейтинг внешних вызываемых</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:205-265</code> (срез <code>6077de4</code>); сырой вывод — приложение Б.11</td></tr>
+<tr><td>Ворота вывода из исходников зависимостей: 8/33, 0 противоречий, таксономия четырёх причин, порядок починки, перегон после ремонта 1 — 11/33</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:267-331</code></td></tr>
+<tr><td>Ремонт 1: таблица импортов «имя → полный путь», раскрытие первого сегмента стоком эффектов, тесты форм импорта</td><td>на срезе <code>76fc7f7</code>: <code>crates/rustmanifest-engine/src/semantic/behavior.rs:114-131,587-617</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:313-329</code></td></tr>
+<tr><td>Ремонт 2: методы-умолчания трейтов извлекаются под именем трейта, эффект тела ложится на <code>Трейт::метод</code></td><td>на срезе <code>91a4311</code>: <code>crates/rustmanifest-engine/src/semantic/behavior.rs:108,343,627-636</code></td></tr>
+<tr><td>Ремонт 4а: таблица 47 строк «тип std, метод → эффект» и её подключение под типизированные вызовы</td><td>на срезе <code>91a4311</code>: <code>crates/rustmanifest-engine/src/semantic/std_knowledge.rs:114-171,210-214</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:522-523</code></td></tr>
+<tr><td>SCIP-слой: контракт добавочного оверлея и заявленные пределы — в документации модуля; счётчик добавленного индексом; флаги CLI</td><td>на срезе <code>204edac</code>: <code>crates/rustmanifest-engine/src/semantic/scip.rs:4-20</code>; <code>crates/rustmanifest-engine/src/semantic/calls.rs:182-193,277</code>; <code>crates/rustmanifest-cli/src/facts.rs:43-46</code>; <code>crates/rustmanifest-cli/src/coverage.rs:55</code></td></tr>
+<tr><td>Собственный wire-декодер SCIP: четыре поля, пропуск неизвестного по wire-типу</td><td>на срезе <code>204edac</code>: <code>crates/rustmanifest-engine/src/semantic/scip.rs:260-267</code></td></tr>
+<tr><td>Замер подъёма оверлея: +290/1279 и +718/2479, базлайн байт-стабилен</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:383-389</code></td></tr>
+<tr><td>Состав прибавки оверлея на masterror: 47% / 30% / 22% по классам таксономии</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:400-407</code></td></tr>
+<tr><td>Слой против ворот 6.10: 11/33 без сдвига, 1495 против 1479, стена гранулярности имён фактов</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:408-423</code></td></tr>
+<tr><td>Ремонт гранулярности: идентичность символа на стыке, связанные индексы фактов, нерешённый спор отбрасывается</td><td>на срезе <code>2612dbc</code>: <code>crates/rustmanifest-engine/src/semantic/scip.rs:144-160,333-360,726</code></td></tr>
+<tr><td>Замер после ремонта: прибавка +401 и +777, ворота 11/33, эффекты 1495, остаток — замыкания на каждом уровне</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:424-442</code></td></tr>
+<tr><td>Типизация замыканий: внутренний тип одно-generic обёртки, связывание параметра, отказ на двух-generic</td><td>на срезе <code>8d3912b</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/signature.rs:155-160</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:210-236</code>; тест <code>crates/rustmanifest-engine/src/semantic/behavior.rs:665</code></td></tr>
+<tr><td>Скачок ворот 11/33 → 18/33, эффекты 1495 → 1515, разложение остатка из 15 строк</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:443-457</code></td></tr>
+<tr><td>Граничные зонды: разрыв отправки — один вызов tower; развёртка tokio вернула четыре конца; три стены названы</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:458-475</code></td></tr>
+<tr><td>Механизмы диспатча: типизация generic-параметра первой трейт-границей; ext-умолчания и supertrait-проваливание</td><td>на срезе <code>76be4a0</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/signature.rs:96,121</code>; <code>crates/rustmanifest-engine/src/semantic/calls.rs:38-43,115,336,363,382,516,528</code></td></tr>
+<tr><td>Ворота после механизмов диспатча: 18/33 без сдвига, стена заточена до impl-границ и Pin-проекций</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:476-494</code></td></tr>
+<tr><td>Три механизма типизации: impl-границы в поля и биндинги, прозрачность <code>Pin::new</code>, рёбра <code>await</code> → <code>poll</code> с предохранителем</td><td>на срезе <code>2a819b4</code>: <code>crates/rustmanifest-engine/src/semantic/behavior.rs:87,103,675,689</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:414-417,618</code></td></tr>
+<tr><td>Изоляция цепочки записи до коллизии имени <code>Projection</code>; +39 функций с эффектами (1438 → 1477), ворота 18/33</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:495-511</code></td></tr>
+<tr><td>Прозрачность проекций: две константы знания, типизация вызова проекции получателем, невидимый возврат как подпись макроса</td><td>на срезе <code>84718f4</code>: <code>crates/rustmanifest-engine/src/semantic/knowledge.rs:70-79</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:321-327</code></td></tr>
+<tr><td>Смыкание выведенной цепочки: 1477 → 1494 функций с эффектами, задокументированное завышение диспатча</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:512-529</code></td></tr>
+<tr><td>Конверсии в точках <code>?</code>: кандидат только при известных и различных типах ошибок; синтез <code>From</code>-фактов из Error-derive</td><td>на срезе <code>59300d2</code>: <code>crates/rustmanifest-engine/src/semantic/behavior.rs:184-281,808,827</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:626</code></td></tr>
+<tr><td>Замер конверсий: точность 97.4%/100% без сдвига, полнота +0.2 п.п., SCIP-рёбра на синтезированных фактах (+472, +778)</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:531-559</code></td></tr>
+<tr><td>Штатная развёртка: семантика замещения в справке флага, порядок «все фичи, откат на дефолт», тест выживания соседей</td><td>на срезе <code>69a6d00</code>: <code>crates/rustmanifest-cli/src/facts.rs:49-56,133</code>; <code>crates/rustmanifest-cli/src/expand.rs:70,81-86</code></td></tr>
+<tr><td>Урок cfg-вселенной в развёртке: 987 против 2142 на дефолтных фичах, 1097 после all-features</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:572-587</code></td></tr>
+<tr><td>Запрет эффекта держится сквозь замыкание обёртки, ребро <code>await</code> и умолчание расширения — три интеграционных теста</td><td>на срезе <code>144fb08</code>: <code>crates/rustmanifest-engine/src/semantic/invariant.rs:449,464,483</code>; <code>docs/RESEARCH-2026-07-behavioral-tier.md:589-607</code></td></tr>
+<tr><td>Правдивость трассы при мульти-имплементаторном диспатче: пометка рёбер в графе, модальный шаг вывода, тест двух имплементаторов</td><td>на срезе <code>4298d78</code>: <code>crates/rustmanifest-engine/src/semantic/calls.rs:182-185</code>; <code>crates/rustmanifest-engine/src/semantic/invariant.rs:181,508,528</code>; <code>docs/RESEARCH-2026-07-behavioral-tier.md:609-630</code></td></tr>
+<tr><td>Механизмы сервисного диспатча: цепочки полей, тождество <code>clone</code>, deref-прозрачность указателей с разделением от советов, константа <code>call</code></td><td>на срезе <code>f86a4df</code>: <code>crates/rustmanifest-engine/src/semantic/knowledge.rs:81-84</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/signature.rs:242-249</code>; тесты <code>crates/rustmanifest-engine/src/semantic/behavior.rs:840,855</code></td></tr>
+<tr><td>Замер 6.16: fork-hyper 2137 → 2191 разрешено, 557 → 506 нетипизированных; дрейф трёх ложных советов и его разделение; коллизия <code>Client.inner</code></td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:632-659</code></td></tr>
+<tr><td>Скоуп близости потребителя: таблица с файлом-источником у каждого наблюдения, предпочтение «файл → крейт → молчание», тест двух одноимённых структур</td><td>на срезе <code>cf22ad9</code>: <code>crates/rustmanifest-engine/src/semantic/behavior.rs:345,376-382,912</code></td></tr>
+<tr><td>Замер разблокировки: вселенная reqwest+hyper+tokio 1678 → 1793, fork-hyper 2191 → 2200, находки без сдвига</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:661-684</code></td></tr>
+<tr><td>Кортежные поля в типизации при неизменном канале фактов; разделение каналов как постоянное правило</td><td>на срезе <code>aed4ee5</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/collector.rs:489-493</code>; тесты <code>crates/rustmanifest-engine/src/semantic/behavior.rs:910,921</code></td></tr>
+<tr><td>Замер кортежных полей (1793 → 1814) и названная граница межкрейтовой инстанциации generic</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:686-714</code></td></tr>
+<tr><td>Проверка инвариантов по графу, разрешённому индексом: флаг <code>check --scip</code>, оверлей до транзитивного замыкания, добавочность, падение при отсутствующем индексе</td><td>на срезе <code>e1cc212</code>: <code>crates/rustmanifest-cli/src/check.rs:87-99,247-259</code>; <code>crates/rustmanifest-engine/src/semantic/invariant.rs:16-22,43,55-71</code>; тесты <code>crates/rustmanifest-cli/tests/invariants.rs:117,165,180,203</code></td></tr>
+<tr><td>Происхождение по каждому ребру: пары <code>(вызывающий, вызываемый)</code> вместо счётчика, три формулировки шага трассы</td><td>на срезе <code>e1cc212</code>: <code>crates/rustmanifest-engine/src/semantic/calls.rs:180-185,226-231,455-472,585-592</code>; <code>crates/rustmanifest-engine/src/semantic/invariant.rs:209,249-262,294</code></td></tr>
+<tr><td>Замер 6.17 на трёх воркспейсах, 194 → 301 находки на fork-hyper, 334 шага с происхождением из индекса, ноль вердиктов на masterror</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:716-772</code>; пересчёт по выводу прогонов — приложение Б.12</td></tr>
+<tr><td>Ложное ребро цели сборки: <code>Conn::poll_read_head</code> → <code>TestClient::get</code> при <code>headers.get(TE)</code> в теле</td><td>трасса — приложение Б.12; исходник в checkout <code>173bc33</code>: <code>src/proto/h1/conn.rs:327-330</code>, <code>tests/server.rs:3937,3951</code></td></tr>
+<tr><td>Механизм ложного связывания: голое имя метода ищется по всему воркспейсу, единственность решается до отсева невозможного</td><td>на срезе <code>e1cc212</code>: <code>crates/rustmanifest-engine/src/semantic/calls.rs:281-296,298,441-451</code></td></tr>
+<tr><td>Разбор прибавки по стоку (19 → 126, 99 → 99, 76 → 76) и её отношение к базовому прогону (17 из 194)</td><td>приложение Б.12 — пересчёт по JSON-выводу обоих прогонов 2026-08-03</td></tr>
+<tr><td>Отсев по достижимости: вывод цели у каждого исходника, приватность нелибрарной цели, фильтр на оверлее, внешний счёт недостижимого имени</td><td>на срезе <code>4885c0d</code>: <code>crates/rustmanifest-engine/src/semantic/calls.rs</code> — <code>Target</code> и <code>TargetKind</code> (строки 133,147), <code>Target::of_path:162</code>, <code>Target::reaches:202</code>, <code>linkable:484</code>, фильтр оверлея — 462-466; тесты <code>a_library_call_never_binds_to_a_test_target_definition:755</code> и <code>a_call_inside_one_test_target_still_resolves:768</code>; описание — <code>docs/RESEARCH-2026-07-behavioral-tier.md:773-792</code></td></tr>
+<tr><td>Итог после починки: 188 находок с индексом и без, разница 194 → 188 из −17 ложных и +11 верных</td><td>приложение Б.13 — собственный прогон на бинаре среза <code>4885c0d</code></td></tr>
+<tr><td>Модель фреймворка как данные: пять полей словаря, единственная заполненная модель axum с девятью глаголами</td><td>на срезе <code>1ffbf75</code>: <code>crates/rustmanifest-engine/src/semantic/surface.rs:28-54</code></td></tr>
+<tr><td>Восстановление маршрутов: провайдеры, корни, разворот с резом циклов, сортировка и дедупликация</td><td>на срезе <code>1ffbf75</code>: <code>crates/rustmanifest-engine/src/semantic/surface.rs:100-168,412-436</code></td></tr>
+<tr><td>Три отказа поверхности: динамический путь, неразрешимая композиция, взаимно складывающиеся роутеры как запутанность</td><td>на срезе <code>1ffbf75</code>: <code>surface.rs:75-91,149-152,286-299,330-333</code>; тесты <code>a_computed_path_is_counted_as_dynamic_not_guessed</code>, <code>an_unresolvable_composition_is_recorded_rather_than_dropped</code>, <code>providers_that_fold_each_other_are_reported_entangled_not_composed</code></td></tr>
+<tr><td>Обходчик выражений поверхности не имеет рукава для ветки и присваивания — источник беззвучной потери</td><td>на срезе <code>dce8a28</code>: <code>surface.rs:226-265</code>; проявление и фикстура — 6.20, приложение Б.15</td></tr>
+<tr><td>Причина отказа от расщепления категории <code>console</code>: список эффектов — отсортированное дедуплицированное множество</td><td><code>docs/RFCS/0003-observable-output-fact.md:42-58</code>; форма списка — <code>crates/rustmanifest-engine/src/semantic/behavior/types.rs</code></td></tr>
+<tr><td>Канал <code>output_writes</code>: шесть полей записи, порядок тела, отсутствие дедупликации</td><td>на срезе <code>97efff2</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/output.rs:234-249</code>; запись площадки — <code>behavior/collector.rs:585-614</code></td></tr>
+<tr><td>Пять распознаваемых макросов печати с потоком и терминатором; два потока из четырёх живые</td><td>на срезе <code>dce8a28</code>: <code>behavior/collector.rs:26-52</code>; значения <code>CallerSupplied</code> и <code>Unknown</code> не конструируются нигде — только отрисовываются (<code>output.rs:37-39</code>, <code>meaning.rs:187-188</code>)</td></tr>
+<tr><td><code>fully_known</code> отдаёт строку только при полностью доказанном payload; дыра хранит выражение как происхождение и не вычисляется</td><td>на срезе <code>97efff2</code>: <code>output.rs:122-137,263-288,343-369</code>; тесты <code>a_payload_is_fully_known_only_when_every_part_is_proven</code>, <code>placeholders_become_holes_that_keep_their_argument_as_provenance</code></td></tr>
+<tr><td>Стек охраны из восьми видов; голый <code>loop</code> охраной не считается; расхождение убивает последующее, <code>?</code> ослабляет</td><td>на срезе <code>6b6b217</code>: <code>output.rs:139-195</code>; <code>collector.rs:89-90,109-172,564-578,769-840</code>; тесты <code>a_loop_body_is_possible_and_unbounded_while_a_bare_loop_is_neither</code>, <code>an_exit_before_a_write_weakens_it_and_divergence_kills_it</code>, <code>the_guard_stack_unwinds_so_a_later_write_is_not_poisoned</code></td></tr>
+<tr><td>Точка входа по раскладке и атрибутам: три отказа (модуль, ворота конфигурации, библиотека), шесть атрибутов сред исполнения</td><td>на срезе <code>dce8a28</code>: <code>crates/rustmanifest-engine/src/semantic/entry.rs:21-28,60-135</code></td></tr>
+<tr><td>Две оси уверенности складываются слабейшей; недостигнутые отсеиваются до сборки заявления</td><td>на срезе <code>dce8a28</code>: <code>crates/rustmanifest-engine/src/semantic/meaning.rs:82,92,113-157</code>; порядок отметок — <code>output.rs:198-209</code></td></tr>
+<tr><td>Деградация предложения по полям; оговорка о попытке записи прикреплена к заявлению, а не спрятана в документацию</td><td>на срезе <code>dce8a28</code>: <code>meaning.rs:174-268</code>; поверхность — <code>crates/rustmanifest-cli/src/meaning.rs:29-55</code>; дословный вывод — приложение Б.14</td></tr>
+<tr><td>Таблица потока: только строки, сохраняющие значение; четыре вида переноса; шестнадцать строк; отказ по имени на методе без строки</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/std_knowledge/flow.rs:11-21,24-41,47-64</code>; тест отсутствия строки у <code>unwrap_or_default</code> — <code>flow.rs:110-115</code></td></tr>
+<tr><td>Строка объявленного дефолта: исключение записано в доке таблицы, пятый вид переноса <code>HeldOrDefault</code>, происхождение <code>Defaulted</code> как объявление, выбор из двух альтернатив у потребителя, отрисовка «the default its type declares»; расколотый закрепляющий тест</td><td>на срезе <code>2883ecf</code>: <code>crates/rustmanifest-engine/src/semantic/std_knowledge/flow.rs:19-25,37-39,55,118-133</code>; <code>semantic/behavior/value/provenance.rs:70-78</code>; <code>behavior/collector/invocation/carrying.rs:74-77</code>; <code>semantic/meaning/origin_text.rs:29</code>; титул в лестнице — <code>crates/rustmanifest-engine/tests/ladder.rs:465-482</code></td></tr>
+<tr><td>Оверлей резолвера: отдельный бинарь, осевший тип получателя и владельца поля старше чтения по написанию, отсутствующая позиция даёт собственный отказ</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-resolve/src/main.rs:4-9</code>; <code>crates/rustmanifest-engine/src/semantic/behavior/collector/call_type.rs:11-18</code>; <code>collector/field_fact.rs:11-16</code>; <code>crates/rustmanifest-engine/src/semantic/settled.rs:15-28</code></td></tr>
+<tr><td>Замеры доли происхождения: 68.5% → 88.3% на своих исходниках, три чужих воркспейса, потолок 92.3% → 98.0% с тремя молчаниями, прослеженные позиции и целые заявления</td><td><code>docs/ROADMAP.md:258-274,299-349</code> — авторские записи 2026-08-06, вторично, страницей не перевыполнялись</td></tr>
+<tr><td>Аргументы макросов-выражений посещаются, факт внутри записывается</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/collector/expansion.rs:91-105</code>; список из 20 макросов — <code>collector/catalog.rs:127</code></td></tr>
+<tr><td>Два рукава — две области видимости: имя одного рукава не отвечает чтению в другом, соседние области дают максимум, не сумму</td><td><code>92866ab</code>; на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/collector/census.rs:13-19</code>; <code>docs/ROADMAP.md:369-372</code></td></tr>
+<tr><td>Единственный сдвиг базлайна дуги значений: одна настоящая находка <code>RM-QUAL-002</code> на fork-hyper, поднятая типизацией владельца поля</td><td><code>d45ca98</code>, <code>5a39034</code> (диф блоба <code>6f8cbe6</code> → <code>14ead88</code>: +1 строка <code>RM-QUAL-002</code>)</td></tr>
+<tr><td>Хранилище: восемь форм коллекций, запись — структура воркспейса, конверт-контрпример, чужой тип записи только через границу переноса, wire-флаг от derive владельца</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/store.rs:42-58,96-99,113-137</code>; модульный док яруса — <code>keeping.rs:4-16</code></td></tr>
+<tr><td>Глаголы из фактов; контракт молчания в доке против запасного рукава «reads» в коде</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/verb.rs:13-16,94-127</code>; рукав — <code>verb.rs:126</code>; проба — приложение Б.18</td></tr>
+<tr><td>Запасной рукав заменён чтением по каналу: «reads» только от записи в канале чтений, иное касание без глагола; проба Б.18 — регрессионный тест</td><td>на срезе <code>2883ecf</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/verb.rs:126,129-142</code>; тест <code>a_touch_that_proves_no_verb_gets_none_rather_than_reads</code> — <code>keeping.rs:426-451</code>; перегон пробы — приложение Б.20</td></tr>
+<tr><td>Тестовая функция, трогающая хранилище, — не метод программы</td><td>на срезе <code>3426071</code>: <code>keeping/verb.rs:62-75</code>; тест — <code>keeping.rs:286-301</code></td></tr>
+<tr><td>Команды: написанная альтернатива, достигающая метода с глаголом; только значение-имя; ключ прослеживается ярусом значений</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/asking.rs:4-16,139-157,159-168</code></td></tr>
+<tr><td>Маршрут называет запись параметром пути только при трёх звеньях; условный маршрут говорит о себе в клаузе</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/served.rs:33-42,109-154</code>; <code>keeping/said.rs:199-201</code></td></tr>
+<tr><td>Wire-форма привязана к хранимому выведением, соседство заполнением не является</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/fed.rs:4-11,88-110</code></td></tr>
+<tr><td>Перенос за конец прогона: две границы, направление файла из написания вызова, направление базы из самого эффекта</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/outliving.rs:4-16,65-72,83-89</code></td></tr>
+<tr><td>Классификация SQL по первому ключевому слову; макрос и функция sqlx классифицируются одинаково</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/knowledge.rs:89-96,102-122,125-138</code></td></tr>
+<tr><td>Предложение хранилища: клауза без доказательства отсутствует; концовки выведены один раз на прогон; <code>purpose</code> без поверхности CLI</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/said.rs:4-11,49,130-151</code>; экспорт — <code>crates/rustmanifest-engine/src/lib.rs:71</code></td></tr>
+<tr><td>Условная регистрация восстанавливается с пометкой: рукава ветки, присваивания, рукавов <code>match</code> и замыканий</td><td><code>c4e7954</code>; на срезе <code>3426071</code>: тесты <code>crates/rustmanifest-engine/src/semantic/surface.rs:254-285</code>; поля — <code>surface/provider.rs:39</code>, <code>surface/table.rs:21-22</code></td></tr>
+<tr><td>Писательские макросы и чтение назначения: ручка процесса, тип связывания, писатель вызывающего</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/collector/catalog.rs:37-38,63-76</code>; <code>collector/destination.rs:38-44,49-56</code></td></tr>
+<tr><td>Каналы экспорта фактов: площадки эффектов, площадки вызовов и возвраты, сводки, собранные поля</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/src/facts_export/fact.rs:45-49,52,61-62</code>; <code>crates/rustmanifest-engine/src/facts_export.rs:71,85-88</code>; коммиты <code>b62c246</code>, <code>21a70e1</code>, <code>1afefd1</code>, <code>e19f4d0</code></td></tr>
+<tr><td>Лестница: заголовок-контракт «каждое утверждение падало до работы, которую охраняет»; ступень базы данных и её граница</td><td>на срезе <code>3426071</code>: <code>crates/rustmanifest-engine/tests/ladder.rs:4-17,330-432,438-485</code>; граница названа в <code>ladder.rs:466-470</code>; серверная ступень — <code>ladder.rs:491-522</code></td></tr>
+<tr><td>Оба коммита ступени базы данных меняют только тестовый файл</td><td><code>git show --stat 8eb8adf 3426071</code> — 142 и 22 вставки в <code>crates/rustmanifest-engine/tests/ladder.rs</code>, других файлов нет</td></tr>
+<tr><td>Канал операторов: по-площадочный, в порядке тела, без дедупликации; таблица опциональна с записанной в доке причиной; из четырёх видов данных, DDL вне чтения</td><td>на срезе <code>3e432ad</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/query.rs:4-12,17-33,46-56</code>; поле канала — <code>behavior/types.rs:295-299</code>; тест канала — <code>behavior.rs:98-125</code></td></tr>
+<tr><td>Чтение вида и таблицы из написанного оператора: первое ключевое слово, грамматический слот, отказ на <code>JOIN</code>, списке источников, втором <code>FROM</code> и скобке на месте имени</td><td>на срезе <code>3e432ad</code>: <code>crates/rustmanifest-engine/src/semantic/knowledge/statement.rs:16-24,34-51,53-74,89-101</code>; тесты — <code>statement.rs:112-160</code></td></tr>
+<tr><td>Обе формы sqlx записываются на обоих местах сбора</td><td>на срезе <code>3e432ad</code>: макрос — <code>behavior/collector/expansion.rs:40-46,91-120</code>; функция — <code>collector/effect.rs:98-106</code></td></tr>
+<tr><td>Табличное хранилище: правило привязки в доке модуля, глагол из вида оператора, ключ с префиксом <code>table:</code>, первая называющая площадка цитируется</td><td>на срезе <code>3e432ad</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/table.rs:4-21,40-44,46-74,76-126</code>; тесты — <code>keeping.rs:384-410,412-425,427-434</code></td></tr>
+<tr><td>Соединение маршрутов обобщено на любой список глаголов; сборка табличного предложения</td><td>на срезе <code>3e432ad</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/served.rs:74-88</code>; <code>keeping/said.rs:105-127</code></td></tr>
+<tr><td>Ступень сервера прямо над базой: фикстура, тест, закреплённые клаузы</td><td>на срезе <code>3e432ad</code>: <code>crates/rustmanifest-engine/tests/ladder.rs:497-545,546-581</code>; живой прогон — приложение Б.22</td></tr>
+<tr><td>Канал операторов в экспорте фактов</td><td>на срезе <code>3e432ad</code>: <code>crates/rustmanifest-engine/src/facts_export/fact.rs:70-73</code></td></tr>
+<tr><td>Родительский срез молчит о программе без коллекции; счётчики канала на корпусе</td><td>проба на рабочем дереве <code>2883ecf</code> — ноль предложений; счёт по экспорту фактов на <code>3e432ad</code> — приложение Б.22</td></tr>
+<tr><td>Запись канала несёт написанное вокруг SQL: тип строки от самого носителя (ведущий тип-аргумент макроса, turbofish вызова), простые имена аргументов после SQL; вычисленный аргумент и вывод типов не записываются</td><td>на срезе <code>c4a6b73</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/query.rs:54-64</code>; <code>behavior/collector/effect.rs:104-105,147-169</code>; <code>collector/expansion.rs:91-123,142-161</code>; экспорт — <code>facts_export/fact.rs:70-75</code></td></tr>
+<tr><td>Имя записи табличного хранилища — единогласие строко-типизирующих операторов: два разных типа — молчание, чужой тип — молчание</td><td>на срезе <code>c4a6b73</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/table.rs:33-41,84-106</code>; открывающая клауза — <code>keeping/said.rs:127-141</code>; тест — <code>keeping.rs:408-439</code></td></tr>
+<tr><td>Клауза параметра пути у табличного маршрута: три написанных звена, третье — список аргументов площадки оператора; соответствие позиций не строится</td><td>на срезе <code>c4a6b73</code>: <code>crates/rustmanifest-engine/src/semantic/keeping/served.rs:95-96,168-197</code>; тест — <code>keeping.rs:441-461</code>; лестница — <code>tests/ladder.rs:576-586</code></td></tr>
+<tr><td>Счётчик покрытия операторов: три числа, ни одно не заявление; слепое пятно канала как разрыв; строка секции честности отчёта</td><td>на срезе <code>ddae227</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/query.rs:69-115</code>; <code>crates/rustmanifest-cli/src/report/honesty.rs:40-56</code>; тест — <code>behavior.rs:127-142</code></td></tr>
+<tr><td>Цепочка <code>bind</code> функциональной формы ложится на площадку оператора: носитель найден сквозь шаги цепочки, <code>await</code> и <code>?</code>; простое имя сквозь заём, вычисленный аргумент не записывается; имена в порядке написания</td><td>на срезе <code>bedee6c</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/collector/effect.rs:122-140,202-234</code>; крюк обхода — <code>collector/visit.rs:70-71</code>; тест — <code>behavior.rs:127-141</code></td></tr>
+<tr><td>Словарь фреймворка внутри токенов макроса считается, не теряется: спуск до всякого вида выражения — умолчание визитора, судьбу вызова решает единственное место, счёт токенов, разбирающихся списком выражений, граница несчитанного в доке поля <code>unwalked</code></td><td>на срезе <code>d75236a</code>: <code>crates/rustmanifest-engine/src/semantic/surface/walk.rs:102-112,147-191</code>; <code>surface/table.rs:48-53</code>; вложенные объявления под своими путями — <code>surface/unit.rs:93-120</code>; тест — <code>surface.rs:403-414</code></td></tr>
+<tr><td>Каждый отказавший кандидат графа вызовов ложится ровно в одну именованную строку; строки named-elsewhere, ambiguous, owner-without-member рядом с чужим и неизвестным получателем; док учёта требует невыводимости вычитанием</td><td>на срезе <code>62dd9c3</code>: <code>crates/rustmanifest-engine/src/semantic/calls/build.rs:119-136,139-178</code>; <code>calls/graph.rs:26-41,83-103</code>; тесты — <code>calls.rs:442,476</code></td></tr>
+<tr><td>Учтённость вызовов включает named-elsewhere; разложение отказов печатают строка покрытия и секция честности</td><td>на срезе <code>62dd9c3</code>: <code>crates/rustmanifest-engine/src/semantic/coverage/report.rs:81-91,145-157</code>; <code>crates/rustmanifest-cli/src/coverage/counters.rs:61-83</code>; <code>crates/rustmanifest-cli/src/report/honesty.rs:32-40</code></td></tr>
+<tr><td>Вопросный слой: шаги и есть ответ, пустые шаги — провал вопроса; четыре исхода с формой отказа; видимость цепочки и словаря причин поднята вместо дублирования</td><td>на срезе <code>aed9b26</code>: <code>crates/rustmanifest-engine/src/semantic/why.rs:22-33,42-64,68-91,109-151,153-176</code>; <code>semantic/invariant.rs:27</code>; <code>invariant/chain.rs:20,67</code>; подкоманда — <code>crates/rustmanifest-cli/src/ask.rs:36-58</code>; тесты — <code>why.rs:196-248</code></td></tr>
+<tr><td>LSP-сервер: петля протокола, три извещения, анализ над текстом редактора, воркспейсные инварианты вне поверхности с записанным доводом, байты в UTF-16-позиции с зажимом</td><td>на срезе <code>2b6e7cb</code>, перечитано на <code>597f15c</code>: <code>crates/rustmanifest-lsp/src/server.rs:35-60,62-83</code>; <code>server/analysis.rs:6-11,57-86</code>; <code>server/position.rs:33-46</code>; довод полнотекстовой синхронизации — <code>server.rs:7-10</code>; имя бинаря и источника — <code>6b896c4</code>, <code>Cargo.toml:33-35</code>, <code>analysis.rs:81</code></td></tr>
+<tr><td>Дефект двойной обёртки способностей: транспорт оборачивает сам, редактор видел пустой набор и молча не слал документы; починка одной строкой, тест закрепляет форму ответа рукопожатия</td><td>на срезе <code>bda66a2</code>: <code>crates/rustmanifest-lsp/src/server.rs:41</code>; обёртка транспорта — исходники lsp-server 0.10.0, <code>src/lib.rs:287</code>; закрепление — <code>crates/rustmanifest-lsp/tests/protocol.rs:34-43</code>; до починки — <code>git show 2b6e7cb:crates/rustmanifest-lsp/src/server.rs</code>, строка 41</td></tr>
+<tr><td>Незавершение процесса после <code>shutdown</code>/<code>exit</code>: соединение живо через весь join, поток-писатель ждёт отпуска отправителей</td><td>найдено пробой на <code>597f15c</code> (Б.29): исходники lsp-server 0.10.0, <code>src/stdio.rs</code> (поток <code>LspServerWriter</code>); закрыто на срезе <code>5a8cb4f</code> — <code>drop(connection)</code> до join, <code>crates/rustmanifest-lsp/src/main.rs:25</code>; перегон пробы — Б.30</td></tr>
+<tr><td>Шаг тулчейна отдельным намеренным коммитом; <code>rust-analyzer</code> для редакторов, открывающих репозиторий; MSRV в манифесте не сдвинулась</td><td>на срезе <code>597f15c</code>: <code>rust-toolchain.toml:5-6</code>; <code>Cargo.toml:23</code>; <code>git show 597f15c</code></td></tr>
+<tr><td>Карточка фактов по наведению: курсор называет функцию только байтовым диапазоном идентификатора, обратный ход UTF-16 → байты, секция без записанного отсутствует, мимо идентификатора — протокольный null</td><td>на срезе <code>bf2b02f</code>: <code>crates/rustmanifest-lsp/src/server/hover.rs:6-10,29-46,73-76</code>; <code>server/card.rs:4-11,16-65</code>; <code>server/position.rs:51-76</code>; диапазон идентификатора в базе фактов — <code>crates/rustmanifest-engine/src/semantic/behavior/types.rs:211-212</code>, <code>behavior/extraction.rs:46</code></td></tr>
+<tr><td>Вывод в карточке: нумерованная цепочка «почему» на каждый унаследованный эффект, шаг — записанный факт с происхождением ребра, финал — написанный вызов-доказательство</td><td>на срезе <code>bf2b02f</code>: <code>crates/rustmanifest-lsp/src/server/card.rs:69-76</code> (<code>why_section</code>); <code>server/hover.rs:51-63</code> (<code>semantic::why_effect</code> на каждый унаследованный); живой снимок карточки — Б.30</td></tr>
+<tr><td>Команда <code>rust-manifest.why</code>: [uri, функция, эффект] → вывод как данные, заключение и шаги; сервер не отрисовывает ничего; способности hover и команды в рукопожатии; три протокольных теста</td><td>на срезе <code>bf2b02f</code>: <code>crates/rustmanifest-lsp/src/server/command.rs:4-11,16,19-63</code>; <code>server.rs:41-49,61-71</code>; тесты — <code>crates/rustmanifest-lsp/tests/protocol.rs:22,115,205</code>, фикстура двух функций — <code>protocol.rs:109-112</code></td></tr>
+<tr><td>Воркспейсный снапшот: файлы корня с диска тем же обходчиком и пофайловым бюджетом движка, буфер старше диска, буфер вне корня дописан; пересборка только после документного события</td><td>на срезе <code>bc5e142</code>: <code>crates/rustmanifest-lsp/src/server/snapshot.rs:4-11,42-49,54-75</code>; <code>server.rs:56,82</code>; обходчик — <code>crates/rustmanifest-engine/src/walker.rs:20,39</code></td></tr>
+<tr><td>Корень из рукопожатия: первая папка <code>workspaceFolders</code>, старое <code>rootUri</code> — запасной вариант</td><td>на срезе <code>bc5e142</code>: <code>crates/rustmanifest-lsp/src/server.rs:94-99</code> (fn <code>root_of</code>)</td></tr>
+<tr><td>Наведение и команда над снапшотом; факт обязан совпасть файлом с документом вопроса; обе поверхности называют файл одной функцией <code>path_of</code></td><td>на срезе <code>bc5e142</code>: <code>crates/rustmanifest-lsp/src/server/hover.rs:35-38,53</code>; <code>server/command.rs:21,34-35</code>; <code>server/snapshot.rs:78-80</code>; однострочный предшественник — <code>git show 934911e</code></td></tr>
+<tr><td>Инлайн-захват шаблона — употребление на месте чтения захвата; канал — только печатные и писательские макросы, <code>format!</code> вне его; прибавка употребления может только замолчать <code>borrowable-params</code>, не породить</td><td>на срезе <code>bc5e142</code>: <code>crates/rustmanifest-engine/src/semantic/behavior/collector/output_write.rs:97-99,114-132</code>; <code>collector/expansion.rs:34-36,49-60</code>; тест — <code>behavior.rs:127-135</code>; потребители счётчика — <code>ownership.rs:45-46</code>, <code>facts_export/fact.rs:57</code></td></tr>
+<tr><td>Цепочка через два документа закреплена протокольным тестом: вызывающий в одном, доказательство в другом, заключение целое</td><td>на срезе <code>bc5e142</code>: <code>crates/rustmanifest-lsp/tests/protocol.rs:286-368</code> (<code>a_chain_crossing_two_open_documents_answers_whole</code>)</td></tr>
+<tr><td>Оговорка о метках: выразимость, не открытие; выученное не поставляется</td><td><code>docs/RESEARCH-2026-07-behavioral-tier.md:198-203</code></td></tr>
+<tr><td>Соседи и ниша; CodeQL Rust GA; выбор <code>ra_ap_hir</code>; статус <code>rustc_public</code></td><td><code>docs/PLAN.md:75-79,90,120</code>; <code>docs/RESEARCH-2026-07-behavioral-tier.md:13-33,57</code></td></tr>
+<tr><td>Корпус: ревизии, базлайны — 552 на срезе 32089c2 и 1225 на cabc917, состав семейств</td><td><code>eval/corpus.toml</code>; <code>eval/baseline.json</code></td></tr>
+<tr><td>Бюджет p95 и порог 1000 строк в харнессе</td><td><code>crates/rustmanifest-eval/src/runner.rs:29,197-201</code></td></tr>
+<tr><td>Сырые счётчики 13/21/160, рёбра 867, цикл в своём коде, три круга ревью</td><td>журнал: <code>git show 6ca4091:rustmanifest-status.html</code> — запись одного дня, повторно не выводится</td></tr>
+</tbody>
+</table></div>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

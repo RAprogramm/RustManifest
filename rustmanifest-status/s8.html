@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html" aria-current="page"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="s8">
+<h2><span class="sn">8</span>Риски</h2>
+<div class="tbl"><table>
+<thead><tr><th>Риск</th><th>Вероятность</th><th>Что делать</th></tr></thead>
+<tbody>
+<tr><td>Разметка точности — один автор, без второго аннотатора и формального протокола</td><td>реализован</td><td>Протокол разметки и второй аннотатор до любых публичных заявлений о precision; до тех пор формулировка «0 ложных при разборе одним автором».</td></tr>
+<tr><td>«0 ложных» куплен молчанием: recall неизвестен (О8)</td><td>высокая</td><td>Набор посеянных нарушений (seeded bugs) на стилистически чужом коде; замер полноты по каждому правилу.</td></tr>
+<tr><td>Смещение корпуса: пять репозиториев из шести одного автора; расширение усилило пропорцию</td><td>реализован</td><td>Два добавленных — производственные API того же автора: разнообразие доменов выросло, разнообразие культур кода — нет. Нужны чужие воркспейсы с другой культурой макросов; hyper уже показал, что именно чужой код ломает допущения.</td></tr>
+<tr><td>Находки двух новых репозиториев корпуса закреплены в базлайне без записанного протокола разбора</td><td>реализован</td><td>Разбор с протоколом до любых заявлений о точности на них; пока точность заявлена только по прежнему корпусу (6.2) и одному разобранному срабатыванию (6.6).</td></tr>
+<tr><td>Тайминги сняты на одной машине</td><td>реализован</td><td>Числа помечены как машинно-зависимые; сравнимость обеспечивает только порядок величины и бюджет p95 в CI.</td></tr>
+<tr><td>Журнальные счётчики (13/21/160/867) невоспроизводимы</td><td>реализован</td><td>Они привязаны к коммиту журнала и помечены всюду; несущие выводы страницы на них не стоят — стоят на коде и замерах.</td></tr>
+<tr><td>Слой точности заявляется по рёбрам, а вердикты по исходнику не сверены</td><td>реализован</td><td>Случай разобран в 6.18: подъём вердиктов на fork-hyper целиком составлен ложным классом рёбер, невидимым в 96.9% точности графа. Правило записано: ни одно заявление о ценности слоя без разбора хотя бы кратчайшего вывода, обязанного этому слою, по исходнику. Базлайн корпуса такие прогоны не ловит: харнесс инвариантов не объявляет, поэтому его байт-стабильность о поверхности вердиктов ничего не говорит.</td></tr>
+<tr><td>Резолюция не знает целей сборки: имя из <code>tests</code>, <code>benches</code> или <code>examples</code> может связать ребро с библиотечным кодом</td><td>закрыт</td><td>Класс измерен на fork-hyper (6.18): 17 из 194 находок базового прогона и 124 из 301 с индексом. Отсев по достижимости реализован до решения о единственности и перезамерен (6.19); ложный класс исчез, побочно нашлись 11 верных находок. Числа находок, снятые до этой починки, сравнению с последующими не подлежат.</td></tr>
+<tr><td>Счётчики честности восстановления поверхности не покрывают неполноту обхода синтаксиса: потерянная регистрация не попадает ни в <code>dynamic</code>, ни в <code>unresolved</code></td><td>закрыт</td><td>Класс найден первой сверкой с внешним эталоном и стоил aura-api двух объявленных путей (6.20, Б.15). Обходчик получил рукава ветки, присваивания, рукавов <code>match</code> и замыканий, условная регистрация восстанавливается с пометкой (<code>c4e7954</code>; <code>surface.rs:254-285</code>), приёмка перезамерена — 139/139 и 92/93 по полноте (<code>docs/ROADMAP.md:181-194</code>, вторично). Общий вопрос о доказательстве полноты обхода дешевле перечисления рукавов закрыт на срезе <code>d75236a</code>: для видов выражений отказ по умолчанию держится по построению с <code>c4e7954</code>, а найденный пересмотром класс токенов макросов считается в поле <code>unwalked</code> с границей несчитанного, названной в доке (вопрос 13, решён).</td></tr>
+<tr><td>Заявления яруса смысла звучат сильнее, чем покрывает распознаватель: набор версии 1 не видит <code>write!</code>/<code>writeln!</code></td><td>закрыт</td><td>Измерено на калькуляторе: единственное заявление было про баннер (6.23, Б.14). Писательские макросы и чтение назначения поставлены (<code>collector/catalog.rs:37-38,63-76</code>; <code>collector/destination.rs:38-44</code>), туториальная и CRUD-ступени лестницы пишут через залоченную ручку и прослеживаются (6.26). Штамп версии набора в каждом заявлении остаётся обязательным: доля записей корпуса под расширенным набором не перемерена.</td></tr>
+<tr><td>Запасной рукав глагола хранения выдаёт «reads» за недоказанное касание, вопреки документации собственного модуля</td><td>закрыт</td><td>Показано пробой: метод, замещающий коллекцию свежей пустой, и метод, вливающий чужое состояние, входили в предложение как читающие (6.25, Б.18). Починка легла по О9 на срезе <code>2883ecf</code> — молчание по контракту: «reads» выдаётся только от записи в собственном канале чтений (<code>keeping/verb.rs:129-142</code>), проба стала регрессионным тестом (<code>keeping.rs:426-451</code>), перегон пробы на новом коде — Б.20. Цена дисциплины оказалась ниже оценённой вопросом 16: чтение нестандартным написанием, за которое вопрос опасался, доказано самим каналом чтений и из предложения не выпало.</td></tr>
+<tr><td>Замеры доли происхождения взяты из <code>docs/ROADMAP.md</code> и страницей не перевыполнялись</td><td>реализован</td><td>Все числа 6.24 несут пометку «вторично» на месте. Команды перевыполнения записаны в самом плане (<code>rustmanifest coverage</code>, секция честности <code>rustmanifest report</code>); до собственного прогона страница цитирует, а не подтверждает. Живыми прогонами этой страницы сняты только предложения яруса хранения, проба глагола и состояние проверок (Б.17—Б.19).</td></tr>
+<tr><td>Предложение яруса хранения не имеет поверхности: <code>purpose</code> не рендерит ни одна команда CLI</td><td>реализован</td><td>Единственные потребители — лестница и юнит-тесты (6.25); табличные предложения 6.27, включая 26 хранилищ, названных на aura-api (Б.22), — под той же оговоркой. Пока поверхности нет, дрейф формулировок ловят только тесты на подстроки, и пользователь предложения не видит; поставка поверхности — отдельная работа с собственной пробой дословного вывода.</td></tr>
+<tr><td>Выдуманная категория <code>console</code> продолжает жить рядом с точным каналом</td><td>реализован</td><td>Сохранена сознательно: расщепление ломает длину вектора признаков, воспроизводимость обучаемого яруса, молчаливые совпадения пользовательских запретов, закреплённую схему и байтовую стабильность базлайна (6.21). Риск — двойная онтология в базе фактов. Вывод категории из обращения запланирован отдельным коммитом с собственным перезамером; до него ни одно правило не должно строиться на ней как на точном факте.</td></tr>
+<tr><td>Протокольный тест сервера зелёный при поставке, в которой редактор не получает ни одной диагностики</td><td>закрыт</td><td>Реализовался при первом живом использовании: способности заявлялись в двойной обёртке, редактор видел пустой набор и молча не слал документы; тест выбрасывал ответ рукопожатия непрочитанным (6.29). Починка — одна строка (<code>bda66a2</code>), тест закрепляет форму ответа с формулировкой «everything after this line tests nothing» (<code>tests/protocol.rs:34-43</code>). Правило 6.18 распространено на поставку: зелёный тест не того слоя читается как работающая система.</td></tr>
+<tr><td>Сервер не завершает процесс после чистой пары <code>shutdown</code>/<code>exit</code>: <code>main</code> держит соединение живым через <code>threads.join()</code>, поток-писатель транспорта ждёт отпуска отправителей</td><td>закрыт</td><td>Найден пробой этой страницы (Б.29), механизм перепроверен чтением обоих исходников (lsp-server 0.10.0, <code>stdio.rs</code>). Закрыт на срезе <code>5a8cb4f</code> вторым из названных путей — отпуском соединения до join: одна строка <code>drop(connection)</code> (<code>src/main.rs:25</code>), последний отправитель канала писателя умирает, писатель завершается, join возвращается. Перегон пробы на HEAD — код выхода 0 в тысячные доли секунды после <code>exit</code> (Б.30); проба Б.29 остаётся записью дефекта. Первый путь — тест над stdio-транспортом живого бинаря — не поставлен: завершение по-прежнему закреплено только пробой страницы, не тестом репозитория.</td></tr>
+<tr><td>Дрейф <code>ra_ap_hir</code> после интеграции</td><td>средняя</td><td>Закреплённая версия и заранее объявленный бюджет обновления — решение уже записано в протоколе выбора.</td></tr>
+</tbody>
+</table></div>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

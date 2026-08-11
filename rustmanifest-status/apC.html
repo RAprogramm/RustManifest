@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html" aria-current="page"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="apC">
+<h2><span class="sn">В</span>Приложение В: как воспроизвести</h2>
+<p>Команды — из корня репозитория на <code>cabc917</code>, если срез не назван явно; номера строк из приложения А после дрейфа выводятся заново этими же командами.</p>
+<div class="tbl"><table>
+<thead><tr><th>Утверждение</th><th>Команда</th></tr></thead>
+<tbody>
+<tr><td>Базлайн и тайминги корпуса</td><td><code>cargo run --release -p rustmanifest-eval -- run --corpus-root &lt;каталог с checkouts&gt;</code>; отчёт — <code>eval/report.json</code></td></tr>
+<tr><td>Живая находка транзитивного инварианта</td><td>сохранить TOML из 2.5 и выполнить <code>cargo run --release -p rustmanifest-cli -- check --config inv.toml --format json crates/rustmanifest-engine</code></td></tr>
+<tr><td>Факт функции <code>populate</code></td><td><code>cargo run --release -p rustmanifest-cli -- facts crates/rustmanifest-engine/benches --filter populate</code></td></tr>
+<tr><td>Слои и запутанность, обзор знания</td><td><code>cargo run --release -p rustmanifest-cli -- overview crates</code></td></tr>
+<tr><td>Самозамер понимания</td><td><code>cargo run --release -p rustmanifest-cli -- coverage &lt;путь к воркспейсу&gt;</code></td></tr>
+<tr><td>Ворота единственного совпадения</td><td><code>rg -n "indices.len() == 1" crates/rustmanifest-engine/src/semantic/calls.rs</code></td></tr>
+<tr><td>Страж смирения сироты</td><td><code>rg -n "mod \{stem\}" crates/rustmanifest-engine/src/semantic/orphan.rs</code></td></tr>
+<tr><td>Широта «упоминания» у мёртвого кода</td><td><code>rg -n "visit_" crates/rustmanifest-engine/src/semantic/dead.rs</code></td></tr>
+<tr><td>Состав отпечатка</td><td><code>rg -n "eat\(" crates/rustmanifest-engine/src/semantic/fingerprint.rs</code></td></tr>
+<tr><td>Число MCP-инструментов</td><td><code>cargo test -p rustmanifest-mcp tool_router_exposes_all_eight_tools</code></td></tr>
+<tr><td>Проба сборок из Б.9</td><td>сохранить фикстуру в <code>probe/src/lib.rs</code> и выполнить <code>cargo run -q -p rustmanifest-cli -- check probe --format json</code></td></tr>
+<tr><td>Бухгалтерия вызовов на двух коммитах (Б.10)</td><td><code>git worktree add &lt;каталог&gt; f71cc8e</code>, затем <code>cargo run -q -p rustmanifest-cli -- coverage crates</code> в обоих деревьях</td></tr>
+<tr><td>Вектор из 40 признаков со строкой <code>builds</code></td><td><code>rg -n "builds&gt;=" crates/rustmanifest-engine/src/semantic/features.rs</code></td></tr>
+<tr><td>Эталонный замер 6.9</td><td>на срезе <code>6077de4</code>: <code>rust-analyzer scip .</code> в checkout каждого репозитория корпуса (для fork-hyper — с <code>rust-analyzer.cargo.features = "all"</code>), сторона движка — <code>cargo run --release -p rustmanifest-cli -- facts &lt;репозиторий&gt;</code>, соединение по паре (файл, квалифицированное имя)</td></tr>
+<tr><td>Ворота вывода 6.10</td><td><code>cargo metadata --format-version 1</code> в воркспейсе с зависимостью даёт путь её распакованных исходников в кэше реестра; затем <code>cargo run --release -p rustmanifest-cli -- facts &lt;путь&gt;</code> по набору крейтов (для tokio — вместе с mio и socket2) и сверка выведенных эффектов со строками ручного пака</td></tr>
+<tr><td>Тесты раскрытия импортов (ремонт 1)</td><td>на срезе <code>76fc7f7</code>: <code>cargo test -p rustmanifest-engine --lib</code> — 335 зелёных, среди них <code>imported_names_classify_through_their_use_paths</code>, <code>conflicting_imports_expand_to_nothing</code>, <code>workspace_imports_stay_silent</code></td></tr>
+<tr><td>Тесты ремонтов 2 и 4а</td><td>на срезе <code>91a4311</code>: <code>cargo test -p rustmanifest-engine --lib</code> — 339 зелёных, среди них <code>trait_default_methods_carry_their_owner</code>, <code>std_method_axioms_cover_io_and_spare_accessors</code></td></tr>
+<tr><td>Оверлей 6.11 на живом воркспейсе</td><td>на срезе <code>204edac</code>: <code>rust-analyzer scip .</code> в корне воркспейса, затем <code>cargo run --release -p rustmanifest-cli -- coverage crates --scip index.scip</code> — строка счётчика добавленных индексом рёбер; юнит-тесты слоя — <code>cargo test -p rustmanifest-engine --lib</code>, 343 зелёных; после ремонта гранулярности на срезе <code>2612dbc</code> — 344, среди них <code>colliding_short_names_settle_through_crate_and_module_path</code>; после типизации замыканий на срезе <code>8d3912b</code> — 345, добавился <code>wrapped_closure_parameters_type_through_the_field_inner</code>; после механизмов диспатча на срезе <code>76be4a0</code> — 347, добавились <code>generic_bound_parameters_dispatch_over_implementors</code> и <code>ext_trait_defaults_dispatch_through_the_supertrait_bound</code>; после механизмов типизации на срезе <code>2a819b4</code> — 349, среди новых <code>impl_bounds_type_generic_fields_and_awaits_reach_poll</code> и <code>pinned_receivers_type_through_the_inner_expression</code>; после прозрачности проекций на срезе <code>84718f4</code> — 350, добавился <code>fieldless_projections_type_as_their_receiver</code>; после рёбер конверсии на срезе <code>59300d2</code> — 352, добавились <code>try_sites_record_the_implicit_conversion</code> и <code>error_derives_synthesize_their_from_conversions</code>; на срезе <code>69a6d00</code> — 352 в движке и 19 в CLI (<code>cargo test -p rustmanifest-cli --lib</code>), среди них <code>expanded_streams_replace_their_crate_sources_only</code>; на срезе <code>144fb08</code> — 355 в движке, добавились <code>effect_ban_sees_through_wrapper_closures</code>, <code>effect_ban_sees_through_await_edges</code>, <code>effect_ban_sees_through_extension_defaults</code>; на срезе <code>4298d78</code> — 356 в движке, добавился <code>ambiguous_dispatch_fires_the_ban_and_admits_the_possibility</code>; на срезе <code>f86a4df</code> — 358 в движке, среди новых <code>nested_field_chains_type_recursively</code> и <code>service_calls_dispatch_to_the_wrapped_service</code>; на срезе <code>cf22ad9</code> — 359 в движке, добавился <code>colliding_type_names_resolve_by_consumer_proximity</code>; на срезе <code>aed4ee5</code> — 361 в движке, добавились <code>tuple_fields_type_their_receivers</code> и <code>tuple_field_reads_stay_out_of_the_fact_channel</code></td></tr>
+<tr><td>Инварианты по графу с индексом (6.17)</td><td>на срезе <code>e1cc212</code>: <code>cargo test -p rustmanifest-cli --test invariants</code> — среди тестов <code>an_effect_ban_stays_silent_without_the_index</code>, <code>the_index_widens_the_graph_the_ban_is_judged_against</code>, <code>a_missing_index_fails_the_run_with_context</code>; индекс фикстуры собирается из байтов в самом тесте</td></tr>
+<tr><td>Прогоны запрета сети на fork-hyper и разбор прибавки (Б.12, 6.18)</td><td><code>rust-analyzer scip .</code> в checkout <code>173bc33</code> с <code>rust-analyzer.cargo.features = "all"</code>, затем два прогона <code>check --config any-inv.toml --format json</code> с флагом <code>--scip</code> и без; группировка вывода по имени исполнителя эффекта — командой <code>jq</code> из Б.12</td></tr>
+<tr><td>Итог после отсева по целям сборки (Б.13, 6.19)</td><td>на срезе <code>4885c0d</code>: <code>cargo build --release -p rustmanifest-cli</code>, затем те же два прогона <code>check</code> из Б.12 и сравнение отсортированных списков сообщений через <code>comm</code></td></tr>
+<tr><td>Ложное ребро цели сборки (6.18)</td><td><code>rg -n "headers\.get\(TE\)" src/proto/h1/conn.rs</code> и <code>rg -n "fn get" tests/server.rs</code> в checkout <code>173bc33</code>; сторона движка — <code>rg -n "by_method.get\(method\)" crates/rustmanifest-engine/src/semantic/calls.rs</code></td></tr>
+<tr><td>Ярус смысла на четырёх программах (Б.14, 6.23)</td><td>на срезе <code>dce8a28</code>: <code>cargo build --release -p rustmanifest-cli</code>, затем <code>rustmanifest meaning &lt;каталог программы&gt;</code>; приёмочный случай — каталог с единственным файлом <code>src/main.rs</code>, содержащим <code>fn main() { println!("Hello, world!"); }</code></td></tr>
+<tr><td>Предел набора стоков версии 1 (6.23)</td><td>программа, пишущая через <code>writeln!(out, …)</code> в <code>io::stdout()</code>, и тот же <code>meaning</code>; сторона движка — <code>rg -n "OUTPUT_MACROS" crates/rustmanifest-engine/src/semantic/behavior/collector.rs</code></td></tr>
+<tr><td>Таблица маршрутов и её честные счётчики (Б.15, 6.20)</td><td><code>rustmanifest overview --top 1000 &lt;воркспейс&gt;</code>, секция <code>## External surface</code>; сторона эталона — пути из атрибутов <code>#[utoipa::path(…)]</code>, извлечённые сопоставлением скобок, а не <code>grep</code> по <code>path = "…"</code></td></tr>
+<tr><td>Беззвучная потеря условной регистрации (6.20)</td><td>сохранить фикстуру из 6.20 в <code>rt/src/lib.rs</code> и выполнить <code>rustmanifest overview rt</code>; сторона движка — <code>rg -n "fn walk_expression" -A 34 crates/rustmanifest-engine/src/semantic/surface.rs</code></td></tr>
+<tr><td>Состояние проверок на срезе (Б.16)</td><td><code>cargo test --workspace</code>, <code>cargo clippy --workspace --all-targets</code>, <code>reuse lint</code>, <code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> по каждому из шести коммитов; сравнение с базлайном — прогон корпуса из первой строки таблицы</td></tr>
+<tr><td>Тесты яруса смысла</td><td>на срезе <code>dce8a28</code>: <code>cargo test -p rustmanifest-engine --lib</code> — 396 зелёных, среди них <code>the_smallest_program_yields_the_strongest_sentence</code>, <code>a_site_is_certain_only_without_guards_and_without_prior_exits</code>, <code>a_loop_body_is_possible_and_unbounded_while_a_bare_loop_is_neither</code>, <code>a_gated_main_is_recorded_as_conditional_rather_than_assumed</code>, <code>providers_that_fold_each_other_are_reported_entangled_not_composed</code>; на срезе <code>7a3980f</code> тот же прогон даёт 365</td></tr>
+<tr><td>Ступени лестницы, включая базу данных (6.26)</td><td>на срезе <code>3426071</code>: <code>cargo test -p rustmanifest-engine --test ladder</code> — 15 зелёных, среди них <code>the_database_todo_states_both_ways_its_records_outlive_the_run</code> и <code>the_database_todo_traces_its_command_key_and_states_its_endings</code>; на срезе <code>2883ecf</code> тот же прогон — те же 15, и второй из тестов закрепляет титул <code>"add"</code> через объявленный дефолт; на срезе <code>3e432ad</code> — 16, добавился <code>the_server_over_the_database_states_its_table_its_verbs_and_its_routes</code> (6.27)</td></tr>
+<tr><td>Классификатор операторов и табличное хранилище (6.27)</td><td>на срезе <code>3e432ad</code>: <code>cargo test -p rustmanifest-engine --lib written_statements_record_their_kind_and_their_table</code>, <code>… a_table_named_in_the_programs_own_statements_is_a_store</code>, <code>… a_table_tied_to_a_declared_store_is_not_a_second_store</code>, <code>… a_join_builds_no_table_store</code>; чтение таблицы — <code>rg -n "fn table_of" crates/rustmanifest-engine/src/semantic/knowledge/statement.rs</code></td></tr>
+<tr><td>Предложение ступени, молчание родителя и счётчики канала (Б.22, 6.27)</td><td>бинарь с path-зависимостью от <code>rustmanifest-engine</code>: <code>Workspace</code> из одного <code>Source</code> с текстом <code>API_OVER_DATABASE</code> из <code>tests/ladder.rs</code>, печать <code>purpose(&amp;workspace)</code>; молчание родителя — тот же бинарь против рабочего дерева <code>2883ecf</code> (<code>git worktree add</code>); счётчики — <code>rustmanifest facts &lt;репозиторий&gt;</code> и суммирование полей <code>queries</code> и площадок <code>db-*</code> по JSON; таблицы aura-api — <code>semantic::tables</code> из публичного API на его исходниках</td></tr>
+<tr><td>Имя записи и клауза пути табличного хранилища (6.27-закрытие, вопросы 17—18)</td><td>на срезе <code>c4a6b73</code>: <code>cargo test -p rustmanifest-engine --lib a_row_typing_statement_names_the_tables_record</code>, <code>… a_statement_bound_with_the_path_binding_names_the_record_by_it</code>; обе клаузы ступени — <code>cargo test -p rustmanifest-engine --test ladder the_server_over_the_database_states_its_table_its_verbs_and_its_routes</code></td></tr>
+<tr><td>Цепочка <code>bind</code> функциональной формы (6.27-остаток, вопрос 18)</td><td>на срезе <code>bedee6c</code>: <code>cargo test -p rustmanifest-engine --lib a_bind_chain_lands_its_plain_names_on_the_statement_in_written_order</code></td></tr>
+<tr><td>Регистрация внутри токенов макроса считается, не теряется (вопрос 13)</td><td>на срезе <code>d75236a</code>: <code>cargo test -p rustmanifest-engine --lib a_registration_inside_macro_tokens_is_counted_not_lost</code>; базлайн против чистой закреплённой ревизии aura-api — <code>git -C &lt;checkout aura-api&gt; archive --format=tar b271761 | tar -x -C &lt;корень&gt;/aura/aura-api</code> и <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code>; приёмка маршрутов — <code>cargo run --release -p rustmanifest-eval -- routes --corpus-root &lt;каталог с checkouts&gt;</code></td></tr>
+<tr><td>Счётчик операторов и строка отчёта (вопрос 19)</td><td>на срезе <code>ddae227</code>: <code>cargo test -p rustmanifest-engine --lib the_statement_counter_names_the_channels_blind_spot</code>; живая строка — <code>rustmanifest report &lt;воркспейс&gt;</code>, секция <code>## coverage</code>, строка <code>database statements …</code></td></tr>
+<tr><td>Перегон предложения ступени и счётчиков на срезе <code>ddae227</code> (Б.24)</td><td>тот же бинарь, что в Б.22; фикстура <code>API_OVER_DATABASE</code> из <code>tests/ladder.rs</code>; счётчики — <code>rustmanifest facts &lt;репозиторий&gt;</code> с суммированием полей <code>queries</code> (включая <code>record</code> и <code>binds</code>) и площадок <code>db-*</code>; строка отчёта — <code>rustmanifest report</code> на исходниках aura-api</td></tr>
+<tr><td>Предложения яруса хранения дословно (Б.17, Б.20) и проба глагола (Б.18, Б.20)</td><td>бинарь с path-зависимостью от <code>rustmanifest-engine</code>: собрать <code>Workspace</code> из одного <code>Source</code> с текстом фикстуры и напечатать <code>purpose(&amp;workspace)</code>; фикстуры — <code>DATABASE_TODO</code> и <code>API_SERVER</code> из <code>tests/ladder.rs</code>, для Б.18 — <code>TASK_STORE</code> с методами <code>wipe</code> и <code>replace</code> из листинга; Б.20 — те же фикстуры на срезе <code>2883ecf</code></td></tr>
+<tr><td>Только-тестовые коммиты ступени базы данных (6.26)</td><td><code>git show --stat 8eb8adf 3426071</code></td></tr>
+<tr><td>Единственный сдвиг базлайна дуги значений (6.24)</td><td><code>git show 5a39034 -- eval/baseline.json</code> — одна добавленная строка <code>RM-QUAL-002</code> у fork-hyper</td></tr>
+<tr><td>Строка потока у <code>unwrap_or_default</code>: отсутствие до <code>3426071</code> включительно, строка объявления с <code>34984c5</code> (6.24, 6.26, вопрос 15)</td><td>обе половины расколотого теста: <code>cargo test -p rustmanifest-engine --lib a_method_whose_answer_is_written_nowhere_has_no_row</code> и <code>… a_fallback_to_the_declared_default_names_the_declaration</code>; таблица — <code>rg -n "FLOW_METHODS" crates/rustmanifest-engine/src/semantic/std_knowledge/flow.rs</code></td></tr>
+<tr><td>Молчание недоказанного касания глагола (6.25, вопрос 16)</td><td>на срезе <code>2883ecf</code>: <code>cargo test -p rustmanifest-engine --lib a_touch_that_proves_no_verb_gets_none_rather_than_reads</code></td></tr>
+<tr><td>Условная регистрация восстанавливается с пометкой (6.20-статус)</td><td>на срезе <code>3426071</code>: <code>cargo test -p rustmanifest-engine --lib a_registration_under_a_branch_is_recovered_and_marked_conditional</code></td></tr>
+<tr><td>Замеры доли происхождения (6.24, вторично)</td><td>команды самого плана: <code>rustmanifest coverage &lt;воркспейс&gt;</code> и секция честности <code>rustmanifest report</code>, с оверлеем — предварительно <code>rustmanifest-resolve &lt;воркспейс&gt;</code> и флаг <code>--resolution</code>; страница эти прогоны не выполняла</td></tr>
+<tr><td>Состояние проверок на срезе (Б.19, Б.21, Б.23)</td><td><code>cargo test --workspace</code>, <code>cargo clippy --workspace --all-targets</code>, <code>reuse lint</code>, <code>ls crates/rustmanifest-rules-core/rules | wc -l</code>, <code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> по коммитам из листинга; для Б.21 и Б.23 дополнительно перегон корпуса — <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;каталог с checkouts&gt;</code></td></tr>
+<tr><td>Строки отказов и их инвариант (Б.26, вопросы 5 и 11)</td><td>на срезе <code>62dd9c3</code>: <code>cargo run -q -p rustmanifest-cli -- coverage crates</code> — строка <code>call candidates</code> с шестью вёдрами; секция честности — <code>cargo run -q -p rustmanifest-cli -- report crates</code>, строка <code>refused calls by row</code>; закрепление — <code>cargo test -p rustmanifest-engine --lib every_refusal_lands</code> и <code>… unlinkable_target_is_its_own_row</code></td></tr>
+<tr><td>Записи в поток по машинерии (Б.27, вопрос 12)</td><td>на срезе <code>362abdc</code>: <code>git -C &lt;checkout&gt; archive &lt;закреплённая ревизия из eval/corpus.toml&gt; | tar -x -C &lt;каталог&gt;</code> по каждому из шести репозиториев, затем <code>cargo run --release -p rustmanifest-cli -- facts &lt;каталог&gt;</code> и счёт по JSON: классификация каждой записи <code>output-writes</code> по написанию исходника на диапазоне <code>site</code>, сверка с правилом по полям <code>conduit</code>/<code>lock</code>/<code>stream</code></td></tr>
+<tr><td>Ответы вопросного слоя (Б.28, 6.28)</td><td>на срезе <code>597f15c</code> (аналитика не менялась с <code>aed9b26</code>): <code>cargo run -q -p rustmanifest-cli -- ask Orchestrator::run fs crates</code> из корня, затем те же прогоны с <code>net</code>, с голым <code>run</code> и с <code>FindingsCache::open fs</code>; закрепление — <code>cargo test -p rustmanifest-engine --lib why::tests</code>, четыре теста от <code>a_transitive_effect_is_answered_step_by_step_down_to_the_proof</code> до <code>a_direct_effect_cites_its_own_written_call</code></td></tr>
+<tr><td>Диагностика сервера по протоколу (Б.29, 6.29)</td><td>на срезе <code>597f15c</code>: <code>cargo test -p rustmanifest-lsp --test protocol</code> — транспорт в памяти; живой бинарь — собрать <code>cargo build -p rustmanifest-lsp</code> и говорить с <code>target/debug/rust-manifest</code> поверх stdio кадрами <code>Content-Length</code>: <code>initialize</code> → <code>initialized</code> → <code>didOpen</code> с текстом фикстуры <code>FLAGGED</code> из <code>tests/protocol.rs:19</code>, читать <code>textDocument/publishDiagnostics</code></td></tr>
+<tr><td>Двойная обёртка способностей до починки (6.29)</td><td><code>git show 2b6e7cb:crates/rustmanifest-lsp/src/server.rs</code>, строка 41, против <code>git show bda66a2:crates/rustmanifest-lsp/src/server.rs</code>; обёртка транспорта — <code>rg -n '"capabilities": server_capabilities' ~/.cargo/registry/src/*/lsp-server-0.10.0/src/lib.rs</code></td></tr>
+<tr><td>Незавершение процесса после <code>shutdown</code>/<code>exit</code> (6.29, риск)</td><td>той же пробой поверх stdio: после ответа на <code>shutdown</code> послать <code>exit</code>, закрыть stdin и ждать процесс с таймаутом — <code>wait</code> не возвращается; механизм — <code>rg -n "LspServerWriter" ~/.cargo/registry/src/*/lsp-server-0.10.0/src/stdio.rs</code> и <code>cat -n crates/rustmanifest-lsp/src/main.rs</code>, строки 23-25</td></tr>
+<tr><td>Состояние проверок и базлайн на срезе <code>597f15c</code> (Б.29)</td><td><code>cargo test --workspace</code>, <code>cargo clippy --workspace --all-targets</code>, <code>reuse lint</code>, <code>rustc --version</code>; блоб базлайна — <code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> по пяти коммитам <code>aed9b26</code>…<code>597f15c</code>; перегон корпуса — <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;каталог с checkouts&gt;</code></td></tr>
+<tr><td>Карточка фактов, отказ мимо идентификатора и команда как данные (Б.30, 6.30)</td><td>на срезе <code>bf2b02f</code>: <code>cargo test -p rustmanifest-lsp --test protocol</code> — три теста; живой бинарь — <code>cargo build -p rustmanifest-lsp</code> и та же проба stdio, что в Б.29: после <code>didOpen</code> с текстом фикстуры <code>HUNGRY</code> из <code>tests/protocol.rs:109-112</code> послать <code>textDocument/hover</code> с позицией <code>{"line": 1, "character": 4}</code> и прочитать <code>contents.value</code>; мимо идентификатора — та же просьба с позицией в теле, ответ <code>null</code>; команда — <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.why", "arguments": ["file:///demo/src/lib.rs", "hoard", "fs"]}</code></td></tr>
+<tr><td>Чистое завершение после <code>shutdown</code>/<code>exit</code> (6.29-закрытие, риск)</td><td>на срезе <code>bf2b02f</code>: той же пробой поверх stdio — после ответа на <code>shutdown</code> послать <code>exit</code>, закрыть stdin и ждать процесс: <code>wait</code> возвращает код 0; починка — <code>git show 5a8cb4f</code>, одна строка <code>drop(connection)</code> в <code>crates/rustmanifest-lsp/src/main.rs:25</code></td></tr>
+<tr><td>Состояние проверок и базлайн на срезе <code>bf2b02f</code> (Б.30)</td><td><code>cargo test --workspace</code>, <code>cargo clippy --workspace --all-targets</code>, <code>reuse lint</code>, <code>rustc --version</code>; блоб базлайна — <code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> по шести коммитам <code>bee05ce</code>…<code>bf2b02f</code>; перегон корпуса — <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;каталог с checkouts&gt;</code>; состав среза — <code>git diff --name-status 597f15c bf2b02f</code></td></tr>
+<tr><td>Кросс-файловая цепочка и единое имя файла у двух каналов (Б.31, 6.31)</td><td>на срезе <code>bc5e142</code>: <code>cargo test -p rustmanifest-lsp --test protocol</code> — четыре теста; живой бинарь — <code>cargo build --release -p rustmanifest-lsp</code> и проба stdio жанра Б.29: <code>didOpen</code> двух документов из <code>tests/protocol.rs:305-313</code>, затем <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.why", "arguments": ["file:///demo/src/lib.rs", "keep", "fs"]}</code> и <code>textDocument/hover</code> на <code>{"line": 1, "character": 4}</code> в <code>lib.rs</code>; имя файла доказательства сличить между ответом команды и карточкой</td></tr>
+<tr><td>Захват шаблона как употребление и предел канала (6.31)</td><td>на срезе <code>bc5e142</code>: <code>cargo test -p rustmanifest-engine --lib an_inline_template_capture_counts_as_a_use</code>; предел — той же пробой stdio наведение на <code>hoard</code> фикстуры <code>HUNGRY</code> (<code>tests/protocol.rs:109-112</code>), в карточке по-прежнему <code>used 2</code>; каталоги канала — <code>cat -n crates/rustmanifest-engine/src/semantic/behavior/collector/expansion.rs</code>, строки 34-36 и 49-60</td></tr>
+<tr><td>Цена наведения над собственным деревом (Б.31, 6.31, границы)</td><td>на срезе <code>bc5e142</code>: release-бинарь и проба stdio с <code>rootUri</code> корня репозитория в <code>initialize</code>, <code>didOpen</code> файла <code>crates/rustmanifest-lsp/src/server/snapshot.rs</code>, несколько <code>textDocument/hover</code> на <code>{"line": 77, "character": 15}</code> с замером времени до ответа</td></tr>
+<tr><td>Состояние проверок и базлайн на срезе <code>bc5e142</code> (Б.31)</td><td><code>cargo test --workspace</code>, <code>cargo clippy --workspace --all-targets</code>, <code>reuse lint</code>, <code>rustc --version</code>; блоб базлайна — <code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> на обоих концах среза; живая сверка — <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;каталог с checkouts&gt;</code></td></tr>
+<tr><td>История владения под курсором и её цена (Б.32, 6.32)</td><td>на срезе <code>7eb6c21</code>: <code>cargo test -p rustmanifest-engine --lib handover</code> — девять юнитов; <code>cargo test -p rustmanifest-lsp --test protocol</code> — семь тестов; живой бинарь — <code>cargo build --release -p rustmanifest-lsp</code> и проба stdio жанра Б.29: <code>didOpen</code> фикстуры <code>HANDED</code> из <code>tests/protocol.rs:373-374</code> и <code>textDocument/hover</code> с позицией внутри <code>foo(s)</code>; цена — <code>initialize</code> с <code>rootUri</code> корня репозитория, <code>didOpen</code> файла <code>crates/rustmanifest-lsp/src/server/snapshot.rs</code> и несколько наведений на вызов <code>build(</code> с замером времени до ответа</td></tr>
+<tr><td>Неполная история при параметре-срезе (6.32, границы; вопрос 23)</td><td>той же пробой: <code>didOpen</code> документа с <code>fn pack(name: String, bytes: &amp;[u8]) {}</code> и вызовом <code>pack(s, &amp;b)</code>, наведение внутрь вызова — один шаг вместо двух; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/behavior/signature/parameter.rs</code>, строки 41-47</td></tr>
+<tr><td>Порождённые impl-блоки, тела канона, действия и дефект derive (Б.32, 6.33)</td><td>на срезе <code>7eb6c21</code>: <code>cargo test -p rustmanifest-engine --lib implement</code> — четырнадцать юнитов; живой бинарь — после <code>didOpen</code> фикстуры <code>UNWRITTEN</code> из <code>tests/protocol.rs:461-462</code> послать <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.implement", "arguments": ["Disk", "Sink"]}</code> и <code>textDocument/codeAction</code> на имени типа; тела — тот же ход на документе <code>struct User { id: String, name: String, age: u8 }</code>; дефект — на документе <code>#[derive(Default)] struct Disk;</code> обе просьбы возвращают блок и действие, хотя derive написан</td></tr>
+<tr><td>Состояние проверок и базлайн на срезе <code>7eb6c21</code> (Б.32)</td><td><code>cargo test --workspace</code>, <code>cargo clippy --workspace --all-targets</code>, <code>reuse lint</code>, <code>rustc --version</code>; блоб базлайна — <code>git rev-parse &lt;коммит&gt;:eval/baseline.json</code> по семи коммитам <code>1492351</code>…<code>7eb6c21</code>; живая сверка — <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;каталог с checkouts&gt;</code></td></tr>
+<tr><td>Use-after-move, закрытие derive-дефекта, метки владения и правки (Б.33, 6.34)</td><td>на срезе <code>9cfa11f</code>: <code>cargo test -p rustmanifest-engine --lib moved</code> — одиннадцать юнитов; <code>cargo test -p rustmanifest-engine --lib a_derived_canon_trait_is_refused</code>; <code>cargo test -p rustmanifest-engine --lib marks</code> — четыре юнита; <code>cargo test -p rustmanifest-lsp --test protocol</code> — десять тестов</td></tr>
+<tr><td>Красный CLI-тест после захвата идентификатора (Б.33, 6.34, границы)</td><td>на срезе <code>9cfa11f</code>: <code>cargo test -p rustmanifest-cli --test fix</code> — <code>hoist_fix_moves_the_clone_before_the_loop_and_rerun_is_clean</code> падает с «Unexpected success»; прежний смысл идентификатора — <code>git show 25036ea~1:crates/rustmanifest-rules-core/rules/RM-MEM-002/rule.toml</code></td></tr>
+<tr><td>Красные ворота корпуса и восемь находок (Б.33, 6.34, границы)</td><td>на срезе <code>9cfa11f</code>: <code>cargo run --release -p rustmanifest-eval -- check --corpus-root &lt;корень&gt;</code> — «check failed: 3 count drift(s), 0 budget breach(es)»; состав — <code>cargo run --release -p rustmanifest-cli -- check --format json &lt;checkout&gt;</code> по fork-hyper, hydebar, masterror и чтение байтовых диапазонов находок <code>RM-MEM-002</code> в исходниках</td></tr>
+<tr><td>Оракул трейтов и карточка с индексом и без (Б.35, 6.38)</td><td>на срезе <code>0da8dc9</code>: <code>cargo test -p rustmanifest-engine --lib oracle</code> — два юнита; живой бинарь — <code>cargo build --release -p rustmanifest-lsp</code>, в пробном крейте <code>RUSTC_BOOTSTRAP=1 cargo rustdoc --lib -- --output-format json -Z unstable-options</code>, затем проба stdio жанра Б.29: <code>initialize</code> с <code>rootUri</code> пробного крейта, <code>didOpen</code> его <code>lib.rs</code>, <code>textDocument/hover</code> на имени типа — до и после сборки индекса</td></tr>
+<tr><td>Синтез буферной правки и её ворота (Б.35, 6.39)</td><td>на срезе <code>0da8dc9</code>: <code>cargo test -p rustmanifest-engine --lib loop_write</code>; замкнутый круг — <code>git show bd415c7:crates/rustmanifest-cli/src/ask.rs</code> в <code>src/main.rs</code> пробного крейта, <code>cargo run --release -p rustmanifest-cli -- check --format json &lt;крейт&gt;</code>, сверка правки находки <code>RM-IO-003</code> с диффом <code>git show b1f8742</code></td></tr>
+<tr><td>Вердикт компилятора на применённых правках (6.39, вопрос 25)</td><td>на срезе <code>0da8dc9</code>: <code>cargo test -p rustmanifest-engine --test applied_fixes</code> — три теста; дефект границы — <code>git show 0ff9d9d -- crates/rustmanifest-engine/src/semantic/extract.rs</code></td></tr>
+<tr><td>Измерение буферизации в фактах и молчание по знанию (Б.35, 6.40)</td><td>на срезе <code>0da8dc9</code>: <code>cargo test -p rustmanifest-engine --lib a_buffered_loop_write_is_silent_by_knowledge</code> и <code>… a_buffered_write_over_a_bound_stream_is_silent_too</code>; живые факты — <code>cargo run --release -p rustmanifest-cli -- facts crates/rustmanifest-cli --filter run_ask</code>, поле <code>buffering</code> у <code>output-writes</code></td></tr>
+<tr><td>Конверты MCP-ответов и схема смещений (Б.35, 6.41)</td><td>на срезе <code>0da8dc9</code>: <code>cargo test -p rustmanifest-mcp</code> — conformance по живому бинарю; схема — <code>cargo run -p rustmanifest-schema --bin rustmanifest-schema-export -- --out &lt;каталог&gt;</code> и <code>diff</code> с <code>crates/rustmanifest-schema/schemas/</code></td></tr>
+<tr><td>Перепись молчаний и её две записи (Б.36, 6.42)</td><td>на срезе <code>ecad89f</code>: <code>cargo test -p rustmanifest-mcp suppressions_tell_the_used_from_the_stale</code>; число инструментов — <code>cargo test -p rustmanifest-mcp nine_tools</code> (оба теста); живой бинарь — <code>cargo build -p rustmanifest-mcp</code> и JSON-RPC-сессия поверх stdio из корня с открытым до ответа stdin: <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/call</code> <code>suppressions</code> с <code>{"path": "crates"}</code>; обе записи — <code>cat -n crates/rustmanifest-engine/src/pragma.rs</code>, строки 9 и 158</td></tr>
+<tr><td>Цепь дедукции: установка, подтверждение, отказ (Б.36, 6.43)</td><td>на срезе <code>ecad89f</code>: <code>cargo test -p rustmanifest-engine --lib deduce</code>, <code>--lib intents</code>, <code>--lib emitted</code>, <code>--lib montage</code> — 3, 3, 4 и 2 юнита; живые цепи — бинарь с path-зависимостью от <code>rustmanifest-engine</code>: печать шагов <code>fulfill_intents</code> на фикстурах Б.36</td></tr>
+<tr><td>Совещательный шаг прецедента и ворота допуска (Б.36, 6.44)</td><td>на срезе <code>ecad89f</code>: <code>cargo test -p rustmanifest-learn</code> — 8 юнитов, среди них <code>the_chain_carries_the_precedent_step_with_its_verdict</code> и <code>precedent_below_the_gate_ranks_nothing</code>; живая цепь — тот же бинарь с path-зависимостью и от <code>rustmanifest-learn</code>: печать шагов <code>deduce_with_precedent</code> на 22 impl из Б.36</td></tr>
+<tr><td>Словарь способности на шаге каталога и маркер выбора (Б.37, 6.45, 6.46)</td><td>на срезе <code>bf41d5e</code>: <code>cargo test -p rustmanifest-engine --lib deduce</code> — 6 юнитов, среди них <code>a_default_chain_speaks_the_default_vocabulary</code>, <code>the_catalog_marker_names_its_step_and_its_form</code>, <code>a_chain_stopped_before_the_choice_carries_no_marker</code></td></tr>
+<tr><td>Цепь до автора на обеих поверхностях (Б.37, 6.45, вопрос 28)</td><td>на срезе <code>bf41d5e</code>: <code>cargo test -p rustmanifest-lsp --test protocol</code> — 15 тестов, среди них <code>the_deduce_command_carries_the_chain_to_the_client</code> и <code>a_stopped_deduction_reaches_the_client_with_its_refusal</code>; <code>cargo test -p rustmanifest-mcp</code> — оба теста <code>ten_tools</code> и <code>deduce_trait_answers_with_the_chain</code>; живой бинарь — <code>cargo build -p rustmanifest-mcp</code> и JSON-RPC-сессия поверх stdio из каталога пробного крейта с открытым до ответа stdin: <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/list</code> → <code>tools/call</code> <code>deduce_trait</code> с <code>{"path": "lib.rs", "type_name": "User", "trait_name": "Default"}</code></td></tr>
+<tr><td>Молчание прецедента печати на цепи <code>Default</code> (Б.37, 6.46, вопрос 30)</td><td>на срезе <code>bf41d5e</code>: <code>cargo test -p rustmanifest-learn a_display_precedent_stays_silent_on_a_default_chain</code>; живые цепи — бинарь с path-зависимостью, печать шагов и маркера <code>deduce_with_precedent</code> на 22 impl из Б.36 с трейтами <code>Display</code> и <code>Default</code></td></tr>
+<tr><td>Секция вывода карточки (Б.37, 6.47, вопрос 27)</td><td>на срезе <code>bf41d5e</code>: <code>cargo test -p rustmanifest-lsp --lib</code> — три юнита секции; <code>cargo test -p rustmanifest-lsp --test protocol a_hover_tells_where_the_function_writes_and_through_what</code>; живой бинарь — проба stdio жанра Б.29: <code>didOpen</code> текста <code>fn shout() { println!("hi"); }</code> и <code>textDocument/hover</code> на имени функции</td></tr>
+<tr><td>Слияние эмиссий и возраст индекса (Б.37, 6.48, вопрос 26)</td><td>на срезе <code>bf41d5e</code>: <code>cargo test -p rustmanifest-engine --lib oracle</code> — 3 юнита, среди них <code>merged_emissions_answer_for_every_documented_crate</code>; чтение свежести — <code>cat -n crates/rustmanifest-lsp/src/server/snapshot.rs</code>, строки 129-172; деградация словами — <code>rg -n "index older than the sources" crates/rustmanifest-lsp/src/server/card.rs</code></td></tr>
+<tr><td>Маркер в цепи намерения на шаг раньше выбора (Б.37, вопрос 31)</td><td>на срезе <code>bf41d5e</code>: тот же бинарь с path-зависимостью — печать <code>catalog</code> рядом с нумерацией шагов <code>fulfill_intents</code> на фикстуре Б.36; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/intents.rs</code>, строка 100</td></tr>
+<tr><td>Маркер каталога сдвинут вставкой свидетельства (Б.38, 6.49, вопрос 31)</td><td>на срезе <code>a1b5526</code>: <code>cargo test -p rustmanifest-engine --lib the_catalog_marker_survives_the_evidence_insertion</code>; живая цепь — тот же бинарь с path-зависимостью, что в Б.37: печать шагов и маркера <code>fulfill_intents</code> на фикстуре Б.36; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/intents.rs</code>, строки 116-118</td></tr>
+<tr><td>Намерения на обеих поверхностях (Б.38, 6.50)</td><td>на срезе <code>a1b5526</code>: <code>cargo test -p rustmanifest-lsp --test protocol</code> — 17 тестов, среди них <code>the_intents_command_names_what_the_written_calls_ask_for</code>; <code>cargo test -p rustmanifest-mcp</code> — оба теста <code>eleven_tools</code> и <code>derived_intents_cite_the_written_call</code>; живой бинарь — <code>cargo build -p rustmanifest-mcp</code> и JSON-RPC-сессия поверх stdio из каталога пробного крейта с открытым до ответа stdin: <code>initialize</code> → <code>notifications/initialized</code> → <code>tools/list</code> → <code>tools/call</code> <code>derived_intents</code> с <code>{"path": "lib.rs"}</code></td></tr>
+<tr><td>Украшенный заголовок действия рядом с голым (Б.38, 6.50)</td><td>на срезе <code>a1b5526</code>: <code>cargo test -p rustmanifest-lsp --test protocol an_intent_backed_action_cites_the_asking_call</code>; живой бинарь — <code>cargo build -p rustmanifest-lsp</code> и проба stdio жанра Б.29: <code>didOpen</code> текста фикстуры из <code>tests/protocol.rs:1115-1116</code>, <code>textDocument/codeAction</code> с позицией <code>{"line": 0, "character": 12}</code> и <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.intents", "arguments": []}</code></td></tr>
+<tr><td>Адрес свидетельства на обеих поверхностях (Б.39, 6.51, вопрос 32)</td><td>на срезе <code>511191f</code>: <code>cargo test -p rustmanifest-engine --lib the_evidence_carries_the_calls_written_address</code>; <code>cargo test -p rustmanifest-lsp --test protocol the_intents_command_names_what_the_written_calls_ask_for</code> — тест сверяет URI и позиции; <code>cargo test -p rustmanifest-mcp derived_intents_cite_the_written_call</code> — тест сам режет фикстуру отвеченным диапазоном; живой бинарь — <code>cargo build -p rustmanifest-mcp</code>, JSON-RPC-сессия Б.39 и срез <code>lib.rs</code> байтами ответа; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/intents.rs</code>, строки 39-43 и 96</td></tr>
+<tr><td>Семейство <code>default</code> и ворота вектора (Б.40, 6.52, вопрос 30)</td><td>на срезе <code>bb0b7fc</code>: <code>cargo test -p rustmanifest-learn</code> — 15 тестов, среди них <code>a_written_default_precedent_advises_the_default_chain</code> и <code>a_widened_vector_raises_the_gate</code>; живой бинарь — <code>cargo build -p rustmanifest-lsp</code> и проба stdio жанра Б.29: <code>didOpen</code> фикстуры юнита и <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.deduce", "arguments": ["User", "Default"]}</code>; молчание ниже ворот — тот же запрос над <code>need.rs</code>; написание <code>Self</code> — <code>rustmanifest facts</code> на фикстуре с литералом <code>Self</code> в <code>default()</code>; сторона чтения — <code>cat -n crates/rustmanifest-learn/src/forms.rs</code>, строки 101-131</td></tr>
+<tr><td>Судья над порождённым и два маршрута приземления (Б.41, 6.53, вопрос 29)</td><td>на срезе <code>d3a61f7</code>: <code>cargo test -p rustmanifest-engine --test applied_fixes</code> — 6 тестов; правка редактора — <code>cargo build -p rustmanifest-lsp</code> и проба stdio жанра Б.29: <code>didOpen</code> фикстуры <code>need.rs</code> и <code>textDocument/codeAction</code> с позицией <code>{"line": 0, "character": 12}</code>; монтажная сторона — пробный крейт с path-зависимостью, печатающий <code>install_impl(&amp;sources, 0, "Job", "Default")</code>; сверка — <code>cmp</code> и <code>sha256sum</code> двух полных текстов, компиляция приземлённого — <code>rustc --edition 2024 --crate-type lib --emit metadata</code>; развёртка записи — <code>grep -rn 'fs::write\|File::create\|OpenOptions' crates/rustmanifest-engine/src</code></td></tr>
+<tr><td>Диагностика намерения на площадке вызова и молчание на нажатии (Б.42, 6.54, вопрос 21)</td><td>на срезе <code>7638d9e</code>: <code>cargo test -p rustmanifest-lsp --test protocol an_opened_document_with_a_written_intent_receives_its_diagnostic</code>; живой бинарь — <code>cargo build -p rustmanifest-lsp</code> и проба stdio жанра Б.29: <code>didOpen</code> фикстуры <code>Job</code>/<code>make</code> из <code>tests/protocol.rs:1148-1149</code> и чтение первого <code>publishDiagnostics</code>, затем <code>didChange</code> с тем же текстом и <code>didSave</code> с текстом; сторона сервера — <code>cat -n crates/rustmanifest-lsp/src/server/intent.rs</code> и <code>crates/rustmanifest-lsp/src/server.rs</code>, строки 101-103</td></tr>
+<tr><td>Инвариант воркспейса как диагностика с трассой и согласие двух поверхностей (Б.43, 6.55, вопрос 21)</td><td>на срезе <code>1a16eb7</code>: <code>cargo test -p rustmanifest-lsp --test protocol a_declared_invariant_violation_receives_its_diagnostic_with_the_trace</code> и <code>cargo test -p rustmanifest-engine --lib a_precomputed_snapshot_judges_the_same_violation</code>; живой бинарь — <code>cargo build -p rustmanifest-lsp</code> и проба stdio жанра Б.29 над настоящим корнем: каталог с <code>rustmanifest.toml</code> и тремя файлами из <code>tests/protocol.rs:1193-1214</code>, <code>initialize</code> с <code>workspaceFolders</code> на корень, <code>didOpen</code> нарушающего <code>api.rs</code> и чтение первого <code>publishDiagnostics</code>, затем <code>didChange</code> с тем же текстом и <code>didSave</code> с текстом; согласие поверхностей — <code>rustmanifest check --config &lt;корень&gt;/rustmanifest.toml --format json &lt;корень&gt;</code>; сторона сервера — <code>cat -n crates/rustmanifest-lsp/src/server/invariant.rs</code>, сторона движка — <code>crates/rustmanifest-engine/src/semantic/invariant.rs</code>, строки 84-100</td></tr>
+<tr><td>Корпусный судья над установками (Б.44, 6.56, вопрос 25)</td><td>на срезе <code>5ae76c5</code>: <code>cargo test -p rustmanifest-engine --lib a_type_declared_inside_an_inline_module_is_refused</code>, <code>… a_generic_type_is_refused</code>, <code>… a_nested_declaration_carries_the_nesting_flag</code>; проба — пробный крейт с path-зависимостью от <code>rustmanifest-engine</code>: обход копии дерева корпуса через <code>walker::discover</code>, <code>TypeGraph::from_sources</code>, перечисление пар «тип → <code>Display</code>/<code>Default</code>» с подтверждённой <code>install_impl</code>; вердикт — запись <code>gain.installed</code> в файл копии, <code>cargo check --workspace --offline</code> в копии, восстановление файла; отказы до починки — та же проба, собранная против рабочей копии <code>d84695c</code> (<code>git worktree add</code>); сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/implement.rs</code>, строки 38-41, и <code>crates/rustmanifest-engine/src/semantic/graph.rs</code>, строки 48-77</td></tr>
+<tr><td>Корпусный судья над оставшимися деревьями (Б.45, 6.57, вопрос 25)</td><td>на срезе <code>d49c50f</code>: <code>cargo test -p rustmanifest-engine --lib an_error_derive_grants_display_and_refuses_the_install</code>, <code>… an_error_derive_leaves_no_display_intent</code>; проба и протокол вердикта — как в строке Б.44; воспроизведение E0119 — та же проба, собранная против рабочей копии <code>5ae76c5</code> (<code>git worktree add</code>), приземление <code>MailError</code> + <code>Display</code> в копию aura-api и <code>cargo check --workspace --offline</code> в ней; пустота вердикта fork-hyper — дописать заведомо не-Rust строку в <code>examples/client_json.rs</code> копии и увидеть зелёный <code>cargo check --workspace --offline</code>; настоящий канал — <code>cargo check --offline --features full --examples</code> там же; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/graph.rs</code>, строки 118-139</td></tr>
+<tr><td>Экстракционный судья корпуса (Б.46, 6.58, вопрос 25)</td><td>на срезе <code>f5db05f</code>: <code>cargo test -p rustmanifest-engine --lib a_public_reexport_survives_the_import_pruning</code>, <code>… an_async_helper_promotes_before_its_qualifier</code>, <code>… a_foreign_ability_call_refuses_the_move</code>, <code>… a_flat_target_file_refuses_the_move</code>, <code>… the_reexport_carries_the_written_visibility</code>; проба и протокол вердикта — как в строке Б.45, режимы перечисления и приземления экстракций, приземление в копию дерева и <code>cargo check --workspace --offline</code> в ней с восстановлением файлов; живой отказ — та же проба именем <code>tick</code> на копии ratma-studio-api; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/extract.rs</code>, строки 83-85, 105-115, 265-291, 293-341, 342-391, 416-443</td></tr>
+<tr><td>Вторая форма вопросного слоя (Б.47, 6.59, вопрос 20)</td><td>на срезе <code>9429b81</code>: <code>cargo test -p rustmanifest-engine --lib whence</code> — пять юнитов; <code>cargo test -p rustmanifest-lsp --test protocol the_whence_command_restates_the_value_across_calls</code>; живой бинарь — установленный <code>rust-manifest</code> и проба stdio жанра Б.29: <code>didOpen</code> текста фикстуры протокольного теста и <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.whence", "arguments": ["make"]}</code>, затем то же с <code>["nowhere"]</code>; сторона движка — <code>cat -n crates/rustmanifest-engine/src/semantic/whence.rs</code>, строки 42-107, 112-135, 140-170</td></tr>
+<tr><td>Журнальные счётчики</td><td><code>git show 6ca4091:rustmanifest-status.html</code></td></tr>
+</tbody>
+</table></div>
+<p>Самый быстрый способ увидеть центральный механизм: выполнить команду из второй строки таблицы и прочитать в находке трассу — четыре шага от ребра вызова до запрета, каждый с причиной.</p>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>

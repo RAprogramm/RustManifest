@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ru" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Цена нуля ложных срабатываний: понимание Rust-кода без модели в контуре</title>
+<style>
+:root,:root[data-theme="light"]{
+  --paper:#F6F1E7;--paper2:#EEE7D8;--ink:#221D16;--muted:#6E6353;--line:#D9CFBC;
+  --oxide:#B2492C;--deep:#8C3520;--ok:#4A6B3F;--blk:#3F5A7D;--plan:#6E6353;
+  --codebg:#EEE7D8;--mark:#F3E4C8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}}
+:root[data-theme="dark"]{
+  --paper:#191511;--paper2:#221D16;--ink:#EAE1D2;--muted:#9A8E7C;--line:#3A3228;
+  --oxide:#D96A47;--deep:#E88B6C;--ok:#8FAE7F;--blk:#8FB0D6;--plan:#9A8E7C;
+  --codebg:#221D16;--mark:#33291B}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);
+  font:1rem/1.68 Charter,Cambria,Georgia,"Times New Roman",serif;
+  -webkit-text-size-adjust:100%}
+code,pre,kbd,.mono,.caps,thead th,#themebtn,footer{
+  font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(.9rem,3vw,1.5rem)}
+a{color:var(--oxide);text-decoration:none}
+a:hover{text-decoration:underline}
+.caps{font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding-top:1.75rem;flex-wrap:wrap}
+#themebtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:.2em 0}
+#themebtn:hover{color:var(--oxide)}
+h1{font-size:clamp(1.5rem,1rem + 2.6vw,2.35rem);font-weight:650;line-height:1.2;margin:.6rem 0 .4rem}
+h1 .ox{color:var(--oxide)}
+.hmeta{font-size:.8125rem;color:var(--muted);line-height:1.9}
+.hmeta code{font-size:.78rem}
+.lede{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:1.1rem 0;margin-top:1.4rem;font-size:1.0625rem}
+.grid{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:clamp(1.5rem,4vw,4rem)}
+main{max-width:74ch;min-width:0}
+nav.toc{position:sticky;top:1.25rem;align-self:start;font-size:.8125rem;
+  max-height:calc(100vh - 2.5rem);overflow-y:auto}
+nav.toc ol{list-style:none;margin:.5rem 0 1.25rem}
+nav.toc a{display:block;color:var(--muted);padding:.18rem 0 .18rem .7rem;
+  border-left:2px solid transparent}
+nav.toc a:hover{color:var(--ink);text-decoration:none;border-left-color:var(--line)}
+nav.toc .n{font-size:.72rem;margin-right:.35rem;display:inline-block;min-width:1.6em;
+  font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.docmeta{font-size:.72rem;color:var(--muted);border-top:1px solid var(--line);
+  padding-top:.7rem;line-height:1.9}
+section{margin-top:2.75rem;border-top:1px solid var(--line);padding-top:1.4rem;
+  scroll-margin-top:1rem}
+main section:first-child{margin-top:1.75rem}
+h2{font-size:1.1875rem;font-weight:650;line-height:1.35}
+h2 .sn{color:var(--oxide);font-size:.9rem;margin-right:.5rem;
+  font-family:ui-monospace,Menlo,monospace}
+h3{font-size:1rem;font-weight:650;margin-top:1.6rem}
+h3 .sn{color:var(--deep);font-size:.85rem;margin-right:.4rem;
+  font-family:ui-monospace,Menlo,monospace}
+p{margin-top:.8rem}
+ul,ol{margin:.8rem 0 0 1.25rem}
+li{margin-top:.4rem}
+li::marker{color:var(--muted)}
+strong{font-weight:650}
+em{font-style:italic}
+code{font-size:.8em;background:var(--codebg);border-radius:2px;padding:.08em .32em;
+  overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:3px;
+  padding:.85rem 1rem;margin-top:.9rem;overflow-x:auto;
+  font-size:.8125rem;line-height:1.55}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+.tbl{overflow-x:auto;margin-top:.9rem;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.875rem}
+caption{caption-side:bottom;text-align:left;font-size:.75rem;color:var(--muted);
+  padding-top:.45rem}
+thead th{font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:400;text-align:left;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:.4rem .8rem .4rem 0;white-space:nowrap}
+tbody td{padding:.45rem .8rem .45rem 0;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td code{white-space:nowrap}
+.num{font-weight:600;color:var(--deep);font-variant-numeric:tabular-nums;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:.35em;font-size:.6563rem;
+  letter-spacing:.05em;text-transform:uppercase;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  background:color-mix(in srgb,currentColor 8%,transparent);
+  border-radius:2px;padding:.14em .5em;white-space:nowrap;
+  font-family:ui-monospace,Menlo,monospace}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{color:var(--ok)}.b-wip{color:var(--oxide)}.b-plan{color:var(--plan)}.b-blk{color:var(--blk)}
+.note{background:var(--paper2);border-left:3px solid var(--oxide);
+  padding:.7rem 1rem;margin-top:.9rem;font-size:.9375rem}
+.recap{border:1px solid var(--line);border-radius:3px;background:var(--paper2);
+  padding:.7rem 1rem;margin-top:1rem;font-size:.9063rem}
+.recap .caps{display:block;margin-bottom:.3rem}
+footer{border-top:1px solid var(--line);margin-top:3rem;padding:1rem 0 2rem;
+  text-align:center;font-size:.75rem;color:var(--muted)}
+@media (max-width:960px){
+  .grid{display:block}
+  nav.toc{position:static;max-height:none;overflow:visible;
+    border-bottom:1px solid var(--line);padding-bottom:.75rem;margin-bottom:.5rem}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:.15rem .9rem;margin-bottom:.5rem}
+  nav.toc a{border-left:none;padding:.15rem 0}
+  nav.toc .docmeta{display:none}
+}
+@media print{nav.toc,#themebtn{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div class="top">
+<p class="caps">Проектное исследование · корректность и тестирование · 2026-08-03</p>
+<button id="themebtn" type="button" aria-label="Переключить тему">тема</button>
+</div>
+<h1><a href="index.html" style="color:inherit;text-decoration:none">Цена нуля ложных срабатываний<span class="ox">:</span> детерминированное понимание Rust-кода без модели в контуре</a></h1>
+<p class="hmeta">
+<strong>Предмет:</strong> чем оплачен «ноль ложных» у движка, исполняющего методологию ревью как код, и в каких границах это утверждение верно.<br>
+<strong>Материал разбора:</strong> <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a>, коммит <code>cabc917</code>.<br>
+<strong>Объём:</strong> 49&#8239;952 слова, 541 строка кода. Чтение около 300 минут; около 7 минут для короткого маршрута из раздела 0.2.
+</p>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Содержание">
+<p class="caps">Содержание</p>
+<ol>
+<li><a href="s0.html"><span class="n">0</span>Предисловие</a></li>
+<li><a href="s1.html"><span class="n">1</span>Вопрос в одном абзаце</a></li>
+<li><a href="s2.html"><span class="n">2</span>Машина</a></li>
+<li><a href="s3.html"><span class="n">3</span>Ограничения</a></li>
+<li><a href="s4.html"><span class="n">4</span>Соседи</a></li>
+<li><a href="s5.html"><span class="n">5</span>Пространство решений</a></li>
+<li><a href="s6.html"><span class="n">6</span>Эксперименты</a></li>
+<li><a href="s7.html" aria-current="page"><span class="n">7</span>Программа</a></li>
+<li><a href="s8.html"><span class="n">8</span>Риски</a></li>
+<li><a href="s9.html"><span class="n">9</span>Открытые вопросы</a></li>
+<li><a href="s10.html"><span class="n">10</span>Мнение</a></li>
+<li><a href="s11.html"><span class="n">11</span>Что обобщается</a></li>
+<li><a href="apA.html"><span class="n">А</span>Указатель доказательств</a></li>
+<li><a href="apB.html"><span class="n">Б</span>Пробы</a></li>
+<li><a href="apC.html"><span class="n">В</span>Воспроизведение</a></li>
+<li><a href="apD.html"><span class="n">Г</span>Границы страницы</a></li>
+</ol>
+<div class="docmeta">main @ <code>cabc917</code> · 2026-08-03<br>правил: 21 · тестов: 556, все зелёные<br>корпус: 277&#8239;956 строк · 6 репозиториев<br>замеры поверх закрепления — срезы <code>6077de4</code>…<code>59c6c26</code></div>
+</nav>
+
+<main>
+<section id="s7">
+<h2><span class="sn">7</span>Программа</h2>
+<ul>
+<li><span class="badge b-wip">в работе</span>&nbsp; переименования по отпечаткам поведения: детекция уже доказательная (<code>rename_detect.rs:6-10</code>), операция в слое правок собрана; граница О4 записана рядом.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; SCIP-слой фазы 4 — форма решена эталонным замером 6.9, линковка <code>ra_ap_hir</code> с программы снята, слой реализован как необязательный оверлей (<code>--scip</code> у <code>facts</code> и <code>coverage</code>) и измерен: +22.7% рёбер на собственном воркспейсе, +29.0% на masterror, происхождение рёбер различимо, быстрый дефолт не тронут (6.11, срез <code>204edac</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; use-резолв классификации эффектов — первый по порядку починки ворот 6.10, реализован и измерен тем же днём: ворота 11/33 против 8/33 при нуле противоречий, на fork-hyper 295 функций с известным эффектом против 263 при байт-стабильном базлайне (6.10, срез <code>76fc7f7</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; атрибуция методов-умолчаний трейтов и пол аксиом из 47 методов std — реализованы и измерены (срез <code>91a4311</code>); ворота 6.10 не сдвинулись, и отрицательный результат назвал две новые стены — макро-обёрнутые объявления и ввод-вывод через замыкания.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; идентичность символа на SCIP-стыке — стена коллизий коротких имён из прогона 2 закрыта в форме проверки крейта и модульного пути на самом соединении, оверлей отдаёт графу связанные индексы фактов; прибавка выросла с +290 до +401 и с +718 до +777, нерешённый спор отбрасывается (6.11, срез <code>2612dbc</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; типизация параметра-получателя замыкания — реализована через внутренний тип одно-generic поля-обёртки и дала крупнейший одиночный скачок ворот 6.10: 11/33 → 18/33 при нуле противоречий, эффекты в графе вывода 1515 против 1495 (6.11, срез <code>8d3912b</code>); двух-generic обёртка не связывается.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; два граничных зонда — совместный прогон шести крейтов (7140 функций) сузил разрыв отправки запроса до одного вызова сервиса tower; nightly-развёртка tokio вернула в базу фактов все четыре отсутствующих конца, включая транзитивный <code>unsafe</code> у <code>read_exact</code> (6.11, срез <code>c92e57d</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; диспатч по трейт-границам generic-параметров и ext-умолчания с supertrait-проваливанием — два механизма против первых двух стен, доказаны сквозными юнитами; ворота не сдвинулись, стена заточена уровнем глубже (6.11, срез <code>76be4a0</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; прокачка impl-границ в типизацию полей — реализована вместе с прозрачностью закрепления и рёбрами <code>await</code> → <code>poll</code>, три механизма разом: +39 функций с эффектами в развёрнутой вселенной tokio, цепочка записи остановилась на коллизии имён проекций (6.11, срез <code>2a819b4</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; прозрачность проекций pin-project-lite — две константы знания сомкнули выведенную цепочку записи насквозь, без ручного пака в контуре; развёрнутая вселенная 1494 против 1477, цена — задокументированное завышение диспатча (6.11, срез <code>84718f4</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; знание derive у thiserror — второй жилец нити macro-знаний: синтез <code>From</code>-фактов из <code>#[from]</code>-полей плюс кандидаты конверсии в точках <code>?</code>; точность без сдвига, SCIP-рёбра садятся на синтезированные факты (6.12, срез <code>59300d2</code>). Обе заявки нити закрыты.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; развёртка макросов как штатный режим — флаг <code>facts --expand</code> с семантикой замещения и порядком «все фичи, откат на дефолт»; деградация покрейтовая, флаг по умолчанию выключен (6.13, срез <code>69a6d00</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; несущая проверка поверхности инвариантов — три интеграционных теста запрета эффекта сквозь замыкание обёртки, ребро <code>await</code> и умолчание трейта-расширения, все с первого прогона: путь инвариантов получил ремонты дня бесплатно через общую базу фактов (6.14, срез <code>144fb08</code>). Естественная точка закрепления дня.</li>
+<li><span class="badge b-ok">решено</span>&nbsp; предел завышения диспатча — семантика в обе стороны: для запретов завышение остаётся корректной стороной, а трасса заявляет модальность мульти-имплементаторного ребра; закреплено тестом двух имплементаторов (6.15, срез <code>4298d78</code>).</li>
+<li><span class="badge b-wip">сдвинута</span>&nbsp; стена диспатча сервисных трейтов — вердикт зонда 1 «синтаксически непересекаема» пересмотрен данными: четыре механизма типизации получателя с константой знания о слоях tower прошли диспатч насквозь (6.16, срез <code>f86a4df</code>); после разблокировки гранулярности цепочка reqwest стоит на кортежном поле.</li>
+<li><span class="badge b-ok">разблокированы</span>&nbsp; оба лица стены гранулярности — таблицы типизации со скоупом близости потребителя: файл, затем крейт, иначе молчание; тройной клиент reqwest распутан, совместная вселенная 1678 → 1793, находки корпуса без сдвига (6.16, срез <code>cf22ad9</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; типизация кортежных полей — позиционные ключи в таблицах типизации при неизменном канале фактов, связыватель замыканий переведён на тот же путь; вселенная 1793 → 1814, базлайн байт-стабилен (6.16, срез <code>aed4ee5</code>). Разделение каналов закреплено как постоянное правило для любого улучшения типизации.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; слой разрешённых имён на поверхности инвариантов — <code>check --scip</code> и <code>check_invariants_with</code>: оверлей ложится на граф до транзитивного замыкания, происхождение хранится парами <code>(вызывающий, вызываемый)</code>, и каждый шаг трассы называет способ установления прыжка (6.17, срез <code>e1cc212</code>). Правило 6.15 распространено с диспатча на источник знания.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; скоуп целей сборки в резолюции — сверка вывода с исходником показала, что весь замеренный подъём вердиктов на fork-hyper составлен одним ложным классом (6.18); отсев недостижимых кандидатов до решения о единственности реализован и перезамерен тем же днём (6.19, срез <code>4885c0d</code>): 188 находок с индексом и 188 без него, минус 17 ложных и плюс 11 верных, потерянных раньше на коллизии двух тестовых крейтов.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; таблица внешних маршрутов из регистрационных вызовов — словарь фреймворка вынесен в данные, композиция разрешается через провайдеров, три отказа вместо догадок (динамический путь, неразрешимая композиция, взаимно складывающиеся роутеры как запутанность); сверка с объявленной OpenAPI-разметкой: 116 из 116 путей на ratma-studio-api и 72 из 75 на aura-api (6.20, срез <code>1ffbf75</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; канал наблюдаемого вывода — параллельный <code>output_writes</code> в порядке тела, без дедупликации: поток, payload, терминатор, байтовый диапазон, стек охраны, предшествующие выходы, кратность; грубая категория <code>console</code> не тронута по стоячему правилу о новом канале (6.21, срезы <code>5fc94d1</code>, <code>97efff2</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; две оси уверенности и точка входа — локальное исполнение и достижимость складываются слабейшей, стек из восьми видов охраны, расхождение убивает последующее, голый <code>loop</code> охраной намеренно не считается; вход опознаётся по раскладке файлов и атрибутам, цели сборки не тронуты (6.22, срезы <code>6b6b217</code>, <code>dce8a28</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; слой заявлений с деградацией по полям — одно предложение на достижимую запись, приёмочный случай наименьшей программы взят дословно, молчание распознавателя отличено от отсутствия записей (6.23, срез <code>dce8a28</code>).</li>
+<li><span class="badge b-ok">закрыт</span>&nbsp; дефект беззвучной потери условной регистрации — обходчик поверхности получил рукава ветки, присваивания, рукава <code>match</code> и замыкания, и регистрация под условием восстанавливается с пометкой «условная» вместо исчезновения (<code>c4e7954</code>; тесты — <code>crates/rustmanifest-engine/src/semantic/surface.rs:254-285</code>); пометка дотекает до клаузы маршрута яруса хранения как «mounted in some builds or runs only» (<code>keeping/served.rs:40-42</code>; <code>keeping/said.rs:199-201</code>). Приёмка таблицы маршрутов перезамерена против объявленного эталона: полнота 100.0% (139/139) на ratma-studio-api и 98.9% (92/93) на aura-api, замер попутно нашёл и закрыл три конечные точки, потерянные за складыванием в цепочке метод-роутера (<code>docs/ROADMAP.md:181-194</code>; вторично, перепрогоном страницы не подтверждалось). На срезе <code>d75236a</code> закрыт и второй класс той же породы — регистрация внутри токенов макроса: вызовы словаря фреймворка в токенах, разбирающихся списком выражений, считаются в поле <code>unwalked</code> отчёта поверхности, восстановления из токенов нет, граница несчитанного названа в доке поля (<code>surface/walk.rs:147-191</code>; <code>surface/table.rs:48-53</code>; тест — <code>surface.rs:403-414</code>); для видов выражений отказ по умолчанию с <code>c4e7954</code> держится по построению — единственное место решения плюс счётчик чужого получателя (вопрос 13, решён).</li>
+<li><span class="badge b-ok">поставлено</span>&nbsp; распознавание <code>write!</code>/<code>writeln!</code> в дескриптор потока — писательские макросы вошли в каталог рядом с печатными, а поток берётся из назначения: из ручки процесса, построенной на месте, из объявленного типа связывания либо из факта, что писателя подал вызывающий (<code>collector/catalog.rs:37-38,63-76</code>; <code>collector/destination.rs:38-44,49-56</code>). Значение «писатель вызывающего», которое на <code>dce8a28</code> нигде не конструировалось, теперь конструируется — предсказание вопроса 12 сбылось в своей механической половине; доля записей корпуса, взятых расширенным набором, не перемерена, и остаток вопроса 12 жив. Туториальная и CRUD-ступени лестницы пишут через залоченную ручку и прослеживаются насквозь (6.26).</li>
+<li><span class="badge b-wip">наполовину закрыто</span>&nbsp; две слабости старых каналов — аргументы макросов-выражений теперь посещаются, и факт внутри аргумента записывается (<code>collector/expansion.rs:91-105</code>, 6.24); тело замыкания по-прежнему отдаёт эффекты объемлющей функции, и эта половина статуса не меняла.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; ярус значений — термин происхождения на каждой записанной позиции, пофункциональные сводки, таблица потока из строк, сохраняющих значение, оверлей резолвера отдельным бинарём; доля выведенного на своих исходниках 88.3%, на трёх чужих воркспейсах 88.6—92.8% (вторично, 6.24). Один найденный дефект корректности — два рукава суть две области видимости — починен и записан (<code>92866ab</code>).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; ярус хранения — хранилища из объявлений, глаголы из фактов, команды из написанных альтернатив, маршруты и wire-формы соединением уже выведенного, перенос за конец прогона по двум границам с направлением из доказательства, концовки один раз на прогон (6.25, срезы <code>40203fe</code>…<code>e19f4d0</code>). Базлайн корпуса на всей дуге хранения байт-стабилен — один блоб <code>14ead88</code> от <code>40203fe</code> до <code>2883ecf</code>, включая разрешения обеих развилок (Б.19, Б.21).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; ступень базы данных лестницы — оба коммита меняют только тестовый файл, механизмы <code>54406ea</code> и <code>c36e79f</code> выдержали целую программу без новой работы; полное предложение снято живым прогоном, граница таблицы потока названа в самом тесте (6.26, срезы <code>8eb8adf</code>, <code>3426071</code>).</li>
+<li><span class="badge b-ok">закрыт</span>&nbsp; дефект запасного рукава глагола хранения — недоказанное касание коллекции получало «reads» вместо обещанного документацией модуля молчания (проба Б.18); на срезе <code>2883ecf</code> рукав заменён чтением по собственному каналу: глагол выдаётся только от записи в канале чтений, замещающий и вливающий методы молчат, чтение нестандартным написанием уцелело (<code>keeping/verb.rs:126,129-142</code>); проба стала регрессионным тестом (<code>keeping.rs:426-451</code>), перегон пробы — Б.20, разбор развилки — вопрос 16.</li>
+<li><span class="badge b-ok">решено</span>&nbsp; строка потока «содержимое-или-объявленный-дефолт» — допущена на срезе <code>34984c5</code> единственным исключением доктрины таблицы: строка называет объявление дефолта, его байты остаются незаявленными (<code>std_knowledge/flow.rs:19-25,55</code>; <code>behavior/value/provenance.rs:70-78</code>); титул команды ступени базы данных дошёл до позиции 2 командной строки и закреплён лестницей (<code>tests/ladder.rs:475-482</code>), базлайн корпуса байт-стабилен (Б.21); разбор спора — вопрос 15 и 6.26.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; канал записанных операторов — по-площадочный <code>queries</code> на фактах функции: вид из первого ключевого слова (DDL вне чтения), таблица из грамматического слота с молчанием на JOIN, списке источников и подзапросе, обе формы sqlx на обоих местах сбора, запись с открытой таблицей сохраняется ради счёта честности (<code>behavior/query.rs</code>, <code>knowledge/statement.rs</code>; 6.27, срез <code>5b08e71</code>); канал печатается в экспорте фактов (<code>facts_export/fact.rs:70-73</code>, срез <code>3e432ad</code>; с <code>c4a6b73</code> — строки 70-75); на срезе <code>c4a6b73</code> запись несёт и написанное вокруг SQL — тип строки от самого носителя и простые имена аргументов после SQL (<code>record</code> и <code>binds</code>, <code>behavior/query.rs:54-64</code>; вопросы 17—18).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; таблица из операторов как хранилище — глаголы из видов операторов, привязанная таблица остаётся дальней стороной полевого хранилища, <code>servings_of</code> обобщён на любой список глаголов (<code>keeping/table.rs</code>, <code>keeping/served.rs:74-88</code>; 6.27, срез <code>dd06290</code>); ступень сервера прямо над базой закреплена лестницей и снята живым прогоном (срез <code>e5bc630</code>; Б.22). Родительский срез отдавал на эту программу ноль предложений — проверено прогоном. На срезе <code>c4a6b73</code> хранилище называет свою запись при единогласии строко-типизирующих операторов и молчит при расхождении (<code>keeping/table.rs:84-106</code>), а клауза параметра пути легла от собственного bind оператора (<code>keeping/served.rs:168-197</code>) — обе клаузы закреплены лестницей и сняты живым прогоном (Б.24; вопросы 17—18).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; счётчик операторов в секции честности отчёта — «database statements with a proven kind: X/Y, naming their table: Z/X»: разрыв между первыми двумя числами — слепое пятно канала (собранные на ходу операторы, DDL), названное числом; живой прогон на aura-api — 287/287 и 207/287, пересчёт по экспорту сошёлся (<code>behavior/query.rs:69-115</code>; <code>report/honesty.rs:40-56</code>; 6.27, срез <code>ddae227</code>; Б.24; вопрос 19).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; бухгалтерия отказов графа вызовов по именованным строкам — каждый отказавший кандидат ложится ровно в одну строку, без остатка, выводимого вычитанием: рядом с чужим и неизвестным получателем встали named-elsewhere (внешнее по исключению 6.19 как своё незнание, не растворение в чужом), ambiguous и owner-without-member; учтённость включает named-elsewhere, разложение печатают строка покрытия и секция честности отчёта (<code>calls/build.rs:119-178</code>; <code>coverage/report.rs:81-91,145-157</code>; <code>report/honesty.rs:32-40</code>; срез <code>62dd9c3</code>; Б.26). Живое разложение на своём воркспейсе: при 13&#8239;101 кандидате — чужое 8220, неизвестный получатель 208, named-elsewhere 0, ambiguous 808, owner-without-member 326; вопросы 5 и 11 решены.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; вопросный слой, первая форма — <code>ask &lt;функция&gt; &lt;эффект&gt;</code>: ответ как вывод по записанным фактам, шаг за шагом, с четырьмя честными исходами и переиспользованием цепочки и словаря причин рёбер инвариантного яруса; четыре закрепляющих теста, живые ответы и оба отказа сняты прогонами (6.28, срез <code>aed9b26</code>; Б.28). Поверхность — только текст с нулевым кодом выхода; JSON-формы у <code>Answer</code> нет.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; первая поверхность редактора — LSP-сервер из скелета фазы 0 стал рабочим: диагностики пакетных правил на открытие, изменение и сохранение над живым буфером редактора, идентификатор правила в каждой диагностике, воркспейсные инварианты сознательно вне поверхности; протокольный тест над транспортом в памяти, бинарь <code>rust-manifest</code> (6.29, срезы <code>2b6e7cb</code>…<code>bda66a2</code>; Б.29). Первое живое использование поймало дефект двойной обёртки способностей, который зелёный тест пропускал; починен одной строкой и закреплён. Остаток той же породы найден пробой страницы — процесс не завершался после <code>shutdown</code>/<code>exit</code> — и закрыт одной строкой на срезе <code>5a8cb4f</code>: соединение отпускается после обслуживания, выход чист (6.29, границы; Б.30).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; поверхность впитывания — наведение на записанное имя функции отвечает карточкой её фактов: память, способ взятия каждого параметра, эффекты тела и достигаемые через вызовы, площадки вызовов; пустая секция отсутствует, мимо идентификатора — протокольный null; карточка несёт нумерованный вывод для каждого унаследованного эффекта, и тот же вывод отдаёт как данные воркспейсная команда <code>rust-manifest.why</code> — переносимый канал для любого клиента с <code>executeCommand</code>; три протокольных теста, карточка и команда сняты живой пробой (6.30, срезы <code>5a8cb4f</code>…<code>bf2b02f</code>; Б.30). Ответы вопросного слоя 6.28 дошли до места, где автор читает код.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; инлайн-захват шаблона как употребление — оговорка счётчика из пробы Б.30 закрыта со стороны движка для печатных и писательских макросов: имя, написанное внутри литерала, считается там, где захват читается; <code>format!</code> остаётся вне канала, и карточка той же фикстуры по-прежнему отвечает <code>used 2</code>; закрепляющий тест, базлайн корпуса байт-стабилен и сверен живым перегоном (6.31, срез <code>6c914a3</code>; Б.31).</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; воркспейсный снапшот — наведение и команда считают ответ над всеми исходниками корня, названного клиентом при рукопожатии, с наложением открытых буферов поверх файлов и пересборкой только после документного события; цепочка вывода пересекает файлы, обе поверхности называют файл одной функцией, чем закрыто и расхождение имён 6.30; четвёртый протокольный тест, кросс-файловый ответ дословно и цена запроса сняты живой пробой (6.31, срезы <code>934911e</code>…<code>bc5e142</code>; Б.31). Главная часть вопроса 21 отвечена; обе оставшиеся половины записаны в 6.31, границы.</li>
+<li><span class="badge b-ok">сделано</span>&nbsp; четыре поверхности редактора от одной деривации снапшота — история владения под курсором и карточка типа с вердиктами трейтов на наведении, судьба каждого аргумента призрачным текстом на <code>inlayHint</code>, quickfix-правки находок в списке действий и первая диагностика о некомпилирующемся тексте — use-after-move до компилятора; derive-дефект 6.33 и вопрос 23 закрыты тем же днём (6.32—6.34, срезы <code>1492351</code>…<code>9cfa11f</code>; Б.32, Б.33). Оговорка среза записана границей 6.34: ворота корпуса поймали восемь ложных находок новой проверки, и один CLI-тест красен после захвата идентификатора правила.</li>
+<li><span class="badge b-blk">не поставлено</span>&nbsp; поверхность предложения яруса хранения — <code>purpose</code> живёт в API движка, ни одна команда CLI его не рендерит; потребители — лестница и юнит-тесты (6.25); табличное предложение 6.27 живёт на тех же правах.</li>
+<li><span class="badge b-blk">не доказано</span>&nbsp; ценность слоя разрешённых имён на поверхности вердиктов — после починки подъём равен нулю на двух корпусах; уцелела прибавка на уровне фактов, ни разу не изменившая находку. Разблокировка названа и проверяема: корпус с настоящими объявленными инвариантами вместо придуманных для замера (6.19).</li>
+<li><span class="badge b-blk">граница</span>&nbsp; межкрейтовая инстанциация generic на цепочке reqwest — клиент hyper_util за generic-параметром, чья граница объявлена на impl-блоке другого крейта: правилами типизации получателя не достаётся по построению. Пересечение — работа слоя разрешённых имён; SCIP-оверлей такие рёбра несёт при поданном индексе (6.16).</li>
+<li><span class="badge b-blk">заблокировано</span>&nbsp; поставка таблиц эффектов, выведенных из исходников зависимостей, — ворота 6.10 держатся на 18/33 при нуле противоречий за весь день; выведенная цепочка записи сомкнута, развёртка штатна, последний записанный перегон ворот — 18/33, и перегона после смыкания в протоколе нет; предел завышения решён: трасса не завышает и заявляет модальность (6.15); диспатч сервисов пройден механизмами 6.16, обе стены гранулярности разблокированы скоупом близости, кортежные поля закрыты, и остаток цепочки reqwest упирается в межкрейтовую инстанциацию generic — границу синтаксического яруса, пересекаемую слоем разрешённых имён; до перегона ворот с этими механизмами знания несут ручные паки, выведенное — только добавка поверх них.</li>
+<li><span class="badge b-blk">заблокировано</span>&nbsp; MIR-уточнитель на <code>rustc_public</code> — ждёт выхода на crates.io (<code>docs/PLAN.md:90</code>).</li>
+<li><span class="badge b-blk">заблокировано</span>&nbsp; discovery-прогон обучаемого яруса — ждёт настоящих меток accept/suppress из использования; до них действует О7.</li>
+<li><span class="badge b-plan">спроектировано</span>&nbsp; Datalog-вывод (Ascent), когда объём фактов оправдает смену движка вывода.</li>
+</ul>
+<p>«Заблокировано» здесь — внешняя зависимость с названным событием разблокировки, не эвфемизм для «не хочется».</p>
+</section>
+</main>
+</div>
+
+<footer>2026-08-03 · MIT · <a href="https://github.com/RAprogramm/RustManifest">RAprogramm/RustManifest</a> · main @ cabc917 · замеры 2026-08-02…09 — срезы 6077de4…bc5e142</footer>
+</div>
+<script>
+(function(){
+  var r=document.documentElement,btn=document.getElementById("themebtn");
+  function isDark(){var t=r.getAttribute("data-theme");
+    return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches}
+  function sync(){var d=isDark();btn.textContent=d?"тема: тьма":"тема: свет";
+    btn.setAttribute("aria-label",d?"К светлой теме":"К тёмной теме")}
+  try{var t=localStorage.getItem("rm-theme");if(t)r.setAttribute("data-theme",t)}catch(e){}
+  sync();
+  btn.onclick=function(){var n=isDark()?"light":"dark";
+    r.setAttribute("data-theme",n);
+    try{localStorage.setItem("rm-theme",n)}catch(e){}
+    sync()};
+})();
+</script>
+</body>
+</html>
