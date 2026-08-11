@@ -79,7 +79,7 @@ pub(in crate::semantic) fn effect_chain(
             && facts[current]
                 .effects
                 .iter()
-                .any(|observed| observed.to_string() == effect)
+                .any(|observed| observed.covered_by(effect))
         {
             let mut chain = vec![current];
             let mut cursor = current;

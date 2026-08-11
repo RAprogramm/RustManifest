@@ -75,7 +75,7 @@ pub fn why_effect_over(
     if fact
         .effects
         .iter()
-        .any(|observed| observed.to_string() == effect)
+        .any(|observed| observed.covered_by(effect))
     {
         return direct(sources, fact, effect);
     }
@@ -181,7 +181,7 @@ fn proof_steps(
 ) -> Vec<TraceStep> {
     fact.effect_sites
         .iter()
-        .filter(|site| site.effect.to_string() == effect)
+        .filter(|site| site.effect.covered_by(effect))
         .map(|site| {
             let file = sources
                 .get(fact.source)

@@ -53,6 +53,23 @@ pub enum Effect {
     Database
 }
 
+impl Effect {
+    /// Whether the asked name covers this grade: the exact display
+    /// name, or the database category name `db` covering all three
+    /// database grades — a ban or a question writing the category means
+    /// the database, not one grade of it. The reverse never holds:
+    /// `db-read` names reads alone.
+    #[must_use]
+    pub fn covered_by(self, asked: &str) -> bool {
+        self.to_string() == asked
+            || (asked == "db"
+                && matches!(
+                    self,
+                    Self::DatabaseRead | Self::DatabaseWrite | Self::Database
+                ))
+    }
+}
+
 impl fmt::Display for Effect {
     fn fmt(&self, out: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = match self {

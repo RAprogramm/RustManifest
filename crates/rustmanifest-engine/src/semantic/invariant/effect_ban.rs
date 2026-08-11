@@ -32,10 +32,7 @@ pub(super) fn effect_violation(
 ) -> Option<(String, Vec<TraceStep>)> {
     let effect = invariant.effect.as_deref()?;
     let fact = facts.get(fact_index)?;
-    if !reachable
-        .iter()
-        .any(|observed| observed.to_string() == effect)
-    {
+    if !reachable.iter().any(|observed| observed.covered_by(effect)) {
         return None;
     }
     if !covered_by_any(module, &invariant.deny_in) {
@@ -44,7 +41,7 @@ pub(super) fn effect_violation(
     let direct = fact
         .effects
         .iter()
-        .any(|observed| observed.to_string() == effect);
+        .any(|observed| observed.covered_by(effect));
     let denied = invariant.deny_in.join(", ");
     let mut trace = Vec::new();
     let how = if direct {
