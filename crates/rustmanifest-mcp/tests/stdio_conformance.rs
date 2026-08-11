@@ -123,8 +123,51 @@ fn scripted() -> BTreeMap<i64, Value> {
         }}),
         json!({"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {
             "name": "derived_intents", "arguments": {"path": "need.rs"}
+        }}),
+        json!({"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {
+            "name": "whence_value", "arguments": {"path": "need.rs", "function": "make"}
+        }}),
+        json!({"jsonrpc": "2.0", "id": 13, "method": "tools/call", "params": {
+            "name": "why_kept", "arguments": {"path": "need.rs", "store": "Ghost"}
         }})
     ])
+}
+
+#[test]
+fn whence_value_answers_with_the_chain() {
+    let responses = scripted();
+    let answer = &responses[&12]["result"]["structuredContent"];
+    assert!(
+        answer["conclusion"]
+            .as_str()
+            .expect("conclusion text")
+            .contains("hands back"),
+        "{answer}"
+    );
+    assert!(
+        answer["steps"]
+            .as_array()
+            .expect("steps array")
+            .iter()
+            .any(|step| step["fact"]
+                .as_str()
+                .expect("fact")
+                .contains("restated across calls")),
+        "{answer}"
+    );
+}
+
+#[test]
+fn why_kept_refuses_an_unknown_store_by_name() {
+    let responses = scripted();
+    let answer = &responses[&13]["result"]["structuredContent"];
+    assert!(
+        answer["conclusion"]
+            .as_str()
+            .expect("conclusion text")
+            .contains("no store named `Ghost`"),
+        "{answer}"
+    );
 }
 
 #[test]
@@ -138,7 +181,7 @@ fn handshake_reports_server_identity_and_capabilities() {
 }
 
 #[test]
-fn tools_list_exposes_exactly_the_eleven_tools() {
+fn tools_list_exposes_exactly_the_thirteen_tools() {
     let responses = scripted();
     let mut names: Vec<&str> = responses[&2]["result"]["tools"]
         .as_array()
@@ -160,7 +203,9 @@ fn tools_list_exposes_exactly_the_eleven_tools() {
             "project_overview",
             "review_file",
             "review_path",
-            "suppressions"
+            "suppressions",
+            "whence_value",
+            "why_kept"
         ]
     );
 }

@@ -11,7 +11,9 @@ use rmcp::{ErrorData, Json, handler::server::wrapper::Parameters, tool, tool_rou
 
 use super::{
     ReviewServer,
-    parameters::{DeduceParams, FactsParams, OverviewParams, PathParams}
+    parameters::{
+        DeduceParams, FactsParams, KeptParams, OverviewParams, PathParams, WhenceParams
+    }
 };
 
 #[tool_router(router = knowledge_router, vis = "pub(super)")]
@@ -99,6 +101,34 @@ impl ReviewServer {
                     intents
                 })
             })
+    }
+
+    /// Answer where the value a function hands back comes from: each
+    /// written position cited with its byte range, the origin restated
+    /// across calls, refusals naming candidates with their files.
+    #[tool(annotations(read_only_hint = true))]
+    async fn whence_value(
+        &self,
+        Parameters(params): Parameters<WhenceParams>
+    ) -> Result<Json<crate::knowledge::AnswerRecord>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::whence(&path, &params.function))
+            .await
+            .map(Json)
+    }
+
+    /// Answer why the program keeps a store: the declaration that makes
+    /// it a store, every verb proven at its own bytes, the routes
+    /// serving it, and the writes that tell someone about it.
+    #[tool(annotations(read_only_hint = true))]
+    async fn why_kept(
+        &self,
+        Parameters(params): Parameters<KeptParams>
+    ) -> Result<Json<crate::knowledge::AnswerRecord>, ErrorData> {
+        let path = self.resolved(&params.path)?;
+        blocking(move || crate::knowledge::kept(&path, &params.store))
+            .await
+            .map(Json)
     }
 
     /// Learn per-role convention clauses over a path and return them as

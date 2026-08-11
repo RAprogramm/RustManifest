@@ -145,6 +145,57 @@ pub fn deduction(
     })
 }
 
+/// One answered question on the wire: the conclusion and the steps
+/// that carry it, in the chain genre every question form shares.
+#[derive(Debug, serde::Serialize, schemars::JsonSchema)]
+pub struct AnswerRecord {
+    /// What the steps add up to, in one sentence.
+    pub conclusion: String,
+    /// The inference, one recorded fact per step, with its reason.
+    pub steps:      Vec<ChainStep>
+}
+
+impl From<rustmanifest_engine::semantic::Answer> for AnswerRecord {
+    fn from(held: rustmanifest_engine::semantic::Answer) -> Self {
+        Self {
+            conclusion: held.conclusion,
+            steps:      held
+                .steps
+                .into_iter()
+                .map(|step| ChainStep {
+                    fact:   step.fact,
+                    reason: step.reason
+                })
+                .collect()
+        }
+    }
+}
+
+/// Answers where the value `function` hands back comes from: the
+/// question layer's second form, each written position cited with its
+/// byte range and restated across calls.
+///
+/// # Errors
+///
+/// Returns an [`EngineError`] when file discovery fails.
+pub fn whence(target: &Path, function: &str) -> Result<AnswerRecord, EngineError> {
+    let sources = sources_for(target)?;
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    Ok(rustmanifest_engine::semantic::whence_value(&workspace, function).into())
+}
+
+/// Answers why the program keeps the store `asked` names: the question
+/// layer's third form, every verb proven at its own bytes.
+///
+/// # Errors
+///
+/// Returns an [`EngineError`] when file discovery fails.
+pub fn kept(target: &Path, asked: &str) -> Result<AnswerRecord, EngineError> {
+    let sources = sources_for(target)?;
+    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    Ok(rustmanifest_engine::semantic::why_kept(&workspace, asked).into())
+}
+
 /// One derived intent on the wire: the ability a written call asks
 /// for, with the call standing as evidence.
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]

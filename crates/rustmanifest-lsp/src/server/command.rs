@@ -49,6 +49,9 @@ pub(super) const INTENTS: &str = "rust-manifest.intents";
 /// The value-origin command this server serves.
 pub(super) const WHENCE: &str = "rust-manifest.whence";
 
+/// The store-purpose command this server serves.
+pub(super) const KEPT: &str = "rust-manifest.kept";
+
 /// Answers one `workspace/executeCommand` request over the snapshot.
 pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     if request.params["command"].as_str() == Some(IMPLEMENT) {
@@ -62,6 +65,9 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     }
     if request.params["command"].as_str() == Some(WHENCE) {
         return sourced(request, held);
+    }
+    if request.params["command"].as_str() == Some(KEPT) {
+        return held_for(request, held);
     }
     let arguments = &request.params["arguments"];
     let (Some(_uri), Some(function), Some(effect)) = (
@@ -167,6 +173,39 @@ fn sourced(request: &Request, held: &Derived<'_>) -> Response {
             first
         )
     };
+    let steps: Vec<serde_json::Value> = asked
+        .steps
+        .iter()
+        .map(|step| {
+            serde_json::json!({
+                "fact": step.fact,
+                "reason": step.reason
+            })
+        })
+        .collect();
+    Response::new_ok(
+        request.id.clone(),
+        serde_json::json!({
+            "conclusion": asked.conclusion,
+            "steps": steps
+        })
+    )
+}
+
+/// Answers the kept command: why the program keeps the asked store —
+/// the question layer's third form, the same chain-of-steps shape the
+/// why command answers with.
+fn held_for(request: &Request, held: &Derived<'_>) -> Response {
+    let arguments = &request.params["arguments"];
+    let Some(store) = arguments[0].as_str() else {
+        return Response::new_err(
+            request.id.clone(),
+            lsp_server::ErrorCode::InvalidParams as i32,
+            format!("`{KEPT}` takes [store]")
+        );
+    };
+    let workspace = rustmanifest_engine::Workspace::new(held.sources);
+    let asked = rustmanifest_engine::semantic::why_kept(&workspace, store);
     let steps: Vec<serde_json::Value> = asked
         .steps
         .iter()

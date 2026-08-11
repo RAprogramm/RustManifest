@@ -1152,6 +1152,49 @@ fn the_whence_command_restates_the_value_across_calls() {
     closed(client, handle);
 }
 
+/// The kept command answers the question layer's third form: the
+/// store's declaration and every proven verb, the chain shape shared
+/// by every question command.
+#[test]
+fn the_kept_command_answers_why_a_store_is_kept() {
+    let (client, handle) = opened(
+        "use std::collections::BTreeMap;\n\npub struct Task {\n    pub title: String,\n}\n\npub \
+         struct Store {\n    pub tasks: BTreeMap<u64, Task>,\n}\n\nimpl Store {\n    pub fn \
+         add(&mut self, title: String) {\n        let id = self.tasks.len() as u64;\n        \
+         self.tasks.insert(id, Task { title });\n    }\n}\n"
+    );
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.kept",
+                "arguments": ["Store.tasks"]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    assert!(
+        held["conclusion"]
+            .as_str()
+            .unwrap()
+            .contains("`Task` records"),
+        "{held:?}"
+    );
+    let steps = held["steps"].as_array().unwrap();
+    assert!(
+        steps
+            .iter()
+            .any(|step| step["fact"].as_str().unwrap().contains("adds a record")),
+        "{held:?}"
+    );
+    closed(client, handle);
+}
+
 /// The whence command's positional form answers for a byte: the
 /// cursor on a written call names what the callee hands back.
 #[test]

@@ -60,6 +60,7 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                 command::DEDUCE.to_owned(),
                 command::INTENTS.to_owned(),
                 command::WHENCE.to_owned(),
+                command::KEPT.to_owned(),
             ],
             ..lsp_types::ExecuteCommandOptions::default()
         }),

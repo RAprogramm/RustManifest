@@ -46,6 +46,25 @@ pub struct DeduceParams {
     pub trait_name: String
 }
 
+/// Parameters for `whence_value`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(super) struct WhenceParams {
+    /// File or directory path resolved against the workspace root.
+    pub path:     String,
+    /// Function asked about, by qualified or bare name.
+    pub function: String
+}
+
+/// Parameters for `why_kept`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(super) struct KeptParams {
+    /// File or directory path resolved against the workspace root.
+    pub path:  String,
+    /// The store asked about: its `Owner.field` key, its owner, its
+    /// field, or its record type.
+    pub store: String
+}
+
 /// Parameters for `explain_rule`.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RuleIdParams {
