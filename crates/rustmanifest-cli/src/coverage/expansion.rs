@@ -29,6 +29,53 @@ pub(super) fn expand_lines(summary: &ExpandSummary) -> Vec<String> {
     lines
 }
 
+/// Counts the drift between the two universes of analysis: functions
+/// both see, functions only the plain reading sees (bodies behind
+/// `cfg(test)` and friends, stripped by the expansion build), and
+/// functions only the expansion sees (macro-generated bodies absent
+/// from surface syntax). The two universes answer different questions
+/// by definition of the mode; the drift makes their difference a
+/// number instead of an invisibility.
+pub(super) fn universe_drift(
+    plain: &std::collections::BTreeSet<String>,
+    expanded: &std::collections::BTreeSet<String>
+) -> (usize, usize, usize) {
+    let shared = plain.intersection(expanded).count();
+    let plain_only = plain.difference(expanded).count();
+    let expanded_only = expanded.difference(plain).count();
+    (shared, plain_only, expanded_only)
+}
+
+/// Renders the universe-drift line from the plain facts and the
+/// expanded streams: each stream is read with the same reading the
+/// plain universe got, so the two sides are comparable by name.
+pub(super) fn drift_line(
+    sources: &[rustmanifest_engine::Source],
+    summary: &ExpandSummary
+) -> String {
+    let plain: std::collections::BTreeSet<String> = rustmanifest_engine::behavior(sources)
+        .into_iter()
+        .map(|fact| fact.function)
+        .collect();
+    let mut expanded: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for (path, stream) in &summary.streams {
+        let synthetic = rustmanifest_engine::Source::new(path.clone(), stream.clone());
+        expanded.extend(
+            rustmanifest_engine::behavior(std::slice::from_ref(&synthetic))
+                .into_iter()
+                .map(|fact| fact.function)
+        );
+    }
+    let (shared, plain_only, expanded_only) = universe_drift(&plain, &expanded);
+    line(
+        "universe drift",
+        &format!("{shared} shared"),
+        &format!(
+            "plain-only {plain_only} (cfg-stripped bodies)   expanded-only {expanded_only}              (macro-generated)"
+        )
+    )
+}
+
 /// Absorbs every expanded stream into a fresh type graph and renders the
 /// integration line: how many derived impls the graph now holds and how
 /// many workspace types gained known trait implementations.
@@ -90,6 +137,23 @@ fn trait_tail(summary: &ExpandSummary) -> String {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
+    /// The drift is three one-sided counts, none derivable from the
+    /// others by subtraction alone.
+    #[test]
+    fn the_drift_counts_each_side_by_name() {
+        use std::collections::BTreeSet;
+        let plain: BTreeSet<String> = ["shared", "test_only"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let expanded: BTreeSet<String> = ["shared", "generated"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(super::universe_drift(&plain, &expanded), (1, 1, 1));
+        assert_eq!(super::universe_drift(&plain, &plain), (2, 0, 0));
+    }
+
     use rustmanifest_engine::ExpansionReport;
 
     use super::{ExpandSummary, expand_lines, trait_tail};

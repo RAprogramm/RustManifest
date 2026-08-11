@@ -27,7 +27,7 @@ use anyhow::Context;
 pub use self::options::CoverageArgs;
 use self::{
     counters::report_lines,
-    expansion::{expand_lines, integration_line},
+    expansion::{drift_line, expand_lines, integration_line},
     measurement::measure,
     unresolved::unresolved_lines
 };
@@ -48,6 +48,7 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
         let summary = crate::expand::expand_paths(&args.analyzed.paths);
         lines.extend(expand_lines(&summary));
         lines.push(integration_line(&measured.sources, &summary));
+        lines.push(drift_line(&measured.sources, &summary));
     }
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
