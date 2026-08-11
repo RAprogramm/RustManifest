@@ -1112,6 +1112,46 @@ fn the_intents_command_names_what_the_written_calls_ask_for() {
     closed(client, handle);
 }
 
+/// The whence command answers the question layer's second form: the
+/// value's origin restated across calls, steps carrying byte-ranged
+/// citations of the written positions.
+#[test]
+fn the_whence_command_restates_the_value_across_calls() {
+    let (client, handle) =
+        opened("fn seed() -> u32 {\n    7\n}\n\npub fn make() -> u32 {\n    seed()\n}\n");
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            2.into(),
+            "workspace/executeCommand".to_owned(),
+            serde_json::json!({
+                "command": "rust-manifest.whence",
+                "arguments": ["make"]
+            })
+        )))
+        .unwrap();
+    let Message::Response(answer) = client.receiver.recv().unwrap() else {
+        panic!("the command must be answered");
+    };
+    let held = answer.response_result.as_ref().unwrap();
+    assert!(
+        held["conclusion"]
+            .as_str()
+            .unwrap()
+            .contains("the written value"),
+        "{held:?}"
+    );
+    let steps = held["steps"].as_array().unwrap();
+    assert!(
+        steps.iter().any(|step| step["fact"]
+            .as_str()
+            .unwrap()
+            .contains("restated across calls")),
+        "{held:?}"
+    );
+    closed(client, handle);
+}
+
 /// An opened document whose written call states an intent receives the
 /// intent as a diagnostic on the call site, its related information
 /// leading to the cited type's declaration — a jump from either end,

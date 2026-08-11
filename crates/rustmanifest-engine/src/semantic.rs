@@ -63,6 +63,7 @@ mod std_derive;
 mod std_knowledge;
 mod summary;
 mod surface;
+mod whence;
 mod why;
 mod workspace;
 
@@ -130,6 +131,7 @@ pub use self::{
         composition_with, summaries, summaries_with
     },
     surface::{FrameworkModel, Route, Surface, surface},
+    whence::{whence_value, whence_value_over},
     why::{Answer, why_effect, why_effect_over},
     workspace::Workspace
 };

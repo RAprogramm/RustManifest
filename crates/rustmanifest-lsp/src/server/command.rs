@@ -19,7 +19,10 @@
 //! each citing the call as evidence and carrying the call's written
 //! address — the citing document's URI and the calling construct's
 //! positions — so the citation is a place to jump to, not a string to
-//! search for. The answer is the command's
+//! search for. `rust-manifest.whence` takes a function name and
+//! answers with the question layer's second form: where the value the
+//! function hands back comes from, each written position cited with
+//! its byte range and restated across calls. The answer is the command's
 //! result, so any
 //! client scripts it: an editor plugin, a keybinding, a pipeline.
 //! Nothing is shown or inserted by the server itself — how to use an
@@ -41,6 +44,9 @@ pub(super) const DEDUCE: &str = "rust-manifest.deduce";
 /// The intent-listing command this server serves.
 pub(super) const INTENTS: &str = "rust-manifest.intents";
 
+/// The value-origin command this server serves.
+pub(super) const WHENCE: &str = "rust-manifest.whence";
+
 /// Answers one `workspace/executeCommand` request over the snapshot.
 pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     if request.params["command"].as_str() == Some(IMPLEMENT) {
@@ -51,6 +57,9 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
     }
     if request.params["command"].as_str() == Some(INTENTS) {
         return intended(request, held);
+    }
+    if request.params["command"].as_str() == Some(WHENCE) {
+        return sourced(request, held);
     }
     let arguments = &request.params["arguments"];
     let (Some(_uri), Some(function), Some(effect)) = (
@@ -109,6 +118,43 @@ fn implemented(request: &Request, held: &Derived<'_>) -> Response {
         trait_name
     );
     Response::new_ok(request.id.clone(), serde_json::json!({ "text": written }))
+}
+
+/// Answers the whence command: where the value the asked function
+/// hands back comes from — the question layer's second form, the same
+/// chain-of-steps shape the why command answers with.
+fn sourced(request: &Request, held: &Derived<'_>) -> Response {
+    let arguments = &request.params["arguments"];
+    let Some(function) = arguments[0].as_str() else {
+        return Response::new_err(
+            request.id.clone(),
+            lsp_server::ErrorCode::InvalidParams as i32,
+            format!("`{WHENCE}` takes [function]")
+        );
+    };
+    let asked = rustmanifest_engine::semantic::whence_value_over(
+        held.sources,
+        held.facts,
+        held.graph,
+        function
+    );
+    let steps: Vec<serde_json::Value> = asked
+        .steps
+        .iter()
+        .map(|step| {
+            serde_json::json!({
+                "fact": step.fact,
+                "reason": step.reason
+            })
+        })
+        .collect();
+    Response::new_ok(
+        request.id.clone(),
+        serde_json::json!({
+            "conclusion": asked.conclusion,
+            "steps": steps
+        })
+    )
 }
 
 /// Answers the intents command: every intent the workspace's own
