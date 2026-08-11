@@ -38,6 +38,15 @@ pub enum EvalError {
         path: PathBuf
     },
 
+    /// Building or using a judgement bed failed.
+    #[error("judgement bed for {name}: {source}")]
+    Bed {
+        /// Corpus entry name or bed path.
+        name:   String,
+        /// Underlying IO error.
+        source: std::io::Error
+    },
+
     /// The engine reported a hard failure.
     #[error("engine failure: {0}")]
     Engine(#[from] EngineError),

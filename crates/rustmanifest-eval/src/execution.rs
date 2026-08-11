@@ -5,6 +5,7 @@
 //! the resulting report into a written artifact and an exit code.
 
 mod budget;
+mod judging;
 mod routes;
 mod summary;
 mod verbosity;
@@ -37,7 +38,8 @@ pub fn run(cli: Cli) -> Result<ExitCode, EvalError> {
         Command::Run(args) => run_report(&args),
         Command::Check(args) => run_check(&args),
         Command::Bless(args) => run_bless(&args),
-        Command::Routes(args) => routes::run_routes(&args)
+        Command::Routes(args) => routes::run_routes(&args),
+        Command::Judge(args) => judging::run_judge(&args)
     }
 }
 

@@ -1,0 +1,100 @@
+// SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
+// SPDX-License-Identifier: MIT
+
+//! The installations a tree offers for judgement: every type the
+//! montage confirms a canon installation for, up to the stated cap.
+
+use std::path::{Path, PathBuf};
+
+use rustmanifest_engine::{Source, walker};
+
+use crate::error::EvalError;
+
+/// One installation the montage confirms: the target file, the type,
+/// the trait, and the whole installed text ready to land.
+pub(super) struct Candidate {
+    /// File the installation lands in, inside the bed.
+    pub(super) file:       PathBuf,
+    /// The type the installation is for.
+    pub(super) type_name:  String,
+    /// The installed trait.
+    pub(super) trait_name: String,
+    /// The whole text of the file after installation.
+    pub(super) installed:  String
+}
+
+/// Lists up to `limit` confirmed installations over the tree at `root`.
+///
+/// # Errors
+///
+/// Returns an [`EvalError`] when file discovery fails.
+pub(super) fn listed(root: &Path, limit: usize) -> Result<Vec<Candidate>, EvalError> {
+    let files = walker::discover(std::slice::from_ref(&root.to_path_buf()))?;
+    let sources: Vec<Source> = files
+        .iter()
+        .filter_map(|file| {
+            std::fs::read_to_string(file)
+                .ok()
+                .map(|text| Source::new(file.clone(), text))
+        })
+        .collect();
+    let types = rustmanifest_engine::TypeGraph::from_sources(&sources);
+    let mut found = Vec::new();
+    for node in types.types() {
+        if found.len() >= limit {
+            break;
+        }
+        for trait_name in ["Display", "Default"] {
+            if found.len() >= limit {
+                break;
+            }
+            if types.ability_given(&node.name, trait_name) {
+                continue;
+            }
+            let Some(gain) = rustmanifest_engine::semantic::install_impl(
+                &sources,
+                node.source,
+                &node.name,
+                trait_name
+            ) else {
+                continue;
+            };
+            found.push(Candidate {
+                file:       sources[node.source].path().to_path_buf(),
+                type_name:  node.name.clone(),
+                trait_name: trait_name.to_owned(),
+                installed:  gain.installed
+            });
+        }
+    }
+    Ok(found)
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to fail loudly on broken invariants"
+)]
+mod tests {
+    use super::listed;
+
+    /// A tree offering one provable installation lists it with the
+    /// landed text, and the cap caps.
+    #[test]
+    fn a_tree_lists_its_confirmed_installations_under_the_cap() {
+        let bed = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(bed.path().join("src")).unwrap();
+        std::fs::write(
+            bed.path().join("src/lib.rs"),
+            "pub struct User {\n    pub name: String,\n}\n"
+        )
+        .unwrap();
+        let all = listed(bed.path(), 10).unwrap();
+        assert_eq!(all.len(), 2, "Display and Default");
+        assert!(all[0].installed.contains("impl std::fmt::Display for User"));
+        let capped = listed(bed.path(), 1).unwrap();
+        assert_eq!(capped.len(), 1);
+    }
+}

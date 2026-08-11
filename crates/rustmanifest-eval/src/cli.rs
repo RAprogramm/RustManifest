@@ -36,7 +36,10 @@ pub enum Command {
     Bless(BlessArgs),
     /// Measure the recovered route table against the one each project
     /// declares for `OpenAPI` generation.
-    Routes(RoutesArgs)
+    Routes(RoutesArgs),
+    /// Land generated installations into copies of the corpus trees and
+    /// let the real build judge them.
+    Judge(JudgeArgs)
 }
 
 /// Arguments for the `run` subcommand.
@@ -101,4 +104,24 @@ pub struct RoutesArgs {
     /// Measurement output location.
     #[arg(long, default_value = "eval/routes.json")]
     pub out: PathBuf
+}
+
+/// Arguments for the `judge` subcommand.
+#[derive(Debug, Parser)]
+pub struct JudgeArgs {
+    /// Directory the corpus entry paths are resolved against.
+    #[arg(long)]
+    pub corpus_root: PathBuf,
+
+    /// Corpus manifest location.
+    #[arg(long, default_value = "eval/corpus.toml")]
+    pub corpus: PathBuf,
+
+    /// Judgement output location.
+    #[arg(long, default_value = "eval/judge.json")]
+    pub out: PathBuf,
+
+    /// Candidate cap per repository.
+    #[arg(long, default_value_t = 10)]
+    pub limit: usize
 }

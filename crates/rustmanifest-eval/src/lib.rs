@@ -17,6 +17,7 @@
 
 pub mod corpus;
 pub mod error;
+pub mod judge;
 pub mod report;
 pub mod routes;
 pub mod runner;
