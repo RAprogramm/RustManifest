@@ -65,6 +65,34 @@ pub fn why_kept(workspace: &Workspace<'_>, asked: &str) -> Answer {
                 .to_owned()
         });
     }
+    let (verbs, routes, told) = proofs(workspace, &key, &mut steps);
+    let conclusion = if verbs == 0 && routes == 0 && told == 0 {
+        format!(
+            "`{key}` keeps `{}` records by declaration alone — no written method touches it",
+            store.record
+        )
+    } else {
+        format!(
+            "the program keeps `{}` records in `{key}`: {verbs} written method(s), {routes} \
+             route(s), {told} telling write(s) prove it",
+            store.record
+        )
+    };
+    Answer {
+        conclusion,
+        steps
+    }
+}
+
+/// Appends the written proofs of one store to `steps`: the verbs read
+/// from methods, the routes serving the records, and the writes that
+/// tell someone about them — counted apart so the conclusion can say
+/// which kind carried the answer.
+fn proofs(
+    workspace: &Workspace<'_>,
+    key: &str,
+    steps: &mut Vec<TraceStep>
+) -> (usize, usize, usize) {
     let mut verbs = 0usize;
     for entry in keeping(workspace) {
         if entry.store != key {
@@ -111,22 +139,7 @@ pub fn why_kept(workspace: &Workspace<'_>, asked: &str) -> Answer {
             reason: "the written value's composed origin names the store's own field".to_owned()
         });
     }
-    let conclusion = if verbs == 0 && routes == 0 && told == 0 {
-        format!(
-            "`{key}` keeps `{}` records by declaration alone — no written method touches it",
-            store.record
-        )
-    } else {
-        format!(
-            "the program keeps `{}` records in `{key}`: {verbs} written method(s), {routes} \
-             route(s), {told} telling write(s) prove it",
-            store.record
-        )
-    };
-    Answer {
-        conclusion,
-        steps
-    }
+    (verbs, routes, told)
 }
 
 /// The refusal for a name no store answers for: what was looked for,
