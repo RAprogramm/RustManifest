@@ -73,12 +73,10 @@ pub fn derived_intents_with(
             else {
                 continue;
             };
-            let Some(node) = types.type_named(owner) else {
+            if types.type_named(owner).is_none() {
                 continue;
-            };
-            let given = types.traits_implemented(owner).contains(trait_name)
-                || node.derives.iter().any(|derive| derive == trait_name);
-            if given {
+            }
+            if types.ability_given(owner, trait_name) {
                 continue;
             }
             let already = found
@@ -210,6 +208,18 @@ mod tests {
         let intents = derived_intents(&sources);
         assert_eq!(intents.len(), 1, "{intents:?}");
         assert_eq!(intents[0].trait_name, "Display");
+    }
+
+    /// A derive whose contract writes the ability leaves no intent: a
+    /// written `to_string` on an error-derived type is already served
+    /// by the expansion's own `Display`.
+    #[test]
+    fn an_error_derive_leaves_no_display_intent() {
+        let sources = one(
+            "#[derive(Error)]\n#[error(\"broken\")]\npub struct Broken {\n    pub name: \
+             String,\n}\n\npub fn label(held: &Broken) -> String {\n    held.to_string()\n}\n"
+        );
+        assert!(derived_intents(&sources).is_empty());
     }
 
     /// An ability already given leaves no intent to derive.

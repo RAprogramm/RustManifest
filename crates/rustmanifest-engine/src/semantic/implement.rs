@@ -39,9 +39,7 @@ pub fn impl_skeleton(
     if asked.nested || asked.generic {
         return None;
     }
-    if types.traits_implemented(type_name).contains(&trait_name)
-        || asked.derives.iter().any(|derive| derive == trait_name)
-    {
+    if types.ability_given(type_name, trait_name) {
         return None;
     }
     let declared = types.traits().iter().find(|node| node.name == trait_name);
@@ -149,6 +147,32 @@ mod tests {
                 "Default"
             )
             .is_none()
+        );
+    }
+
+    /// A derive whose contract writes the ability itself refuses the
+    /// install: the error-deriving crate's `Error` derive generates
+    /// `Display` from its own attributes, and a bare-name impl would
+    /// collide with that expansion — the corpus judge's third catch.
+    #[test]
+    fn an_error_derive_grants_display_and_refuses_the_install() {
+        assert!(
+            asked(
+                "#[derive(Error)]\n#[error(\"broken: {name}\")]\npub struct Broken {\n    pub \
+                 name: String,\n}\n",
+                "Broken",
+                "Display"
+            )
+            .is_none()
+        );
+        assert!(
+            asked(
+                "#[derive(Error)]\n#[error(\"broken: {name}\")]\npub struct Broken {\n    pub \
+                 name: String,\n}\n",
+                "Broken",
+                "Default"
+            )
+            .is_some()
         );
     }
 

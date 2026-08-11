@@ -103,9 +103,7 @@ pub fn deduce_impl(
             );
         }
     }
-    if types.traits_implemented(type_name).contains(&trait_name)
-        || node.derives.iter().any(|derive| derive == trait_name)
-    {
+    if types.ability_given(type_name, trait_name) {
         return stopped(
             steps,
             format!("`{type_name}` already carries `{trait_name}` — nothing to install")

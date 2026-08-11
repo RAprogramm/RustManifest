@@ -115,6 +115,29 @@ impl TypeGraph {
         traits
     }
 
+    /// Whether `name` provably carries `trait_name` with no new impl: a
+    /// written impl, a matching derive, or a derive whose contract
+    /// writes the ability itself — the error-deriving crate's `Error`
+    /// derive generates the `Display` impl from its own attributes, so
+    /// a bare-name install would collide with the expansion the graph
+    /// cannot see. The corpus judge's third catch.
+    #[must_use]
+    pub fn ability_given(&self, name: &str, trait_name: &str) -> bool {
+        const DERIVE_GRANTS: [(&str, &str); 1] = [("Error", "Display")];
+        if self.traits_implemented(name).contains(&trait_name) {
+            return true;
+        }
+        let Some(node) = self.type_named(name) else {
+            return false;
+        };
+        node.derives.iter().any(|derive| {
+            derive == trait_name
+                || DERIVE_GRANTS
+                    .iter()
+                    .any(|(granting, granted)| derive == granting && *granted == trait_name)
+        })
+    }
+
     /// Returns every structure that aggregates `name` through a field whose
     /// type resolves to it.
     #[must_use]
