@@ -107,12 +107,13 @@ pub fn whence_value_over(
     }
 }
 
-/// Answers where the value at one written position comes from: the
-/// innermost recorded site covering `offset` in source `file`, spoken
-/// as the value it produces and restated across calls. The channels
-/// asked are the ones that record positions producing a value — calls,
-/// operations, choices, reads, and handbacks; a byte no record covers
-/// is refused by its address, never guessed at.
+/// Answers where the value at one written position comes from.
+///
+/// The innermost recorded site covering `offset` in source `file`
+/// speaks as the value it produces, restated across calls. The
+/// channels asked are the ones recording positions that produce a
+/// value — calls, operations, choices, reads, and handbacks; a byte no
+/// record covers is refused by its address, never guessed at.
 #[must_use]
 pub fn whence_at_over(
     sources: &[Source],
