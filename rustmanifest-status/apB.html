@@ -887,6 +887,26 @@ XCANDIDATE  backoff_delay  &lt;копия&gt;/crates/entity-core/src/outbox.rs  
 "fact": "restated across calls, that position produces the written value 7"</pre>
 <p>Байты 66..72 сверены с фикстурой: диапазон режет ровно написанный вызов <code>seed()</code> внутри связывания, а байт 67 — переведённая позиция <code>[5, 16]</code>. Первый шаг называет говорящего словами канала вызовов, второй — пересказ той же композицией; ответ по месту совпадает по терму с ответом по имени из Б.47.</p>
 <p>Третий счёт — живые отказы адресом: та же сессия, второй <code>didOpen</code> документа из одной строки <code>pub struct Empty;</code> и <code>whence</code> с позицией <code>[0, 5]</code> на ключевом слове <code>struct</code> — «no recorded position covers byte 5 of /demo/src/empty.rs — nothing to answer for» при пустом списке шагов; затем позиция <code>[0, 0]</code> на ключевом слове <code>fn</code> первой фикстуры — «no recorded position covers byte 0 of /demo/src/lib.rs — nothing to answer for». Оба отказа называют байт и файл, ни один не гадает; <code>shutdown</code> → <code>exit</code> завершают сессию кодом 0.</p>
+<h3><span class="sn">Б.49</span>Пробы третьей формы вопросного слоя: наборы с воспроизведением улова линта на родительском срезе и живые цепочки <code>why_kept</code> через path-зависимую пробу на срезе <code>4abad15</code> (2026-08-11)</h3>
+<p>Метод — Б.17 и Б.44: проба-бинарь с path-зависимостью от <code>rustmanifest-engine</code> чистой рабочей копии <code>4abad15</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Фикстуры — <code>DATABASE_TODO</code> и <code>API_SERVER</code>, извлечённые из <code>tests/ladder.rs</code> без изменений (сверено по <code>diff</code>). Живой сессии поверхности нет и не может быть: форме не поставлено ни команды, ни инструмента по явному решению, проба говорит с движком напрямую через <code>why_kept</code>.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1052</span> зелёных при нуле упавших; среди новых — <code>a_kept_store_answers_with_its_declaration_and_verbs</code>, <code>the_record_type_finds_its_store</code>, <code>an_unknown_store_is_refused</code>, <code>an_ambiguous_name_is_refused_with_keys</code>. <code>cargo clippy --workspace --all-targets</code> в копии <code>4abad15</code> отвечает <code>Finished</code> без единой строки; тот же прогон в копии родительского среза <code>3c980ef</code> — не чист: «error: this function has too many lines (101/100)» на <code>kept.rs:28</code>, «<code>-D clippy::too-many-lines</code> implied by <code>-D clippy::pedantic</code>» — улов, оплаченный расщепляющим хвостом <code>4abad15</code>. <code>reuse lint</code> — 715 файлов из 715, соответствие REUSE 3.3. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — живая цепочка над <code>DATABASE_TODO</code>, вопрос <code>Store.tasks</code>, вывод дословно (причины шагов опущены здесь и приведены у первого — остальные повторяют доктрину своего рода):</p>
+<pre>the program keeps `Task` records in `Store.tasks`: 4 written method(s), 0 route(s), 2 telling write(s) prove it
+  `Store.tasks` is declared as a `BTreeMap` of `Task` records, looked into by `u64`
+      (a store is a field whose declared type is a collection of a type the workspace declares)
+  fn `Store::add` adds a record — proven at bytes 605..608
+  fn `Store::complete` changes a record — proven at bytes 804..812
+  fn `Store::persist` reads the records — proven at bytes 1036..1043
+  fn `main` reads the records — proven at bytes 1500..1504
+  fn `main` writes id out at bytes 2263..2290
+  fn `main` writes id out at bytes 2657..2726</pre>
+<p>Байты сверены с фикстурой: 605..608 режут написанное имя <code>add</code>, 804..812 — <code>complete</code>, а 2263..2290 — пишущую конструкцию <code>println!("added task {id}")</code> целиком; глагольный шаг цитирует идентификатор метода, показывающий — конструкцию записи.</p>
+<p>Третий счёт — та же проба над <code>API_SERVER</code>, вопрос <code>AppState.tasks</code>: заключение «4 written method(s), 4 route(s), 0 telling write(s) prove it», и после четырёх глагольных шагов — по шагу на каждый маршрут дословно:</p>
+<pre>  route `GET /tasks` reaches `list`, which reads the records
+  route `POST /tasks` reaches `create`, which adds a record
+  route `DELETE /tasks/{id}` reaches `remove`, which takes a record out
+  route `GET /tasks/{id}` reaches `read`, which reads the records</pre>
+<p>Четвёртый счёт — живые отказы: фикстура из двух одноимённых хранилищ (<code>Live.tasks</code> и <code>Done.tasks</code>, обе — <code>BTreeMap&lt;u64, Task&gt;</code>) на вопрос <code>tasks</code> отвечает дословно «<code>`tasks` is ambiguous: 2 stores — `Done.tasks` keeping `Task`, `Live.tasks` keeping `Task`</code>» при пустом списке шагов — кандидаты в отсортированном порядке владельцев, и каждый назван ключом, которым можно переспросить; вопрос <code>Ghost</code> над той же фикстурой — «<code>no store named `Ghost` is recorded</code>». Ни один шаг проводной формы в пробах не встретился: ни одна фикстура не несёт сериализационного дерива — отсутствие честное, шаг доказан только чтением.</p>
 </section>
 </main>
 </div>
