@@ -2356,6 +2356,7 @@ dependencies = [
  "rustmanifest-rules-core",
  "rustmanifest-schema",
  "serde_json",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
 ]
