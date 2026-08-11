@@ -907,6 +907,22 @@ XCANDIDATE  backoff_delay  &lt;копия&gt;/crates/entity-core/src/outbox.rs  
   route `DELETE /tasks/{id}` reaches `remove`, which takes a record out
   route `GET /tasks/{id}` reaches `read`, which reads the records</pre>
 <p>Четвёртый счёт — живые отказы: фикстура из двух одноимённых хранилищ (<code>Live.tasks</code> и <code>Done.tasks</code>, обе — <code>BTreeMap&lt;u64, Task&gt;</code>) на вопрос <code>tasks</code> отвечает дословно «<code>`tasks` is ambiguous: 2 stores — `Done.tasks` keeping `Task`, `Live.tasks` keeping `Task`</code>» при пустом списке шагов — кандидаты в отсортированном порядке владельцев, и каждый назван ключом, которым можно переспросить; вопрос <code>Ghost</code> над той же фикстурой — «<code>no store named `Ghost` is recorded</code>». Ни один шаг проводной формы в пробах не встретился: ни одна фикстура не несёт сериализационного дерива — отсутствие честное, шаг доказан только чтением.</p>
+
+<h3><span class="sn">Б.50</span>Пробы первого зерна пакета <code>sqlx</code>: набор с новым тестом и живые факты динамического и литерального операторов через path-зависимую пробу на срезе <code>cd534be</code> (2026-08-11)</h3>
+<p>Метод — Б.17 и Б.44: проба-бинарь с path-зависимостью от <code>rustmanifest-engine</code> чистой рабочей копии <code>cd534be</code>, поднятой через <code>git worktree</code>; главная копия не тронута. Фикстуры — две функции по одному вызову конструктора: <code>purge</code>, собирающая оператор на ходу — <code>let sql = format!("DELETE FROM {table}"); sqlx::query(&amp;sql);</code>, — и та же <code>purge</code> с написанным литералом <code>sqlx::query("DELETE FROM sessions")</code>. Проба зовёт <code>behavior</code> над фикстурой и печатает <code>effects</code>, <code>effect_sites</code>, <code>queries</code> и <code>statement_coverage</code> дословно.</p>
+<p>Первый счёт — наборы: <code>cargo test --workspace</code> — 45 строк результата, <span class="num">1053</span> зелёных при нуле упавших; среди новых — <code>a_runtime_statement_proves_the_effect_without_a_kind</code>. <code>cargo clippy --workspace --all-targets</code> в копии <code>cd534be</code> отвечает <code>Finished</code> без единой строки. <code>reuse lint</code> — 715 файлов из 715, соответствие REUSE 3.3. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Второй счёт — динамический оператор, вывод дословно:</p>
+<pre>effects: [Database]
+effect_sites: [EffectSite { effect: Database, proof: "sqlx::query", range: Range { start: 102, end: 113 } }]
+queries: []
+coverage: StatementCoverage { effect_sites: 1, kinds_proven: 0, tables_named: 0 }</pre>
+<p>Байты сверены с фикстурой: 102..113 режут написанный путь <code>sqlx::query</code> — доказательство эффекта есть место вызова конструктора, не строка для поиска; канал операторов пуст, и покрытие несёт разрыв «1 площадка эффекта / 0 доказанных видов» — до этого среза те же факты читались чистотой: ни эффекта, ни площадки, ни счёта.</p>
+<p>Третий счёт — отрицательная проба: тот же вызов с написанным литералом, вывод дословно:</p>
+<pre>effects: [DatabaseWrite]
+effect_sites: [EffectSite { effect: DatabaseWrite, proof: "sqlx::query", range: Range { start: 43, end: 54 } }]
+queries: [QuerySite { statement: Deletes, table: Some("sessions"), record: None, binds: [], range: Range { start: 43, end: 54 } }]
+coverage: StatementCoverage { effect_sites: 1, kinds_proven: 1, tables_named: 1 }</pre>
+<p>Прежний путь доказанного вида не сдвинут: вид <code>Deletes</code> с первого ключевого слова, таблица <code>sessions</code> из собственного грамматического слота, покрытие без разрыва — новая градация срабатывает только там, где старый код не записывал ничего.</p>
 </section>
 </main>
 </div>
