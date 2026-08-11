@@ -40,25 +40,40 @@ impl TypeGraph {
             let Some(file) = source.tree() else {
                 continue;
             };
-            let mut items = Vec::new();
-            crate::ast::flattened(&file.items, &mut items);
-            for item in items {
-                match item {
-                    syn::Item::Struct(definition) => graph.types.push(node(index, definition)),
-                    syn::Item::Enum(definition) => graph.types.push(enum_node(index, definition)),
-                    syn::Item::Impl(definition) => {
-                        if let Some(impl_node) = impl_node(index, definition) {
-                            graph.impls.push(impl_node);
-                        }
-                    }
-                    syn::Item::Trait(definition) => {
-                        graph.traits.push(trait_node(index, definition));
-                    }
-                    _ => {}
-                }
-            }
+            graph.collect(index, &file.items, false);
         }
         graph
+    }
+
+    /// Collects the items of one nesting level, descending into inline
+    /// modules with the depth recorded: a type declared inside one is a
+    /// different installation target than a top-level declaration, and
+    /// the node must say so.
+    fn collect(&mut self, index: usize, items: &[syn::Item], nested: bool) {
+        for item in items {
+            match item {
+                syn::Item::Struct(definition) => {
+                    self.types.push(node(index, definition, nested));
+                }
+                syn::Item::Enum(definition) => {
+                    self.types.push(enum_node(index, definition, nested));
+                }
+                syn::Item::Impl(definition) => {
+                    if let Some(impl_node) = impl_node(index, definition) {
+                        self.impls.push(impl_node);
+                    }
+                }
+                syn::Item::Trait(definition) => {
+                    self.traits.push(trait_node(index, definition));
+                }
+                syn::Item::Mod(module) => {
+                    if let Some((_, inner)) = &module.content {
+                        self.collect(index, inner, true);
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Structures and enums in deterministic discovery order.
@@ -173,6 +188,19 @@ mod tests {
 
     use super::TypeGraph;
     use crate::source::Source;
+
+    /// A declaration inside an inline module carries the nesting flag;
+    /// a top-level one does not — the installation target differs, and
+    /// the node says so.
+    #[test]
+    fn a_nested_declaration_carries_the_nesting_flag() {
+        let held = graph(&[
+            "pub struct Open { pub name: String }\nmod inner { pub struct Hidden \
+                            { pub name: String } }"
+        ]);
+        assert!(!held.type_named("Open").unwrap().nested);
+        assert!(held.type_named("Hidden").unwrap().nested);
+    }
 
     fn graph(texts: &[&str]) -> TypeGraph {
         let sources: Vec<Source> = texts

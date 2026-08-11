@@ -56,6 +56,13 @@ pub struct TypeNode {
     /// Whether the type exists only in macro expansion, absent from
     /// surface syntax.
     pub generated: bool,
+    /// Whether the declaration stands inside an inline module of its
+    /// file rather than at the top level — a text appended at the
+    /// file's end cannot name it from there.
+    pub nested:    bool,
+    /// Whether the declaration carries generic parameters — an `impl`
+    /// header written from the bare name cannot satisfy it.
+    pub generic:   bool,
     /// Trait names listed in `#[derive(...)]` attributes on the
     /// definition.
     pub derives:   Vec<String>,

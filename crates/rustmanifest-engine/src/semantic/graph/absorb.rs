@@ -31,8 +31,8 @@ impl TypeGraph {
         let mut absorbed = Absorption::default();
         for item in &items {
             let generated = match item {
-                syn::Item::Struct(definition) => node(usize::MAX, definition),
-                syn::Item::Enum(definition) => enum_node(usize::MAX, definition),
+                syn::Item::Struct(definition) => node(usize::MAX, definition, false),
+                syn::Item::Enum(definition) => enum_node(usize::MAX, definition, false),
                 _ => continue
             };
             if self.type_named(&generated.name).is_some() {

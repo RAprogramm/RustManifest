@@ -12,8 +12,14 @@
 //! where the facts prove one — and a `todo!()` where they cannot: the
 //! skeleton then states the obligation without inventing behavior.
 //! Refusals are silence: an unknown type, an unknown trait, a trait
-//! already implemented or derived, and a generic trait (whose `impl`
-//! header needs arguments no fact records) all answer with nothing.
+//! already implemented or derived, a generic trait or a generic type
+//! (whose `impl` header needs arguments no fact records), and a type
+//! declared inside an inline module all answer with nothing. The last
+//! two refusals are the corpus judge's first catches: the montage
+//! lands text at the file's top level, where a nested declaration is
+//! out of scope and a bare-name header leaves a generic unnamed — and
+//! the re-reading, matching the bare name, would confirm the lie the
+//! compiler then refuses.
 
 pub(super) mod canon;
 
@@ -30,6 +36,9 @@ pub fn impl_skeleton(
     trait_name: &str
 ) -> Option<String> {
     let asked = types.type_named(type_name)?;
+    if asked.nested || asked.generic {
+        return None;
+    }
     if types.traits_implemented(type_name).contains(&trait_name)
         || asked.derives.iter().any(|derive| derive == trait_name)
     {
@@ -111,6 +120,36 @@ mod tests {
         assert!(written.contains("fn write(&mut self, chunk: &[u8]) -> usize {"));
         assert!(written.contains("todo!()"));
         assert!(!written.contains("fn flush"));
+    }
+
+    /// A type declared inside an inline module is refused: the montage
+    /// lands text at the file's top level, where the declaration is out
+    /// of scope — the corpus judge's first catch.
+    #[test]
+    fn a_type_declared_inside_an_inline_module_is_refused() {
+        assert!(
+            asked(
+                "mod held {\n    pub struct Hidden {\n        pub name: String,\n    }\n}\n",
+                "Hidden",
+                "Display"
+            )
+            .is_none()
+        );
+    }
+
+    /// A generic type is refused: a bare-name `impl` header names no
+    /// parameter the declaration demands — the corpus judge's second
+    /// catch.
+    #[test]
+    fn a_generic_type_is_refused() {
+        assert!(
+            asked(
+                "pub enum Held<T> {\n    Kept(T),\n    Empty,\n}\n",
+                "Held",
+                "Default"
+            )
+            .is_none()
+        );
     }
 
     #[test]
