@@ -71,7 +71,6 @@ pub fn check_invariants_with(
         return Vec::new();
     }
     let facts = behavior(sources);
-    let overview = module_overview::of(&ModuleGraph::from_sources(sources), sources);
     let overlay = scip.map(|edges| edges.candidates(&facts, sources));
     let graph = call_graph_with(
         &facts,
@@ -79,6 +78,26 @@ pub fn check_invariants_with(
         overlay.as_deref()
     );
     let transitive = transitive_effects(&facts, &graph);
+    check_invariants_over(sources, &facts, &graph, &transitive, invariants)
+}
+
+/// Checks every invariant over facts and graphs already derived, so a
+/// caching caller pays for none of them twice.
+///
+/// `transitive` must be the transitive effects of `facts` closed over
+/// `graph` — the same triple one build of a snapshot holds together.
+#[must_use]
+pub fn check_invariants_over(
+    sources: &[Source],
+    facts: &[super::behavior::FunctionFacts],
+    graph: &super::calls::CallGraph,
+    transitive: &[Vec<super::behavior::Effect>],
+    invariants: &[Invariant]
+) -> Vec<Finding> {
+    if invariants.is_empty() {
+        return Vec::new();
+    }
+    let overview = module_overview::of(&ModuleGraph::from_sources(sources), sources);
     let module_of = |source: usize| -> String {
         sources
             .get(source)
@@ -98,20 +117,16 @@ pub fn check_invariants_with(
             .unwrap_or_else(|| format!("RM-INV-{:03}", index + 1));
         let severity = invariant.severity.unwrap_or(Severity::Error);
         for (fact_index, fact) in facts.iter().enumerate() {
+            let Some(reached) = transitive.get(fact_index) else {
+                continue;
+            };
             let module = module_of(fact.source);
             let violation = field_violation(invariant, fact, &module)
                 .or_else(|| {
-                    effect_violation(
-                        invariant,
-                        &facts,
-                        fact_index,
-                        &transitive[fact_index],
-                        &graph,
-                        &module
-                    )
+                    effect_violation(invariant, facts, fact_index, reached, graph, &module)
                 })
                 .or_else(|| {
-                    call_violation(invariant, &facts, fact_index, &graph, &module, &module_of)
+                    call_violation(invariant, facts, fact_index, graph, &module, &module_of)
                 });
             let Some((detail, trace)) = violation else {
                 continue;
@@ -191,6 +206,28 @@ mod tests {
             call_deny_to:    None,
             severity:        None
         }
+    }
+
+    /// A caller holding a snapshot's derivations judges the same
+    /// violation as the fresh check, paying for none of them twice.
+    #[test]
+    fn a_precomputed_snapshot_judges_the_same_violation() {
+        let sources = wallet_sources();
+        let facts = crate::semantic::behavior::behavior(&sources);
+        let graph = crate::semantic::calls::call_graph(
+            &facts,
+            &crate::semantic::calls::resolution_context(&sources)
+        );
+        let transitive = crate::semantic::calls::transitive_effects(&facts, &graph);
+        let held = super::check_invariants_over(
+            &sources,
+            &facts,
+            &graph,
+            &transitive,
+            &[balance_invariant()]
+        );
+        assert_eq!(held, check_invariants(&sources, &[balance_invariant()]));
+        assert_eq!(held.len(), 1, "{held:?}");
     }
 
     #[test]

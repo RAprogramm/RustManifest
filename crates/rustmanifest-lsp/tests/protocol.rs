@@ -1186,6 +1186,90 @@ fn an_opened_document_with_a_written_intent_receives_its_diagnostic() {
     closed(client, handle);
 }
 
+/// A declared workspace invariant lands as a diagnostic where its
+/// violation stands, the message carrying the derivation trace — the
+/// first workspace invariant delivered to the editor as a diagnostic.
+#[test]
+fn a_declared_invariant_violation_receives_its_diagnostic_with_the_trace() {
+    let bed = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(bed.path().join("src")).unwrap();
+    std::fs::write(
+        bed.path().join("src/lib.rs"),
+        "mod ledger;\nmod api;\npub struct Wallet { pub balance: i64 }\n"
+    )
+    .unwrap();
+    std::fs::write(
+        bed.path().join("src/ledger.rs"),
+        "use crate::Wallet;\npub fn post(wallet: &mut Wallet, amount: i64) { wallet.balance += \
+         amount; }\n"
+    )
+    .unwrap();
+    let hacked = "use crate::Wallet;\npub fn hack(wallet: &mut Wallet) { wallet.balance = 0; }\n";
+    std::fs::write(bed.path().join("src/api.rs"), hacked).unwrap();
+    std::fs::write(
+        bed.path().join("rustmanifest.toml"),
+        "[[invariants]]\nid = \"WALLET-BALANCE\"\nfield = \"Wallet.balance\"\nwrite-only-from = \
+         [\"crate::ledger\"]\n"
+    )
+    .unwrap();
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({
+                "capabilities": {},
+                "workspaceFolders": [{
+                    "uri": format!("file://{}", bed.path().display()),
+                    "name": "bed"
+                }]
+            })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": format!("file://{}", bed.path().join("src/api.rs").display()),
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": hacked
+                }
+            })
+        )))
+        .unwrap();
+    let Message::Notification(published) = client.receiver.recv().unwrap() else {
+        panic!("the first message after an open must be the diagnostics");
+    };
+    let diagnostics = published.params["diagnostics"].as_array().unwrap().clone();
+    let violated = diagnostics
+        .iter()
+        .find(|entry| entry["code"] == "WALLET-BALANCE")
+        .unwrap_or_else(|| panic!("{diagnostics:?}"));
+    assert_eq!(violated["source"], "rust-manifest", "{violated:?}");
+    assert_eq!(violated["severity"], 1, "{violated:?}");
+    let message = violated["message"].as_str().unwrap();
+    assert!(
+        message.contains("`hack` writes `Wallet.balance` from module `crate::api`"),
+        "{message}"
+    );
+    assert!(message.contains("\n• "), "{message}");
+    assert_eq!(violated["range"]["start"]["line"], 1, "{violated:?}");
+    closed(client, handle);
+}
+
 /// An action backed by a derived intent cites the asking call in its
 /// title: the author sees not only what can be installed but who in
 /// their own code already asked for it.

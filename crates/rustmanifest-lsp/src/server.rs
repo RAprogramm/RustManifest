@@ -9,7 +9,8 @@
 //! so incremental edits would buy latency nobody is waiting on at the
 //! price of a reconciliation the protocol is famous for getting wrong.
 //! Open and save additionally publish the document's intent
-//! diagnostics, derived over the whole workspace snapshot; a keystroke
+//! diagnostics and the violations of the root's declared invariants,
+//! both derived over the whole workspace snapshot; a keystroke
 //! republishes only the per-document findings, so typing never pays
 //! for a workspace walk.
 
@@ -32,6 +33,7 @@ mod command;
 mod hint;
 mod hover;
 mod intent;
+mod invariant;
 mod position;
 mod snapshot;
 
@@ -67,7 +69,8 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
         .context("initialize handshake")?;
     let analysis = Analysis::new().context("building analyzers from bundled rules")?;
     let mut documents: BTreeMap<String, String> = BTreeMap::new();
-    let mut held = Snapshot::new(root_of(&opened));
+    let root = root_of(&opened);
+    let mut held = Snapshot::new(root.clone());
     for message in &connection.receiver {
         match message {
             Message::Request(request) => {
@@ -100,7 +103,14 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                     held.touch();
                     let settled = notification.method != DidChangeTextDocument::METHOD;
                     let derived = settled.then(|| held.derived(&documents));
-                    publish(connection, &analysis, derived.as_ref(), uri, &text)?;
+                    publish(
+                        connection,
+                        &analysis,
+                        derived.as_ref(),
+                        root.as_deref(),
+                        uri,
+                        &text
+                    )?;
                 }
             }
             Message::Response(_) => {}
@@ -142,12 +152,13 @@ fn document_of(notification: &Notification) -> Option<(Uri, String)> {
 }
 
 /// Analyzes one document and publishes its diagnostics: the per-file
-/// findings always, the workspace-derived intent diagnostics where a
-/// settled snapshot is handed in.
+/// findings always, the workspace-derived intent and invariant
+/// diagnostics where a settled snapshot is handed in.
 fn publish(
     connection: &Connection,
     analysis: &Analysis,
     derived: Option<&snapshot::Derived<'_>>,
+    root: Option<&std::path::Path>,
     uri: Uri,
     text: &str
 ) -> anyhow::Result<()> {
@@ -155,6 +166,7 @@ fn publish(
     let mut diagnostics = analysis.diagnostics(path.clone(), text);
     if let Some(held) = derived {
         diagnostics.extend(intent::diagnostics(held, &path));
+        diagnostics.extend(invariant::diagnostics(held, root, &path));
     }
     let published = PublishDiagnosticsParams {
         uri,
