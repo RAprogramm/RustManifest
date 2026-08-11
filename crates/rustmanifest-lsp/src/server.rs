@@ -8,6 +8,10 @@
 //! surface: the engine analyzes a whole file in around a millisecond,
 //! so incremental edits would buy latency nobody is waiting on at the
 //! price of a reconciliation the protocol is famous for getting wrong.
+//! Open and save additionally publish the document's intent
+//! diagnostics, derived over the whole workspace snapshot; a keystroke
+//! republishes only the per-document findings, so typing never pays
+//! for a workspace walk.
 
 use anyhow::Context;
 use lsp_server::{Connection, Message, Notification};
@@ -27,6 +31,7 @@ mod card;
 mod command;
 mod hint;
 mod hover;
+mod intent;
 mod position;
 mod snapshot;
 
@@ -93,7 +98,9 @@ pub fn serve(connection: &Connection) -> anyhow::Result<()> {
                 if let Some((uri, text)) = document_of(&notification) {
                     documents.insert(uri.as_str().to_owned(), text.clone());
                     held.touch();
-                    publish(connection, &analysis, uri, &text)?;
+                    let settled = notification.method != DidChangeTextDocument::METHOD;
+                    let derived = settled.then(|| held.derived(&documents));
+                    publish(connection, &analysis, derived.as_ref(), uri, &text)?;
                 }
             }
             Message::Response(_) => {}
@@ -134,15 +141,21 @@ fn document_of(notification: &Notification) -> Option<(Uri, String)> {
     }
 }
 
-/// Analyzes one document and publishes its diagnostics.
+/// Analyzes one document and publishes its diagnostics: the per-file
+/// findings always, the workspace-derived intent diagnostics where a
+/// settled snapshot is handed in.
 fn publish(
     connection: &Connection,
     analysis: &Analysis,
+    derived: Option<&snapshot::Derived<'_>>,
     uri: Uri,
     text: &str
 ) -> anyhow::Result<()> {
     let path = std::path::PathBuf::from(uri.path().as_str());
-    let diagnostics = analysis.diagnostics(path, text);
+    let mut diagnostics = analysis.diagnostics(path.clone(), text);
+    if let Some(held) = derived {
+        diagnostics.extend(intent::diagnostics(held, &path));
+    }
     let published = PublishDiagnosticsParams {
         uri,
         diagnostics,

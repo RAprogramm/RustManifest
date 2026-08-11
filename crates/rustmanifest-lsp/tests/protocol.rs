@@ -1112,6 +1112,80 @@ fn the_intents_command_names_what_the_written_calls_ask_for() {
     closed(client, handle);
 }
 
+/// An opened document whose written call states an intent receives the
+/// intent as a diagnostic on the call site, its related information
+/// leading to the cited type's declaration — a jump from either end,
+/// not a title to read.
+#[test]
+fn an_opened_document_with_a_written_intent_receives_its_diagnostic() {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({ "capabilities": {} })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///demo/src/lib.rs",
+                    "languageId": "rust",
+                    "version": 1,
+                    "text": "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job \
+                             {\n    Job::default()\n}\n"
+                }
+            })
+        )))
+        .unwrap();
+    let Message::Notification(published) = client.receiver.recv().unwrap() else {
+        panic!("the first message after an open must be the diagnostics");
+    };
+    let diagnostics = published.params["diagnostics"].as_array().unwrap().clone();
+    let intent = diagnostics
+        .iter()
+        .find(|entry| entry["code"] == "intent")
+        .unwrap_or_else(|| panic!("{diagnostics:?}"));
+    assert_eq!(intent["source"], "rust-manifest", "{intent:?}");
+    assert!(
+        intent["message"].as_str().unwrap().contains("Job::default"),
+        "{intent:?}"
+    );
+    assert_eq!(intent["range"]["start"]["line"], 5, "{intent:?}");
+    assert_eq!(intent["range"]["start"]["character"], 4, "{intent:?}");
+    let related = &intent["relatedInformation"][0];
+    assert_eq!(
+        related["location"]["uri"], "file:///demo/src/lib.rs",
+        "{intent:?}"
+    );
+    assert_eq!(
+        related["location"]["range"]["start"]["line"], 0,
+        "{intent:?}"
+    );
+    assert_eq!(
+        related["location"]["range"]["start"]["character"], 11,
+        "{intent:?}"
+    );
+    assert!(
+        related["message"].as_str().unwrap().contains("`Job`"),
+        "{intent:?}"
+    );
+    closed(client, handle);
+}
+
 /// An action backed by a derived intent cites the asking call in its
 /// title: the author sees not only what can be installed but who in
 /// their own code already asked for it.
