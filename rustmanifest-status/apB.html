@@ -971,6 +971,20 @@ coverage: StatementCoverage { effect_sites: 1, kinds_proven: 1, tables_named: 1 
 <p>Байты 159..162 сверены срезом фикстуры: диапазон режет ровно написанный идентификатор <code>add</code> — глагол доказан местом метода, не именем.</p>
 <p>Пятый счёт — отказ по проводу: <code>why_kept</code> с <code>{"store": "Ghost"}</code> над тем же стендом отвечает <code>{"conclusion": "no store named `Ghost` is recorded", "steps": []}</code> — отказ и есть ответ, шагов у него нет; тот же отказ закреплён конформансом как запрос 13 сценария.</p>
 <p>Шестой счёт — редакторная сессия жанра Б.29: установленный <code>rust-manifest</code> по stdio, <code>initialize</code> перечисляет шесть команд — <code>rust-manifest.why</code>, <code>rust-manifest.implement</code>, <code>rust-manifest.deduce</code>, <code>rust-manifest.intents</code>, <code>rust-manifest.whence</code>, <code>rust-manifest.kept</code>; <code>didOpen</code> того же <code>need.rs</code> и <code>workspace/executeCommand</code> с <code>{"command": "rust-manifest.kept", "arguments": ["Store.tasks"]}</code> отвечают цепью, дословно совпадающей с четвёртым счётом: то же заключение и те же два шага с теми же байтами. Одна запись цепи, два провода — совпадение снято на одном и том же файле одной и той же сессией дня.</p>
+
+<h3><span class="sn">Б.54</span>Пробы доли SCIP-слоя на собственном дереве: индекс rust-analyzer, двойной прогон покрытия установленным CLI и классификация 553 добавочных рёбер path-зависимой пробой поверх среза <code>da97cc4</code> (2026-08-11)</h3>
+<p>Метод — жанры Б.11 и Б.17: внешний индекс как эталон и проба-бинарь с path-зависимостью от <code>rustmanifest-engine</code>. Арка без коммита — живые счёты говорят с установленным <code>rustmanifest</code>, чьи временные метки моложе <code>da97cc4</code> (Б.53). Индекс собственного дерева собран командой <code>rust-analyzer scip .</code> в корне; версия — <code>rust-analyzer 1.97.1 (8bab26f 2026-07-14)</code>, размер эмиссии — 11&#8239;521&#8239;578 байт.</p>
+<p>Первый счёт — покрытие без индекса, строка кандидатов вызовов дословно:</p>
+<pre>call candidates     16108     resolved in-workspace 4547  28.2%   external 9926   unknown receiver 249   named elsewhere 0   ambiguous 1013   owner without member 373   accounted 89.8%</pre>
+<p>Второй счёт — покрытие с <code>--scip</code> и тем же индексом: каждая строка поверхности дословно совпадает с первым счётом — оверлей добавочен, ни один счётчик отказов не сдвинут, — и строка кандидатов несёт один новый хвост:</p>
+<pre>call candidates     16108     resolved in-workspace 4547  28.2%   external 9926   unknown receiver 249   named elsewhere 0   ambiguous 1013   owner without member 373   accounted 89.8%   scip edges +553</pre>
+<p>Третий счёт — классификация: новый режим пробного крейта берёт добавочные пары оверлея — пары, чей вызываемый уже стоит среди вызываемых простого графа у того же вызывающего, пропускаются, — и для каждой читает синтаксический список кандидатов вызывающего; точное квалифицированное имя вызываемого даёт QUALIFIED-SEEN, написание <code>?::метод</code> — UNTYPED-RECEIVER, голое имя метода — BARE-SEEN, отсутствие всех трёх — INVISIBLE-TO-SYNTAX. Вывод дословно:</p>
+<pre>TOTAL	553
+QUALIFIED-SEEN	264
+UNTYPED-RECEIVER	63
+BARE-SEEN	0
+INVISIBLE-TO-SYNTAX	226</pre>
+<p>Сумма четырёх классов — 264 + 63 + 0 + 226 = 553 — совпадает с хвостом «scip edges +553» второго счёта байт в байт: разбиение полно, ни одно добавочное ребро не потеряно и не сосчитано дважды. Доли от 553: 47.7%, 11.4%, 0%, 40.9%; от ведра неизвестного получателя первого счёта — 63 из 249, 25.3%. Тулчейн — <code>rustc 1.97.1</code>.</p>
 </section>
 </main>
 </div>
