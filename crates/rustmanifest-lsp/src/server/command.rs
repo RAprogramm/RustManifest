@@ -102,6 +102,7 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
         request.id.clone(),
         serde_json::json!({
             "conclusion": asked.conclusion,
+            "refused": asked.refused,
             "steps": steps
         })
     )
@@ -187,6 +188,7 @@ fn sourced(request: &Request, held: &Derived<'_>) -> Response {
         request.id.clone(),
         serde_json::json!({
             "conclusion": asked.conclusion,
+            "refused": asked.refused,
             "steps": steps
         })
     )
@@ -220,6 +222,7 @@ fn held_for(request: &Request, held: &Derived<'_>) -> Response {
         request.id.clone(),
         serde_json::json!({
             "conclusion": asked.conclusion,
+            "refused": asked.refused,
             "steps": steps
         })
     )

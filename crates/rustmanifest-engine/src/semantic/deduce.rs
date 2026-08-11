@@ -125,6 +125,7 @@ pub fn deduce_impl(
     let Some(gain) = install_impl(sources, file, type_name, trait_name) else {
         return Deduction {
             chain:   Answer {
+                refused: false,
                 conclusion: "the montage or the re-reading refused the installation".to_owned(),
                 steps
             },
@@ -145,6 +146,7 @@ pub fn deduce_impl(
     });
     Deduction {
         chain:   Answer {
+            refused: false,
             conclusion: format!(
                 "`{type_name}` gained `{trait_name}` by deduction: every step is a recorded fact"
             ),
@@ -186,6 +188,7 @@ fn catalog_choice(trait_name: &str, fields: usize) -> (String, String) {
 const fn stopped(steps: Vec<TraceStep>, conclusion: String) -> Deduction {
     Deduction {
         chain:   Answer {
+            refused: false,
             conclusion,
             steps
         },

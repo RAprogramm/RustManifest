@@ -48,6 +48,10 @@ pub const EXIT_CLEAN: u8 = 0;
 pub const EXIT_FINDINGS: u8 = 1;
 /// Operational failure (IO, argument parsing, walker error).
 pub const EXIT_ERROR: u8 = 2;
+/// A question the facts refused to answer: the refusal is printed with
+/// what was looked for, and a script can tell it from an answer — the
+/// same text with exit 0 would make the two indistinguishable.
+pub const EXIT_REFUSED: u8 = 3;
 
 /// Top-level CLI arguments.
 #[derive(Debug, Parser)]

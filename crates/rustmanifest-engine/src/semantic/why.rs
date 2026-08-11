@@ -30,7 +30,11 @@ pub struct Answer {
     /// What the steps add up to, in one sentence.
     pub conclusion: String,
     /// The inference, one recorded fact per step, with its reason.
-    pub steps:      Vec<TraceStep>
+    pub steps:      Vec<TraceStep>,
+    /// Whether the question itself was refused — an unknown or
+    /// ambiguous subject — rather than answered about the asked one.
+    /// A script tells the two apart by this field, never by prose.
+    pub refused:    bool
 }
 
 /// Answers why `function` carries `effect`, from the recorded facts.
@@ -86,6 +90,7 @@ pub fn why_effect_over(
 fn unmatched(facts: &[FunctionFacts], function: &str, named: &[usize]) -> Answer {
     if named.is_empty() {
         return Answer {
+            refused:    true,
             conclusion: format!(
                 "no analyzed function is named `{function}`, so nothing can be inferred about it"
             ),
@@ -97,6 +102,7 @@ fn unmatched(facts: &[FunctionFacts], function: &str, named: &[usize]) -> Answer
         .map(|&index| format!("`{}`", facts[index].function))
         .collect();
     Answer {
+        refused:    true,
         conclusion: format!(
             "`{function}` names {} functions — {} — and an answer about one of them would not \
              be an answer about the asked name",
@@ -111,6 +117,7 @@ fn unmatched(facts: &[FunctionFacts], function: &str, named: &[usize]) -> Answer
 fn direct(sources: &[crate::source::Source], fact: &FunctionFacts, effect: &str) -> Answer {
     let steps = proof_steps(sources, fact, effect);
     Answer {
+        refused: false,
         conclusion: format!(
             "`{}` performs `{effect}` in its own body, at the written call the steps cite",
             fact.function
@@ -135,6 +142,7 @@ fn through(
             .map(|observed| format!("`{observed}`"))
             .collect();
         return Answer {
+            refused:    false,
             conclusion: format!(
                 "the recorded facts prove no `{effect}` for `{}` — its own proven effects are \
                  [{}], and no resolved call chain reaches a body performing `{effect}`",
@@ -164,6 +172,7 @@ fn through(
         ""
     };
     Answer {
+        refused: false,
         conclusion: format!(
             "`{}` reaches `{effect}` through `{}`{certainty}",
             facts[index].function, facts[sink].function

@@ -79,6 +79,7 @@ pub fn why_kept(workspace: &Workspace<'_>, asked: &str) -> Answer {
         )
     };
     Answer {
+        refused: false,
         conclusion,
         steps
     }
@@ -148,6 +149,7 @@ fn proofs(
 fn unmatched(held: &[super::keeping::Store], asked: &str, matched: &[usize]) -> Answer {
     if matched.is_empty() {
         return Answer {
+            refused:    true,
             conclusion: format!("no store named `{asked}` is recorded"),
             steps:      Vec::new()
         };
@@ -163,6 +165,7 @@ fn unmatched(held: &[super::keeping::Store], asked: &str, matched: &[usize]) -> 
         })
         .collect();
     Answer {
+        refused:    true,
         conclusion: format!(
             "`{asked}` is ambiguous: {} stores — {}",
             matched.len(),

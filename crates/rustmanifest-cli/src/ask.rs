@@ -15,7 +15,7 @@ use anyhow::Context;
 use clap::Args;
 use rustmanifest_engine::walker;
 
-use crate::EXIT_CLEAN;
+use crate::{EXIT_CLEAN, EXIT_REFUSED};
 
 /// Arguments of the `ask` subcommand.
 #[derive(Debug, Args)]
@@ -55,5 +55,8 @@ pub(crate) fn run_ask(args: &AskArgs) -> anyhow::Result<ExitCode> {
     }
     writeln!(handle, "=> {}", answer.conclusion).context("writing conclusion")?;
     handle.flush().context("flushing stdout")?;
+    if answer.refused {
+        return Ok(ExitCode::from(EXIT_REFUSED));
+    }
     Ok(ExitCode::from(EXIT_CLEAN))
 }

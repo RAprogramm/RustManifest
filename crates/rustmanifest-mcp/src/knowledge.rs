@@ -149,6 +149,9 @@ pub fn deduction(
 /// that carry it, in the chain genre every question form shares.
 #[derive(Debug, serde::Serialize, schemars::JsonSchema)]
 pub struct AnswerRecord {
+    /// Whether the question itself was refused — an unknown or
+    /// ambiguous subject — rather than answered about the asked one.
+    pub refused:    bool,
     /// What the steps add up to, in one sentence.
     pub conclusion: String,
     /// The inference, one recorded fact per step, with its reason.
@@ -158,6 +161,7 @@ pub struct AnswerRecord {
 impl From<rustmanifest_engine::semantic::Answer> for AnswerRecord {
     fn from(held: rustmanifest_engine::semantic::Answer) -> Self {
         Self {
+            refused:    held.refused,
             conclusion: held.conclusion,
             steps:      held
                 .steps

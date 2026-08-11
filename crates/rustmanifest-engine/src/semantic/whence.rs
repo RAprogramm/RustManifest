@@ -59,6 +59,7 @@ pub fn whence_value_over(
     let fact = &facts[index];
     if fact.handbacks.is_empty() {
         return Answer {
+            refused:    false,
             conclusion: format!(
                 "`{}` records no position handing a value back",
                 fact.function
@@ -102,6 +103,7 @@ pub fn whence_value_over(
     }
     spoken.dedup();
     Answer {
+        refused: false,
         conclusion: format!("`{}` hands back {}", fact.function, spoken.join("; ")),
         steps
     }
@@ -185,6 +187,7 @@ pub fn whence_at_over(
             .get(file)
             .map_or_else(String::new, |source| source.path().display().to_string());
         return Answer {
+            refused:    true,
             conclusion: format!(
                 "no recorded position covers byte {offset} of {named} — nothing to answer for"
             ),
@@ -196,6 +199,7 @@ pub fn whence_at_over(
     let composed = composition_with(sources, None, facts, graph, &qualifiers);
     let text = origin_text(&composed.of(index, &value));
     Answer {
+        refused:    false,
         conclusion: format!("the value at bytes {}..{} is {text}", site.start, site.end),
         steps:      vec![
             TraceStep {
@@ -254,6 +258,7 @@ fn unmatched(
 ) -> Answer {
     if named.is_empty() {
         return Answer {
+            refused:    true,
             conclusion: format!("no function named `{function}` is recorded"),
             steps:      Vec::new()
         };
@@ -269,6 +274,7 @@ fn unmatched(
         })
         .collect();
     Answer {
+        refused:    true,
         conclusion: format!(
             "`{function}` is ambiguous: {} candidates — {}",
             named.len(),

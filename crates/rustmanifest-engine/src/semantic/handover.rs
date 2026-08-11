@@ -114,6 +114,7 @@ fn story(callee: &FunctionFacts, types: &TypeGraph) -> Answer {
     .map(|(_, text)| text)
     .collect();
     Answer {
+        refused: false,
         conclusion: format!("calling `{}` {}", callee.function, told.join(", ")),
         steps
     }
