@@ -23,6 +23,8 @@
 use rustmanifest_engine::{Workspace, features, role};
 use tsetlin_rs::TsetlinMachine;
 
+pub mod forms;
+
 /// Fixed role order used for training and output.
 const ROLE_NAMES: [&str; 6] = [
     "io",
@@ -48,30 +50,39 @@ pub struct LearnedClause {
 #[derive(Debug, Clone, Copy)]
 pub struct LearnOptions {
     /// Clauses per role machine.
-    pub clauses:           usize,
+    pub clauses:                  usize,
     /// Training epochs.
-    pub epochs:            usize,
+    pub epochs:                   usize,
     /// Vote threshold of each machine.
-    pub threshold:         i32,
+    pub threshold:                i32,
     /// Seed for every machine; same seed, same clauses.
-    pub seed:              u64,
+    pub seed:                     u64,
     /// Fewest functions worth learning from; below it nothing is
     /// learned — clauses fitted on a handful of examples memorize
     /// them instead of expressing a convention.
-    pub min_functions:     usize,
+    pub min_functions:            usize,
     /// Fewest positive examples a role needs for its machine to train.
-    pub min_role_examples: usize
+    pub min_role_examples:        usize,
+    /// Fewest examples each feature of a form-ranking vector demands.
+    ///
+    /// The admission gate of [`rank_forms`] is the larger of
+    /// [`Self::min_role_examples`] and the vector's width times this
+    /// quorum, so a widened vector raises the gate by construction — a
+    /// richer vector over the same few examples memorizes them, and the
+    /// growth of features stays paired to the growth of evidence.
+    pub min_examples_per_feature: usize
 }
 
 impl Default for LearnOptions {
     fn default() -> Self {
         Self {
-            clauses:           20,
-            epochs:            30,
-            threshold:         10,
-            seed:              42,
-            min_functions:     50,
-            min_role_examples: 10
+            clauses:                  20,
+            epochs:                   30,
+            threshold:                10,
+            seed:                     42,
+            min_functions:            50,
+            min_role_examples:        10,
+            min_examples_per_feature: 5
         }
     }
 }
@@ -201,8 +212,8 @@ mod tests {
     }
 
     /// A printing precedent has no standing on a `Default` chain: the
-    /// catalog's marker names a form outside the ranked ones, and the
-    /// advisory step stays out.
+    /// chain consults only written `default` bodies, the fixture writes
+    /// none, and the advisory step stays out.
     #[test]
     fn a_display_precedent_stays_silent_on_a_default_chain() {
         let mut text = String::new();
@@ -229,6 +240,71 @@ mod tests {
             "{:#?}",
             held.chain.steps
         );
+    }
+
+    /// A `Default` chain is advised by the workspace's own written
+    /// `default` bodies: enough delegating precedent ranks delegation
+    /// first, and the step records the contradiction while the
+    /// catalog's field-by-field choice stands.
+    #[test]
+    fn a_written_default_precedent_advises_the_default_chain() {
+        let mut text = String::new();
+        for index in 0..12 {
+            writeln!(
+                text,
+                "pub struct Wide{index} {{ pub name: String, pub age: u8 }}\nimpl Default for \
+                 Wide{index} {{ fn default() -> Self {{ Self::fresh() }} }}"
+            )
+            .unwrap();
+        }
+        for index in 0..10 {
+            writeln!(
+                text,
+                "pub struct Slim{index} {{ pub name: String }}\nimpl Default for Slim{index} {{ \
+                 fn default() -> Self {{ Self {{ name: String::new() }} }} }}"
+            )
+            .unwrap();
+        }
+        text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
+        let held = super::deduce_with_precedent(&sources, "User", "Default").unwrap();
+        assert!(held.gain.is_some());
+        let step = held
+            .chain
+            .steps
+            .iter()
+            .find(|step| step.fact.contains("precedent"))
+            .unwrap_or_else(|| panic!("{:#?}", held.chain.steps));
+        assert!(step.fact.contains("delegating"), "{}", step.fact);
+        assert!(step.fact.contains("contradicts"), "{}", step.fact);
+        let marker = held.catalog.unwrap();
+        assert_eq!(marker.form, "field-by-field");
+    }
+
+    /// The admission gate grows in lockstep with the vector: precedent
+    /// that clears the two-feature gate is refused once the vector
+    /// widens without new evidence.
+    #[test]
+    fn a_widened_vector_raises_the_gate() {
+        let mut precedents = Vec::new();
+        for _ in 0..6 {
+            precedents.push(super::FormPrecedent {
+                features: vec![1, 0, 1],
+                chose:    "labeled-list".to_owned()
+            });
+            precedents.push(super::FormPrecedent {
+                features: vec![0, 1, 0],
+                chose:    "bare-values".to_owned()
+            });
+        }
+        let ranked = super::rank_forms(
+            &precedents,
+            &["multi_field", "single_field", "has_string_field"],
+            &[1, 0, 1],
+            &["labeled-list", "bare-values"],
+            LearnOptions::default()
+        );
+        assert!(ranked.is_empty(), "{ranked:?}");
     }
 
     #[test]
@@ -360,7 +436,10 @@ pub struct RankedForm {
 /// Forms whose precedent falls below the admission gate train nothing;
 /// when no form passes, the answer is empty and the caller's catalog
 /// default stands — a ranking below the gate is a guess, and guesses
-/// are not rankings.
+/// are not rankings. The gate grows in lockstep with the vector: every
+/// feature demands its own quorum of examples, so widening the vector
+/// without widening the evidence closes the gate instead of
+/// overfitting behind it.
 #[must_use]
 pub fn rank_forms(
     precedents: &[FormPrecedent],
@@ -369,7 +448,11 @@ pub fn rank_forms(
     forms: &[&str],
     options: LearnOptions
 ) -> Vec<RankedForm> {
-    if precedents.len() < options.min_role_examples.max(1) {
+    let gate = options
+        .min_role_examples
+        .max(feature_names.len() * options.min_examples_per_feature)
+        .max(1);
+    if precedents.len() < gate {
         return Vec::new();
     }
     let vectors: Vec<Vec<u8>> = precedents
@@ -383,7 +466,7 @@ pub fn rank_forms(
             .map(|held| u8::from(held.chose == *form))
             .collect();
         let positives: usize = targets.iter().copied().map(usize::from).sum();
-        if positives < options.min_role_examples.max(1) {
+        if positives < gate {
             continue;
         }
         let mut machine =
@@ -442,56 +525,6 @@ fn feature_names_of(names: &[&'static str], indices: &[usize]) -> Vec<String> {
         .collect()
 }
 
-/// The stable feature names of one type instance, for form ranking.
-const FORM_FEATURES: [&str; 2] = ["multi_field", "has_string_field"];
-
-/// The binary features of one type node, in [`FORM_FEATURES`] order.
-fn type_form_features(node: &rustmanifest_engine::TypeNode) -> Vec<u8> {
-    vec![
-        u8::from(node.fields.len() > 1),
-        u8::from(node.fields.iter().any(|field| field.type_name == "String")),
-    ]
-}
-
-/// The display-form precedents the workspace's own written `Display`
-/// impls state: the features of each implementing type, and whether
-/// its written template labels its holes or prints bare values.
-fn display_precedents(workspace: &Workspace<'_>) -> Vec<FormPrecedent> {
-    use rustmanifest_engine::semantic::{Payload, Segment};
-    let types = workspace.types();
-    let mut found = Vec::new();
-    for fact in workspace.facts() {
-        let Some(owner) = fact.function.strip_suffix("::fmt") else {
-            continue;
-        };
-        let Some(node) = types.type_named(owner) else {
-            continue;
-        };
-        if !types.traits_implemented(owner).contains(&"Display") {
-            continue;
-        }
-        let labeled = fact.output_writes.iter().any(|write| {
-            matches!(&write.payload, Payload::Template(segments)
-            if segments.iter().any(|segment| {
-                matches!(segment, Segment::Text(text) if text.contains(':'))
-            }))
-        });
-        found.push(FormPrecedent {
-            features: type_form_features(node),
-            chose:    if labeled {
-                "labeled-list".to_owned()
-            } else {
-                "bare-values".to_owned()
-            }
-        });
-    }
-    found
-}
-
-/// The display forms the precedent ranks — the only forms it has any
-/// standing to advise on.
-const DISPLAY_FORMS: [&str; 2] = ["labeled-list", "bare-values"];
-
 /// Runs the engine's deduction with the workspace's precedent advising
 /// the chain.
 ///
@@ -501,9 +534,11 @@ const DISPLAY_FORMS: [&str; 2] = ["labeled-list", "bare-values"];
 /// recorded as agreement, contradiction as contradiction — the
 /// catalog's choice stands either way, and the chain says which
 /// convention the workspace itself would rank first, citing the clause
-/// that earned the rank. A choice outside the ranked forms — the
-/// field-by-field build of `Default` — gets no advice: a printing
-/// precedent has no standing there.
+/// that earned the rank. Each family of forms is advised only by its
+/// own precedent pool — written templates for the display forms,
+/// written `default` bodies for the default forms — so a printing
+/// precedent never speaks on a `Default` chain, and a choice outside
+/// every family gets no advice at all.
 #[must_use]
 pub fn deduce_with_precedent(
     sources: &[rustmanifest_engine::Source],
@@ -514,22 +549,24 @@ pub fn deduce_with_precedent(
     let types = workspace.types();
     let node = types.type_named(type_name)?;
     let file = node.source;
-    let instance = type_form_features(node);
-    let precedents = display_precedents(&workspace);
-    let ranked = rank_forms(
-        &precedents,
-        &FORM_FEATURES,
-        &instance,
-        &DISPLAY_FORMS,
-        LearnOptions::default()
-    );
+    let instance = forms::type_form_features(node);
     let mut held =
         rustmanifest_engine::semantic::deduce_impl(sources, file, type_name, trait_name);
-    let spoken_for = held
-        .catalog
-        .clone()
-        .filter(|choice| DISPLAY_FORMS.contains(&choice.form.as_str()));
-    if let (Some(choice), Some(top)) = (spoken_for, ranked.first()) {
+    let spoken_for = held.catalog.clone().and_then(|choice| {
+        forms::precedents_for(&workspace, &choice.form)
+            .map(|(precedents, family)| (choice, precedents, family))
+    });
+    let Some((choice, precedents, family)) = spoken_for else {
+        return Some(held);
+    };
+    let ranked = rank_forms(
+        &precedents,
+        &forms::FORM_FEATURES,
+        &instance,
+        family,
+        LearnOptions::default()
+    );
+    if let Some(top) = ranked.first() {
         let agreement = top.name == choice.form;
         held.chain.steps.insert(choice.step + 1, rustmanifest_schema::TraceStep {
             fact:   format!(
