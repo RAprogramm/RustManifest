@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! The compiler's verdict on every synthesized edit: a fix or an
-//! extraction plan, applied, must yield a program `rustc` accepts.
+//! The compiler's verdict on every synthesized edit: a fix, an
+//! extraction plan, or an installed generation, applied, must yield a
+//! program `rustc` accepts.
 //!
 //! The gates a synthesis checks before producing an edit are claims
 //! about the engine's own preconditions; this harness is the other
@@ -13,7 +14,11 @@
 //! finding's fixes are applied alone (an applier owes the edits of one
 //! finding together, and nothing across findings), and multi-file or
 //! renaming fixes are skipped here with their skip counted, so a
-//! silent shrink of coverage cannot read as green.
+//! silent shrink of coverage cannot read as green. The generated impl
+//! blocks land only as editor edits the author applies — the engine
+//! writes no source byte to disk — so the text the montage confirms in
+//! memory is judged here exactly as it would land: appended to the
+//! defining file and handed whole to the compiler.
 
 #![allow(
     clippy::unwrap_used,
@@ -127,6 +132,74 @@ fn every_applied_fix_survives_the_compiler() {
         "the harness must have compiled at least the ownership and buffering fixes; \
          compiled {compiled}, skipped {skipped}"
     );
+}
+
+/// An installed canon impl — the same appended text the editor edit
+/// lands — must compile, for both canon traits over proven fields.
+#[test]
+fn an_installed_canon_impl_survives_the_compiler() {
+    let text = "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n";
+    let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+    for trait_name in ["Default", "Display"] {
+        let gain = rustmanifest_engine::semantic::install_impl(&sources, 0, "User", trait_name)
+            .expect("a canon install over proven fields");
+        if let Some(complaint) = rejected(
+            "src/lib.rs",
+            &[(PathBuf::from("src/lib.rs"), gain.installed.clone())]
+        ) {
+            panic!(
+                "the installed `{trait_name}` impl does not compile:\n--- installed ---\n{}\n\
+                 --- rustc ---\n{complaint}",
+                gain.installed
+            );
+        }
+    }
+}
+
+/// A skeleton obligation pays its debt in panic, not in rejection: the
+/// installed text still compiles, and the gain names the open debt.
+#[test]
+fn an_installed_skeleton_compiles_with_its_panic_debt_open() {
+    let text = "pub struct Batch {\n    pub held: Vec<String>,\n}\n";
+    let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+    let gain = rustmanifest_engine::semantic::install_impl(&sources, 0, "Batch", "Display")
+        .expect("a skeleton install");
+    assert!(gain.panics, "{}", gain.installed);
+    if let Some(complaint) = rejected(
+        "src/lib.rs",
+        &[(PathBuf::from("src/lib.rs"), gain.installed.clone())]
+    ) {
+        panic!(
+            "the installed skeleton does not compile:\n--- installed ---\n{}\n--- rustc \
+             ---\n{complaint}",
+            gain.installed
+        );
+    }
+}
+
+/// Every fulfilled intent's confirmed installation must compile: the
+/// chain from a written call to an installed block ends at the
+/// compiler, not at the re-reading.
+#[test]
+fn every_fulfilled_intent_survives_the_compiler() {
+    let text = "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
+                Job::default()\n}\n";
+    let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+    let fulfilled = rustmanifest_engine::semantic::fulfill_intents(&sources);
+    assert!(!fulfilled.is_empty(), "the written call states an intent");
+    for held in fulfilled {
+        let gain = held.gain.expect("a confirmed gain");
+        if let Some(complaint) = rejected(
+            "src/lib.rs",
+            &[(PathBuf::from("src/lib.rs"), gain.installed.clone())]
+        ) {
+            panic!(
+                "a fulfilled intent's installation does not compile:\n--- installed ---\n{}\n\
+                 --- rustc ---\n{complaint}",
+                gain.installed
+            );
+        }
+    }
 }
 
 /// An applied extraction — the new module file plus the edited old
