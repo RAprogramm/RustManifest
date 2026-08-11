@@ -228,7 +228,8 @@ pub struct Invariant {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub write_only_from: Vec<String>,
     /// Side-effect category to ban (`unsafe`, `fs`, `net`, `process`,
-    /// `env`, `console`).
+    /// `env`, `console`, `db-read`, `db-write`, `db` — the last is a
+    /// statement provably sent with its kind unproven).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect:          Option<String>,
     /// Module-path prefixes where `effect` is denied.

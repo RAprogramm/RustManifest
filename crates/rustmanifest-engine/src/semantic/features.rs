@@ -33,7 +33,7 @@ const THERMOMETER: [u32; 3] = [1, 2, 4];
 #[must_use]
 pub fn features(facts: &FunctionFacts) -> Vec<Feature> {
     let owner = facts.function.split_once("::").map(|(owner, _)| owner);
-    let mut out = Vec::with_capacity(42);
+    let mut out = Vec::with_capacity(43);
     out.push(feature("is-method", owner.is_some()));
     out.push(feature("is-trait-impl", facts.flags.trait_impl()));
     out.push(feature("returns-result", !facts.error_types.is_empty()));
@@ -46,7 +46,8 @@ pub fn features(facts: &FunctionFacts) -> Vec<Feature> {
         ("effect-env", Effect::Environment),
         ("effect-console", Effect::ConsoleIo),
         ("effect-db-read", Effect::DatabaseRead),
-        ("effect-db-write", Effect::DatabaseWrite)
+        ("effect-db-write", Effect::DatabaseWrite),
+        ("effect-db", Effect::Database)
     ] {
         out.push(feature(name, facts.effects.contains(&effect)));
     }
@@ -186,7 +187,7 @@ mod tests {
             "struct Wallet { balance: i64 }\nimpl Wallet { fn credit(&mut self, amount: i64) -> \
              Result<(), String> { self.balance += amount; println!(\"done\"); Ok(()) } }"
         );
-        assert_eq!(empty.len(), 42);
+        assert_eq!(empty.len(), 43);
         let names: Vec<&str> = empty.iter().map(|entry| entry.name).collect();
         let busy_names: Vec<&str> = busy.iter().map(|entry| entry.name).collect();
         assert_eq!(names, busy_names);

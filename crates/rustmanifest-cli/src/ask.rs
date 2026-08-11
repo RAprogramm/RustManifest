@@ -24,7 +24,8 @@ pub struct AskArgs {
     pub function: String,
 
     /// Effect asked about: `fs`, `net`, `process`, `env`, `console`,
-    /// `db-read`, `db-write`, or `unsafe`.
+    /// `db-read`, `db-write`, `db` (a statement provably sent with its
+    /// kind unproven), or `unsafe`.
     pub effect: String,
 
     /// The program under analysis.

@@ -259,6 +259,33 @@ mod tests {
         assert!(check_invariants(&sources, &[balance_invariant()]).is_empty());
     }
 
+    /// The unproven-kind database grade is bannable by its recorded
+    /// name: a runtime-built statement in a denied module violates the
+    /// ban exactly as a written one would.
+    #[test]
+    fn a_db_ban_catches_a_runtime_statement() {
+        let sources = vec![
+            source("src/lib.rs", "mod api;"),
+            source(
+                "src/api.rs",
+                "pub async fn purge(pool: &sqlx::PgPool, sql: &str) { sqlx::query(sql); }"
+            ),
+        ];
+        let ban = Invariant {
+            id:              Some("NO-DB".to_owned()),
+            field:           None,
+            write_only_from: Vec::new(),
+            effect:          Some("db".to_owned()),
+            deny_in:         vec!["crate::api".to_owned()],
+            call_deny_from:  None,
+            call_deny_to:    None,
+            severity:        None
+        };
+        let findings = check_invariants(&sources, &[ban]);
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert!(findings[0].message.contains("purge"), "{findings:?}");
+    }
+
     fn net_ban(module: &str) -> Invariant {
         Invariant {
             id:              Some("NO-NET".to_owned()),
