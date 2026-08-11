@@ -40,6 +40,7 @@ mod intents;
 mod invariant;
 mod io_forms;
 mod keeping;
+mod kept;
 mod knowledge;
 mod layers;
 mod layout;
@@ -112,6 +113,7 @@ pub use self::{
         Telling, Verb, commands, endings, feedings, keeping, outliving, purpose, servings, stores,
         table_keeping, table_key, tables, telling
     },
+    kept::why_kept,
     layers::{ModuleLayer, layers},
     layout::{TypeShape, shapes},
     meaning::{
