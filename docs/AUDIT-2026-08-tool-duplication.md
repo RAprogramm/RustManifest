@@ -306,6 +306,31 @@ binding it was declared by, not a path, and a name string would read as an
 identity while telling two shadowed bindings apart no better than the text
 does. That row kind is owed its own shape.
 
+## 9a. The module tree swap, and what it still owes
+
+The resolver records the compiler's module tree; the graph above it still
+rebuilds the mounting from file names. Replacing that construction is
+written and measured, and it is not committed, because it is not finished.
+
+What the change does: the graph is built from the settled tree, the
+mounting guesswork and the crate-root guess are deleted, and the imports
+of each module are read from the module that writes them — an inline
+module's imports belong to it, which the pooled reading lost.
+
+What it still owes: fifteen test fixtures across coverage, layers,
+meaning, invariants, the module overview and the index edges declare a
+file layout and expect a tree to assemble itself from it. Each needs the
+tree it means stated outright. Thirty-four failed when the change was
+first made; nineteen were closed by giving the fixtures a declared tree
+and by attaching imports per module. The remainder are fixtures whose
+expectations encode the old mounting rules and have to be read one at a
+time.
+
+Until that is done the change stays out of the tree. A green build is not
+a formality here: the readers above the graph decide what a module may
+touch, and a half-migrated tree answers those questions wrongly rather
+than not at all.
+
 ## 10. Opinion
 
 The engine's premise is sound and the audit does not touch it: a fact
