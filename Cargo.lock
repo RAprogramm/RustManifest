@@ -2322,7 +2322,6 @@ dependencies = [
 name = "rustmanifest-cli"
 version = "0.0.0"
 dependencies = [
- "anstream",
  "anyhow",
  "assert_cmd",
  "cargo_metadata",
@@ -2428,10 +2427,8 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "rmcp",
- "rustmanifest-config",
  "rustmanifest-engine",
  "rustmanifest-learn",
- "rustmanifest-report",
  "rustmanifest-rules-core",
  "rustmanifest-schema",
  "schemars",
@@ -2447,11 +2444,9 @@ dependencies = [
 name = "rustmanifest-report"
 version = "0.0.0"
 dependencies = [
- "anstream",
  "anstyle",
  "insta",
  "rustmanifest-schema",
- "serde",
  "serde-sarif",
  "serde_json",
  "thiserror 2.0.20",
@@ -2469,7 +2464,6 @@ dependencies = [
  "ra_ap_syntax",
  "ra_ap_vfs",
  "rustmanifest-schema",
- "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",

@@ -24,7 +24,6 @@ ra_ap_project_model = { workspace = true }
 ra_ap_syntax = { workspace = true }
 ra_ap_vfs = { workspace = true }
 rustmanifest-schema = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
