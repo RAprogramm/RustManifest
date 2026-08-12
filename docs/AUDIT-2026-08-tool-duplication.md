@@ -274,7 +274,39 @@ Cross-checks used above, each runnable against a clean checkout:
 
 ---
 
-## 9. Opinion
+## 9. Status of the first lever
+
+The producer has been widened. The resolver now records, for every file of
+the analyzed workspace, the type of every expression and the item every
+written path reaches, each keyed by byte range. Measured on this workspace
+in one run:
+
+| Row kind | Positions answered |
+|---|---:|
+| Expression types (new) | 73,737 |
+| Resolved paths (new) | 36,163 |
+| Method calls (existing) | 14,606 |
+| Field accesses (existing) | 6,979 |
+
+The two new kinds answer five times as many positions as the two the
+overlay carried before, and they answer the two questions no reading of
+spelling can: what type this expression has, and which item this name
+reaches — the latter with the declaring crate attached, so two namesakes
+stop collapsing into one bucket.
+
+The consumer has taken the first of them: the type of an expression is now
+read from the overlay before any spelling is examined, and the
+hand-written reading answers only where no resolver ran. The reading is
+kept, not deleted, until a measured run shows what it still answers that
+the overlay does not — deleting it on the strength of an argument rather
+than a measurement would repeat the mistake this document is about.
+
+Locals are deliberately still unanswered. A local's identity is the
+binding it was declared by, not a path, and a name string would read as an
+identity while telling two shadowed bindings apart no better than the text
+does. That row kind is owed its own shape.
+
+## 10. Opinion
 
 The engine's premise is sound and the audit does not touch it: a fact
 base about a program, with every claim carrying the site that proved it,
