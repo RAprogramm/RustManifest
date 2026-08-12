@@ -985,6 +985,38 @@ UNTYPED-RECEIVER	63
 BARE-SEEN	0
 INVISIBLE-TO-SYNTAX	226</pre>
 <p>Сумма четырёх классов — 264 + 63 + 0 + 226 = 553 — совпадает с хвостом «scip edges +553» второго счёта байт в байт: разбиение полно, ни одно добавочное ребро не потеряно и не сосчитано дважды. Доли от 553: 47.7%, 11.4%, 0%, 40.9%; от ведра неизвестного получателя первого счёта — 63 из 249, 25.3%. Тулчейн — <code>rustc 1.97.1</code>.</p>
+
+<h3><span class="sn">Б.55</span>Пробы диапазона <code>238162e</code>…<code>789e250</code>: чистая копия HEAD через <code>git worktree</code>, полный набор, clippy и REUSE, три прогона покрытия, собственный индекс и два прогона поставленного судьи по всем шести деревьям корпуса (2026-08-12)</h3>
+<p>Метод — жанр Б.44 поверх дисциплины срезов: все счёты сняты в ЧИСТОЙ рабочей копии <code>789e250</code>, поднятой через <code>git worktree</code>, и сняты там не по обычаю, а по необходимости — главная копия на момент записи несла незакоммиченные правки движка вне записанных дуг, поэтому ни один счёт этой записи в ней не брался. Живые бинари собраны в самой чистой копии, не установленные. Тулчейн — <code>rustc 1.97.1</code>.</p>
+<p>Первый счёт — состояние проверок: <code>cargo test --workspace</code> даёт 46 строк результата, <span class="num">1072</span> пройденных при нуле упавших; <code>cargo clippy --workspace --all-targets</code> на прежних deny-уровнях отвечает <code>Finished</code> без единой строки замечаний; <code>reuse lint</code> — 726 файлов из 726 и с информацией об авторских правах, и с информацией о лицензии, соответствие спецификации 3.3.</p>
+<p>Второй счёт — покрытие собственного дерева без индекса, строка кандидатов вызовов дословно:</p>
+<pre>call candidates     16450     resolved in-workspace 4612  28.0%   external 10156   unknown receiver 257   named elsewhere 0   ambiguous 1047   owner without member 378   accounted 89.8%</pre>
+<p>Третий счёт — тот же прогон с <code>--scip</code>. Индекс собран в самой чистой копии командой <code>rust-analyzer scip .</code>; версия — <code>rust-analyzer 1.97.1 (8bab26f 2026-07-14)</code>, эмиссия 11&#8239;745&#8239;393 байта. Все прочие строки поверхности дословно совпадают с первым счётом; строка кандидатов сменилась целиком:</p>
+<pre>call candidates     16450     resolved in-workspace 4992  30.3%   external 10156   unknown receiver 205   named elsewhere 0   ambiguous 719   owner without member 378   accounted 92.1%   scip edges +192   scip settled 380</pre>
+<p>Сходимость проверена четырьмя вычитаниями, и все четыре сошлись: 1047 − 719 = 328 улаженных неоднозначных, 257 − 205 = 52 улаженных неизвестных получателя, 328 + 52 = 380 — ровно хвост <code>scip settled</code>, и разрешённых внутри воркспейса стало больше ровно на те же 380 (4612 → 4992). Строки внешних и владельца без члена не сдвинулись ни на единицу — 10156 и 378 в обоих прогонах: улаживать там нечего по построению. Это первый прогон страницы, где оверлей сдвинул счётчики отказов; до <code>789e250</code> контракт добавочности держал их неподвижными (6.66, Б.54).</p>
+<p>Четвёртый счёт — покрытие с <code>--expand</code>, блок развёртки дословно, включая написание строки дрейфа:</p>
+<pre>crates expanded     11/11     via rustc -Zunpretty=expanded   skipped 0
+derived impls       1574      of 1794 impls total   (previously invisible, now measured)
+derived traits                Debug 264, Clone 196, PartialEq 179, StructuralPartialEq 179, Eq 177, Copy 71, TrivialClone 71, Visitor 70 (+16 more)
+graph integration   +1304     derived impls absorbed   generated types discovered 0   types with known derives 286
+universe drift      1395 sharedplain-only 1234 (cfg-stripped bodies)   expanded-only 1068              (macro-generated)</pre>
+<p>Слипшееся <code>1395 sharedplain-only</code> — не опечатка записи, а вывод бинаря дословно: колонка значения форматируется под ширину десять, а «1395 shared» занимает одиннадцать, и разделитель съеден (6.69). Проценты дрейфа считаны отсюда: обычная вселенная 1395 + 1234 = 2629 имён, развёрнутая 1395 + 1068 = 2463, объединение 3697, общая часть 37.7% объединения.</p>
+<p>Пятый счёт — поставленный судья на <code>789e250</code>, по всем шести деревьям корпуса, обоими жанрами, потолок шесть на репозиторий и жанр. Одна операционная запись, повторяющая запись 6.57: постели шести настоящих деревьев переполняют tmpfs, поэтому <code>TMPDIR</code> задан дисковым каталогом — смена адреса, не метода. Итоговая строка дословно:</p>
+<pre>accepted 72/72 (cap 6 per repo and genre), verdicts written to &lt;файл&gt;</pre>
+<p>Адресные вердикты того же прогона, важные для 6.71: <code>hydebar	extract	fn run in app/src/application.rs	accepted</code> — та самая функция, которую 6.58 записала честным отказом из-за <code>Args::parse()</code>; <code>aura-api	extract	fn main in build.rs	accepted</code> и <code>ratma-studio-api	extract	fn main in build.rs	accepted</code> — точка входа сборочного скрипта на двух деревьях, ровно те два дерева, на которых улов четвёртый дал E0583; шесть принятых экстракций masterror из <code>build/readme.rs</code> — файла, смонтированного написанным <code>#[path]</code>, ровно жанр улова первого; и <code>hydebar	extract	fn current_uid in app/src/instance/lock.rs	accepted</code> — файл, из которого пришёл улов пятый со вторым шагом <code>super</code>.</p>
+<p>Шестой счёт — тот же судья тем же рецептом на срезе <code>d00ddae</code>, поднятом вторым <code>git worktree</code>: судья уже поставлен, ни одна из трёх починок дня не сделана. Итоговая строка и все отвергнутые вердикты дословно:</p>
+<pre>aura-api	extract	fn main in build.rs	error[E0583]: file not found for module `main`
+fork-hyper	extract	fn _assert_send_sync in src/body/mod.rs	error[E0432]: unresolved import `self::incoming`
+hydebar	extract	fn open_lock_file in app/src/instance/lock.rs	error[E0432]: unresolved import `super::error`
+masterror	extract	fn generate_readme in build/readme.rs	error[E0583]: file not found for module `generate_readme`
+masterror	extract	fn sync_readme in build/readme.rs	error[E0583]: file not found for module `sync_readme`
+masterror	extract	fn verify_readme in build/readme.rs	error[E0583]: file not found for module `verify_readme`
+masterror	extract	fn verify_readme_relaxed in build/readme.rs	error[E0583]: file not found for module `verify_readme_relaxed`
+masterror	extract	fn normalize in build/readme.rs	error[E0583]: file not found for module `normalize`
+masterror	extract	fn collect_feature_docs in build/readme.rs	error[E0583]: file not found for module `collect_feature_docs`
+ratma-studio-api	extract	fn main in build.rs	error[E0583]: file not found for module `main`
+accepted 62/72 (cap 6 per repo and genre), verdicts written to &lt;файл&gt;</pre>
+<p>Восемь <code>E0583</code> и два <code>E0432</code>, все десять в экстракционном жанре — установочный чист в обоих прогонах, 36 из 36. Сверка списков кандидатов двух прогонов дала то, чего отношение принятых к отвергнутым не показывает: у hydebar до починок шестым кандидатом стоит <code>open_lock_file</code> и падает, а <code>run</code> в списке ОТСУТСТВУЕТ — планировщик отказал ему перезавышением; после починок <code>run</code> стоит в списке и принят, а <code>open_lock_file</code> вытеснен потолком (6.71). Тот же рецепт, что и пятый счёт, включая дисковый <code>TMPDIR</code>.</p>
 </section>
 </main>
 </div>
