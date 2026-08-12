@@ -26,15 +26,27 @@ pub(super) struct Reading<'db, 'file> {
     pub(super) semantics: &'db Semantics<'db, RootDatabase>,
     /// Database a type is rendered against.
     pub(super) database:  &'db RootDatabase,
-    /// Path the settled positions belong to.
-    pub(super) file:      &'file str
+    /// Path the settled positions belong to, as the loader spells it —
+    /// absolute, because that is what a virtual file system hands back.
+    pub(super) file:      &'file str,
+    /// Workspace root the recorded path is stated relative to.
+    pub(super) root:      &'file str
 }
 
 impl Reading<'_, '_> {
     /// Turns a range in the file being read into a settled location.
+    ///
+    /// The path is made relative to the workspace root, which is what the
+    /// shape promises and what every consumer keys by: a consumer walks the
+    /// tree itself and names a file the way it was asked to walk it, so an
+    /// absolute path here matches nothing it holds. Silently, at that — the
+    /// overlay is looked up by equality, and a mismatch reads exactly like
+    /// a position the resolver did not settle.
     pub(super) fn located(self, span: TextRange) -> Location {
+        let named = std::path::Path::new(self.file);
+        let relative = named.strip_prefix(self.root).unwrap_or(named).to_path_buf();
         Location {
-            file:  std::path::PathBuf::from(self.file),
+            file:  relative,
             range: Range {
                 start: u32::from(span.start()),
                 end:   u32::from(span.end())

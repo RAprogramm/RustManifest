@@ -106,6 +106,34 @@ fn every_expression_carries_its_type_and_not_only_the_calls() {
     );
 }
 
+/// Every consumer walks the tree itself and names a file the way it was
+/// asked to walk it. A path stated from the machine's root matches none of
+/// those names, and the overlay is read by equality — so the mismatch does
+/// not fail, it answers nothing, everywhere, forever.
+#[test]
+fn a_settled_position_names_its_file_the_way_the_workspace_does() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let named: Vec<&Path> = resolution
+        .calls
+        .iter()
+        .map(|call| call.at.file.as_path())
+        .chain(resolution.types.iter().map(|typed| typed.at.file.as_path()))
+        .chain(resolution.paths.iter().map(|path| path.at.file.as_path()))
+        .collect();
+    assert!(!named.is_empty());
+    assert!(
+        named.iter().all(|path| path.is_relative()),
+        "a settled position states an absolute path: {named:?}"
+    );
+    assert!(
+        named.iter().all(|path| path.starts_with("src")),
+        "a settled position is not stated from the workspace root: {named:?}"
+    );
+}
+
 #[test]
 fn a_written_name_carries_the_item_it_reaches_and_the_crate_declaring_it() {
     let dir = tempfile::tempdir().unwrap();

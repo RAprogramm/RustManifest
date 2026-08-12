@@ -64,7 +64,8 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
             let reading = Reading {
                 semantics: &semantics,
                 database:  &database,
-                file:      &name
+                file:      &name,
+                root:      &inside
             };
             settle_file(reading, &parsed, &mut resolution);
         }
