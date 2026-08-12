@@ -138,6 +138,28 @@ impl TypeGraph {
         })
     }
 
+    /// The trait a derive grants the named associated call through,
+    /// where the catalog records the grant: the argument-parsing
+    /// derive grants its own trait's constructor, and the `Default`
+    /// derive grants the prelude's — the empty name stands for a
+    /// prelude trait that needs no import. The corpus judge caught
+    /// the missing entry as a refused move.
+    #[must_use]
+    pub fn granting_trait(&self, owner: &str, method: &str) -> Option<&'static str> {
+        const GRANTED_CALLS: [(&str, &str, &str); 3] = [
+            ("Parser", "parse", "Parser"),
+            ("Default", "default", ""),
+            ("Clone", "clone", "")
+        ];
+        let node = self.type_named(owner)?;
+        GRANTED_CALLS
+            .iter()
+            .find(|(derive, granted, _)| {
+                *granted == method && node.derives.iter().any(|held| held == derive)
+            })
+            .map(|(_, _, imported)| *imported)
+    }
+
     /// Returns every structure that aggregates `name` through a field whose
     /// type resolves to it.
     #[must_use]
