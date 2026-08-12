@@ -317,14 +317,20 @@ mounting guesswork and the crate-root guess are deleted, and the imports
 of each module are read from the module that writes them — an inline
 module's imports belong to it, which the pooled reading lost.
 
-What it still owes: fifteen test fixtures across coverage, layers,
-meaning, invariants, the module overview and the index edges declare a
-file layout and expect a tree to assemble itself from it. Each needs the
-tree it means stated outright. Thirty-four failed when the change was
-first made; nineteen were closed by giving the fixtures a declared tree
-and by attaching imports per module. The remainder are fixtures whose
-expectations encode the old mounting rules and have to be read one at a
-time.
+Two wiring gaps it also closed, found by the failures rather than by
+reading: the call graph a workspace derives was built without the
+resolution it holds, and the reachable-file counter measured which
+modules a *layout* root claimed rather than which files the compiler's
+tree mentions at all. Both are fixed in the change.
+
+What it still owes: ten test fixtures across the call graph, layers,
+meaning, invariants, coverage and the index edges. Thirty-four failed
+when the change was first made, then nineteen, then ten — closed by
+giving fixtures a declared tree, attaching imports to the module that
+writes them, and passing the resolution into the call graph. The
+remainder are fixtures whose expectations encode the old mounting rules
+and have to be read one at a time; the layers fixtures in particular
+expect module edges that the old standalone-root promotion produced.
 
 Until that is done the change stays out of the tree. A green build is not
 a formality here: the readers above the graph decide what a module may
