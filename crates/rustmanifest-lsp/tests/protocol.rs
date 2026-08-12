@@ -950,18 +950,6 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
     handle.join().unwrap().unwrap();
 }
 
-/// A cursor inside a free function offers the extraction: the new
-/// module file created and both files edited in one workspace edit.
-const CROWDED: &str = "use std::collections::BTreeMap;\n\nfn keep(store: &BTreeMap<u64, \
-                       String>) -> usize { store.len() }\n\nfn render(store: &BTreeMap<u64, \
-                       String>) -> usize {\n    keep(store)\n}\n";
-
-/// A cursor on a type's declaration offers moving the type with its
-/// impls into a snake-named module file.
-const RETINUE: &str = "fn count(store: &Store) -> usize { store.len() }\n\nstruct Store {\n    \
-                       held: Vec<u64>,\n}\n\nimpl Store {\n    fn len(&self) -> usize {\n        \
-                       self.held.len()\n    }\n}\n";
-
 /// The intents command must answer with what the workspace's own
 /// written calls prove is missing, each intent citing its evidence
 /// and the evidence carrying its written address — a place to jump
