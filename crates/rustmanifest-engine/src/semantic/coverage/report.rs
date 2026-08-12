@@ -89,6 +89,9 @@ pub struct Coverage {
     /// the syntactic slice — the signature of a generated or
     /// trait-provided member.
     pub call_candidates_owned:       u64,
+    /// Candidates naming a variant of a workspace enum: a value built
+    /// where the reading looked for a call, counted under its own name.
+    pub call_candidates_built:       u64,
     /// Call edges added by a SCIP index overlay beyond the syntactic
     /// candidates; zero when no index was supplied.
     pub call_candidates_scip:        u64,

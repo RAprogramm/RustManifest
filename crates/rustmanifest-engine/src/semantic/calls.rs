@@ -291,6 +291,45 @@ mod tests {
         assert_eq!(refused.scip_settled(), 0);
     }
 
+    /// A variant of a workspace enum builds a value; nothing is called
+    /// there, and the row says so instead of blaming the owner for a
+    /// member it never had. A module qualifier is not an owner either:
+    /// where the workspace declares no function of that bare name, the
+    /// written path names an outside namespace of the same spelling.
+    #[test]
+    fn a_variant_builds_and_a_module_qualifier_owns_nothing() {
+        let text = concat!(
+            "pub enum Payload {\n    Opaque,\n}\n",
+            "pub struct Held;\nimpl Held { pub fn keep(&self) {} }\n",
+            "pub mod io {}\n",
+            "pub fn go() {\n    Payload::Opaque();\n    io::persist();\n    Held::missing();\n}\n"
+        );
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let all = behavior(&sources);
+        let context = super::resolution_context(&sources);
+        let (graph, rows) = super::call_graph_rows(&all, &context);
+        let count = |wanted: super::RefusalRow| -> usize {
+            rows.iter()
+                .flatten()
+                .filter(|(_, row)| *row == wanted)
+                .count()
+        };
+        assert_eq!(count(super::RefusalRow::Construction), 1, "{rows:?}");
+        assert_eq!(graph.constructions(), 1);
+        assert_eq!(count(super::RefusalRow::Foreign), 1, "{rows:?}");
+        assert_eq!(count(super::RefusalRow::OwnerWithoutMember), 1, "{rows:?}");
+        assert_eq!(
+            graph.unresolved(),
+            graph.external()
+                + graph.unknown_receiver()
+                + graph.unreachable_named()
+                + graph.ambiguous()
+                + graph.owned_unmatched()
+                + graph.constructions(),
+            "a refusal outside every row would be countable only by subtraction"
+        );
+    }
+
     /// A crate-private method of a neighbouring crate is a coincidence
     /// of spelling, not a candidate: another crate cannot name it at
     /// all, so a call on an untyped receiver carrying that name is

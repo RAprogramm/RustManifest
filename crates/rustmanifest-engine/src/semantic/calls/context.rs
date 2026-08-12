@@ -36,7 +36,10 @@ pub struct ResolutionContext {
     /// Written module spans of every source, the granularity an
     /// unqualified call is resolved at. Empty for a hand-built context,
     /// which then reads every source as one scope.
-    pub scopes:      Scopes
+    pub scopes:      Scopes,
+    /// Enum name to its written variant names. A candidate naming one of
+    /// them builds a value; nothing is being called there.
+    pub variants:    BTreeMap<String, BTreeSet<String>>
 }
 
 /// Builds the full resolution context over `sources`.
@@ -45,6 +48,7 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
     let mut trait_impls: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut ext_traits: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let mut supertraits: BTreeMap<String, String> = BTreeMap::new();
+    let mut variants: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for source in sources {
         let Some(file) = source.tree() else {
             continue;
@@ -67,6 +71,16 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
                     if !implementors.contains(&implementor) {
                         implementors.push(implementor);
                     }
+                }
+                syn::Item::Enum(definition) => {
+                    variants.insert(
+                        definition.ident.to_string(),
+                        definition
+                            .variants
+                            .iter()
+                            .map(|variant| variant.ident.to_string())
+                            .collect()
+                    );
                 }
                 syn::Item::Trait(definition) => {
                     let Some(base) = first_supertrait(definition) else {
@@ -108,7 +122,8 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
             .iter()
             .map(|source| Target::of_path(&source.path().to_string_lossy()))
             .collect(),
-        scopes: Scopes::of(sources)
+        scopes: Scopes::of(sources),
+        variants
     }
 }
 

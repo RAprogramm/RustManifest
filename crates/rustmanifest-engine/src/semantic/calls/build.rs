@@ -165,7 +165,6 @@ fn built(
                 named.is_some(),
                 matches.as_deref(),
                 &workspace_owners,
-                module_segments,
                 context
             );
             tallies.book(row);
@@ -242,7 +241,10 @@ struct Tallies {
     /// Names matching several linkable functions.
     ambiguous:         u64,
     /// Names whose declared owner carries no such member.
-    owned_unmatched:   u64
+    owned_unmatched:   u64,
+    /// Candidates naming a variant of a workspace enum: values built,
+    /// not functions called.
+    constructions:     u64
 }
 
 impl Tallies {
@@ -255,7 +257,8 @@ impl Tallies {
             RefusalRow::UnknownReceiver => self.unknown_receiver += 1,
             RefusalRow::NamedElsewhere => self.unreachable_named += 1,
             RefusalRow::Ambiguous => self.ambiguous += 1,
-            RefusalRow::OwnerWithoutMember => self.owned_unmatched += 1
+            RefusalRow::OwnerWithoutMember => self.owned_unmatched += 1,
+            RefusalRow::Construction => self.constructions += 1
         }
     }
 
@@ -276,6 +279,7 @@ impl Tallies {
             unreachable_named: self.unreachable_named,
             ambiguous: self.ambiguous,
             owned_unmatched: self.owned_unmatched,
+            constructions: self.constructions,
             indexed,
             settled,
             possibilistic

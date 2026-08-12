@@ -39,6 +39,10 @@ pub struct CallGraph {
     /// signature of a generated or trait-provided method the syntactic
     /// slice has no body for.
     pub(super) owned_unmatched:   u64,
+    /// Candidates naming a variant of a workspace enum — a value built
+    /// where the reading looked for a call. Counted under its own name
+    /// so the total holds no unexplained residue.
+    pub(super) constructions:     u64,
     /// Edges added by the SCIP overlay that the syntactic candidates
     /// alone had not produced — resolution owed to the index, kept as
     /// pairs so every consumer can state an edge's provenance.
@@ -105,6 +109,12 @@ impl CallGraph {
     #[must_use]
     pub const fn owned_unmatched(&self) -> u64 {
         self.owned_unmatched
+    }
+
+    /// Candidates that build a variant instead of calling anything.
+    #[must_use]
+    pub const fn constructions(&self) -> u64 {
+        self.constructions
     }
 
     /// Edges the SCIP overlay added beyond the syntactic candidates.
