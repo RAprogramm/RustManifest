@@ -35,11 +35,13 @@ impl FactCollector {
                     return Some(settled);
                 }
                 let owner = self.expr_type(&field.base)?;
-                self.field(&format!(
-                    "{owner}.{}",
-                    super::naming::member_name(&field.member)
-                ))
-                .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
+                let member = super::naming::member_name(&field.member);
+                self.field(&format!("{owner}.{member}"))
+                    .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
+                    .or_else(|| {
+                        crate::semantic::knowledge::field_type(&owner, &member)
+                            .map(ToOwned::to_owned)
+                    })
             }
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
             syn::Expr::Match(matched) => self.arms_agree(matched),

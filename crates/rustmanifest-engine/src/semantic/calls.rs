@@ -354,6 +354,23 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A pack states what a crate's own field holds and what one step
+    /// of a sequence field carries, so a value read off the tree types
+    /// the calls written on it.
+    #[test]
+    fn a_packed_field_types_what_is_read_off_it() {
+        let (all, graph) = context_graph(
+            "pub struct Held;\nimpl Held { pub fn path(&self) {} }\npub fn go(item: \
+             &syn::ItemFn) {\n    for attribute in &item.attrs {\n        \
+             attribute.path();\n    }\n    item.sig.ident.to_string();\n}\n"
+        );
+        assert_eq!(graph.unknown_receiver(), 0);
+        assert!(
+            graph.callees(index_of(&all, "go")).is_empty(),
+            "the attribute is the crate's, not the workspace type of that member name"
+        );
+    }
+
     /// A pack states what one step of a crate's own sequence carries,
     /// so the loop binding is typed and every call written on it names
     /// its owner instead of standing untyped.

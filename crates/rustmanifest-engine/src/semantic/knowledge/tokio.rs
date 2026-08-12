@@ -32,6 +32,8 @@ pub(super) const PACK: CrateKnowledge = CrateKnowledge {
         ("Command", "stdin", "Command"),
         ("Command", "stdout", "Command")
     ],
+    fields:         &[],
+    field_elements: &[],
     iterated:       &[],
     method_effects: &[
         ("Child", "kill", Effect::Process),

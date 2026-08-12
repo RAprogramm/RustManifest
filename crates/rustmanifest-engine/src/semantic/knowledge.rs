@@ -16,6 +16,7 @@ mod ignore;
 mod reqwest;
 mod result;
 mod statement;
+mod syn;
 mod tempfile;
 mod tokio;
 
@@ -36,6 +37,14 @@ pub(super) struct CrateKnowledge {
     /// `(type, method, returned type)` rows typing the crate's builder
     /// and accessor chains, wrappers unwrapped the same way.
     pub method_returns: &'static [(&'static str, &'static str, &'static str)],
+    /// `(type, field, field type)` rows for the fields a crate's own
+    /// structures write, so a value read off one is typed like any
+    /// other.
+    pub fields:         &'static [(&'static str, &'static str, &'static str)],
+    /// `(type, field, element)` rows for the fields that hold a
+    /// sequence, naming what one step of it carries — the loop written
+    /// over such a field binds that.
+    pub field_elements: &'static [(&'static str, &'static str, &'static str)],
     /// `(type, method, element)` rows for the methods that hand back a
     /// sequence, naming what one step of it carries. A wrapper the
     /// sequence puts around each step is already unwrapped, the way the
@@ -51,7 +60,13 @@ pub(super) struct CrateKnowledge {
 }
 
 /// Every registered pack.
-const PACKS: [&CrateKnowledge; 4] = [&ignore::PACK, &reqwest::PACK, &tempfile::PACK, &tokio::PACK];
+const PACKS: [&CrateKnowledge; 5] = [
+    &ignore::PACK,
+    &reqwest::PACK,
+    &syn::PACK,
+    &tempfile::PACK,
+    &tokio::PACK
+];
 
 /// Looks up the type produced by a known external constructor call.
 pub(super) fn constructor_type(name: &str) -> Option<&'static str> {
@@ -69,6 +84,24 @@ pub(super) fn method_return(owner: &str, method: &str) -> Option<&'static str> {
         .flat_map(|pack| pack.method_returns)
         .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
         .map(|(_, _, returned)| *returned)
+}
+
+/// Looks up the type of a field a pack knows.
+pub(super) fn field_type(owner: &str, field: &str) -> Option<&'static str> {
+    PACKS
+        .iter()
+        .flat_map(|pack| pack.fields)
+        .find(|(known_owner, known_field, _)| *known_owner == owner && *known_field == field)
+        .map(|(_, _, held)| *held)
+}
+
+/// Looks up what one step of a pack-known sequence field carries.
+pub(super) fn field_element(owner: &str, field: &str) -> Option<&'static str> {
+    PACKS
+        .iter()
+        .flat_map(|pack| pack.field_elements)
+        .find(|(known_owner, known_field, _)| *known_owner == owner && *known_field == field)
+        .map(|(_, _, element)| *element)
 }
 
 /// Looks up what one step of a pack-known sequence carries.
@@ -191,6 +224,8 @@ mod tests {
     #[test]
     fn constructors_resolve_to_their_produced_types() {
         assert_eq!(constructor_type("tempdir"), Some("TempDir"));
+        assert_eq!(super::field_type("ItemFn", "sig"), Some("Signature"));
+        assert_eq!(super::field_element("ItemFn", "attrs"), Some("Attribute"));
         assert_eq!(constructor_type("unknown_fn"), None);
     }
 

@@ -22,6 +22,8 @@ pub(super) const PACK: CrateKnowledge = CrateKnowledge {
         ("DirEntry", "path", "Path"),
         ("DirEntry", "into_path", "PathBuf")
     ],
+    fields:         &[],
+    field_elements: &[],
     iterated:       &[
         ("WalkBuilder", "build", "DirEntry"),
         ("Walk", "into_iter", "DirEntry")

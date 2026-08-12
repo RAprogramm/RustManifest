@@ -23,6 +23,8 @@ pub(super) const PACK: CrateKnowledge = CrateKnowledge {
         ("RequestBuilder", "query", "RequestBuilder"),
         ("RequestBuilder", "send", "Response")
     ],
+    fields:         &[],
+    field_elements: &[],
     iterated:       &[],
     method_effects: &[
         ("RequestBuilder", "send", Effect::Network),

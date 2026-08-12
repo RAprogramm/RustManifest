@@ -26,13 +26,21 @@ impl FactCollector {
             syn::Expr::Field(field) => self
                 .field_key(field)
                 .and_then(|key| self.elem(&key))
-                .cloned(),
+                .cloned()
+                .or_else(|| self.packed_field_element(field)),
             syn::Expr::MethodCall(call) if follows(&call.method.to_string()) => {
                 self.element_of(&call.receiver)
             }
             syn::Expr::MethodCall(call) => self.packed_element(call),
             _ => None
         }
+    }
+
+    /// What one step of a sequence field a pack knows carries.
+    fn packed_field_element(&self, field: &syn::ExprField) -> Option<String> {
+        let owner = self.expr_type(&field.base)?;
+        let member = super::naming::member_name(&field.member);
+        crate::semantic::knowledge::field_element(&owner, &member).map(ToOwned::to_owned)
     }
 
     /// What one step of a sequence a pack knows carries: the receiver's
