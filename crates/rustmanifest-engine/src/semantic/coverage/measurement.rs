@@ -18,7 +18,7 @@ use super::{
     sighting, use_target
 };
 use crate::semantic::{
-    calls::{call_graph_with, resolution_context},
+    calls::{call_graph_with, resolution_context_with},
     scip::ScipEdges,
     workspace::Workspace
 };
@@ -69,10 +69,14 @@ fn measure(
     let graph = workspace.modules();
     let modules = graph.modules();
     let files = reach::reach(modules, sources.len());
-    let uses = use_target::use_targets(modules, external_crates);
+    let uses = use_target::use_targets(modules, sources, workspace.resolution(), external_crates);
     let facts = workspace.facts();
     let overlay = scip.map(|edges| edges.candidates(facts, sources));
-    let calls = call_graph_with(facts, &resolution_context(sources), overlay.as_deref());
+    let calls = call_graph_with(
+        facts,
+        &resolution_context_with(sources, workspace.resolution()),
+        overlay.as_deref()
+    );
     let captured = capture::capture(sources);
     let settled = origin::origins(facts);
     Coverage {

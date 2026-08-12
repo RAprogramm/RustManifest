@@ -112,7 +112,7 @@ pub fn check_invariants_over(
     if invariants.is_empty() {
         return Vec::new();
     }
-    let overview = module_overview::of(&ModuleGraph::of(sources, settled), sources);
+    let overview = module_overview::of(&ModuleGraph::of(sources, settled), sources, settled);
     let module_of = |source: usize| -> String {
         sources
             .get(source)

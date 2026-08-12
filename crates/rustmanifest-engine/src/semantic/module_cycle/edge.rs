@@ -23,12 +23,16 @@ pub(in crate::semantic) struct UseEdge {
 ///
 /// Edges are deduplicated per module pair, keeping the first use target as
 /// evidence, and self-edges are dropped.
-pub(in crate::semantic) fn dependency_edges(graph: &ModuleGraph) -> Vec<Vec<UseEdge>> {
+pub(in crate::semantic) fn dependency_edges(
+    graph: &ModuleGraph,
+    sources: &[crate::source::Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<Vec<UseEdge>> {
     let modules = graph.modules();
     let mut edges: Vec<Vec<UseEdge>> = vec![Vec::new(); modules.len()];
     for (from, node) in modules.iter().enumerate() {
         for (use_index, use_target) in node.uses.iter().enumerate() {
-            let Some(to) = resolved_module(modules, from, &use_target.target) else {
+            let Some(to) = resolved_module(modules, sources, settled, from, use_target) else {
                 continue;
             };
             if to == from {

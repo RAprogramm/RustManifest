@@ -204,13 +204,117 @@ pub fn declared_tree(sources: &[Source]) -> rustmanifest_schema::Resolution {
         };
         inline_modules(&parsed.items, &named, path, &mut modules);
     }
+    let paths = reached(sources, &modules);
     let mut resolution = Resolution {
         resolver: "fixture".to_owned(),
         modules,
+        paths,
         ..Resolution::default()
     };
     resolution.settle();
     resolution
+}
+
+/// What each imported name of `sources` reaches, as a resolver would state
+/// it for a fixture: `crate`, `self` and `super` rewritten against the
+/// module the import is written in, and a bare first segment naming a
+/// module of the fixture taken as a uniform path.
+#[cfg(test)]
+fn reached(
+    sources: &[Source],
+    modules: &[rustmanifest_schema::ResolvedModule]
+) -> Vec<rustmanifest_schema::ResolvedPath> {
+    let mut rows = Vec::new();
+    for source in sources {
+        let Some(inside) = modules
+            .iter()
+            .filter(|module| module.file == source.path())
+            .min_by_key(|module| module.names.len())
+        else {
+            continue;
+        };
+        let Ok(parsed) = syn::parse_file(source.text()) else {
+            continue;
+        };
+        let mut written = Vec::new();
+        tree::use_targets(
+            &parsed.items,
+            &crate_and_path(&inside.names).1,
+            &mut written
+        );
+        for (at, target) in written {
+            let Some(names) = absolute(&target.target, &at, modules) else {
+                continue;
+            };
+            rows.push(rustmanifest_schema::ResolvedPath {
+                at: rustmanifest_schema::Location {
+                    file:  source.path().to_path_buf(),
+                    range: target.range
+                },
+                names,
+                kind: "struct".to_owned(),
+                declaring: "fixture".to_owned()
+            });
+        }
+    }
+    rows
+}
+
+/// The full name an imported target stands for, written from the crate.
+#[cfg(test)]
+fn absolute(
+    target: &str,
+    inside: &str,
+    modules: &[rustmanifest_schema::ResolvedModule]
+) -> Option<String> {
+    let below = |rest: &str| Some(format!("fixture::{rest}"));
+    if let Some(rest) = target.strip_prefix("crate::") {
+        return below(rest);
+    }
+    if let Some(rest) = target.strip_prefix("self::") {
+        let here = inside
+            .strip_prefix("crate")
+            .unwrap_or("")
+            .trim_start_matches("::");
+        return below(&if here.is_empty() {
+            rest.to_owned()
+        } else {
+            format!("{here}::{rest}")
+        });
+    }
+    if let Some(rest) = target.strip_prefix("super::") {
+        let here = inside
+            .strip_prefix("crate")
+            .unwrap_or("")
+            .trim_start_matches("::");
+        let above = here.rsplit_once("::").map_or("", |(head, _)| head);
+        return below(&if above.is_empty() {
+            rest.to_owned()
+        } else {
+            format!("{above}::{rest}")
+        });
+    }
+    let head = target.split("::").next()?;
+    let here = inside
+        .strip_prefix("crate")
+        .unwrap_or("")
+        .trim_start_matches("::");
+    let sibling = if here.is_empty() {
+        format!("fixture::{head}")
+    } else {
+        format!("fixture::{here}::{head}")
+    };
+    if modules.iter().any(|module| module.names == sibling) {
+        return below(&if here.is_empty() {
+            target.to_owned()
+        } else {
+            format!("{here}::{target}")
+        });
+    }
+    modules
+        .iter()
+        .any(|module| module.names == format!("fixture::{head}"))
+        .then(|| format!("fixture::{target}"))
 }
 
 /// Records every inline module of `items` under `above`, in the file that

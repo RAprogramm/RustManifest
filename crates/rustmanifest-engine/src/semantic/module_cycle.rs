@@ -32,7 +32,7 @@ use super::{insight::Insight, workspace::Workspace};
 pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let sources = workspace.sources();
     let graph = workspace.modules();
-    let edges = dependency_edges(graph);
+    let edges = dependency_edges(graph, workspace.sources(), workspace.resolution());
     cycles(graph, &edges)
         .iter()
         .filter_map(|cycle| cycle_insight(sources, graph, &edges, cycle))

@@ -119,13 +119,51 @@ fn mounted(sources: &[Source]) -> rustmanifest_schema::Resolution {
             }
         }
     }
+    let paths = reached(sources);
     let mut settled = rustmanifest_schema::Resolution {
         resolver: "fixture".to_owned(),
         modules,
+        paths,
         ..rustmanifest_schema::Resolution::default()
     };
     settled.settle();
     settled
+}
+
+/// What each `crate::`-rooted import of a fixture reaches, stated the way
+/// a resolver would.
+fn reached(sources: &[Source]) -> Vec<rustmanifest_schema::ResolvedPath> {
+    let mut rows = Vec::new();
+    for source in sources {
+        let text = source.text();
+        let mut cursor = 0usize;
+        while let Some(found) = text[cursor..].find("crate::") {
+            let start = cursor + found + "crate::".len();
+            let end = start
+                + text[start..]
+                    .find(|held: char| !held.is_alphanumeric() && held != '_' && held != ':')
+                    .unwrap_or(text.len() - start);
+            let written = &text[start..end];
+            cursor = end;
+            let Some(leaf) = written.rsplit("::").next() else {
+                continue;
+            };
+            let at = end - leaf.len();
+            rows.push(rustmanifest_schema::ResolvedPath {
+                at:        rustmanifest_schema::Location {
+                    file:  source.path().to_path_buf(),
+                    range: rustmanifest_schema::Range {
+                        start: u32::try_from(at).unwrap_or(u32::MAX),
+                        end:   u32::try_from(end).unwrap_or(u32::MAX)
+                    }
+                },
+                names:     format!("fixture::{written}"),
+                kind:      "struct".to_owned(),
+                declaring: "fixture".to_owned()
+            });
+        }
+    }
+    rows
 }
 
 #[test]

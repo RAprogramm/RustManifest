@@ -49,7 +49,11 @@ impl Evidence {
 pub(super) fn modules_by_source<'a>(
     workspace: &'a Workspace<'a>
 ) -> impl Fn(usize) -> String + use<'a> {
-    let overview = module_overview::of(workspace.modules(), workspace.sources());
+    let overview = module_overview::of(
+        workspace.modules(),
+        workspace.sources(),
+        workspace.resolution()
+    );
     let sources = workspace.sources();
     move |source: usize| {
         sources

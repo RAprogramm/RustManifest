@@ -34,6 +34,8 @@ pub(super) struct UseTargets {
 /// and unresolved.
 pub(super) fn use_targets(
     modules: &[ModuleNode],
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>,
     external_crates: &BTreeSet<String>
 ) -> UseTargets {
     let mut total = 0u64;
@@ -43,7 +45,7 @@ pub(super) fn use_targets(
     for (from, module) in modules.iter().enumerate() {
         for use_target in &module.uses {
             total += 1;
-            if resolved_module(modules, from, &use_target.target).is_some() {
+            if resolved_module(modules, sources, settled, from, use_target).is_some() {
                 resolved += 1;
             } else if external_target(&use_target.target, external_crates) {
                 external += 1;
@@ -80,7 +82,7 @@ pub fn unresolved_targets(
     let mut targets = BTreeMap::new();
     for (from, module) in modules.iter().enumerate() {
         for use_target in &module.uses {
-            if resolved_module(modules, from, &use_target.target).is_none()
+            if resolved_module(modules, sources, settled, from, use_target).is_none()
                 && !external_target(&use_target.target, external_crates)
             {
                 *targets.entry(use_target.target.clone()).or_default() += 1;

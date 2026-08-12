@@ -66,7 +66,11 @@ impl ModuleOverview {
 /// including its exemption for ancestor-descendant two-module cycles.
 #[must_use]
 pub fn module_overview(workspace: &Workspace<'_>) -> ModuleOverview {
-    of(workspace.modules(), workspace.sources())
+    of(
+        workspace.modules(),
+        workspace.sources(),
+        workspace.resolution()
+    )
 }
 
 /// Builds the overview from an already-built module graph.
@@ -74,8 +78,12 @@ pub fn module_overview(workspace: &Workspace<'_>) -> ModuleOverview {
 /// Name resolution builds its own graph here rather than reading one off a
 /// workspace: resolution is itself one of the workspace's derivations, and
 /// asking the workspace for it from inside would re-enter it.
-pub(in crate::semantic) fn of(graph: &ModuleGraph, sources: &[Source]) -> ModuleOverview {
-    let edges = module_cycle::dependency_edges(graph);
+pub(in crate::semantic) fn of(
+    graph: &ModuleGraph,
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> ModuleOverview {
+    let edges = module_cycle::dependency_edges(graph, sources, settled);
     let cyclic: HashSet<usize> = module_cycle::cycles(graph, &edges)
         .into_iter()
         .flatten()

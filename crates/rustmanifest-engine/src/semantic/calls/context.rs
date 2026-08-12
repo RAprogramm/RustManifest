@@ -235,7 +235,8 @@ pub fn resolution_segments_with(
 ) -> BTreeSet<String> {
     let mut segments: BTreeSet<String> = crate::semantic::module_overview::of(
         &crate::semantic::module_graph::ModuleGraph::of(sources, settled),
-        sources
+        sources,
+        settled
     )
     .modules()
     .iter()

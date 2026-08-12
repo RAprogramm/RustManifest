@@ -22,7 +22,11 @@ fn rustmanifest() -> Command {
 
 /// Writes the module tree a resolver would state for these files and
 /// answers the path of the overlay.
-fn overlay(dir: &std::path::Path, rows: &[(&str, &str)]) -> std::path::PathBuf {
+fn overlay(
+    dir: &std::path::Path,
+    rows: &[(&str, &str)],
+    reached: &[(&str, &str, u32, u32)]
+) -> std::path::PathBuf {
     let modules: Vec<String> = rows
         .iter()
         .map(|(names, file)| {
@@ -35,9 +39,20 @@ fn overlay(dir: &std::path::Path, rows: &[(&str, &str)]) -> std::path::PathBuf {
             )
         })
         .collect();
+    let paths: Vec<String> = reached
+        .iter()
+        .map(|(file, names, start, end)| {
+            format!(
+                "{{\"at\": {{\"file\": \"{file}\", \"range\": {{\"start\": {start}, \"end\": \
+                 {end}}}}}, \"names\": \"{names}\", \"kind\": \"struct\", \"declaring\": \
+                 \"demo\"}}"
+            )
+        })
+        .collect();
     let text = format!(
-        "{{\"resolver\": \"test\", \"calls\": [], \"modules\": [{}]}}",
-        modules.join(", ")
+        "{{\"resolver\": \"test\", \"calls\": [], \"modules\": [{}], \"paths\": [{}]}}",
+        modules.join(", "),
+        paths.join(", ")
     );
     let path = dir.join("resolution.json");
     std::fs::write(&path, text).unwrap();
@@ -65,7 +80,8 @@ fn modules_mermaid_contains_header_nodes_and_edge() {
     ]);
     let settled = overlay(
         tree.path(),
-        &[("demo", "src/lib.rs"), ("demo::util", "src/util.rs")]
+        &[("demo", "src/lib.rs"), ("demo::util", "src/util.rs")],
+        &[("src/util.rs", "demo::Item", 11, 15)]
     );
     rustmanifest()
         .current_dir(tree.path())
@@ -92,6 +108,10 @@ fn modules_mermaid_styles_cycle_members() {
             ("demo", "src/lib.rs"),
             ("demo::a", "src/lib.rs"),
             ("demo::b", "src/lib.rs")
+        ],
+        &[
+            ("src/lib.rs", "demo::b::Item", 22, 26),
+            ("src/lib.rs", "demo::a::Other", 52, 57)
         ]
     );
     rustmanifest()
@@ -119,6 +139,10 @@ fn modules_dot_marks_cycle_members_red() {
             ("demo", "src/lib.rs"),
             ("demo::a", "src/lib.rs"),
             ("demo::b", "src/lib.rs")
+        ],
+        &[
+            ("src/lib.rs", "demo::b::Item", 22, 26),
+            ("src/lib.rs", "demo::a::Other", 52, 57)
         ]
     );
     rustmanifest()
