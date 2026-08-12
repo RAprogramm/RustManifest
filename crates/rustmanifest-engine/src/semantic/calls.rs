@@ -354,6 +354,25 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A binding taken from a `match` carries what its arms agree on:
+    /// the language requires the agreement, an arm that returns instead
+    /// of handing a value back has no type to disagree with, and the
+    /// shape this reads — a fallible call matched with its success
+    /// bound and its failure returned — is written everywhere.
+    #[test]
+    fn a_binding_taken_from_a_match_carries_what_the_arms_agree_on() {
+        let (all, graph) = context_graph(
+            "pub struct Held;\nimpl Held { pub fn keep(&self) {} }\npub fn make() -> Result<Held, \
+             u8> { Ok(Held) }\npub fn go() {\n    let held = match make() {\n        Ok(held) => \
+             held,\n        Err(_) => return\n    };\n    held.keep();\n}\n"
+        );
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "Held::keep"))
+        );
+    }
+
     /// A slice has no written path of its own, and a call on one is the
     /// library's, never a workspace method of the same name — naming it
     /// keeps such a receiver out of the untyped row. A path asked for

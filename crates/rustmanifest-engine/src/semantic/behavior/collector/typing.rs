@@ -42,8 +42,65 @@ impl FactCollector {
                 .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
             }
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
+            syn::Expr::Match(matched) => self.arms_agree(matched),
             other => truth_of(other).or_else(|| self.called_return(other))
         }
+    }
+
+    /// The type a `match` hands back: the language requires every arm
+    /// that hands a value back to hand back the same type, so one
+    /// readable arm answers for the whole — and an arm that leaves the
+    /// path instead of handing a value back, by returning, breaking,
+    /// continuing or panicking, has no type to disagree with.
+    ///
+    /// The arms are read after the patterns have bound what they carry,
+    /// which is what makes the common shape — a fallible call matched
+    /// with its success bound and its failure returned — readable at
+    /// all.
+    fn arms_agree(&self, matched: &syn::ExprMatch) -> Option<String> {
+        let mut agreed: Option<String> = None;
+        for arm in &matched.arms {
+            if leaves_the_path(&arm.body) {
+                continue;
+            }
+            let held = self.expr_type(&arm.body)?;
+            match &agreed {
+                Some(first) if *first != held => return None,
+                Some(_) => {}
+                None => agreed = Some(held)
+            }
+        }
+        agreed
+    }
+}
+
+/// Whether an arm leaves the path instead of handing a value back.
+fn leaves_the_path(expression: &syn::Expr) -> bool {
+    const LEAVING_MACROS: [&str; 5] = [
+        "panic",
+        "todo",
+        "unimplemented",
+        "unreachable",
+        "process_exit"
+    ];
+    match expression {
+        syn::Expr::Return(_) | syn::Expr::Break(_) | syn::Expr::Continue(_) => true,
+        syn::Expr::Macro(written) => {
+            written.mac.path.segments.last().is_some_and(|segment| {
+                LEAVING_MACROS.contains(&segment.ident.to_string().as_str())
+            })
+        }
+        syn::Expr::Block(block) => {
+            block
+                .block
+                .stmts
+                .last()
+                .is_some_and(|statement| match statement {
+                    syn::Stmt::Expr(inner, _) => leaves_the_path(inner),
+                    _ => false
+                })
+        }
+        _ => false
     }
 }
 
