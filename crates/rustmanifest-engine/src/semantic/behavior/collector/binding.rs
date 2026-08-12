@@ -8,7 +8,7 @@
 //! whether the value it holds was constructed in this body.
 
 use super::{FactCollector, typing::initializer_type};
-use crate::semantic::behavior::signature::{element_type, type_last_segment};
+use crate::semantic::behavior::signature::{element_type, pair_types, type_last_segment};
 
 impl FactCollector {
     /// Records the types and the freshness a `let` binding carries.
@@ -23,6 +23,9 @@ impl FactCollector {
                     }
                     if let Some(element) = element_type(&typed.ty) {
                         self.elem_types.insert(pattern.ident.to_string(), element);
+                    }
+                    if let Some(pair) = pair_types(&typed.ty) {
+                        self.local_pairs.insert(pattern.ident.to_string(), pair);
                     }
                     Some(pattern.ident.to_string())
                 } else {

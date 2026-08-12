@@ -354,6 +354,25 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A pair destructured from iterating a map is typed on both sides,
+    /// and the reading follows the adapters that hand the element on
+    /// unchanged — a written `take` between the iteration and the loop
+    /// does not blind it.
+    #[test]
+    fn a_map_pair_types_both_sides_through_a_passing_adapter() {
+        let (all, graph) = context_graph(
+            "use std::collections::BTreeMap;\npub struct Row;\nimpl Row { pub fn render(&self) \
+             {} }\npub fn go() {\n    let held: BTreeMap<String, Row> = BTreeMap::new();\n    \
+             for (_name, row) in held.iter().take(3) {\n        row.render();\n    }\n}\n"
+        );
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "Row::render")),
+            "the value side of the pair carries the type that answers the call"
+        );
+    }
+
     /// A file no crate root reaches is compiled by nothing: a fixture
     /// beside a rule, a loose script. A compiled caller cannot bind
     /// into it, however well the name matches — but a caller that is

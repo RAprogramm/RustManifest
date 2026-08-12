@@ -13,7 +13,10 @@ use super::{
     collector::{FactCollector, name_census},
     declaration::ItemContext,
     folding::fold_constants,
-    signature::{error_types, param_facts, param_slots, parameter_elements, parameter_types},
+    signature::{
+        error_types, param_facts, param_slots, parameter_elements, parameter_pairs,
+        parameter_types
+    },
     tables::TypeTables,
     targeting::name_targets,
     types::{Effect, EffectSite, FunctionFacts}
@@ -35,6 +38,18 @@ pub(super) struct Known<'a> {
 }
 
 /// Extracts the facts of one function body against its signature.
+/// Records the effect an `unsafe` signature carries by its own word,
+/// with the signature itself standing as the proving site.
+fn mark_unsafe(collector: &mut FactCollector, signature: &syn::Signature) {
+    if matches!(signature.safety, syn::Safety::Unsafe(_)) {
+        collector.facts.effects.push(Effect::Unsafe);
+        collector
+            .facts
+            .effect_sites
+            .push(unsafe_signature_site(signature));
+    }
+}
+
 pub(super) fn function_facts(
     source: usize,
     function: String,
@@ -79,6 +94,7 @@ pub(super) fn function_facts(
         },
         param_types:      parameter_types(signature, context.impl_type),
         elem_types:       parameter_elements(signature),
+        local_pairs:      parameter_pairs(signature),
         fn_returns:       known.tables.returns.clone(),
         mutates:          known.tables.mutates.clone(),
         field_types:      known.tables.fields.clone(),
@@ -107,13 +123,7 @@ pub(super) fn function_facts(
         produced:         std::collections::BTreeMap::new(),
         conditions:       Vec::new()
     };
-    if matches!(signature.safety, syn::Safety::Unsafe(_)) {
-        collector.facts.effects.push(Effect::Unsafe);
-        collector
-            .facts
-            .effect_sites
-            .push(unsafe_signature_site(signature));
-    }
+    mark_unsafe(&mut collector, signature);
     collector.facts.error_types = error_types(signature);
     collector.visit_block(block);
     collector.collect_tail(block);

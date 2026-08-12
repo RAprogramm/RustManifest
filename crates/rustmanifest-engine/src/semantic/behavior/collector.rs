@@ -74,6 +74,9 @@ pub(super) struct FactCollector {
     pub(super) param_types:      BTreeMap<String, String>,
     /// Binding name to collection element type, from the signature.
     pub(super) elem_types:       BTreeMap<String, String>,
+    /// Binding name to the key and value types of a map it holds, from
+    /// the signature or from a written `let`.
+    pub(super) local_pairs:      BTreeMap<String, (String, String)>,
     /// Workspace functions to their return types, scoped by source.
     pub(super) fn_returns:       Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.

@@ -190,6 +190,22 @@ pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
 
 /// Iterator constructors and element accessors that keep the
 /// collection's element type.
+/// Adapters that hand on the same element the receiver hands out, so a
+/// reading follows the chain through them: they reorder, shorten, or
+/// copy the sequence, and none of them changes what one step is.
+pub(super) const ELEMENT_PRESERVING: [&str; 10] = [
+    "by_ref",
+    "cloned",
+    "copied",
+    "filter",
+    "peekable",
+    "rev",
+    "skip",
+    "skip_while",
+    "take",
+    "take_while"
+];
+
 pub(super) const ITERATOR_SOURCES: [&str; 7] = [
     "drain",
     "first",

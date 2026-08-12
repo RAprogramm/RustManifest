@@ -4,7 +4,11 @@
 //! Element typing: the element type an iterable hands out, the element
 //! behind an optional accessor, and the binding that receives one.
 
-use super::{FactCollector, catalog::ITERATOR_SOURCES, naming::binding_name};
+use super::{
+    FactCollector,
+    catalog::{ELEMENT_PRESERVING, ITERATOR_SOURCES},
+    naming::binding_name
+};
 
 impl FactCollector {
     /// Element type of an iterable expression: a binding or field of a
@@ -23,10 +27,30 @@ impl FactCollector {
                 .field_key(field)
                 .and_then(|key| self.elem(&key))
                 .cloned(),
-            syn::Expr::MethodCall(call)
-                if ITERATOR_SOURCES.contains(&call.method.to_string().as_str()) =>
-            {
+            syn::Expr::MethodCall(call) if follows(&call.method.to_string()) => {
                 self.element_of(&call.receiver)
+            }
+            _ => None
+        }
+    }
+
+    /// Key and value types an iterated map hands out as a pair, seen
+    /// through the same chain the element reading follows.
+    pub(super) fn pair_of(&self, expression: &syn::Expr) -> Option<(String, String)> {
+        match expression {
+            syn::Expr::Reference(reference) => self.pair_of(&reference.expr),
+            syn::Expr::Paren(inner) => self.pair_of(&inner.expr),
+            syn::Expr::Path(path) => path
+                .path
+                .get_ident()
+                .and_then(|ident| self.local_pairs.get(&ident.to_string()))
+                .cloned(),
+            syn::Expr::Field(field) => self
+                .field_key(field)
+                .and_then(|key| self.field_pairs.resolve(&key, self.src, &self.crates))
+                .cloned(),
+            syn::Expr::MethodCall(call) if follows(&call.method.to_string()) => {
+                self.pair_of(&call.receiver)
             }
             _ => None
         }
@@ -71,8 +95,21 @@ impl FactCollector {
     }
 
     /// Binds one loop or closure pattern against the iterated element
-    /// type, seeing through `enumerate`'s index tuple.
+    /// type, seeing through `enumerate`'s index tuple and through the
+    /// pair a map hands out.
     pub(super) fn bind_element(&mut self, pattern: &syn::Pat, iterable: &syn::Expr) {
+        if let syn::Pat::Tuple(tuple) = pattern
+            && tuple.elems.len() == 2
+            && let Some((key, value)) = self.pair_of(iterable)
+        {
+            if let Some(name) = binding_name(&tuple.elems[0]) {
+                self.param_types.insert(name, key);
+            }
+            if let Some(name) = binding_name(&tuple.elems[1]) {
+                self.param_types.insert(name, value);
+            }
+            return;
+        }
         if let syn::Expr::MethodCall(call) = iterable
             && call.method == "enumerate"
         {
@@ -91,4 +128,10 @@ impl FactCollector {
             self.param_types.insert(name, element);
         }
     }
+}
+
+/// Whether a method hands on what its receiver holds: an iteration
+/// constructor, or an adapter that keeps the element as it was.
+fn follows(method: &str) -> bool {
+    ITERATOR_SOURCES.contains(&method) || ELEMENT_PRESERVING.contains(&method)
 }
