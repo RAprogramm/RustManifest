@@ -182,7 +182,11 @@ mod tests {
     fn builder_chains_type_through_method_returns() {
         assert_eq!(method_return("Client", "get"), Some("RequestBuilder"));
         assert_eq!(method_return("RequestBuilder", "send"), Some("Response"));
-        assert_eq!(method_return("TempDir", "path"), None);
+        assert_eq!(
+            method_return("TempDir", "path"),
+            Some("Path"),
+            "a bed hands back a path, and every call written on it is typed by that"
+        );
         assert_eq!(method_return("Command", "arg"), Some("Command"));
         assert_eq!(method_return("Command", "spawn"), Some("Child"));
         assert_eq!(method_return("Child", "wait"), Some("ExitStatus"));

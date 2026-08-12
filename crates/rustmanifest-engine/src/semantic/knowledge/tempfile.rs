@@ -10,7 +10,11 @@ use super::{super::behavior::Effect, CrateKnowledge};
 pub(super) const PACK: CrateKnowledge = CrateKnowledge {
     name:           "tempfile",
     constructors:   &[("tempdir", "TempDir"), ("tempfile", "File")],
-    method_returns: &[],
+    method_returns: &[
+        ("TempDir", "path", "Path"),
+        ("TempDir", "keep", "PathBuf"),
+        ("NamedTempFile", "path", "Path")
+    ],
     method_effects: &[
         ("NamedTempFile", "keep", Effect::FileSystem),
         ("NamedTempFile", "persist", Effect::FileSystem),
