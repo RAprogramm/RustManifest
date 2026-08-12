@@ -82,6 +82,47 @@ fn a_settled_call_carries_the_type_of_its_receiver() {
 }
 
 #[test]
+fn every_expression_carries_its_type_and_not_only_the_calls() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let rendered: Vec<&str> = resolution
+        .types
+        .iter()
+        .map(|typed| typed.rendered.as_str())
+        .collect();
+    assert!(
+        rendered.contains(&"Store"),
+        "the binding read was not typed: {rendered:?}"
+    );
+    assert!(
+        rendered.contains(&"bool"),
+        "the outermost expression was not typed: {rendered:?}"
+    );
+    assert!(
+        rendered.contains(&"Option<u64>"),
+        "the intermediate call was not typed: {rendered:?}"
+    );
+}
+
+#[test]
+fn a_written_name_carries_the_item_it_reaches_and_the_crate_declaring_it() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let store = resolution
+        .paths
+        .iter()
+        .find(|path| path.names.ends_with("Store"))
+        .expect("the written type name reaches an item");
+    assert_eq!(store.kind, "struct");
+    assert_eq!(store.declaring, "fixture");
+    assert_eq!(store.names, "fixture::Store");
+}
+
+#[test]
 fn resolving_the_same_workspace_twice_states_the_same_thing() {
     let dir = tempfile::tempdir().unwrap();
     fixture(dir.path());
