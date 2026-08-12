@@ -230,6 +230,53 @@ mod tests {
         assert!(handbacks.iter().all(Provenance::derived));
     }
 
+    /// A constant a dependency declares is invisible to every table the
+    /// workspace builds, so the reading calls it foreign. A resolver
+    /// settles the same path to an item, and the value stops being a gap
+    /// without anything having learned to recognise the name.
+    #[test]
+    fn a_constant_no_table_declares_is_settled_by_what_the_resolver_says_it_reaches() {
+        let text = "fn ceiling() -> u32 { OUTSIDE_LIMIT }\n";
+        let sources = [crate::source::Source::new(
+            PathBuf::from("src/lib.rs"),
+            text.to_owned()
+        )];
+        let written = "OUTSIDE_LIMIT";
+        let start = u32::try_from(text.find(written).unwrap()).unwrap();
+        let read: Vec<Provenance> = behavior(&sources)
+            .iter()
+            .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
+            .collect();
+        assert!(read.iter().all(|origin| !origin.derived()), "{read:?}");
+
+        let mut resolution = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            paths: vec![rustmanifest_schema::ResolvedPath {
+                at:        rustmanifest_schema::Location {
+                    file:  PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start,
+                        end: start + u32::try_from(written.len()).unwrap()
+                    }
+                },
+                names:     "outside::OUTSIDE_LIMIT".to_owned(),
+                kind:      "const".to_owned(),
+                declaring: "outside".to_owned()
+            }],
+            ..rustmanifest_schema::Resolution::default()
+        };
+        resolution.settle();
+        let settled: Vec<Provenance> =
+            crate::semantic::behavior::behavior_with(&sources, Some(&resolution))
+                .iter()
+                .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
+                .collect();
+        assert!(
+            settled.contains(&Provenance::Constant(written.to_owned())),
+            "{settled:?}"
+        );
+    }
+
     #[test]
     fn a_binding_with_a_written_type_keeps_its_origin() {
         let bare = operands(

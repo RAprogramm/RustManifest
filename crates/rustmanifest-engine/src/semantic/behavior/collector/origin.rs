@@ -12,6 +12,13 @@
 use super::FactCollector;
 use crate::semantic::behavior::value::{Literal, OriginGap, ParamSlot, Provenance};
 
+/// Kinds of item a path written where a value is expected can reach.
+///
+/// A type or a module written in value position is a constructor call or a
+/// qualifier the walk reads elsewhere; only these four stand for a value on
+/// their own.
+const VALUE_ITEMS: [&str; 4] = ["const", "static", "variant", "function"];
+
 impl FactCollector {
     /// Where the value of `expression` came from.
     pub(super) fn origin_of(&self, expression: &syn::Expr) -> Provenance {
@@ -84,6 +91,9 @@ impl FactCollector {
                 return bound;
             }
         }
+        if self.settled_item(path) {
+            return Provenance::Constant(written_path(path));
+        }
         if let Some(named) = crate::semantic::std_knowledge::value_path(path) {
             return Provenance::Constant(named);
         }
@@ -97,6 +107,26 @@ impl FactCollector {
             return self.named_origin(&name.to_string());
         }
         Provenance::Constant(written_path(path))
+    }
+
+    /// Whether a resolver settled the path written here to an item.
+    ///
+    /// Asked before every reading below it, because those readings can
+    /// only recognise an item the workspace itself declares: a constant
+    /// imported from a dependency is invisible to them and reads as
+    /// foreign. The resolver settles a path to a local binding as no item
+    /// at all, so a bare name that got this far and has no row is the
+    /// binding the reading below takes it for.
+    fn settled_item(&self, path: &syn::Path) -> bool {
+        use syn::spanned::Spanned;
+
+        let span = path.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
+            return false;
+        };
+        self.items
+            .get(&(start, end))
+            .is_some_and(|kind| VALUE_ITEMS.contains(&kind.as_str()))
     }
 
     /// A path of several segments written where a value is expected names

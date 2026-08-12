@@ -108,6 +108,7 @@ pub(super) fn function_facts(
         receivers:        known.settled.receivers.clone(),
         held:             known.settled.fields.clone(),
         typed:            known.settled.types.clone(),
+        items:            known.settled.items.clone(),
         src:              source,
         bounds:           context.bounds.clone(),
         local_wraps:      std::collections::BTreeMap::new(),

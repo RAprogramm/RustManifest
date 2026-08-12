@@ -108,6 +108,9 @@ pub(super) struct FactCollector {
     /// The type a resolver settled for the expression at each byte range,
     /// whatever shape it was written in. Empty where no resolver ran.
     pub(super) typed:            std::collections::BTreeMap<(u32, u32), String>,
+    /// The kind of item a resolver settled the path at each byte range to
+    /// reach. Empty where no resolver ran.
+    pub(super) items:            std::collections::BTreeMap<(u32, u32), String>,
     pub(super) crates:           Vec<String>,
     /// Source index of the function under analysis.
     pub(super) src:              usize,

@@ -135,7 +135,15 @@ pub(super) struct Settled {
     /// This one is not about calls or fields: it answers for every
     /// expression the resolver settled, which is what lets a reading stop
     /// deciding a type from how the expression was spelled.
-    pub(super) types:     std::collections::BTreeMap<(u32, u32), String>
+    pub(super) types:     std::collections::BTreeMap<(u32, u32), String>,
+    /// Kind of item the path written at a position reaches.
+    ///
+    /// A path is either a name this body bound or an item declared
+    /// somewhere; the reading below can only guess which by looking the
+    /// last segment up in what the workspace happens to declare. The
+    /// resolver knows, and a path it settles to no item is a local — which
+    /// is why absence here is an answer and not a gap.
+    pub(super) items:     std::collections::BTreeMap<(u32, u32), String>
 }
 
 /// The name the tables speak: the outermost type of a written type, with
@@ -206,6 +214,14 @@ fn settled_types(
                 .types
                 .insert((typed.at.range.start, typed.at.range.end), named);
         }
+    }
+    for path in &resolution.paths {
+        if path.at.file != source.path() {
+            continue;
+        }
+        settled
+            .items
+            .insert((path.at.range.start, path.at.range.end), path.kind.clone());
     }
     settled
 }
