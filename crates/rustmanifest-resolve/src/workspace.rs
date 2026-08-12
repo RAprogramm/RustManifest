@@ -100,6 +100,15 @@ fn settle_file(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: &mut Re
             into.calls.push(settled);
         }
     }
+    for call in parsed
+        .syntax()
+        .descendants()
+        .filter_map(ast::CallExpr::cast)
+    {
+        if let Some(settled) = settling::settled_free_call(reading, &call) {
+            into.calls.push(settled);
+        }
+    }
     for field in parsed
         .syntax()
         .descendants()
