@@ -257,7 +257,7 @@ mod tests {
             ),
             Source::new(
                 PathBuf::from("src/lib.rs"),
-                "fn caller() { fetch(); }\n".to_owned()
+                "mod one;\nmod two;\nfn caller() { fetch(); }\n".to_owned()
             )
         ];
         let all = behavior(&sources);
@@ -352,6 +352,43 @@ mod tests {
         let (graph, rows) = super::call_graph_rows(&all, &context);
         assert_eq!(graph.granted(), 3, "{rows:?}");
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
+    }
+
+    /// A file no crate root reaches is compiled by nothing: a fixture
+    /// beside a rule, a loose script. A compiled caller cannot bind
+    /// into it, however well the name matches — but a caller that is
+    /// itself loose still can, so reading a bare subtree keeps every
+    /// candidate it had.
+    #[test]
+    fn a_compiled_caller_never_binds_into_an_uncompiled_file() {
+        let fixture = Source::new(
+            PathBuf::from("crates/rules/fixtures/one.rs"),
+            "pub struct Request;\nimpl Request { pub fn new() -> Self { Self } }\n".to_owned()
+        );
+        let sources = [
+            Source::new(
+                PathBuf::from("crates/one/src/lib.rs"),
+                "pub fn go() { Request::new(); }\n".to_owned()
+            ),
+            fixture.clone()
+        ];
+        let all = behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        assert!(graph.callees(index_of(&all, "go")).is_empty());
+        let loose = [
+            Source::new(
+                PathBuf::from("crates/rules/fixtures/two.rs"),
+                "pub fn go() { Request::new(); }\n".to_owned()
+            ),
+            fixture
+        ];
+        let held = behavior(&loose);
+        let reading = call_graph(&held, &super::resolution_context(&loose));
+        assert!(
+            reading
+                .callees(index_of(&held, "go"))
+                .contains(&index_of(&held, "Request::new"))
+        );
     }
 
     /// A crate-private method of a neighbouring crate is a coincidence
@@ -711,8 +748,8 @@ mod tests {
         let sources = [
             Source::new(
                 PathBuf::from("crates/one/src/lib.rs"),
-                "pub struct Wallet;\nimpl Wallet { pub fn credit(&self) {} }\npub fn \
-                 caller(w: Wallet) {\n    ping();\n    Wallet::missing();\n    \
+                "mod other;\npub struct Wallet;\nimpl Wallet { pub fn credit(&self) {} }\npub \
+                 fn caller(w: Wallet) {\n    ping();\n    Wallet::missing();\n    \
                  std::fs::read_to_string(\"x\").ok();\n}"
                     .to_owned()
             ),

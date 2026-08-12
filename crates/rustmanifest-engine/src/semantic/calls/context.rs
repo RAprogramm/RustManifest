@@ -40,6 +40,10 @@ pub struct ResolutionContext {
     /// Enum name to its written variant names. A candidate naming one of
     /// them builds a value; nothing is being called there.
     pub variants:    BTreeMap<String, BTreeSet<String>>,
+    /// Whether each source is compiled by no crate root of the slice —
+    /// a fixture or a loose file. Nothing in a target can call into one.
+    /// Empty for a hand-built context, which then prunes nothing.
+    pub loose:       Vec<bool>,
     /// Type name to the traits it carries without writing a body: the
     /// derives written above it, and the traits it implements. A member
     /// one of them grants exists on the type even though no source in
@@ -142,10 +146,28 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
             .iter()
             .map(|source| Target::of_path(&source.path().to_string_lossy()))
             .collect(),
+        loose: loose_sources(sources),
         scopes: Scopes::of(sources),
         variants,
         granted
     }
+}
+
+/// Which sources no layout crate root reaches: a fixture beside a rule,
+/// a loose script, anything cargo never compiles as part of a target.
+/// A call cannot bind into such a file from a compiled one — there is
+/// no build that holds both.
+fn loose_sources(sources: &[Source]) -> Vec<bool> {
+    let graph = crate::semantic::module_graph::ModuleGraph::from_sources(sources);
+    let mut compiled = vec![false; sources.len()];
+    for module in graph.modules() {
+        if module.layout
+            && let Some(flag) = compiled.get_mut(module.source)
+        {
+            *flag = true;
+        }
+    }
+    compiled.into_iter().map(|held| !held).collect()
 }
 
 /// The trait names a `#[derive(...)]` attribute writes.
