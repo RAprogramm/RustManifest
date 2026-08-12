@@ -20,6 +20,8 @@
 
 mod carried;
 mod names;
+mod pathed;
+mod rebased;
 mod typed;
 
 use std::path::PathBuf;
@@ -61,13 +63,14 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
     let name = function.sig.ident.to_string();
     let body = text.get(span.start as usize..span.end as usize)?;
     let mentions = mentioned_idents(body);
+    let locals = rebased::declared_modules(&parsed);
     let mut lines = Vec::new();
     for item in &parsed.items {
         if let syn::Item::Use(used) = item {
             let bound = bound_names(&used.tree);
             let wanted = bound.is_empty() || bound.iter().any(|name| mentions.contains(name));
             if wanted && let Some(written) = written_of(text, used) {
-                lines.push(written.trim_end().to_owned());
+                lines.push(rebased::rebased(written.trim_end(), used, &locals));
             }
         }
     }
@@ -117,7 +120,7 @@ pub fn extract_function(sources: &[Source], file: usize, offset: u32) -> Option<
         edits.push((swallowed(text, removed), String::new()));
     }
     Some(Extraction {
-        new_file: module_file(source.path(), &name)?,
+        new_file: module_file(sources, source.path(), &name)?,
         new_text,
         edits: disjoint(edits)
     })
@@ -263,7 +266,8 @@ const fn point(at: u32) -> Range {
 }
 
 /// The module file the convention names: a folder after the current
-/// file's stem, with the crate roots staying flat beside themselves.
+/// file's stem, with the crate roots and the `#[path]`-mounted files
+/// staying flat beside themselves.
 ///
 /// A file standing directly in a target directory — `src/bin`,
 /// `tests`, `examples`, `benches` — refuses the move entirely: it is a
@@ -271,8 +275,11 @@ const fn point(at: u32) -> Range {
 /// file there is auto-discovered as another target, so a mounted
 /// module is unrepresentable in that layout. The corpus judge caught
 /// both horns — a folder the resolver never looks at, then a sibling
-/// the discoverer promoted to a second binary.
-fn module_file(path: &std::path::Path, name: &str) -> Option<PathBuf> {
+/// the discoverer promoted to a second binary. A file another file
+/// mounts with `#[path]` is mod-rs style — its children resolve flat
+/// beside it — and the judge caught the stem folder the resolver
+/// never opens.
+fn module_file(sources: &[Source], path: &std::path::Path, name: &str) -> Option<PathBuf> {
     let stem = path.file_stem()?.to_str()?;
     let parent = path.parent()?;
     let flat_target = parent
@@ -282,7 +289,8 @@ fn module_file(path: &std::path::Path, name: &str) -> Option<PathBuf> {
     if flat_target {
         return None;
     }
-    let dir = if matches!(stem, "lib" | "main" | "mod") {
+    let flat = matches!(stem, "lib" | "main" | "mod") || pathed::mounted_by_path(sources, path);
+    let dir = if flat {
         parent.to_path_buf()
     } else {
         parent.join(stem)
@@ -509,6 +517,44 @@ mod tests {
     fn a_flat_target_file_refuses_the_move() {
         assert!(planned("src/bin/worker.rs", TASKS, "fn render").is_none());
         assert!(planned("tests/smoke.rs", TASKS, "fn render").is_none());
+    }
+
+    /// A parent another file mounts with `#[path]` is mod-rs style:
+    /// its children resolve flat beside it, so the planted module file
+    /// lands in the parent's own directory — the corpus judge caught
+    /// the stem folder the resolver never opens.
+    #[test]
+    fn a_pathed_mounted_parent_plants_its_module_flat_beside_itself() {
+        let mounting = "#[path = \"build/readme.rs\"]\nmod readme;\nfn main() {}\n";
+        let text = "pub fn keep() -> u8 { 1 }\n\npub fn render() -> u8 { keep() }\n";
+        let sources = [
+            Source::new(PathBuf::from("build.rs"), mounting.to_owned()),
+            Source::new(PathBuf::from("build/readme.rs"), text.to_owned())
+        ];
+        let offset = u32::try_from(text.find("fn render").unwrap()).unwrap() + 1;
+        let plan = extract_function(&sources, 1, offset).unwrap();
+        assert_eq!(plan.new_file, PathBuf::from("build/render.rs"));
+    }
+
+    /// A carried import whose first segment names a module the parent
+    /// declares gains a `super::` step: uniform paths resolved it in
+    /// the parent, and the child declares no such module — the corpus
+    /// judge caught the verbatim copy as an unresolved import.
+    #[test]
+    fn a_carried_local_import_steps_through_super() {
+        let text = "pub mod error;\n\nuse error::ReadmeError;\nuse self::error::code;\n\npub fn \
+                    render() -> ReadmeError {\n    code();\n    ReadmeError\n}\n";
+        let plan = planned("src/tasks.rs", text, "fn render").unwrap();
+        assert!(
+            plan.new_text.contains("use super::error::ReadmeError;"),
+            "{}",
+            plan.new_text
+        );
+        assert!(
+            plan.new_text.contains("use super::error::code;"),
+            "{}",
+            plan.new_text
+        );
     }
 
     /// The re-export carries the function's own written visibility

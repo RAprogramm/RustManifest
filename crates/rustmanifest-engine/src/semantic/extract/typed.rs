@@ -130,13 +130,14 @@ pub fn extract_type(sources: &[Source], file: usize, offset: u32) -> Option<Extr
     if private {
         promotions.push(found.keyword_at);
     }
+    let locals = super::rebased::declared_modules(&parsed);
     let mut lines = Vec::new();
     for item in &parsed.items {
         if let syn::Item::Use(used) = item {
             let bound = bound_names(&used.tree);
             let wanted = bound.is_empty() || bound.iter().any(|name| mentions.contains(name));
             if wanted && let Some(written) = written_of(text, used) {
-                lines.push(written.trim_end().to_owned());
+                lines.push(super::rebased::rebased(written.trim_end(), used, &locals));
             }
         }
     }
@@ -181,7 +182,7 @@ pub fn extract_type(sources: &[Source], file: usize, offset: u32) -> Option<Extr
         edits.push((swallowed(text, removed), String::new()));
     }
     Some(Extraction {
-        new_file: module_file(source.path(), &snake)?,
+        new_file: module_file(sources, source.path(), &snake)?,
         new_text,
         edits: disjoint(edits)
     })
