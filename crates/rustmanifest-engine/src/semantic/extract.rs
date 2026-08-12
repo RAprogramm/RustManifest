@@ -276,7 +276,9 @@ const fn point(at: u32) -> Range {
 /// the discoverer promoted to a second binary. A file another file
 /// mounts with `#[path]` is mod-rs style — its children resolve flat
 /// beside it — and the judge caught the stem folder the resolver
-/// never opens.
+/// never opens. A build script beside its manifest is a crate root of
+/// its own and resolves children flat the same way — the judge's
+/// catch again.
 fn module_file(sources: &[Source], path: &std::path::Path, name: &str) -> Option<PathBuf> {
     let stem = path.file_stem()?.to_str()?;
     let parent = path.parent()?;
@@ -287,7 +289,10 @@ fn module_file(sources: &[Source], path: &std::path::Path, name: &str) -> Option
     if flat_target {
         return None;
     }
-    let flat = matches!(stem, "lib" | "main" | "mod") || pathed::mounted_by_path(sources, path);
+    let build_root = stem == "build" && parent.join("Cargo.toml").is_file();
+    let flat = matches!(stem, "lib" | "main" | "mod")
+        || build_root
+        || pathed::mounted_by_path(sources, path);
     let dir = if flat {
         parent.to_path_buf()
     } else {
@@ -539,6 +544,37 @@ mod tests {
         let offset = u32::try_from(text.find("fn render").unwrap()).unwrap() + 1;
         let plan = extract_function(&sources, 1, offset).unwrap();
         assert_eq!(plan.new_file, PathBuf::from("build/render.rs"));
+    }
+
+    /// A build script beside its manifest is a crate root: its planted
+    /// module lands flat beside it, never in a stem folder — the
+    /// corpus judge caught the folder the root's resolver never reads.
+    #[test]
+    fn a_build_script_plants_its_module_flat_beside_itself() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(home.path().join("Cargo.toml"), "[package]\n").unwrap();
+        let text = "pub fn keep() -> u8 { 1 }\n\npub fn render() -> u8 { keep() }\n";
+        let sources = [Source::new(home.path().join("build.rs"), text.to_owned())];
+        let offset = u32::try_from(text.find("fn render").unwrap()).unwrap() + 1;
+        let plan = extract_function(&sources, 0, offset).unwrap();
+        assert_eq!(plan.new_file, home.path().join("render.rs"));
+    }
+
+    /// A carried import already stepping through `super` gains one
+    /// more step: the child stands one module deeper than the line
+    /// was written for — the corpus judge caught the unstepped copy
+    /// as an unresolved import.
+    #[test]
+    fn a_carried_super_import_steps_one_module_deeper() {
+        let text = "use super::error::InstanceError;\n\npub fn open() -> InstanceError {\n    \
+                    InstanceError\n}\n";
+        let plan = planned("src/instance/lock.rs", text, "fn open").unwrap();
+        assert!(
+            plan.new_text
+                .contains("use super::super::error::InstanceError;"),
+            "{}",
+            plan.new_text
+        );
     }
 
     /// A carried import whose first segment names a module the parent
