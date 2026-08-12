@@ -3,76 +3,59 @@
 
 //! Byte offsets to protocol positions.
 //!
-//! The engine records half-open byte ranges; the protocol speaks in
-//! lines and UTF-16 code units. The index is built once per document
-//! text and answers per offset, clamping past-the-end offsets to the
-//! end of the text rather than inventing a position the text does not
-//! have.
+//! The engine records half-open byte ranges; the protocol speaks in lines
+//! and UTF-16 code units. Both conversions are the language server's own
+//! index, taken from the crate that ships it: it builds line starts once
+//! and answers each direction by bisection, where the reading that stood
+//! here walked the text character by character on every request.
+//!
+//! Past-the-end offsets clamp to the end of the text rather than inventing
+//! a position the text does not have.
 
+use line_index::{TextSize, WideEncoding};
 use lsp_types::Position;
 
-/// Line starts of one document text, as byte offsets.
+/// Line starts of one document text.
 pub(super) struct LineIndex {
-    starts: Vec<usize>
+    held: line_index::LineIndex
 }
 
 impl LineIndex {
     /// Builds the index of `text`.
     pub(super) fn new(text: &str) -> Self {
-        let mut starts = vec![0];
-        starts.extend(
-            text.char_indices()
-                .filter(|&(_, part)| part == '\n')
-                .map(|(at, _)| at + 1)
-        );
         Self {
-            starts
+            held: line_index::LineIndex::new(text)
         }
     }
 
     /// The protocol position of one byte offset in `text`.
     pub(super) fn position(&self, text: &str, offset: usize) -> Position {
-        let clamped = offset.min(text.len());
-        let line = self
-            .starts
-            .partition_point(|&start| start <= clamped)
-            .saturating_sub(1);
-        let from = self.starts.get(line).copied().unwrap_or(0);
-        let column: usize = text[from..clamped].chars().map(char::len_utf16).sum();
+        let clamped = u32::try_from(offset.min(text.len())).unwrap_or(u32::MAX);
+        let at = self.held.line_col(TextSize::from(clamped));
+        let wide = self.held.to_wide(WideEncoding::Utf16, at);
         Position {
-            line:      u32::try_from(line).unwrap_or(u32::MAX),
-            character: u32::try_from(column).unwrap_or(u32::MAX)
+            line:      at.line,
+            character: wide.map_or(at.col, |held| held.col)
         }
+    }
+
+    /// The byte offset one protocol position names, clamped to the end of
+    /// the text where it names one past it.
+    pub(super) fn offset(&self, text: &str, position: Position) -> usize {
+        let wide = line_index::WideLineCol {
+            line: position.line,
+            col:  position.character
+        };
+        self.held
+            .to_utf8(WideEncoding::Utf16, wide)
+            .and_then(|at| self.held.offset(at))
+            .map_or(text.len(), |held| usize::from(held).min(text.len()))
     }
 }
 
-/// The byte offset one protocol position names in `text`, UTF-16 code
-/// units walked back to bytes, clamped to the line it names.
-pub(super) fn offset_of(text: &str, position: lsp_types::Position) -> usize {
-    let mut line = 0u32;
-    let mut cursor = 0usize;
-    if position.line > 0 {
-        for (at, part) in text.char_indices() {
-            if part == '\n' {
-                line += 1;
-                if line == position.line {
-                    cursor = at + 1;
-                    break;
-                }
-            }
-        }
-        if line < position.line {
-            return text.len();
-        }
-    }
-    let mut units = 0u32;
-    for (at, part) in text[cursor..].char_indices() {
-        if units >= position.character || part == '\n' {
-            return cursor + at;
-        }
-        units += u32::try_from(part.len_utf16()).unwrap_or(u32::MAX);
-    }
-    text.len()
+/// The byte offset one protocol position names in `text`.
+pub(super) fn offset_of(text: &str, position: Position) -> usize {
+    LineIndex::new(text).offset(text, position)
 }
 
 #[cfg(test)]
@@ -83,16 +66,36 @@ pub(super) fn offset_of(text: &str, position: lsp_types::Position) -> usize {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::LineIndex;
+    use super::{LineIndex, offset_of};
 
     #[test]
     fn offsets_map_to_lines_and_utf16_columns() {
         let text = "fn a() {}\nlet s = \"п\";\n";
         let index = LineIndex::new(text);
-        assert_eq!(index.position(text, 0).line, 0);
-        assert_eq!(index.position(text, 10).line, 1);
-        assert_eq!(index.position(text, 10).character, 0);
-        let past = index.position(text, 10_000);
-        assert_eq!(past.line, 2);
+        let start = index.position(text, 0);
+        assert_eq!((start.line, start.character), (0, 0));
+        let second = index.position(text, 10);
+        assert_eq!((second.line, second.character), (1, 0));
+        let after = index.position(text, text.len() + 99);
+        assert_eq!(after.line, 2);
+    }
+
+    #[test]
+    fn a_position_walks_back_to_the_byte_it_names() {
+        let text = "fn a() {}\nlet s = \"п\";\n";
+        for offset in [0usize, 3, 10, 19] {
+            let position = LineIndex::new(text).position(text, offset);
+            assert_eq!(offset_of(text, position), offset, "at {offset}");
+        }
+    }
+
+    #[test]
+    fn a_position_past_the_end_names_the_end() {
+        let text = "fn a() {}\n";
+        let past = lsp_types::Position {
+            line:      99,
+            character: 0
+        };
+        assert_eq!(offset_of(text, past), text.len());
     }
 }

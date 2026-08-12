@@ -27,6 +27,7 @@ anyhow.workspace = true
 rustmanifest-rules-core = { version = "0.0.0", path = "../rustmanifest-rules-core" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+line-index = "0.1"
 
 [dev-dependencies]
 tempfile = { workspace = true }
