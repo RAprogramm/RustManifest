@@ -42,8 +42,41 @@ impl FactCollector {
                 .map(|inner| self.bounds.get(inner).unwrap_or(inner).clone())
             }
             syn::Expr::Index(indexed) => self.element_of(&indexed.expr),
-            other => self.called_return(other)
+            other => truth_of(other).or_else(|| self.called_return(other))
         }
+    }
+}
+
+/// The type an expression carries by its own written shape: a
+/// comparison, a logical connective, or a negation yields `bool`
+/// whatever its operands are, and a boolean literal says so outright.
+///
+/// The written form is the whole proof here — no table is consulted,
+/// because the language fixes the answer. It matters for the calls
+/// written on such an expression: `.then`, `.then_some`, `.not` read as
+/// an untyped receiver otherwise, and a workspace method of the same
+/// name would stand accused of being what the call meant.
+fn truth_of(expression: &syn::Expr) -> Option<String> {
+    match expression {
+        syn::Expr::Binary(binary) => matches!(
+            binary.op,
+            syn::BinOp::Eq(_)
+                | syn::BinOp::Ne(_)
+                | syn::BinOp::Lt(_)
+                | syn::BinOp::Le(_)
+                | syn::BinOp::Gt(_)
+                | syn::BinOp::Ge(_)
+                | syn::BinOp::And(_)
+                | syn::BinOp::Or(_)
+        )
+        .then(|| "bool".to_owned()),
+        syn::Expr::Unary(unary) => {
+            matches!(unary.op, syn::UnOp::Not(_)).then(|| "bool".to_owned())
+        }
+        syn::Expr::Lit(written) => {
+            matches!(written.lit, syn::Lit::Bool(_)).then(|| "bool".to_owned())
+        }
+        _ => None
     }
 }
 

@@ -354,6 +354,23 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A comparison is a truth value by the language's own rule, so a
+    /// call written on one has a typed receiver: the workspace method
+    /// of the same name is not what it means, and the count says so.
+    #[test]
+    fn a_call_on_a_comparison_has_a_typed_receiver() {
+        let (all, graph) = context_graph(
+            "pub struct Held;\nimpl Held { pub fn then(&self) {} }\npub fn go(count: usize) {\n    \
+             (count > 1).then(|| count);\n    (!count.is_power_of_two()).then_some(count);\n}\n"
+        );
+        assert_eq!(
+            graph.unknown_receiver(),
+            0,
+            "both receivers are written truths"
+        );
+        assert!(graph.callees(index_of(&all, "go")).is_empty());
+    }
+
     /// A pair destructured from iterating a map is typed on both sides,
     /// and the reading follows the adapters that hand the element on
     /// unchanged — a written `take` between the iteration and the loop
