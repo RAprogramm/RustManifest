@@ -27,7 +27,6 @@ mod emitted;
 mod entry;
 mod expansion;
 mod expr;
-mod extract;
 mod features;
 mod field_group;
 mod fingerprint;
@@ -94,10 +93,9 @@ pub use self::{
     deduce::{CatalogChoice, Deduction, deduce_impl},
     doc_synth::doc_draft,
     docs::{DocFacts, doc_facts},
-    emitted::{Gain, Relocated, install_extraction, install_impl},
+    emitted::{Gain, install_impl},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
     expansion::{ExpansionReport, expansion},
-    extract::{Extraction, extract_function, extract_type},
     features::{Feature, features},
     fingerprint::behavior_fingerprint,
     graph::{

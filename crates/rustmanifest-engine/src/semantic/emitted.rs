@@ -17,8 +17,6 @@
 
 use super::{
     behavior::{Effect, behavior},
-    calls::{call_graph, resolution_context},
-    extract::extract_function,
     graph::TypeGraph,
     implement::impl_skeleton,
     montage::{Montage, applied}
@@ -99,70 +97,6 @@ pub fn install_impl(
     })
 }
 
-/// What one confirmed relocation gave, as the reading derives it.
-#[derive(Debug, Clone)]
-pub struct Relocated {
-    /// The sources after the montage, the created module included.
-    pub sources:  Vec<Source>,
-    /// The moved function's name.
-    pub function: String,
-    /// Where the function now lives.
-    pub landed:   std::path::PathBuf
-}
-
-/// Extracts the function at `offset` through the montage and confirms
-/// the relocation by reading the result back.
-///
-/// The confirmation is threefold: both texts parse, the function is
-/// declared exactly once — in the created file — and the callers left
-/// behind still resolve their call to it.
-#[must_use]
-pub fn install_extraction(sources: &[Source], file: usize, offset: u32) -> Option<Relocated> {
-    let plan = extract_function(sources, file, offset)?;
-    let landed = applied(
-        sources,
-        &Montage {
-            created: vec![(plan.new_file.clone(), plan.new_text.clone())],
-            edited:  vec![(file, plan.edits.clone())]
-        }
-    )?;
-    for source in &landed {
-        syn::parse_file(source.text()).ok()?;
-    }
-    let name = plan.new_file.file_stem()?.to_str()?.to_owned();
-    let facts = behavior(&landed);
-    let declared: Vec<usize> = facts
-        .iter()
-        .enumerate()
-        .filter(|(_, fact)| fact.function == name)
-        .map(|(index, _)| index)
-        .collect();
-    let [held] = declared[..] else {
-        return None;
-    };
-    let new_index = landed.len() - 1;
-    if facts[held].source != new_index {
-        return None;
-    }
-    let graph = call_graph(&facts, &resolution_context(&landed));
-    let called_back = facts
-        .iter()
-        .enumerate()
-        .filter(|(_, fact)| fact.source == file)
-        .any(|(index, _)| graph.callees(index).contains(&held));
-    let mentioned = landed
-        .get(file)
-        .is_some_and(|source| source.text().contains(&name));
-    if mentioned && !called_back {
-        return None;
-    }
-    Some(Relocated {
-        sources:  landed,
-        function: name,
-        landed:   plan.new_file
-    })
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -208,22 +142,5 @@ mod tests {
         let sources =
             one("#[derive(Default)]\npub struct Disk;\nfn keep() -> Disk { Disk::default() }\n");
         assert!(install_impl(&sources, 0, "Disk", "Default").is_none());
-    }
-
-    /// A relocation through the montage reads back whole: both texts
-    /// parse, the function lives once in the created file, and the
-    /// caller left behind still resolves its call to it.
-    #[test]
-    fn a_relocation_reads_back_whole() {
-        let sources = one(
-            "fn keep(count: usize) -> usize { render(count) }\n\nfn render(count: usize) -> \
-             usize {\n    count + 1\n}\n"
-        );
-        let offset = u32::try_from(sources[0].text().find("fn render").unwrap()).unwrap() + 1;
-        let moved = super::install_extraction(&sources, 0, offset).unwrap();
-        assert_eq!(moved.function, "render");
-        assert_eq!(moved.landed, std::path::PathBuf::from("src/render.rs"));
-        assert!(moved.sources[0].text().contains("mod render;"));
-        assert!(!moved.sources[0].text().contains("fn render("));
     }
 }

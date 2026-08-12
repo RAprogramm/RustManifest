@@ -956,112 +956,11 @@ const CROWDED: &str = "use std::collections::BTreeMap;\n\nfn keep(store: &BTreeM
                        String>) -> usize { store.len() }\n\nfn render(store: &BTreeMap<u64, \
                        String>) -> usize {\n    keep(store)\n}\n";
 
-#[test]
-fn a_function_offers_its_extraction_into_its_own_file() {
-    let (client, handle) = opened(CROWDED);
-    let line = CROWDED
-        .lines()
-        .position(|held| held.contains("fn render"))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            2.into(),
-            "textDocument/codeAction".to_owned(),
-            serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
-                "range": {
-                    "start": { "line": line, "character": 4 },
-                    "end": { "line": line, "character": 4 }
-                },
-                "context": { "diagnostics": [] }
-            })
-        )))
-        .unwrap();
-    let Message::Response(answer) = client.receiver.recv().unwrap() else {
-        panic!("a code action request must be answered");
-    };
-    let offered = answer.response_result.as_ref().unwrap().as_array().unwrap();
-    let extraction = offered
-        .iter()
-        .find(|action| action["kind"] == "refactor.extract")
-        .unwrap_or_else(|| panic!("the extraction must be offered: {offered:?}"));
-    assert_eq!(
-        extraction["title"], "extract `render` into /demo/src/render.rs",
-        "{extraction:?}"
-    );
-    let changes = extraction["edit"]["documentChanges"].as_array().unwrap();
-    assert_eq!(changes[0]["kind"], "create", "{changes:?}");
-    assert_eq!(changes[0]["uri"], "file:///demo/src/render.rs");
-    let created = changes[1]["edits"][0]["newText"].as_str().unwrap();
-    assert!(
-        created.contains("use std::collections::BTreeMap;"),
-        "{created}"
-    );
-    assert!(created.contains("use super::{keep};"), "{created}");
-    assert!(created.contains("pub(super) fn render"), "{created}");
-    let old_edits = changes[2]["edits"].as_array().unwrap();
-    assert!(
-        old_edits.iter().any(
-            |edit| edit["newText"] == "mod render;\nuse self::render::render;\n"
-                && edit["range"]["start"]["line"] == 0
-                && edit["range"]["start"]["character"] == 0
-        ),
-        "the mod line must land on top of the old file: {old_edits:?}"
-    );
-    assert!(
-        old_edits.iter().any(|edit| edit["newText"] == ""),
-        "the function must leave no residue: {old_edits:?}"
-    );
-    closed(client, handle);
-}
-
 /// A cursor on a type's declaration offers moving the type with its
 /// impls into a snake-named module file.
 const RETINUE: &str = "fn count(store: &Store) -> usize { store.len() }\n\nstruct Store {\n    \
                        held: Vec<u64>,\n}\n\nimpl Store {\n    fn len(&self) -> usize {\n        \
                        self.held.len()\n    }\n}\n";
-
-#[test]
-fn a_type_offers_its_extraction_with_its_impls() {
-    let (client, handle) = opened(RETINUE);
-    let line = RETINUE
-        .lines()
-        .position(|held| held.contains("struct Store"))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            2.into(),
-            "textDocument/codeAction".to_owned(),
-            serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
-                "range": {
-                    "start": { "line": line, "character": 8 },
-                    "end": { "line": line, "character": 8 }
-                },
-                "context": { "diagnostics": [] }
-            })
-        )))
-        .unwrap();
-    let Message::Response(answer) = client.receiver.recv().unwrap() else {
-        panic!("a code action request must be answered");
-    };
-    let offered = answer.response_result.as_ref().unwrap().as_array().unwrap();
-    let extraction = offered
-        .iter()
-        .find(|action| action["kind"] == "refactor.extract")
-        .unwrap_or_else(|| panic!("the type extraction must be offered: {offered:?}"));
-    let changes = extraction["edit"]["documentChanges"].as_array().unwrap();
-    assert_eq!(
-        changes[0]["uri"], "file:///demo/src/store.rs",
-        "{changes:?}"
-    );
-    let created = changes[1]["edits"][0]["newText"].as_str().unwrap();
-    assert!(created.contains("pub(super) struct Store"), "{created}");
-    assert!(created.contains("pub(super) fn len"), "{created}");
-    closed(client, handle);
-}
 
 /// The intents command must answer with what the workspace's own
 /// written calls prove is missing, each intent citing its evidence

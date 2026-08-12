@@ -16,7 +16,6 @@
 
 mod bed;
 mod candidate;
-mod extractions;
 mod installs;
 
 use std::path::Path;
@@ -96,10 +95,7 @@ pub fn judge(corpus: &Corpus, corpus_root: &Path, limit: usize) -> Result<Judgem
             });
         }
         let bed = bed::Bed::of(&origin, &entry.name)?;
-        let listed = [
-            (Genre::Install, installs::listed(bed.root(), limit)?),
-            (Genre::Extract, extractions::listed(bed.root(), limit)?)
-        ];
+        let listed = [(Genre::Install, installs::listed(bed.root(), limit)?)];
         for (genre, candidates) in listed {
             for candidate in candidates {
                 let outcome = bed.judged(&candidate)?;
