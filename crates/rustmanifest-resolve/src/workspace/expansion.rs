@@ -18,7 +18,7 @@ use rustmanifest_schema::Resolution;
 
 use super::{
     reading::Reading,
-    settling::{settled_call, settled_field}
+    settling::{settled_call, settled_field, settled_free_call}
 };
 
 /// Records every field read and every method call written inside a macro
@@ -38,6 +38,12 @@ pub(super) fn settled(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: 
             }
             for call in tree.descendants().filter_map(ast::MethodCallExpr::cast) {
                 if let Some(mut settled) = settled_call(reading, &call) {
+                    settled.at = written(reading, call.syntax());
+                    into.calls.push(settled);
+                }
+            }
+            for call in tree.descendants().filter_map(ast::CallExpr::cast) {
+                if let Some(mut settled) = settled_free_call(reading, &call) {
                     settled.at = written(reading, call.syntax());
                     into.calls.push(settled);
                 }
