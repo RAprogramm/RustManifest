@@ -804,14 +804,10 @@ fn a_hover_on_a_type_name_cards_its_facts() {
         "{value}"
     );
     assert!(value.contains("are the compiler's answer"), "{value}");
-    assert!(value.contains("**memory**"), "{value}");
     assert!(
-        value.contains("byte(s) on the stack — that is what every move or copy of it touches"),
-        "{value}"
-    );
-    assert!(
-        value.contains("own heap data: the contents live in the heap"),
-        "{value}"
+        !value.contains("byte(s) on the stack"),
+        "without a resolution beside the session what a value weighs is the compiler's answer \
+         and stays unclaimed: {value}"
     );
     closed(client, handle);
 }

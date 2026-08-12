@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use rustmanifest_engine::{
     FunctionFacts, Source, TypeGraph,
-    semantic::{Effect, TraitOracle, TypeShape, shapes}
+    semantic::{Effect, TraitOracle, TypeShape, shapes_with}
 };
 
 /// The sources and derivations answers are computed over, rebuilt after
@@ -97,7 +97,7 @@ impl Snapshot {
             );
             let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
             let types = TypeGraph::from_sources(&sources);
-            let shaped = shapes(&sources);
+            let shaped = shapes_with(&sources, settled.as_ref());
             let oracle = compiler_index(self.root.as_deref(), &sources);
             self.built = Some(Built {
                 sources,

@@ -142,9 +142,16 @@ impl Resolution {
         positioned::settle(&mut self.calls);
         positioned::settle(&mut self.types);
         positioned::settle(&mut self.paths);
+        positioned::settle(&mut self.functions);
         self.types_granted
             .sort_by(|left, right| left.named.cmp(&right.named));
         self.types_granted.dedup();
+        self.layouts
+            .sort_by(|left, right| left.named.cmp(&right.named));
+        self.layouts.dedup();
+        self.modules
+            .sort_by(|left, right| left.names.cmp(&right.names));
+        self.modules.dedup();
     }
 }
 

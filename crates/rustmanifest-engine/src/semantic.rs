@@ -111,7 +111,7 @@ pub use self::{
     },
     kept::why_kept,
     layers::{ModuleLayer, layers},
-    layout::{TypeShape, shapes},
+    layout::{TypeShape, shapes_with},
     meaning::{
         ChoiceClaim, Clause, ComputeClaim, EntryMeaning, ExitClaim, HandbackClaim, IntakeClaim,
         Narrative, OutputClaim, completion_rule, origin_text, program_meaning

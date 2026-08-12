@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes, workspace::Workspace
+    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes_with, workspace::Workspace
 };
 
 /// Reports owned parameters that could be shared borrows, one insight per
@@ -27,10 +27,11 @@ use super::{
 pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let sources = workspace.sources();
     let graph = workspace.types();
-    let weights: BTreeMap<String, (Option<u64>, u32)> = shapes(sources)
-        .into_iter()
-        .map(|shape| (shape.name, (shape.payload, shape.indirections)))
-        .collect();
+    let weights: BTreeMap<String, (Option<u64>, u32)> =
+        shapes_with(sources, workspace.resolution())
+            .into_iter()
+            .map(|shape| (shape.name, (shape.payload, shape.indirections)))
+            .collect();
     let mut found = Vec::new();
     for fact in workspace.facts() {
         if fact.flags.trait_impl() || consuming_by_convention(&fact.function) {
@@ -214,6 +215,25 @@ mod tests {
         insights(&Workspace::new(&sources)).len()
     }
 
+    /// The sizes a compiler states for the primitives and headers these
+    /// fixtures write.
+    fn weighed() -> rustmanifest_schema::Resolution {
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            layouts: [("String", 24u64), ("u64", 8), ("Vec", 24), ("i64", 8)]
+                .into_iter()
+                .map(|(named, size)| rustmanifest_schema::ResolvedLayout {
+                    named: named.to_owned(),
+                    size,
+                    align: 8
+                })
+                .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        settled
+    }
+
     #[test]
     fn the_deviation_price_is_stated_in_bytes_and_heap_headers() {
         let sources = [Source::new(
@@ -223,7 +243,8 @@ mod tests {
                 .to_owned()
         )];
         let _graph = TypeGraph::from_sources(&sources);
-        let all = insights(&Workspace::new(&sources));
+        let settled = weighed();
+        let all = insights(&Workspace::resolved(&sources, &settled));
         assert_eq!(all.len(), 1);
         assert!(
             all[0]
@@ -326,7 +347,8 @@ mod tests {
                 .to_owned()
         )];
         let _graph = TypeGraph::from_sources(&sources);
-        let insights = insights(&Workspace::new(&sources));
+        let settled = weighed();
+        let insights = insights(&Workspace::resolved(&sources, &settled));
         assert_eq!(insights[0].trace.len(), 4);
         assert!(insights[0].trace[2].fact.contains("without `Copy`"));
         assert!(

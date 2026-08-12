@@ -2,34 +2,27 @@
 // SPDX-License-Identifier: MIT
 
 //! Memory-shape facts: what each workspace type weighs and where its
-//! bytes live, derived from definitions and guaranteed layout rules.
+//! bytes live.
 //!
-//! Sizes are stated for 64-bit targets and only where the language or
-//! std documentation guarantees them: primitives, references, boxes,
-//! the vector/string headers. The compiler is free to shuffle default
-//! `repr(Rust)` layouts, so a struct's exact size is never claimed;
-//! instead every type carries its `payload` — the summed guaranteed
-//! sizes of its fields, the bytes a copy provably touches — and the
-//! count of heap indirections its fields own. Field types the engine
-//! cannot size are listed as unresolved, never estimated.
+//! A field's size is the compiler's answer for the target it was asked
+//! about, carried by a resolution. The table that stood here stated sizes
+//! for 64-bit targets and said nothing about being wrong on any other — a
+//! pointer is eight bytes until the target is a thirty-two-bit one.
+//!
+//! The compiler is free to shuffle default `repr(Rust)` layouts, so a
+//! struct's exact size is never claimed here; every type carries its
+//! `payload` — the summed sizes of its fields, the bytes a copy provably
+//! touches — and the count of heap indirections its fields own. A field
+//! type no resolution sized is listed as unresolved, never estimated.
 
 use std::collections::BTreeMap;
 
 use super::graph::{TypeGraph, TypeKind};
 use crate::source::Source;
 
-/// Byte size of one field type on a 64-bit target, when guaranteed.
-fn guaranteed_size(type_name: &str) -> Option<u64> {
-    match type_name {
-        "bool" | "i8" | "u8" => Some(1),
-        "i16" | "u16" => Some(2),
-        "char" | "f32" | "i32" | "u32" => Some(4),
-        "Arc" | "Box" | "NonZeroU32" | "NonZeroU64" | "NonZeroUsize" | "Rc" | "f64" | "i64"
-        | "isize" | "u64" | "usize" => Some(8),
-        "Duration" | "i128" | "u128" => Some(16),
-        "OsString" | "PathBuf" | "String" | "Vec" => Some(24),
-        _ => None
-    }
+/// Byte size of one field type, as the compiler laid it out.
+fn sized(settled: Option<&rustmanifest_schema::Resolution>, type_name: &str) -> Option<u64> {
+    Some(settled?.weighs(type_name)?.size)
 }
 
 /// Whether one field type owns heap storage behind its header.
@@ -74,7 +67,10 @@ pub struct TypeShape {
 /// contributes that struct's payload, resolved to a fixpoint with
 /// cycles broken as unresolved.
 #[must_use]
-pub fn shapes(sources: &[Source]) -> Vec<TypeShape> {
+pub fn shapes_with(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<TypeShape> {
     let graph = TypeGraph::from_sources(sources);
     let mut payloads: BTreeMap<&str, Option<u64>> = BTreeMap::new();
     for node in graph.types() {
@@ -89,7 +85,7 @@ pub fn shapes(sources: &[Source]) -> Vec<TypeShape> {
                 continue;
             }
             let summed: Option<u64> = node.fields.iter().try_fold(0u64, |total, field| {
-                guaranteed_size(&field.type_name)
+                sized(settled, &field.type_name)
                     .or_else(|| payloads.get(field.type_name.as_str()).copied().flatten())
                     .map(|size| total + size)
             });
@@ -110,7 +106,7 @@ pub fn shapes(sources: &[Source]) -> Vec<TypeShape> {
                 .fields
                 .iter()
                 .filter(|field| {
-                    guaranteed_size(&field.type_name).is_none()
+                    sized(settled, &field.type_name).is_none()
                         && payloads
                             .get(field.type_name.as_str())
                             .copied()
@@ -150,11 +146,54 @@ pub fn shapes(sources: &[Source]) -> Vec<TypeShape> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::shapes;
+    use super::shapes_with;
     use crate::source::Source;
 
+    /// The shapes of `text` with the sizes a compiler would state for the
+    /// types the fixture writes.
     fn shapes_of(text: &str) -> Vec<super::TypeShape> {
-        shapes(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            layouts: [
+                ("bool", 1u64),
+                ("u8", 1),
+                ("i8", 1),
+                ("u16", 2),
+                ("i16", 2),
+                ("char", 4),
+                ("f32", 4),
+                ("i32", 4),
+                ("u32", 4),
+                ("f64", 8),
+                ("i64", 8),
+                ("u64", 8),
+                ("usize", 8),
+                ("isize", 8),
+                ("Box", 8),
+                ("Arc", 8),
+                ("Rc", 8),
+                ("i128", 16),
+                ("u128", 16),
+                ("Duration", 16),
+                ("String", 24),
+                ("Vec", 24),
+                ("PathBuf", 24),
+                ("OsString", 24)
+            ]
+            .into_iter()
+            .map(|(named, size)| rustmanifest_schema::ResolvedLayout {
+                named: named.to_owned(),
+                size,
+                align: size.min(8)
+            })
+            .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        shapes_with(
+            &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
+            Some(&settled)
+        )
     }
 
     fn named<'a>(all: &'a [super::TypeShape], name: &str) -> &'a super::TypeShape {

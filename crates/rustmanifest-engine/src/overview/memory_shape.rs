@@ -9,12 +9,18 @@ use crate::source::Source;
 
 /// Prints the heaviest types by guaranteed field payload: what a copy
 /// provably costs and how many heap indirections each value drags.
-pub(super) fn shape_section(out: &mut String, sources: &[Source], top: usize) {
+pub(super) fn shape_section(
+    out: &mut String,
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>,
+    top: usize
+) {
     out.push_str("## Memory shape\n\n");
-    let mut weighed: Vec<crate::semantic::TypeShape> = crate::semantic::shapes(sources)
-        .into_iter()
-        .filter(|shape| shape.payload.is_some() || shape.indirections > 0)
-        .collect();
+    let mut weighed: Vec<crate::semantic::TypeShape> =
+        crate::semantic::shapes_with(sources, settled)
+            .into_iter()
+            .filter(|shape| shape.payload.is_some() || shape.indirections > 0)
+            .collect();
     if weighed.is_empty() {
         out.push_str("- no sizable types observed\n\n");
         return;

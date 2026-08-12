@@ -61,7 +61,7 @@ pub fn overview_markdown(
     surface_section(&mut out, sources, top);
     boundary_section(&mut out, sources, facts, top);
     state_section(&mut out, facts, top);
-    shape_section(&mut out, sources, top);
+    shape_section(&mut out, sources, workspace.resolution(), top);
     layer_section(&mut out, workspace, top);
     capability_section(&mut out, workspace, top);
     keeping_section(&mut out, workspace);
