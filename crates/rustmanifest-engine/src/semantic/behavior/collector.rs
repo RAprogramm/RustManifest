@@ -102,6 +102,10 @@ pub(super) struct FactCollector {
     /// The type a resolver settled for the receiver of the call at each
     /// byte range. Empty where no resolver ran.
     pub(super) receivers:        std::collections::BTreeMap<(u32, u32), String>,
+    /// How the call at each byte range takes the value it is written on,
+    /// as the function it reaches declares it. Empty where no resolver
+    /// ran.
+    pub(super) takes:            std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
     /// The type holding the field read at each byte range, and the type
     /// that field itself has. Empty where no resolver ran.
     pub(super) held:             std::collections::BTreeMap<(u32, u32), (String, String)>,

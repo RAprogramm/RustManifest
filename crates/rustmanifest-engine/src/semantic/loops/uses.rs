@@ -8,11 +8,18 @@
 //! decides which buckets disqualify a candidate. Unclassifiable bare uses
 //! and macro mentions are counted, never guessed at — the conservative
 //! buckets are what keeps the loop rules free of false positives.
+//!
+//! Which bucket a method call falls into is the mode the function it
+//! reaches declares for its receiver, as a resolver states it. A call
+//! nothing settled a mode for gets a bucket of its own: it may move the
+//! value or leave it be, and a rule that treats it as either would be
+//! guessing from the spelling — which is what reading a name table was.
 
-use syn::visit::Visit;
+use syn::{spanned::Spanned as _, visit::Visit};
 
-use crate::semantic::expr::{
-    MUTATING_METHODS, compound_assignment, consuming_method, place_root, token_words
+use crate::semantic::{
+    behavior::ParamMode,
+    expr::{compound_assignment, place_root, token_words}
 };
 
 /// Classified uses of one binding within the rest of a loop body.
@@ -24,12 +31,15 @@ pub(super) struct UseSummary {
     pub(super) shared_borrows: u32,
     /// Mutable borrows of the binding or one of its fields.
     pub(super) mut_borrows:    u32,
-    /// Assignments to the binding and known mutating method calls.
+    /// Assignments to the binding and calls declared to take it mutably.
     pub(super) mutations:      u32,
-    /// Method calls that are neither known-mutating nor consuming.
+    /// Calls declared to borrow it, and calls no resolver settled.
     pub(super) calls:          u32,
-    /// Consuming method calls (`into_*`, `leak`).
+    /// Calls declared to take it by value, ending its life here.
     pub(super) moves:          u32,
+    /// Calls nothing settled a receiver mode for, so what they do to the
+    /// value is unknown.
+    pub(super) unsettled:      u32,
     /// Bare uses that could move the value (call argument, return, push).
     pub(super) bare:           u32,
     /// Mentions inside macro invocations, which hide the use shape.
@@ -37,14 +47,17 @@ pub(super) struct UseSummary {
 }
 
 /// Visitor classifying every use of one binding.
-pub(super) struct UseCollector {
+pub(super) struct UseCollector<'takes> {
     /// The binding under observation.
     pub(super) name:    String,
+    /// How every settled call of this source takes the value it is
+    /// written on.
+    pub(super) takes:   &'takes super::collect::Taken,
     /// Classified counts.
     pub(super) summary: UseSummary
 }
 
-impl UseCollector {
+impl UseCollector<'_> {
     /// Returns whether `expr` is a bare path naming the binding.
     fn is_binding(&self, expr: &syn::Expr) -> bool {
         matches!(expr, syn::Expr::Path(path) if path.path.is_ident(self.name.as_str()))
@@ -54,18 +67,25 @@ impl UseCollector {
     fn roots_in_binding(&self, expr: &syn::Expr) -> bool {
         place_root(expr).is_some_and(|root| root == self.name)
     }
+
+    /// How the call written here takes the value it is written on, where
+    /// a resolver settled it.
+    fn mode(&self, call: &syn::ExprMethodCall) -> Option<ParamMode> {
+        let span = call.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.takes.get(&(start, end)).copied()
+    }
 }
 
-impl<'ast> Visit<'ast> for UseCollector {
+impl<'ast> Visit<'ast> for UseCollector<'_> {
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
         if self.is_binding(&call.receiver) {
-            let method = call.method.to_string();
-            if consuming_method(&method) {
-                self.summary.moves += 1;
-            } else if MUTATING_METHODS.contains(&method.as_str()) {
-                self.summary.mutations += 1;
-            } else {
-                self.summary.calls += 1;
+            match self.mode(call) {
+                Some(ParamMode::Owned) => self.summary.moves += 1,
+                Some(ParamMode::BorrowedMut) => self.summary.mutations += 1,
+                Some(ParamMode::Borrowed) => self.summary.calls += 1,
+                None => self.summary.unsettled += 1
             }
             for argument in &call.args {
                 self.visit_expr(argument);

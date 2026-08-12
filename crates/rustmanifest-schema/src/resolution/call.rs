@@ -6,7 +6,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::positioned::Positioned;
+use super::{positioned::Positioned, signature::ResolvedMode};
 use crate::Location;
 
 /// One call a resolver settled.
@@ -29,7 +29,17 @@ pub struct ResolvedCall {
     /// which function it is, is not. Two types with a `new` share a name
     /// and never a path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reaches:  Option<String>
+    pub reaches:  Option<String>,
+    /// How the function the call reaches takes its receiver, where it has
+    /// one.
+    ///
+    /// Whether a call changes what it is written on, and whether it ends
+    /// that value's life, is the receiver's declared mode and nothing
+    /// else. A written name cannot carry it: `replace` mutates a `Vec` in
+    /// place and hands a `String` back untouched, and `take` moves out of
+    /// an `Option` while leaving a `Vec` where it stood.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takes:    Option<ResolvedMode>
 }
 
 impl Positioned for ResolvedCall {

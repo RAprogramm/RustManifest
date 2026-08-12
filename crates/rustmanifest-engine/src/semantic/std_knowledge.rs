@@ -2,14 +2,17 @@
 // SPDX-License-Identifier: MIT
 
 //! Built-in knowledge of the standard library's semantics, encoded as
-//! data: which well-known types are `Copy`, which methods mutate their
-//! receiver, and which consume it.
+//! data: what a call means, not what the compiler already answers.
 //!
 //! Checks consult these tables instead of keeping private lists, so the
 //! engine's understanding of std lives in one auditable place and grows
-//! by adding a line. Classification errs on the safe side for the
-//! ownership rules: a method wrongly listed as consuming makes a rule
-//! stay silent, never fire falsely.
+//! by adding a line.
+//!
+//! What a call does to the value it is written on is not stated here.
+//! Whether it changes that value or ends its life is the receiver mode the
+//! function reached declares, and a resolver states it per call site — two
+//! written lists answered it here, and both were that declaration
+//! transcribed for the spellings somebody thought to write down.
 
 mod arithmetic;
 mod flow;
@@ -48,61 +51,6 @@ pub(super) fn is_primitive_copy(name: &str) -> bool {
     PRIMITIVE_COPY_TYPES.contains(&name)
 }
 
-/// Methods on std containers, strings, and cells that mutate their
-/// receiver in place.
-pub(super) const MUTATING_METHODS: [&str; 31] = [
-    "append",
-    "borrow_mut",
-    "clear",
-    "dedup",
-    "drain",
-    "extend",
-    "extend_from_slice",
-    "fill",
-    "get_mut",
-    "get_or_insert",
-    "insert",
-    "insert_str",
-    "lock",
-    "make_ascii_lowercase",
-    "make_ascii_uppercase",
-    "pop",
-    "push",
-    "push_str",
-    "remove",
-    "replace",
-    "reserve",
-    "resize",
-    "retain",
-    "set",
-    "sort",
-    "sort_by",
-    "sort_unstable",
-    "store",
-    "take",
-    "truncate",
-    "write"
-];
-
-/// Returns whether `method` consumes its receiver: the `into_*` family,
-/// leaking, and the `Option`/`Result` adapters that take `self`.
-pub(super) fn consuming_method(method: &str) -> bool {
-    method.starts_with("into")
-        || matches!(
-            method,
-            "and_then"
-                | "expect"
-                | "leak"
-                | "map"
-                | "map_err"
-                | "or_else"
-                | "unwrap"
-                | "unwrap_or"
-                | "unwrap_or_default"
-                | "unwrap_or_else"
-        )
-}
-
 /// Well-known external constructor functions by call name, with the
 /// concrete type each one produces (`Result`/`Option` wrappers already
 /// unwrapped, since these are consumed behind `unwrap`/`?`).
@@ -117,7 +65,7 @@ pub(super) const EXTERNAL_CONSTRUCTORS: [(&str, &str); 2] =
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{MUTATING_METHODS, consuming_method, is_primitive_copy};
+    use super::is_primitive_copy;
 
     /// The language's own primitives answer here and nothing else does:
     /// a library type that happens to be copied is the compiler's answer,
@@ -129,18 +77,4 @@ mod tests {
         assert!(!is_primitive_copy("String"));
     }
 
-    #[test]
-    fn adapters_and_into_family_consume() {
-        assert!(consuming_method("into_bytes"));
-        assert!(consuming_method("unwrap"));
-        assert!(consuming_method("map_err"));
-        assert!(!consuming_method("len"));
-    }
-
-    #[test]
-    fn mutating_table_is_sorted_for_review() {
-        let mut sorted = MUTATING_METHODS;
-        sorted.sort_unstable();
-        assert_eq!(sorted, MUTATING_METHODS);
-    }
 }

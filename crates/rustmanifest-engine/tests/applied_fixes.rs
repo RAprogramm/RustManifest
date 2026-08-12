@@ -33,6 +33,16 @@ use rustmanifest_engine::{SemanticAnalyzer, Source, Workspace};
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::{Finding, RuleDefinition};
 
+/// Rules whose findings rest on what a resolver settled, which this
+/// harness does not run: a fixture is a loose file, not a cargo
+/// workspace, and both loop rules refuse where nothing states how a call
+/// takes the value it is written on.
+///
+/// Naming them is the point. Their fixes are unjudged here, and a list
+/// that has to be edited is the only way that stays visible — a rule
+/// dropping out silently would read as coverage this harness never had.
+const RESOLVER_BOUND: [&str; 2] = ["RM-MEM-002", "RM-MEM-003"];
+
 /// Compiles one program (a root file plus any module files beside it)
 /// and returns the compiler's complaint, if any.
 fn rejected(root_name: &str, files: &[(PathBuf, String)]) -> Option<String> {
@@ -90,8 +100,13 @@ fn every_applied_fix_survives_the_compiler() {
         .join("rules");
     let mut compiled = 0u32;
     let mut skipped = 0u32;
+    let mut unresolved = Vec::new();
     for rule in RULES.iter() {
         if !matches!(rule.definition, RuleDefinition::Semantic { .. }) {
+            continue;
+        }
+        if RESOLVER_BOUND.contains(&rule.id.as_str()) {
+            unresolved.push(rule.id.clone());
             continue;
         }
         let fixture = rules_dir.join(&rule.id).join("fail.rs");
@@ -127,10 +142,16 @@ fn every_applied_fix_survives_the_compiler() {
             compiled += 1;
         }
     }
+    assert_eq!(
+        unresolved,
+        RESOLVER_BOUND,
+        "the rules this harness cannot judge are named in one place, so a rule joining them \
+         is a change to this list and not a quiet loss of coverage"
+    );
     assert!(
-        compiled >= 2,
-        "the harness must have compiled at least the ownership and buffering fixes; \
-         compiled {compiled}, skipped {skipped}"
+        compiled >= 1,
+        "the harness must have compiled at least the buffering fix; compiled {compiled}, \
+         skipped {skipped}"
     );
 }
 

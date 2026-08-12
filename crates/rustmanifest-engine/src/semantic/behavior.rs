@@ -301,13 +301,53 @@ mod tests {
         assert_eq!(named(&all, "chain").writes, vec!["?.field"]);
     }
 
+    /// A call on a field writes it when the function it reaches takes its
+    /// receiver mutably. Which calls those are is the declaration, never
+    /// the spelling: `replace` mutates a `Vec` and leaves a `String`
+    /// untouched, and no list of names can tell the two apart.
     #[test]
-    fn mutating_methods_on_fields_count_as_writes() {
+    fn a_call_declared_to_take_its_receiver_mutably_writes_the_field() {
+        let text = "struct State { cache: Vec<u8> }\nimpl State { fn add(&self, byte: u8) { \
+                    self.cache.push(byte); } }";
+        let written = "self.cache.push(byte)";
+        let start = u32::try_from(text.find(written).expect("the call is written"))
+            .expect("the fixture is small");
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            calls: vec![rustmanifest_schema::ResolvedCall {
+                at:       rustmanifest_schema::Location {
+                    file:  PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start,
+                        end: start + u32::try_from(written.len()).expect("the fixture is small")
+                    }
+                },
+                callee:   "push".to_owned(),
+                returns:  "()".to_owned(),
+                receiver: Some("Vec<u8>".to_owned()),
+                reaches:  None,
+                takes:    Some(rustmanifest_schema::ResolvedMode::BorrowedMut)
+            }],
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        let all = super::behavior_with(
+            &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
+            Some(&settled)
+        );
+        assert_eq!(named(&all, "State::add").writes, vec!["State.cache"]);
+    }
+
+    /// The same call with nothing settled for it writes nothing: a method
+    /// this workspace does not declare is one nothing here can answer for,
+    /// and silence is that answer.
+    #[test]
+    fn a_call_no_resolver_settled_writes_no_field() {
         let all = facts(
             "struct State { cache: Vec<u8> }\nimpl State { fn add(&self, byte: u8) { \
              self.cache.push(byte); } }"
         );
-        assert_eq!(named(&all, "State::add").writes, vec!["State.cache"]);
+        assert!(named(&all, "State::add").writes.is_empty());
     }
 
     #[test]

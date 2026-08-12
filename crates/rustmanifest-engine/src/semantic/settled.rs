@@ -106,7 +106,8 @@ mod tests {
                 callee:   "is_some".to_owned(),
                 returns:  "bool".to_owned(),
                 receiver: None,
-                reaches:  None
+                reaches:  None,
+                takes:    None
             }],
             ..Resolution::default()
         };

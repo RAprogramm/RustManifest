@@ -19,7 +19,53 @@ use std::{
 
 use rustmanifest_engine::{SemanticAnalyzer, Source, Workspace};
 use rustmanifest_rules_core::RULES;
-use rustmanifest_schema::RuleDefinition;
+use rustmanifest_schema::{ResolvedMode, RuleDefinition};
+
+/// The receiver modes a resolver would state for the calls of one rule's
+/// fixtures, by rule and by the call as it is written.
+///
+/// A fixture is a loose file and no resolver runs over it here, so a rule
+/// that reads how a call takes the value it stands on refuses on every
+/// fixture. Writing the declarations down keeps those rules judged, and
+/// keeps the fabrication in the harness where it is visible rather than in
+/// the engine, which is where a table of method names used to answer this.
+const SETTLED_RECEIVERS: [(&str, &[(&str, ResolvedMode)]); 1] = [(
+    "RM-MEM-003",
+    &[
+        ("line.push('#')", ResolvedMode::BorrowedMut),
+        ("line.len()", ResolvedMode::Borrowed)
+    ]
+)];
+
+/// Adds the receiver modes written for `rule` to a fixture's resolution.
+fn settle_receivers(rule: &str, sources: &[Source], into: &mut rustmanifest_schema::Resolution) {
+    let Some((_, calls)) = SETTLED_RECEIVERS.iter().find(|(named, _)| *named == rule) else {
+        return;
+    };
+    for source in sources {
+        for (written, mode) in *calls {
+            let Some(found) = source.text().find(written) else {
+                continue;
+            };
+            let start = u32::try_from(found).expect("a fixture is small");
+            into.calls.push(rustmanifest_schema::ResolvedCall {
+                at:       rustmanifest_schema::Location {
+                    file:  source.path().to_path_buf(),
+                    range: rustmanifest_schema::Range {
+                        start,
+                        end: start + u32::try_from(written.len()).expect("a fixture is small")
+                    }
+                },
+                callee:   (*written).to_owned(),
+                returns:  "()".to_owned(),
+                receiver: None,
+                reaches:  None,
+                takes:    Some(*mode)
+            });
+        }
+    }
+    into.settle();
+}
 
 fn rules_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -179,7 +225,8 @@ fn semantic_fixtures_match_their_rule() {
         let dir = rules_dir.join(&rule.id);
 
         let fail_sources = workspace(&dir, "fail");
-        let fail_tree = mounted(&fail_sources);
+        let mut fail_tree = mounted(&fail_sources);
+        settle_receivers(&rule.id, &fail_sources, &mut fail_tree);
         let fail_findings = analyzer.analyze(&Workspace::resolved(&fail_sources, &fail_tree));
         assert!(
             !fail_findings.is_empty(),
@@ -187,7 +234,8 @@ fn semantic_fixtures_match_their_rule() {
             rule.id
         );
         let pass_sources = workspace(&dir, "pass");
-        let pass_tree = mounted(&pass_sources);
+        let mut pass_tree = mounted(&pass_sources);
+        settle_receivers(&rule.id, &pass_sources, &mut pass_tree);
         let pass_findings = analyzer.analyze(&Workspace::resolved(&pass_sources, &pass_tree));
         assert!(
             pass_findings.is_empty(),

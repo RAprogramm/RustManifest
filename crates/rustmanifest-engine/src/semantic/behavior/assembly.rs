@@ -139,6 +139,13 @@ pub(super) struct Settled {
     /// Parameters of the function whose name is written at a position, as
     /// the compiler read its signature.
     pub(super) params:    std::collections::BTreeMap<(u32, u32), Vec<super::types::ParamFacts>>,
+    /// How the call at a position takes the value it is written on.
+    ///
+    /// Whether a call changes its receiver, and whether it ends that
+    /// value's life, is the mode the callee declares — a fact about the
+    /// function reached, never about the name written. Absence means the
+    /// call reaches no receiver or no resolver ran.
+    pub(super) takes:     std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
     /// Kind of item the path written at a position reaches.
     ///
     /// A path is either a name this body bound or an item declared
@@ -147,6 +154,15 @@ pub(super) struct Settled {
     /// resolver knows, and a path it settles to no item is a local — which
     /// is why absence here is an answer and not a gap.
     pub(super) items:     std::collections::BTreeMap<(u32, u32), String>
+}
+
+/// How a declared position is taken, in this tier's own vocabulary.
+const fn declared_mode(mode: rustmanifest_schema::ResolvedMode) -> super::types::ParamMode {
+    match mode {
+        rustmanifest_schema::ResolvedMode::Owned => super::types::ParamMode::Owned,
+        rustmanifest_schema::ResolvedMode::Borrowed => super::types::ParamMode::Borrowed,
+        rustmanifest_schema::ResolvedMode::BorrowedMut => super::types::ParamMode::BorrowedMut
+    }
 }
 
 /// The name the tables speak: the outermost type of a written type, with
@@ -224,6 +240,9 @@ fn settled_types(
         if let Some(named) = call.receiver.as_deref().and_then(outermost) {
             settled.receivers.insert(at, named);
         }
+        if let Some(mode) = call.takes {
+            settled.takes.insert(at, declared_mode(mode));
+        }
     }
     for field in &resolution.fields {
         if field.at.file != source.path() {
@@ -260,17 +279,7 @@ fn settled_types(
                     Some(super::types::ParamFacts {
                         name:        param.name.clone(),
                         type_name:   outermost(&param.named)?,
-                        mode:        match param.mode {
-                            rustmanifest_schema::ResolvedMode::Owned => {
-                                super::types::ParamMode::Owned
-                            }
-                            rustmanifest_schema::ResolvedMode::Borrowed => {
-                                super::types::ParamMode::Borrowed
-                            }
-                            rustmanifest_schema::ResolvedMode::BorrowedMut => {
-                                super::types::ParamMode::BorrowedMut
-                            }
-                        },
+                        mode:        declared_mode(param.mode),
                         uses:        0,
                         field_reads: 0
                     })

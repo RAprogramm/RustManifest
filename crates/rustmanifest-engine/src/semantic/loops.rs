@@ -42,7 +42,7 @@ use super::{insight::Insight, workspace::Workspace};
 pub(super) fn clone_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let sources = workspace.sources();
     let mut found = Vec::new();
-    for candidate in candidates(sources) {
+    for candidate in candidates(sources, workspace.resolution()) {
         let Origin::Clone {
             ref chain,
             ref method,
@@ -57,6 +57,7 @@ pub(super) fn clone_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
             || uses.mutations > 0
             || uses.mut_borrows > 0
             || uses.calls > 0
+            || uses.unsettled > 0
             || uses.bare > 0
             || uses.macro_mentions > 0
             || uses.field_reads + uses.shared_borrows == 0
@@ -118,7 +119,7 @@ pub(super) fn clone_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
 pub(super) fn allocation_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let sources = workspace.sources();
     let mut found = Vec::new();
-    for candidate in candidates(sources) {
+    for candidate in candidates(sources, workspace.resolution()) {
         let Origin::Allocation {
             ref call
         } = candidate.origin
@@ -131,7 +132,12 @@ pub(super) fn allocation_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
             + uses.mut_borrows
             + uses.mutations
             + uses.calls;
-        if uses.moves > 0 || uses.bare > 0 || uses.macro_mentions > 0 || reads_and_writes == 0 {
+        if uses.moves > 0
+            || uses.unsettled > 0
+            || uses.bare > 0
+            || uses.macro_mentions > 0
+            || reads_and_writes == 0
+        {
             continue;
         }
         let name = &candidate.name;
@@ -189,11 +195,51 @@ pub(super) fn allocation_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
 mod tests {
     use std::path::PathBuf;
 
+    use rustmanifest_schema::{Resolution, ResolvedMode};
+
     use super::{allocation_insights, clone_insights};
     use crate::{semantic::workspace::Workspace, source::Source};
 
     fn sources(text: &str) -> [Source; 1] {
         [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]
+    }
+
+    /// A resolver's answer for how each written call takes the value it
+    /// stands on — the only thing that says whether a call leaves a
+    /// binding alone, changes it, or ends its life.
+    fn taking(text: &str, calls: &[(&str, rustmanifest_schema::ResolvedMode)]) -> Resolution {
+        let mut settled = Resolution {
+            resolver: "test".to_owned(),
+            calls: calls
+                .iter()
+                .map(|(written, mode)| {
+                    let start = u32::try_from(text.find(written).expect("the call is written"))
+                        .expect("the fixture is small");
+                    rustmanifest_schema::ResolvedCall {
+                        at:       rustmanifest_schema::Location {
+                            file:  PathBuf::from("src/lib.rs"),
+                            range: rustmanifest_schema::Range {
+                                start,
+                                end: start
+                                    + u32::try_from(written.len()).expect("the fixture is small")
+                            }
+                        },
+                        callee:   written
+                            .rsplit_once('.')
+                            .map_or(*written, |(_, called)| called)
+                            .trim_end_matches(|letter: char| !letter.is_alphanumeric())
+                            .to_owned(),
+                        returns:  "()".to_owned(),
+                        receiver: None,
+                        reaches:  None,
+                        takes:    Some(*mode)
+                    }
+                })
+                .collect(),
+            ..Resolution::default()
+        };
+        settled.settle();
+        settled
     }
 
     #[test]
@@ -203,7 +249,8 @@ mod tests {
              let mut total = 0;\n    for job in jobs {\n        let snapshot = config.clone();\n   \
              total += snapshot.retries + job;\n    }\n    total\n}"
         );
-        let insights = clone_insights(&Workspace::new(&sources));
+        let settled = taking(sources[0].text(), &[("config.clone()", ResolvedMode::Borrowed)]);
+        let insights = clone_insights(&Workspace::resolved(&sources, &settled));
         assert_eq!(insights.len(), 1);
         assert!(insights[0].detail.contains("`config`"));
         assert_eq!(insights[0].trace.len(), 3);
@@ -277,7 +324,11 @@ mod tests {
              = 3;\n    while left > 0 {\n        let snapshot = config.clone();\n        left -= \
              snapshot.retries;\n    }\n    left\n}"
         );
-        assert_eq!(clone_insights(&Workspace::new(&sources)).len(), 1);
+        let settled = taking(sources[0].text(), &[("config.clone()", ResolvedMode::Borrowed)]);
+        assert_eq!(
+            clone_insights(&Workspace::resolved(&sources, &settled)).len(),
+            1
+        );
     }
 
     #[test]
@@ -287,7 +338,14 @@ mod tests {
              values {\n        let mut line = String::with_capacity(16);\n        \
              line.push('#');\n        width += line.len();\n    }\n    width\n}"
         );
-        let insights = allocation_insights(&Workspace::new(&sources));
+        let settled = taking(
+            sources[0].text(),
+            &[
+                ("line.push('#')", ResolvedMode::BorrowedMut),
+                ("line.len()", ResolvedMode::Borrowed),
+            ]
+        );
+        let insights = allocation_insights(&Workspace::resolved(&sources, &settled));
         assert_eq!(insights.len(), 1);
         assert!(insights[0].detail.contains("String::with_capacity"));
         assert_eq!(insights[0].trace.len(), 2);
@@ -310,7 +368,17 @@ mod tests {
              {\n        let mut batch = vec![];\n        batch.push(value);\n        total += \
              batch.len() as u32;\n    }\n    total\n}"
         );
-        assert_eq!(allocation_insights(&Workspace::new(&sources)).len(), 1);
+        let settled = taking(
+            sources[0].text(),
+            &[
+                ("batch.push(value)", ResolvedMode::BorrowedMut),
+                ("batch.len()", ResolvedMode::Borrowed),
+            ]
+        );
+        assert_eq!(
+            allocation_insights(&Workspace::resolved(&sources, &settled)).len(),
+            1
+        );
     }
 
     #[test]

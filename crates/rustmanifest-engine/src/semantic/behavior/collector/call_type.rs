@@ -51,6 +51,27 @@ impl FactCollector {
         self.receivers.get(&(start, end)).cloned()
     }
 
+    /// How the call written at this position takes the value it is
+    /// written on, as the function it reaches declares it.
+    ///
+    /// A written name answers this only by resemblance: `replace` changes
+    /// a `Vec` in place and hands a fresh `String` back without touching
+    /// the one it was called on, and `take` moves out of an `Option` while
+    /// a `Vec` keeps standing. The declaration is the fact, and a name
+    /// table is that fact transcribed for the spellings somebody happened
+    /// to list.
+    pub(super) fn settled_receiver_mode(
+        &self,
+        call: &syn::ExprMethodCall
+    ) -> Option<crate::semantic::behavior::types::ParamMode> {
+        use syn::spanned::Spanned;
+
+        let span = call.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.takes.get(&(start, end)).copied()
+    }
+
     /// The type a resolver settled for the expression at this position.
     fn settled_type(&self, expression: &syn::Expr) -> Option<String> {
         use syn::spanned::Spanned;

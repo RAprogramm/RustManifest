@@ -126,6 +126,7 @@ pub(super) fn function_facts(
         payloads:         known.tables.payloads.clone(),
         settled:          known.settled.produced.clone(),
         receivers:        known.settled.receivers.clone(),
+        takes:            known.settled.takes.clone(),
         held:             known.settled.fields.clone(),
         typed:            known.settled.types.clone(),
         items:            known.settled.items.clone(),

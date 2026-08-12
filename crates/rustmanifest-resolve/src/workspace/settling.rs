@@ -4,9 +4,26 @@
 //! Reading one call and one field access.
 
 use ra_ap_syntax::{AstNode, ast};
-use rustmanifest_schema::{ResolvedCall, ResolvedField};
+use rustmanifest_schema::{ResolvedCall, ResolvedField, ResolvedMode};
 
 use super::reading::Reading;
+
+/// How the function a call reaches takes its receiver, where it has one.
+///
+/// A free function has none, and the row stays absent rather than
+/// claiming a mode: absent means the question does not arise, and a
+/// reading that turned it into "takes it by value" would credit every
+/// path-written call with a move.
+fn receiver_mode(
+    database: &dyn ra_ap_hir::db::HirDatabase,
+    function: ra_ap_hir::Function
+) -> Option<ResolvedMode> {
+    Some(match function.self_param(database)?.access(database) {
+        ra_ap_hir::Access::Shared => ResolvedMode::Borrowed,
+        ra_ap_hir::Access::Exclusive => ResolvedMode::BorrowedMut,
+        ra_ap_hir::Access::Owned => ResolvedMode::Owned
+    })
+}
 
 /// Reads one field access, answering `None` where the resolver settled
 /// nothing.
@@ -57,7 +74,8 @@ pub(super) fn settled_free_call(
         callee:   function.name(reading.database).as_str().to_owned(),
         returns:  reading.render(&returns)?,
         receiver: None,
-        reaches:  super::naming::canonical_function(reading.database, function)
+        reaches:  super::naming::canonical_function(reading.database, function),
+        takes:    receiver_mode(reading.database, function)
     })
 }
 
@@ -78,6 +96,7 @@ pub(super) fn settled_call(
             .receiver()
             .and_then(|expression| reading.semantics.type_of_expr(&expression))
             .and_then(|typed| reading.render(&typed.original())),
-        reaches
+        reaches,
+        takes: receiver_mode(reading.database, function)
     })
 }
