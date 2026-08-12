@@ -437,37 +437,22 @@ mod tests {
         );
     }
 
-    /// A pack states what a crate's own field holds and what one step
-    /// of a sequence field carries, so a value read off the tree types
-    /// the calls written on it.
+    /// A value read out of a library's own tree is typed by the resolver
+    /// like any other, and the call written on it names that library's
+    /// type — not the workspace type that happens to share the member
+    /// name.
     #[test]
-    fn a_packed_field_types_what_is_read_off_it() {
-        let (all, graph) = context_graph(
+    fn a_value_of_a_library_type_is_not_credited_to_a_workspace_namesake() {
+        let (all, graph) = context_graph_settled(
             "pub struct Held;\nimpl Held { pub fn path(&self) {} }\npub fn go(item: \
              &syn::ItemFn) {\n    for attribute in &item.attrs {\n        \
-             attribute.path();\n    }\n    item.sig.ident.to_string();\n}\n"
+             attribute.path();\n    }\n    item.sig.ident.to_string();\n}\n",
+            &[("attribute", "Attribute")]
         );
         assert_eq!(graph.unknown_receiver(), 0);
         assert!(
             graph.callees(index_of(&all, "go")).is_empty(),
-            "the attribute is the crate's, not the workspace type of that member name"
-        );
-    }
-
-    /// A pack states what one step of a crate's own sequence carries,
-    /// so the loop binding is typed and every call written on it names
-    /// its owner instead of standing untyped.
-    #[test]
-    fn a_packed_sequence_types_what_its_loop_binds() {
-        let (all, graph) = context_graph(
-            "use ignore::WalkBuilder;\npub struct Held;\nimpl Held { pub fn path(&self) {} }\npub \
-             fn go(root: &str) {\n    let builder = WalkBuilder::new(root);\n    for entry in \
-             builder.build() {\n        entry.path();\n    }\n}\n"
-        );
-        assert_eq!(graph.unknown_receiver(), 0);
-        assert!(
-            graph.callees(index_of(&all, "go")).is_empty(),
-            "the entry is the crate's, not the workspace type of the same member name"
+            "the attribute is the library's, not the workspace type of that member name"
         );
     }
 
@@ -750,11 +735,12 @@ mod tests {
 
     #[test]
     fn trait_object_calls_dispatch_to_every_implementor() {
-        let (all, graph) = context_graph(
+        let (all, graph) = context_graph_settled(
             "trait Analyzer { fn analyze(&self); }\nstruct A;\nimpl Analyzer for A { fn \
              analyze(&self) {} }\nstruct B;\nimpl Analyzer for B { fn analyze(&self) {} \
              }\nstruct Hub { analyzers: Vec<Box<dyn Analyzer>> }\nimpl Hub { fn run(&self) { \
-             for analyzer in &self.analyzers { analyzer.analyze(); } } }"
+             for each in &self.analyzers { each.analyze(); } } }",
+            &[("each", "&Box<dyn Analyzer>")]
         );
         let callees = graph.callees(index_of(&all, "Hub::run"));
         assert!(callees.contains(&index_of(&all, "A::analyze")));
@@ -797,55 +783,61 @@ mod tests {
         );
     }
 
+    /// What a loop variable, a closure input and an arm's binding hold is
+    /// stated at the binding by the compiler. The four shapes below used
+    /// to be answered by four lists of adapter names, each of which knew
+    /// the spellings somebody had written down and no others.
     #[test]
-    fn loop_variables_type_through_collection_elements() {
+    fn a_binding_the_resolver_typed_resolves_the_call_written_on_it() {
+        for (text, spelling) in [
+            (
+                "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) \
+                 {} }\nfn go(items: &[S]) { for each in items { each.ping(); } }",
+                "each"
+            ),
+            (
+                "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) \
+                 {} }\nfn go(items: Vec<S>) { items.iter().for_each(|held| held.ping()); }",
+                "held"
+            ),
+            (
+                "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) \
+                 {} }\nfn go(items: &[S]) { for (index, each) in items.iter().enumerate() { \
+                 each.ping(); } }",
+                "each"
+            ),
+            (
+                "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) \
+                 {} }\nstruct Holder { items: Vec<S> }\nimpl Holder { fn go(&self) { for each \
+                 in &self.items { each.ping(); } } }",
+                "each"
+            ),
+        ] {
+            let (all, graph) = context_graph_settled(text, &[(spelling, "S")]);
+            let caller = all
+                .iter()
+                .position(|fact| fact.function.ends_with("go"))
+                .expect("the fixture declares the caller");
+            assert!(
+                graph.callees(caller).contains(&index_of(&all, "S::ping")),
+                "{text}"
+            );
+        }
+    }
+
+    /// With nothing settled, the written type is read instead: a slice of
+    /// `S` spells its element out, and the loop binding is typed from that
+    /// spelling. The reading holds only for the spellings it knows, which
+    /// is why it stands behind the resolver and not in front of it.
+    #[test]
+    fn a_binding_no_resolver_typed_falls_back_to_the_written_type() {
         let all = facts(
             "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
-             }\nfn go(items: &[S]) { for item in items { item.ping(); } }"
+             }\nfn go(items: &[S]) { for each in items { each.ping(); } }"
         );
         let graph = call_graph(&all, &super::ResolutionContext::default());
         assert_eq!(
             graph.callees(index_of(&all, "go")),
-            &[index_of(&all, "S::ping")]
-        );
-    }
-
-    #[test]
-    fn closure_parameters_type_through_iterated_elements() {
-        let all = facts(
-            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
-             }\nfn go(items: Vec<S>) { items.iter().for_each(|item| item.ping()); }"
-        );
-        let graph = call_graph(&all, &super::ResolutionContext::default());
-        assert_eq!(
-            graph.callees(index_of(&all, "go")),
-            &[index_of(&all, "S::ping")]
-        );
-    }
-
-    #[test]
-    fn indexed_receivers_type_through_collection_elements() {
-        let all = facts(
-            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
-             }\nfn go(items: &[S]) { items[0].ping(); }"
-        );
-        let graph = call_graph(&all, &super::ResolutionContext::default());
-        assert_eq!(
-            graph.callees(index_of(&all, "go")),
-            &[index_of(&all, "S::ping")]
-        );
-    }
-
-    #[test]
-    fn field_collections_type_their_iterated_elements() {
-        let all = facts(
-            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
-             }\nstruct Holder { items: Vec<S> }\nimpl Holder { fn go(&self) { for item in \
-             &self.items { item.ping(); } } }"
-        );
-        let graph = call_graph(&all, &super::ResolutionContext::default());
-        assert_eq!(
-            graph.callees(index_of(&all, "Holder::go")),
             &[index_of(&all, "S::ping")]
         );
     }
@@ -876,28 +868,15 @@ mod tests {
         );
     }
 
+    /// A value taken out of a sequence is typed by the resolver at the
+    /// position it is taken, so the call written on it resolves without a
+    /// table naming which accessors hand an element back.
     #[test]
-    fn enumerate_tuples_bind_the_element_half() {
-        let all = facts(
-            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
-             }\nfn go(items: &[S]) { for (index, item) in items.iter().enumerate() { \
-             item.ping(); } }"
-        );
-        let graph = call_graph(&all, &super::ResolutionContext::default());
-        assert!(
-            graph
-                .callees(index_of(&all, "go"))
-                .contains(&index_of(&all, "S::ping"))
-        );
-    }
-
-    #[test]
-    fn optional_accessors_yield_the_element_type() {
-        let all = facts(
-            "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn ping(&self) {} \
-             }\nfn go(items: &[S]) -> Option<()> { items.get(0)?.ping(); Some(()) }"
-        );
-        let graph = call_graph(&all, &super::ResolutionContext::default());
+    fn a_value_taken_out_of_a_sequence_resolves_the_call_written_on_it() {
+        let text = "struct S;\nimpl S { fn ping(&self) {} }\nstruct T;\nimpl T { fn \
+                    ping(&self) {} }\nfn go(items: &[S]) -> Option<()> { items.get(0)?.ping(); \
+                    Some(()) }";
+        let (all, graph) = context_graph_settled(text, &[("items.get(0)?", "S")]);
         assert!(
             graph
                 .callees(index_of(&all, "go"))

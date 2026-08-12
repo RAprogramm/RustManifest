@@ -1,8 +1,18 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! Element typing: the element type an iterable hands out, the element
-//! behind an optional accessor, and the binding that receives one.
+//! Element typing read off the written text: the element type an iterable
+//! hands out, the element behind an optional accessor, and the binding
+//! that receives one.
+//!
+//! Every answer here is inferred from how a source spelled a call, so
+//! every one of them is asked only where a resolver settled nothing —
+//! [`bind_pattern`] is asked first, and what it answers stands. The
+//! spellings named below are the standard ones; a library that hands
+//! elements out under other names is invisible to this reading and
+//! visible to the resolver.
+//!
+//! [`bind_pattern`]: super::FactCollector::bind_pattern
 
 use super::{
     FactCollector,
@@ -26,29 +36,12 @@ impl FactCollector {
             syn::Expr::Field(field) => self
                 .field_key(field)
                 .and_then(|key| self.elem(&key))
-                .cloned()
-                .or_else(|| self.packed_field_element(field)),
+                .cloned(),
             syn::Expr::MethodCall(call) if follows(&call.method.to_string()) => {
                 self.element_of(&call.receiver)
             }
-            syn::Expr::MethodCall(call) => self.packed_element(call),
             _ => None
         }
-    }
-
-    /// What one step of a sequence field a pack knows carries.
-    fn packed_field_element(&self, field: &syn::ExprField) -> Option<String> {
-        let owner = self.expr_type(&field.base)?;
-        let member = super::naming::member_name(&field.member);
-        crate::semantic::knowledge::field_element(&owner, &member).map(ToOwned::to_owned)
-    }
-
-    /// What one step of a sequence a pack knows carries: the receiver's
-    /// own type answers which sequence is being read.
-    fn packed_element(&self, call: &syn::ExprMethodCall) -> Option<String> {
-        let owner = self.expr_type(&call.receiver)?;
-        crate::semantic::knowledge::iterated_element(&owner, &call.method.to_string())
-            .map(ToOwned::to_owned)
     }
 
     /// Key and value types an iterated map hands out as a pair, seen
@@ -88,33 +81,13 @@ impl FactCollector {
         self.element_of(&call.receiver)
     }
 
-    /// Lets the input of every closure written beside an adapter stand
-    /// for an element of what the adapter runs over.
-    ///
-    /// The same fact a loop binding carries: the closure is handed one
-    /// element at a time, and which value that is comes from the
-    /// receiver. Recorded as the same selection, so a reading does not
-    /// depend on whether the source wrote a loop or an adapter.
-    pub(super) fn bind_adapter_inputs(
-        &mut self,
-        call: &syn::ExprMethodCall,
-        span: &std::ops::Range<usize>
-    ) {
-        for argument in &call.args {
-            let syn::Expr::Closure(closure) = argument else {
-                continue;
-            };
-            let [only] = closure.inputs.iter().collect::<Vec<_>>()[..] else {
-                continue;
-            };
-            self.record_iterated_element(only, &call.receiver, span);
-        }
-    }
-
     /// Binds one loop or closure pattern against the iterated element
     /// type, seeing through `enumerate`'s index tuple and through the
     /// pair a map hands out.
     pub(super) fn bind_element(&mut self, pattern: &syn::Pat, iterable: &syn::Expr) {
+        if self.bind_pattern(pattern) {
+            return;
+        }
         if let syn::Pat::Tuple(tuple) = pattern
             && tuple.elems.len() == 2
             && let Some((key, value)) = self.pair_of(iterable)

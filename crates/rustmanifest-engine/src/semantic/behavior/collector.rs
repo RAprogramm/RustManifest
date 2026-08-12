@@ -13,6 +13,7 @@
 mod assignment;
 mod binding;
 mod block;
+mod bound;
 mod branch;
 mod branch_flow;
 mod call;
@@ -81,7 +82,8 @@ pub(super) struct FactCollector {
     pub(super) fn_returns:       Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) field_types:      Scoped<String>,
-    /// `Type.field` keys of collection fields to element types.
+    /// `Type.field` keys of collection fields to element types, read off
+    /// the written type where no resolver typed the binding.
     pub(super) field_elems:      Scoped<String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
     /// Key and value types of every map-typed field.

@@ -26,13 +26,20 @@ use super::FactCollector;
 const RESULT_VARIANTS: [(&str, bool); 2] = [("Ok", true), ("Err", false)];
 
 impl FactCollector {
-    /// Records the type each arm of a match over a result binds.
+    /// Types every name the arms of a match bind.
+    ///
+    /// What a variant hands to its arm is the variant's own payload, and
+    /// the compiler states it at the binding. Reading it from the
+    /// scrutinee's spelling answered only the arms of an optional taken
+    /// out of a collection whose element some table happened to know.
     pub(super) fn record_present_bindings(&mut self, matched: &syn::ExprMatch) {
-        let Some(element) = self.optional_element(&matched.expr) else {
-            return;
-        };
+        let element = self.optional_element(&matched.expr);
         for arm in &matched.arms {
-            let Some((variant, bound)) = variant_binding(&arm.pat) else {
+            if self.bind_pattern(&arm.pat) {
+                continue;
+            }
+            let (Some(element), Some((variant, bound))) = (&element, variant_binding(&arm.pat))
+            else {
                 continue;
             };
             if variant == "Some" {

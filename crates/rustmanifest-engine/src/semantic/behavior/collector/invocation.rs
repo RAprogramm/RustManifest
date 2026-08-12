@@ -15,7 +15,7 @@ mod walk;
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, PAIRWISE_ADAPTERS, TEXT_WRITE_METHOD}
+    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
 };
 use crate::semantic::knowledge;
 
@@ -63,27 +63,15 @@ impl FactCollector {
         if method == BYTE_WRITE_METHOD || method == TEXT_WRITE_METHOD {
             self.record_byte_output(call);
         }
-        if ITERATOR_ADAPTERS.contains(&method.as_str()) {
-            for argument in &call.args {
-                if let syn::Expr::Closure(closure) = argument
-                    && closure.inputs.len() == 1
-                    && let Some(pattern) = closure.inputs.first()
-                {
-                    self.bind_element(pattern, &call.receiver);
-                }
+        for argument in &call.args {
+            let syn::Expr::Closure(closure) = argument else {
+                continue;
+            };
+            for input in &closure.inputs {
+                self.bind_element(input, &call.receiver);
             }
-        } else if PAIRWISE_ADAPTERS.contains(&method.as_str()) {
-            for argument in &call.args {
-                let syn::Expr::Closure(closure) = argument else {
-                    continue;
-                };
-                for input in &closure.inputs {
-                    self.bind_element(input, &call.receiver);
-                }
-            }
-        } else {
-            self.bind_wrapped_closure(call);
         }
+        self.bind_wrapped_closure(call);
         if method == knowledge::SERVICE_CALL
             && let Some(inner) = self.wrapped_of(&call.receiver)
         {

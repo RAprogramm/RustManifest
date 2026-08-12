@@ -13,6 +13,13 @@
 //!
 //! A literal is skipped: its type is not a question, and recording one row
 //! per literal doubles the overlay to say what the text already says.
+//!
+//! Every name a pattern binds is asked for too. A closure's input and a
+//! loop's variable are written without a type and read everywhere, and
+//! what they stand for is decided by the function that hands them over —
+//! which is why answering it from the receiver's spelling took a list of
+//! adapter names per question asked, and answering it from the compiler
+//! takes one call.
 
 use ra_ap_syntax::{AstNode, ast};
 use rustmanifest_schema::{ResolvedLayout, ResolvedProperty, ResolvedType};
@@ -41,24 +48,56 @@ pub(super) fn settled(
         let Some(typed) = reading.semantics.type_of_expr(&expression) else {
             continue;
         };
-        let typed = typed.original();
-        let Some(rendered) = reading.render(&typed) else {
+        record(
+            reading,
+            &typed.original(),
+            expression.syntax().text_range(),
+            into,
+            granted,
+            weighs
+        );
+    }
+    for bound in parsed.syntax().descendants().filter_map(ast::IdentPat::cast) {
+        let Some(typed) = reading.semantics.type_of_binding_in_pat(&bound) else {
             continue;
         };
-        granted.push(ResolvedProperty {
-            copy:  typed.is_copy(reading.database),
-            named: rendered.clone()
-        });
-        if let Ok(held) = typed.layout(reading.database) {
-            weighs.push(ResolvedLayout {
-                named: rendered.clone(),
-                size:  held.size(),
-                align: held.align()
-            });
-        }
-        into.push(ResolvedType {
-            at: reading.located(expression.syntax().text_range()),
-            rendered
+        record(
+            reading,
+            &typed,
+            bound.syntax().text_range(),
+            into,
+            granted,
+            weighs
+        );
+    }
+}
+
+/// Records one settled type at one position, with what the compiler
+/// grants it and what it says a value of it weighs.
+fn record(
+    reading: Reading<'_, '_>,
+    typed: &ra_ap_hir::Type<'_>,
+    at: ra_ap_syntax::TextRange,
+    into: &mut Vec<ResolvedType>,
+    granted: &mut Vec<ResolvedProperty>,
+    weighs: &mut Vec<ResolvedLayout>
+) {
+    let Some(rendered) = reading.render(typed) else {
+        return;
+    };
+    granted.push(ResolvedProperty {
+        copy:  typed.is_copy(reading.database),
+        named: rendered.clone()
+    });
+    if let Ok(held) = typed.layout(reading.database) {
+        weighs.push(ResolvedLayout {
+            named: rendered.clone(),
+            size:  held.size(),
+            align: held.align()
         });
     }
+    into.push(ResolvedType {
+        at: reading.located(at),
+        rendered
+    });
 }

@@ -24,7 +24,8 @@ pub(super) struct TypeTables {
     pub(super) returns:     Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) fields:      Scoped<String>,
-    /// `Type.field` keys of collection fields to element types.
+    /// `Type.field` keys of collection fields to element types, read off
+    /// the written type where no resolver typed the binding.
     pub(super) field_elems: Scoped<String>,
     /// `Type.field` keys of single-generic wrapper fields to the
     /// wrapped inner type.

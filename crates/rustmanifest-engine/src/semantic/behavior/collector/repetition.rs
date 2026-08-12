@@ -10,8 +10,8 @@ use super::{FactCollector, multiplicity::body_multiplicity};
 use crate::semantic::behavior::{output::Guard, value::Condition};
 
 impl FactCollector {
-    /// Binds the loop pattern against the iterated element type, then
-    /// visits the iterable and the body.
+    /// Types what the loop pattern binds, then visits the iterable and
+    /// the body.
     pub(super) fn collect_for_loop(&mut self, loop_expr: &syn::ExprForLoop) {
         use syn::spanned::Spanned;
 

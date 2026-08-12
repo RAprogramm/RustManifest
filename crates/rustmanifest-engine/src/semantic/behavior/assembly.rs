@@ -181,6 +181,9 @@ pub(in crate::semantic) fn outermost(written: &str) -> Option<String> {
     if let Some(named) = unnamed_shape(borrowless) {
         return Some(named.to_owned());
     }
+    if let Some(named) = trait_object(borrowless) {
+        return Some(named);
+    }
     let head = borrowless.split('<').next()?.trim();
     let without_borrow = head
         .trim_start_matches('&')
@@ -193,6 +196,23 @@ pub(in crate::semantic) fn outermost(written: &str) -> Option<String> {
             .chars()
             .all(|letter| letter.is_alphanumeric() || letter == '_'))
     .then(|| named.to_owned())
+}
+
+/// The trait a value stands for where it is held as a trait object.
+///
+/// A resolver renders such a value in full — `&Box<dyn Analyzer>` — and
+/// the head of that spelling is the pointer holding it, which declares
+/// nothing a call could reach. What the call dispatches over is the trait,
+/// and the language marks it with a keyword of its own, so naming it takes
+/// no list of the pointer types somebody thought of.
+fn trait_object(written: &str) -> Option<String> {
+    let named: String = written
+        .rsplit_once("dyn ")?
+        .1
+        .chars()
+        .take_while(|letter| letter.is_alphanumeric() || *letter == '_')
+        .collect();
+    (!named.is_empty()).then_some(named)
 }
 
 /// The name the tables speak for a shape the language spells with

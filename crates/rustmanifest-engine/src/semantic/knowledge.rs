@@ -41,16 +41,6 @@ pub(super) struct CrateKnowledge {
     /// structures write, so a value read off one is typed like any
     /// other.
     pub fields:         &'static [(&'static str, &'static str, &'static str)],
-    /// `(type, field, element)` rows for the fields that hold a
-    /// sequence, naming what one step of it carries — the loop written
-    /// over such a field binds that.
-    pub field_elements: &'static [(&'static str, &'static str, &'static str)],
-    /// `(type, method, element)` rows for the methods that hand back a
-    /// sequence, naming what one step of it carries. A wrapper the
-    /// sequence puts around each step is already unwrapped, the way the
-    /// return rows unwrap theirs, because the written loop consumes it
-    /// on the spot.
-    pub iterated:       &'static [(&'static str, &'static str, &'static str)],
     /// `(type, method, effect)` rows for the calls that actually
     /// perform the effect.
     pub method_effects: &'static [(&'static str, &'static str, Effect)],
@@ -93,24 +83,6 @@ pub(super) fn field_type(owner: &str, field: &str) -> Option<&'static str> {
         .flat_map(|pack| pack.fields)
         .find(|(known_owner, known_field, _)| *known_owner == owner && *known_field == field)
         .map(|(_, _, held)| *held)
-}
-
-/// Looks up what one step of a pack-known sequence field carries.
-pub(super) fn field_element(owner: &str, field: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.field_elements)
-        .find(|(known_owner, known_field, _)| *known_owner == owner && *known_field == field)
-        .map(|(_, _, element)| *element)
-}
-
-/// Looks up what one step of a pack-known sequence carries.
-pub(super) fn iterated_element(owner: &str, method: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.iterated)
-        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
-        .map(|(_, _, element)| *element)
 }
 
 /// Looks up the effect performed by a pack-known method call.
@@ -225,7 +197,6 @@ mod tests {
     fn constructors_resolve_to_their_produced_types() {
         assert_eq!(constructor_type("tempdir"), Some("TempDir"));
         assert_eq!(super::field_type("ItemFn", "sig"), Some("Signature"));
-        assert_eq!(super::field_element("ItemFn", "attrs"), Some("Attribute"));
         assert_eq!(constructor_type("unknown_fn"), None);
     }
 
