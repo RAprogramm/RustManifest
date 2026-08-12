@@ -60,12 +60,9 @@ impl FactCollector {
             {
                 Provenance::Leaves
             }
-            syn::Expr::Macro(invocation) => {
-                crate::semantic::std_knowledge::macro_value(&invocation.mac.path).map_or_else(
-                    || self.recorded_origin(expression),
-                    |built| Provenance::Constructed(built.to_owned())
-                )
-            }
+            syn::Expr::Macro(_) => self
+                .settled_expr_type(expression)
+                .map_or_else(|| self.recorded_origin(expression), Provenance::Constructed),
             syn::Expr::Struct(literal) => literal.path.segments.last().map_or_else(
                 || Provenance::NotDerived(OriginGap::Unreadable),
                 |segment| Provenance::Constructed(segment.ident.to_string())

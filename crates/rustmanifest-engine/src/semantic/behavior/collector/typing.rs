@@ -30,7 +30,7 @@ impl FactCollector {
     /// only answer here that was derived rather than inferred from
     /// spelling. What follows it is a reading of the written text, kept
     /// for sources no resolver ran over and for positions it left out.
-    fn settled_expr_type(&self, expression: &syn::Expr) -> Option<String> {
+    pub(super) fn settled_expr_type(&self, expression: &syn::Expr) -> Option<String> {
         use syn::spanned::Spanned;
 
         let span = expression.span().byte_range();
