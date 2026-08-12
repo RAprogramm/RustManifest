@@ -36,7 +36,6 @@ use self::{
     effect_ban::effect_violation, field_write::field_violation, layer_boundary::call_violation
 };
 use super::{
-    behavior::behavior,
     calls::{call_graph_with, transitive_effects},
     module_graph::ModuleGraph,
     module_overview,
@@ -67,18 +66,33 @@ pub fn check_invariants_with(
     invariants: &[Invariant],
     scip: Option<&ScipEdges>
 ) -> Vec<Finding> {
+    check_invariants_settled(sources, invariants, scip, None)
+}
+
+/// Checks every invariant over `sources`, reading which module each file
+/// belongs to from the tree a resolver settled.
+///
+/// A module-scoped ban is a statement about modules, so without a settled
+/// tree there are no modules to scope it to and the check answers nothing.
+#[must_use]
+pub fn check_invariants_settled(
+    sources: &[Source],
+    invariants: &[Invariant],
+    scip: Option<&ScipEdges>,
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<Finding> {
     if invariants.is_empty() {
         return Vec::new();
     }
-    let facts = behavior(sources);
+    let facts = crate::semantic::behavior::behavior_with(sources, settled);
     let overlay = scip.map(|edges| edges.candidates(&facts, sources));
     let graph = call_graph_with(
         &facts,
-        &super::calls::resolution_context(sources),
+        &super::calls::resolution_context_with(sources, settled),
         overlay.as_deref()
     );
     let transitive = transitive_effects(&facts, &graph);
-    check_invariants_over(sources, &facts, &graph, &transitive, invariants)
+    check_invariants_over(sources, &facts, &graph, &transitive, invariants, settled)
 }
 
 /// Checks every invariant over facts and graphs already derived, so a
@@ -92,12 +106,13 @@ pub fn check_invariants_over(
     facts: &[super::behavior::FunctionFacts],
     graph: &super::calls::CallGraph,
     transitive: &[Vec<super::behavior::Effect>],
-    invariants: &[Invariant]
+    invariants: &[Invariant],
+    settled: Option<&rustmanifest_schema::Resolution>
 ) -> Vec<Finding> {
     if invariants.is_empty() {
         return Vec::new();
     }
-    let overview = module_overview::of(&ModuleGraph::from_sources(sources), sources);
+    let overview = module_overview::of(&ModuleGraph::of(sources, settled), sources);
     let module_of = |source: usize| -> String {
         sources
             .get(source)
@@ -168,13 +183,19 @@ pub fn check_invariants_over(
 mod tests {
     use std::path::PathBuf;
 
-    use rustmanifest_schema::{Invariant, Severity};
+    use rustmanifest_schema::{Finding, Invariant, Severity};
 
-    use super::check_invariants;
-    use crate::source::Source;
+    use super::check_invariants_settled;
+    use crate::{semantic::module_graph::declared_tree, source::Source};
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
+    }
+
+    /// The check with the module tree the fixture's layout implies.
+    fn checked(sources: &[Source], invariants: &[Invariant]) -> Vec<Finding> {
+        let settled = declared_tree(sources);
+        check_invariants_settled(sources, invariants, None, Some(&settled))
     }
 
     fn wallet_sources() -> Vec<Source> {
@@ -213,10 +234,11 @@ mod tests {
     #[test]
     fn a_precomputed_snapshot_judges_the_same_violation() {
         let sources = wallet_sources();
-        let facts = crate::semantic::behavior::behavior(&sources);
+        let settled = declared_tree(&sources);
+        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&settled));
         let graph = crate::semantic::calls::call_graph(
             &facts,
-            &crate::semantic::calls::resolution_context(&sources)
+            &crate::semantic::calls::resolution_context_with(&sources, Some(&settled))
         );
         let transitive = crate::semantic::calls::transitive_effects(&facts, &graph);
         let held = super::check_invariants_over(
@@ -224,15 +246,16 @@ mod tests {
             &facts,
             &graph,
             &transitive,
-            &[balance_invariant()]
+            &[balance_invariant()],
+            Some(&settled)
         );
-        assert_eq!(held, check_invariants(&sources, &[balance_invariant()]));
+        assert_eq!(held, checked(&sources, &[balance_invariant()]));
         assert_eq!(held.len(), 1, "{held:?}");
     }
 
     #[test]
     fn writer_outside_the_allowlist_is_reported_with_a_trace() {
-        let findings = check_invariants(&wallet_sources(), &[balance_invariant()]);
+        let findings = checked(&wallet_sources(), &[balance_invariant()]);
         assert_eq!(findings.len(), 1);
         let finding = &findings[0];
         assert_eq!(finding.rule_id, "WALLET-BALANCE");
@@ -256,7 +279,7 @@ mod tests {
                 "use crate::Wallet;\npub fn post(wallet: &mut Wallet) { wallet.balance += 1; }"
             ),
         ];
-        assert!(check_invariants(&sources, &[balance_invariant()]).is_empty());
+        assert!(checked(&sources, &[balance_invariant()]).is_empty());
     }
 
     /// The unproven-kind database grade is bannable by its recorded
@@ -281,7 +304,7 @@ mod tests {
             call_deny_to:    None,
             severity:        None
         };
-        let findings = check_invariants(&sources, &[ban]);
+        let findings = checked(&sources, &[ban]);
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert!(findings[0].message.contains("purge"), "{findings:?}");
     }
@@ -307,7 +330,7 @@ mod tests {
             call_deny_to:    None,
             severity:        None
         };
-        let findings = check_invariants(&sources, &[ban]);
+        let findings = checked(&sources, &[ban]);
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert!(findings[0].message.contains("list"), "{findings:?}");
     }
@@ -335,7 +358,7 @@ mod tests {
                  self.inner.do_io(|stream| { stream.read(&mut []).ok(); }); } }"
             ),
         ];
-        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        let findings = checked(&sources, &[net_ban("crate::domain")]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("pump"));
     }
@@ -354,7 +377,7 @@ mod tests {
                 "use crate::jobs::produce;\npub async fn drive() { produce().await; }"
             ),
         ];
-        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        let findings = checked(&sources, &[net_ban("crate::domain")]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("drive"));
     }
@@ -374,7 +397,7 @@ mod tests {
                 "use crate::io::Conn;\npub fn go(conn: Conn) { conn.send_all(); }"
             ),
         ];
-        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        let findings = checked(&sources, &[net_ban("crate::domain")]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("go"));
     }
@@ -394,7 +417,7 @@ mod tests {
                 "use crate::sinks::Sink;\npub fn drain(sink: &dyn Sink) { sink.flush(); }"
             ),
         ];
-        let findings = check_invariants(&sources, &[net_ban("crate::domain")]);
+        let findings = checked(&sources, &[net_ban("crate::domain")]);
         assert_eq!(findings.len(), 1);
         assert!(
             findings[0]
@@ -424,7 +447,7 @@ mod tests {
             call_deny_to:    None,
             severity:        Some(Severity::Warning)
         };
-        let findings = check_invariants(&sources, &[invariant]);
+        let findings = checked(&sources, &[invariant]);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-INV-001");
         assert_eq!(findings[0].severity, Severity::Warning);
@@ -444,12 +467,12 @@ mod tests {
                  reason=\"migration\"\npub fn hack(wallet: &mut Wallet) { wallet.balance = 0; }"
             ),
         ];
-        assert!(check_invariants(&sources, &[balance_invariant()]).is_empty());
+        assert!(checked(&sources, &[balance_invariant()]).is_empty());
     }
 
     #[test]
     fn no_invariants_means_no_work() {
-        assert!(check_invariants(&wallet_sources(), &[]).is_empty());
+        assert!(checked(&wallet_sources(), &[]).is_empty());
     }
 
     #[test]
@@ -475,7 +498,7 @@ mod tests {
             call_deny_to:    None,
             severity:        None
         };
-        let findings = check_invariants(&sources, &[invariant]);
+        let findings = checked(&sources, &[invariant]);
         assert_eq!(findings.len(), 1);
         let finding = &findings[0];
         assert!(
@@ -521,7 +544,7 @@ mod tests {
             call_deny_to:    None,
             severity:        None
         };
-        assert!(check_invariants(&sources, &[invariant]).is_empty());
+        assert!(checked(&sources, &[invariant]).is_empty());
     }
 
     #[test]
@@ -545,7 +568,7 @@ mod tests {
             call_deny_to:    Some("crate::storage".to_owned()),
             severity:        None
         };
-        let findings = check_invariants(&sources, &[invariant]);
+        let findings = checked(&sources, &[invariant]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("transitively reaches"));
         assert!(
@@ -573,6 +596,6 @@ mod tests {
             call_deny_to:    Some("crate::storage".to_owned()),
             severity:        None
         };
-        assert!(check_invariants(&sources, &[invariant]).is_empty());
+        assert!(checked(&sources, &[invariant]).is_empty());
     }
 }

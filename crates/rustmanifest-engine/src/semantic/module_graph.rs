@@ -21,16 +21,14 @@
 //! root claims it can appear under both crates; counters that deduplicate
 //! by source are unaffected.
 
-mod layout;
 mod resolve;
 mod tree;
 
-use std::path::{Path, PathBuf};
+use std::{collections::HashMap, path::Path};
 
 use rustmanifest_schema::Range;
 
 pub(super) use self::resolve::resolved_module;
-use self::{layout::is_crate_root, tree::GraphBuilder};
 use crate::source::Source;
 
 /// One expanded `use` target recorded in a module.
@@ -65,55 +63,191 @@ pub(super) struct ModuleGraph {
 }
 
 impl ModuleGraph {
-    /// Builds the graph by walking every layout crate root of `sources`,
-    /// then promoting each still-unclaimed source to a standalone root;
-    /// files that do not parse as Rust contribute no modules.
-    pub(super) fn from_sources(sources: &[Source]) -> Self {
-        let roots: Vec<usize> = (0..sources.len())
-            .filter(|&index| is_crate_root(sources[index].path()))
-            .collect();
-        let mut builder = GraphBuilder {
-            sources,
-            by_path: sources
-                .iter()
-                .enumerate()
-                .map(|(index, source)| (source.path(), index))
-                .collect(),
-            modules: Vec::new(),
-            layout: true
+    /// Builds the graph from the module tree a resolver settled, taking
+    /// the uses each file writes from the file itself.
+    ///
+    /// Which file holds which module is the compiler's answer: a module
+    /// mounted by a `path` attribute, one behind a configuration flag, and
+    /// one whose file does not match its name are each placed where the
+    /// compiler places them. The reading that stood here rebuilt the
+    /// mounting out of file names and got all three wrong.
+    ///
+    /// Without a settled tree the graph is empty. A guessed mounting reads
+    /// exactly like a derived one and is not one.
+    pub(super) fn of(
+        sources: &[Source],
+        settled: Option<&rustmanifest_schema::Resolution>
+    ) -> Self {
+        let Some(resolution) = settled else {
+            return Self::default();
         };
-        let mut krate = 0;
-        for &root in &roots {
-            if builder.claimed(root) {
+        let by_path: HashMap<&Path, usize> = sources
+            .iter()
+            .enumerate()
+            .map(|(index, source)| (source.path(), index))
+            .collect();
+        let mut crates: Vec<&str> = Vec::new();
+        let mut modules = Vec::new();
+        for held in &resolution.modules {
+            let Some(&source) = by_path.get(held.file.as_path()) else {
                 continue;
-            }
-            let dir = sources[root]
-                .path()
-                .parent()
-                .map_or_else(PathBuf::new, Path::to_path_buf);
-            builder.extract_file(krate, "crate".to_owned(), root, dir);
-            krate += 1;
+            };
+            let (krate, below) = crate_and_path(&held.names);
+            let index = crates
+                .iter()
+                .position(|named| *named == krate)
+                .unwrap_or_else(|| {
+                    crates.push(krate);
+                    crates.len() - 1
+                });
+            modules.push(ModuleNode {
+                krate: index,
+                path: below,
+                source,
+                layout: true,
+                uses: Vec::new()
+            });
         }
-        builder.layout = false;
-        for (index, source) in sources.iter().enumerate() {
-            if builder.claimed(index) {
-                continue;
-            }
-            let dir = source
-                .path()
-                .parent()
-                .map_or_else(PathBuf::new, Path::to_path_buf);
-            builder.extract_file(krate, "crate".to_owned(), index, dir);
-            krate += 1;
-        }
+        attach_uses(sources, &mut modules);
         Self {
-            modules: builder.modules
+            modules
         }
     }
 
     /// Modules in deterministic root-then-declaration order.
     pub(super) fn modules(&self) -> &[ModuleNode] {
         &self.modules
+    }
+}
+
+/// The crate a settled module path names, and the path inside it with the
+/// crate name replaced by the keyword every reader here expects.
+fn crate_and_path(names: &str) -> (&str, String) {
+    names.split_once("::").map_or_else(
+        || (names, "crate".to_owned()),
+        |(krate, below)| (krate, format!("crate::{below}"))
+    )
+}
+
+/// Records the use targets each module writes, in the module they are
+/// written in.
+fn attach_uses(sources: &[Source], modules: &mut [ModuleNode]) {
+    let mut by_place: std::collections::BTreeMap<(usize, String), usize> =
+        std::collections::BTreeMap::new();
+    for (index, module) in modules.iter().enumerate() {
+        by_place
+            .entry((module.source, module.path.clone()))
+            .or_insert(index);
+    }
+    let mut outermost: std::collections::BTreeMap<usize, String> =
+        std::collections::BTreeMap::new();
+    for module in modules.iter() {
+        let held = outermost
+            .entry(module.source)
+            .or_insert_with(|| module.path.clone());
+        if held.len() > module.path.len() {
+            held.clone_from(&module.path);
+        }
+    }
+    for (source, top) in outermost {
+        let Some(text) = sources.get(source).map(Source::text) else {
+            continue;
+        };
+        let Ok(file) = syn::parse_file(text) else {
+            continue;
+        };
+        let mut written = Vec::new();
+        tree::use_targets(&file.items, &top, &mut written);
+        for (inside, target) in written {
+            if let Some(&index) = by_place.get(&(source, inside)) {
+                modules[index].uses.push(target);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[expect(
+    unreachable_pub,
+    reason = "the fixture builder is reached from test modules outside this one"
+)]
+pub fn declared_tree(sources: &[Source]) -> rustmanifest_schema::Resolution {
+    use std::path::PathBuf;
+
+    use rustmanifest_schema::{Resolution, ResolvedModule};
+
+    let anchored = sources.iter().any(|source| {
+        source
+            .path()
+            .file_stem()
+            .and_then(|held| held.to_str())
+            .is_some_and(|stem| matches!(stem, "lib" | "main"))
+    });
+    let mut modules = Vec::new();
+    for source in sources {
+        let path = source.path();
+        let Some(stem) = path.file_stem().and_then(|held| held.to_str()) else {
+            continue;
+        };
+        let root = !anchored || matches!(stem, "lib" | "main");
+        let mut segments: Vec<String> = path
+            .components()
+            .skip_while(|part| part.as_os_str() != "src")
+            .skip(1)
+            .filter_map(|part| part.as_os_str().to_str().map(ToOwned::to_owned))
+            .collect();
+        segments.pop();
+        let named = if root {
+            "fixture".to_owned()
+        } else if segments.is_empty() {
+            format!("fixture::{stem}")
+        } else {
+            format!("fixture::{}::{stem}", segments.join("::"))
+        };
+        modules.push(ResolvedModule {
+            names:      named.clone(),
+            file:       PathBuf::from(path),
+            crate_root: root,
+            parent:     named.rsplit_once("::").map(|(above, _)| above.to_owned())
+        });
+        let Ok(parsed) = syn::parse_file(source.text()) else {
+            continue;
+        };
+        inline_modules(&parsed.items, &named, path, &mut modules);
+    }
+    let mut resolution = Resolution {
+        resolver: "fixture".to_owned(),
+        modules,
+        ..Resolution::default()
+    };
+    resolution.settle();
+    resolution
+}
+
+/// Records every inline module of `items` under `above`, in the file that
+/// holds them.
+#[cfg(test)]
+fn inline_modules(
+    items: &[syn::Item],
+    above: &str,
+    file: &Path,
+    into: &mut Vec<rustmanifest_schema::ResolvedModule>
+) {
+    for item in items {
+        let syn::Item::Mod(held) = item else {
+            continue;
+        };
+        let Some((_, inner)) = &held.content else {
+            continue;
+        };
+        let named = format!("{above}::{}", held.ident);
+        into.push(rustmanifest_schema::ResolvedModule {
+            names:      named.clone(),
+            file:       std::path::PathBuf::from(file),
+            crate_root: false,
+            parent:     Some(above.to_owned())
+        });
+        inline_modules(inner, &named, file, into);
     }
 }
 
@@ -127,7 +261,7 @@ impl ModuleGraph {
 mod tests {
     use std::path::PathBuf;
 
-    use super::ModuleGraph;
+    use super::{ModuleGraph, declared_tree};
     use crate::source::Source;
 
     fn source(path: &str, text: &str) -> Source {
@@ -143,138 +277,79 @@ mod tests {
     }
 
     #[test]
-    fn mod_declaration_resolves_flat_file() {
+    fn the_tree_is_taken_from_what_the_resolver_settled() {
         let sources = [
             source("src/lib.rs", "mod util;"),
             source("src/util.rs", "use crate::Item;")
         ];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(paths(&graph), vec!["crate", "crate::util"]);
-        assert_eq!(graph.modules()[1].source, 1);
-        assert_eq!(graph.modules()[1].uses.len(), 1);
-        assert_eq!(graph.modules()[1].uses[0].target, "crate::Item");
+        let settled = declared_tree(&sources);
+        let graph = ModuleGraph::of(&sources, Some(&settled));
+        assert_eq!(paths(&graph), ["crate", "crate::util"]);
     }
 
+    /// A module whose file does not match its name is placed where the
+    /// compiler places it; the reading this replaced could not follow it.
     #[test]
-    fn mod_declaration_resolves_directory_module() {
+    fn a_module_mounted_away_from_its_name_is_still_placed() {
+        use rustmanifest_schema::{Resolution, ResolvedModule};
+
         let sources = [
-            source("src/lib.rs", "mod nested;"),
-            source("src/nested/mod.rs", "mod deep;"),
-            source("src/nested/deep.rs", "")
+            source("src/lib.rs", "#[path = \"elsewhere.rs\"]\nmod util;"),
+            source("src/elsewhere.rs", "use crate::Item;")
         ];
-        let graph = ModuleGraph::from_sources(&sources);
+        let mut settled = Resolution {
+            resolver: "test".to_owned(),
+            modules: vec![
+                ResolvedModule {
+                    names:      "demo".to_owned(),
+                    file:       PathBuf::from("src/lib.rs"),
+                    crate_root: true,
+                    parent:     None
+                },
+                ResolvedModule {
+                    names:      "demo::util".to_owned(),
+                    file:       PathBuf::from("src/elsewhere.rs"),
+                    crate_root: false,
+                    parent:     Some("demo".to_owned())
+                },
+            ],
+            ..Resolution::default()
+        };
+        settled.settle();
+        let graph = ModuleGraph::of(&sources, Some(&settled));
+        assert_eq!(paths(&graph), ["crate", "crate::util"]);
+        let mounted = graph
+            .modules()
+            .iter()
+            .find(|module| module.path == "crate::util")
+            .unwrap();
         assert_eq!(
-            paths(&graph),
-            vec!["crate", "crate::nested", "crate::nested::deep"]
+            sources[mounted.source].path(),
+            PathBuf::from("src/elsewhere.rs")
         );
     }
 
     #[test]
-    fn inline_modules_recurse() {
+    fn the_uses_of_a_file_land_on_the_module_that_file_is() {
         let sources = [source(
             "src/lib.rs",
-            "mod outer { mod inner { use std::fmt; } }"
+            "use std::io::{Read, Write};\nuse crate::Item;"
         )];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(
-            paths(&graph),
-            vec!["crate", "crate::outer", "crate::outer::inner"]
-        );
-        assert_eq!(graph.modules()[2].uses[0].target, "std::fmt");
+        let settled = declared_tree(&sources);
+        let graph = ModuleGraph::of(&sources, Some(&settled));
+        let targets: Vec<&str> = graph.modules()[0]
+            .uses
+            .iter()
+            .map(|held| held.target.as_str())
+            .collect();
+        assert_eq!(targets, ["std::io::Read", "std::io::Write", "crate::Item"]);
     }
 
+    /// Without a settled tree there is no graph: a guessed mounting reads
+    /// exactly like a derived one and is not one.
     #[test]
-    fn unreachable_file_becomes_a_standalone_root() {
-        let sources = [
-            source("src/lib.rs", "mod util;"),
-            source("src/util.rs", ""),
-            source("src/orphan.rs", "use crate::util::Item;")
-        ];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(paths(&graph), vec!["crate", "crate::util", "crate"]);
-        assert!(graph.modules()[0].layout);
-        assert!(graph.modules()[1].layout);
-        assert!(!graph.modules()[2].layout);
-        assert_eq!(graph.modules()[2].krate, 1);
-    }
-
-    #[test]
-    fn cargo_target_layout_files_are_crate_roots() {
-        let sources = [
-            source("src/lib.rs", ""),
-            source("src/bin/tool.rs", ""),
-            source("src/bin/other/main.rs", ""),
-            source("build.rs", ""),
-            source("tests/integration.rs", "mod common;"),
-            source("tests/common.rs", ""),
-            source("tests/suite/main.rs", ""),
-            source("benches/throughput.rs", ""),
-            source("examples/demo.rs", "")
-        ];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert!(graph.modules().iter().all(|module| module.layout));
-        assert_eq!(
-            paths(&graph),
-            vec![
-                "crate",
-                "crate",
-                "crate",
-                "crate",
-                "crate",
-                "crate::common",
-                "crate",
-                "crate",
-                "crate"
-            ]
-        );
-    }
-
-    #[test]
-    fn every_file_is_a_root_when_no_crate_root_exists() {
-        let sources = [
-            source("rules/fixture.rs", "mod a { use std::fmt; }"),
-            source("rules/other.rs", "")
-        ];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(paths(&graph), vec!["crate", "crate::a", "crate"]);
-        assert_eq!(graph.modules()[0].krate, 0);
-        assert_eq!(graph.modules()[2].krate, 1);
-    }
-
-    #[test]
-    fn main_rs_is_a_crate_root() {
-        let sources = [source("src/main.rs", "mod cli;"), source("src/cli.rs", "")];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(paths(&graph), vec!["crate", "crate::cli"]);
-    }
-
-    #[test]
-    fn unparsable_file_contributes_no_modules() {
-        let sources = [
-            source("src/lib.rs", "mod broken;"),
-            source("src/broken.rs", "fn broken(")
-        ];
-        let graph = ModuleGraph::from_sources(&sources);
-        assert_eq!(paths(&graph), vec!["crate"]);
-    }
-
-    #[test]
-    fn use_ranges_span_the_declaring_item() {
-        let sources = [source("src/lib.rs", "use std::fmt;")];
-        let graph = ModuleGraph::from_sources(&sources);
-        let target = &graph.modules()[0].uses[0];
-        assert_eq!(target.range.start, 0);
-        assert_eq!(target.range.end, 13);
-    }
-
-    #[test]
-    fn graph_construction_is_deterministic() {
-        let sources = [
-            source("src/lib.rs", "mod a; mod b { use crate::a::Item; }"),
-            source("src/a.rs", "use std::fmt;")
-        ];
-        let first = ModuleGraph::from_sources(&sources);
-        let second = ModuleGraph::from_sources(&sources);
-        assert_eq!(first.modules(), second.modules());
+    fn no_settled_tree_answers_nothing() {
+        let sources = [source("src/lib.rs", "mod util;")];
+        assert!(ModuleGraph::of(&sources, None).modules().is_empty());
     }
 }

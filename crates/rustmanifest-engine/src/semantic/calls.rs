@@ -29,7 +29,10 @@ mod target;
 
 pub use self::{
     build::{call_graph, call_graph_rows, call_graph_rows_with, call_graph_with},
-    context::{ResolutionContext, resolution_context, resolution_segments},
+    context::{
+        ResolutionContext, resolution_context, resolution_context_with, resolution_segments,
+        resolution_segments_with
+    },
     effects::transitive_effects,
     graph::CallGraph,
     rows::RefusalRow
@@ -98,6 +101,25 @@ mod tests {
                     && *row == super::RefusalRow::Foreign),
             "{rows:?}"
         );
+    }
+
+    /// The tree a resolver would state for exactly these mount points.
+    fn mounted(rows: &[(&str, &str)]) -> rustmanifest_schema::Resolution {
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            modules: rows
+                .iter()
+                .map(|(names, file)| rustmanifest_schema::ResolvedModule {
+                    names:      (*names).to_owned(),
+                    file:       PathBuf::from(*file),
+                    crate_root: !names.contains("::"),
+                    parent:     names.rsplit_once("::").map(|(above, _)| above.to_owned())
+                })
+                .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        settled
     }
 
     fn facts(text: &str) -> Vec<crate::semantic::behavior::FunctionFacts> {
@@ -597,7 +619,11 @@ mod tests {
             fixture.clone()
         ];
         let all = behavior(&sources);
-        let (graph, rows) = super::call_graph_rows(&all, &super::resolution_context(&sources));
+        let settled = mounted(&[("one", "crates/one/src/lib.rs")]);
+        let (graph, rows) = super::call_graph_rows(
+            &all,
+            &super::resolution_context_with(&sources, Some(&settled))
+        );
         assert!(graph.callees(index_of(&all, "go")).is_empty());
         assert_eq!(
             graph.unreachable_named(),

@@ -106,13 +106,15 @@ impl<'source> Workspace<'source> {
 
     /// Returns the module graph, deriving it on the first call.
     pub(in crate::semantic) fn modules(&self) -> &ModuleGraph {
-        self.declared.modules(self.settled.sources())
+        self.declared
+            .modules(self.settled.sources(), self.settled.resolution())
     }
 
     /// Returns the call graph over the workspace facts, deriving it — and
     /// the name resolution it needs — on the first call.
     pub(crate) fn calls(&self) -> &CallGraph {
-        self.performed.calls(self.settled.sources())
+        self.performed
+            .calls(self.settled.sources(), self.settled.resolution())
     }
 }
 

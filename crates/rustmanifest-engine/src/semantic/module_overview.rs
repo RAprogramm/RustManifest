@@ -122,7 +122,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::module_overview;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{module_graph::declared_tree, workspace::Workspace},
+        source::Source
+    };
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -135,7 +138,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item;"),
             source("src/b.rs", "")
         ];
-        let overview = module_overview(&Workspace::new(&sources));
+        let overview = module_overview(&Workspace::resolved(&sources, &declared_tree(&sources)));
         let paths: Vec<&str> = overview
             .modules()
             .iter()
@@ -156,7 +159,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
         )];
-        let overview = module_overview(&Workspace::new(&sources));
+        let overview = module_overview(&Workspace::resolved(&sources, &declared_tree(&sources)));
         let flagged: Vec<(&str, bool)> = overview
             .modules()
             .iter()
@@ -174,7 +177,7 @@ mod tests {
             "src/lib.rs",
             "use crate::child::Item; mod child { use crate::Error; }"
         )];
-        let overview = module_overview(&Workspace::new(&sources));
+        let overview = module_overview(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert!(overview.modules().iter().all(|module| !module.in_cycle));
         assert_eq!(overview.edges().len(), 2);
     }
@@ -186,8 +189,8 @@ mod tests {
             source("src/a.rs", "use crate::b::Item;"),
             source("src/b.rs", "use crate::a::Other;")
         ];
-        let first = module_overview(&Workspace::new(&sources));
-        let second = module_overview(&Workspace::new(&sources));
+        let first = module_overview(&Workspace::resolved(&sources, &declared_tree(&sources)));
+        let second = module_overview(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(first.modules(), second.modules());
         assert_eq!(first.edges(), second.edges());
     }

@@ -72,9 +72,10 @@ pub(super) fn use_targets(
 #[must_use]
 pub fn unresolved_targets(
     sources: &[Source],
-    external_crates: &BTreeSet<String>
+    external_crates: &BTreeSet<String>,
+    settled: Option<&rustmanifest_schema::Resolution>
 ) -> BTreeMap<String, u64> {
-    let graph = ModuleGraph::from_sources(sources);
+    let graph = ModuleGraph::of(sources, settled);
     let modules = graph.modules();
     let mut targets = BTreeMap::new();
     for (from, module) in modules.iter().enumerate() {

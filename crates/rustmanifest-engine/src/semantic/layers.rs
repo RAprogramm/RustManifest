@@ -135,7 +135,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::layers;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{module_graph::declared_tree, workspace::Workspace},
+        source::Source
+    };
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -159,7 +162,7 @@ mod tests {
             ),
             source("src/storage.rs", "pub fn save() {}")
         ];
-        let all = layers(&Workspace::new(&sources));
+        let all = layers(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(depth_of(&all, "crate::storage"), Some(0));
         assert_eq!(depth_of(&all, "crate::domain"), Some(1));
         assert_eq!(depth_of(&all, "crate::api"), Some(2));
@@ -172,7 +175,7 @@ mod tests {
             source("src/a.rs", "pub fn ping() { crate::b::pong(); }"),
             source("src/b.rs", "pub fn pong() { crate::a::ping(); }")
         ];
-        let all = layers(&Workspace::new(&sources));
+        let all = layers(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(depth_of(&all, "crate::a"), None);
         assert_eq!(depth_of(&all, "crate::b"), None);
     }
@@ -185,8 +188,8 @@ mod tests {
             source("src/storage.rs", "pub fn save() {}")
         ];
         assert_eq!(
-            layers(&Workspace::new(&sources)),
-            layers(&Workspace::new(&sources))
+            layers(&Workspace::resolved(&sources, &declared_tree(&sources))),
+            layers(&Workspace::resolved(&sources, &declared_tree(&sources)))
         );
     }
 }

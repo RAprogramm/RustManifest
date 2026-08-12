@@ -68,7 +68,7 @@ fn measure(
     let seen = sighting::sightings(sources);
     let graph = workspace.modules();
     let modules = graph.modules();
-    let files = reach::reach(modules);
+    let files = reach::reach(modules, sources.len());
     let uses = use_target::use_targets(modules, external_crates);
     let facts = workspace.facts();
     let overlay = scip.map(|edges| edges.candidates(facts, sources));
@@ -122,7 +122,10 @@ mod tests {
     use std::{collections::BTreeSet, path::PathBuf};
 
     use super::{super::unresolved_targets, coverage, coverage_with};
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{module_graph::declared_tree, workspace::Workspace},
+        source::Source
+    };
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -138,12 +141,14 @@ mod tests {
             source("src/lib.rs", "pub struct Ok;"),
             source("src/broken.rs", "fn broken(")
         ];
-        let report = coverage(&Workspace::new(&sources));
+        let report = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(report.files_total, 2);
         assert_eq!(report.files_parsed, 1);
         assert!(close(report.parse_rate(), 50.0));
     }
 
+    /// A file no `mod` mounts is absent from the compiler's tree, so it
+    /// holds no module and lowers the share of files the build reaches.
     #[test]
     fn unreachable_file_lowers_reachability() {
         let sources = [
@@ -151,27 +156,52 @@ mod tests {
             source("src/util.rs", ""),
             source("src/orphan.rs", "")
         ];
-        let report = coverage(&Workspace::new(&sources));
+        let settled = mounted(&[("fixture", "src/lib.rs"), ("fixture::util", "src/util.rs")]);
+        let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.files_total, 3);
-        assert_eq!(report.modules_total, 3);
+        assert_eq!(report.modules_total, 2);
         assert_eq!(report.files_reachable, 2);
         assert_eq!(report.files_standalone, 1);
         assert!(close(report.reachability_rate(), 200.0 / 3.0));
     }
 
+    /// The tree a resolver would state for exactly these mount points.
+    fn mounted(rows: &[(&str, &str)]) -> rustmanifest_schema::Resolution {
+        use std::path::PathBuf;
+
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            modules: rows
+                .iter()
+                .map(|(names, file)| rustmanifest_schema::ResolvedModule {
+                    names:      (*names).to_owned(),
+                    file:       PathBuf::from(*file),
+                    crate_root: !names.contains("::"),
+                    parent:     names.rsplit_once("::").map(|(above, _)| above.to_owned())
+                })
+                .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        settled
+    }
+
     #[test]
     fn inline_modules_count_as_modules_of_one_file() {
         let sources = [source("src/lib.rs", "mod a {} mod b {}")];
-        let report = coverage(&Workspace::new(&sources));
+        let report = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(report.modules_total, 3);
         assert_eq!(report.files_reachable, 1);
     }
 
+    /// A file no build compiles holds no module at all: the compiler's
+    /// tree never mentions it, and the report says so rather than
+    /// promoting it to a crate of its own.
     #[test]
-    fn lone_files_become_standalone_roots() {
+    fn a_file_no_build_compiles_holds_no_module() {
         let sources = [source("rules/one.rs", ""), source("rules/two.rs", "")];
-        let report = coverage(&Workspace::new(&sources));
-        assert_eq!(report.modules_total, 2);
+        let report = coverage(&Workspace::resolved(&sources, &mounted(&[])));
+        assert_eq!(report.modules_total, 0);
         assert_eq!(report.files_reachable, 0);
         assert_eq!(report.files_standalone, 2);
     }
@@ -183,7 +213,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item; use std::fmt;"),
             source("src/b.rs", "")
         ];
-        let report = coverage(&Workspace::new(&sources));
+        let report = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(report.use_targets_total, 2);
         assert_eq!(report.use_targets_resolved, 1);
         assert_eq!(report.use_targets_external, 1);
@@ -202,10 +232,11 @@ mod tests {
             ),
             source("src/handlers/account.rs", "")
         ];
-        let report = coverage(&Workspace::new(&sources));
+        let report = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(report.use_targets_resolved, 2);
         assert_eq!(report.use_targets_unresolved, 1);
-        let targets = unresolved_targets(&sources, &BTreeSet::new());
+        let settled = declared_tree(&sources);
+        let targets = unresolved_targets(&sources, &BTreeSet::new(), Some(&settled));
         assert_eq!(targets.len(), 1);
         assert_eq!(targets["serde::Serialize"], 1);
     }
@@ -216,11 +247,14 @@ mod tests {
             "src/lib.rs",
             "use serde::Serialize; use unknown_crate::Thing;"
         )];
-        let bare = coverage(&Workspace::new(&sources));
+        let bare = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(bare.use_targets_external, 0);
         assert_eq!(bare.use_targets_unresolved, 2);
         let declared = BTreeSet::from(["serde".to_owned()]);
-        let informed = coverage_with(&Workspace::new(&sources), &declared);
+        let informed = coverage_with(
+            &Workspace::resolved(&sources, &declared_tree(&sources)),
+            &declared
+        );
         assert_eq!(informed.use_targets_external, 1);
         assert_eq!(informed.use_targets_unresolved, 1);
         assert!(close(informed.accounted_rate(), 50.0));
@@ -235,7 +269,7 @@ mod tests {
                 "pub struct User { pub identity: Identity, pub age: u8 }"
             )
         ];
-        let report = coverage(&Workspace::new(&sources));
+        let report = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(report.structs_captured, 2);
         assert_eq!(report.fields_captured, 3);
         assert_eq!(report.aggregation_edges_resolved, 1);
@@ -248,7 +282,7 @@ mod tests {
             "#[derive(Debug, Clone)]\npub struct A;\nmacro_rules! noise { () => {} }\nmod inner \
              { #[derive(Default)] pub struct B; }"
         )];
-        let report = coverage(&Workspace::new(&sources));
+        let report = coverage(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(report.derives_seen, 2);
         assert_eq!(report.item_macros_seen, 1);
     }
@@ -272,8 +306,8 @@ mod tests {
             source("src/a.rs", "use crate::S; use std::fmt;")
         ];
         assert_eq!(
-            coverage(&Workspace::new(&sources)),
-            coverage(&Workspace::new(&sources))
+            coverage(&Workspace::resolved(&sources, &declared_tree(&sources))),
+            coverage(&Workspace::resolved(&sources, &declared_tree(&sources)))
         );
     }
 }

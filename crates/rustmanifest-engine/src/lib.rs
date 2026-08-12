@@ -65,11 +65,12 @@ pub use semantic::{
     Provenance, Role, Route, ScipEdges, ScipError, Segment, SemanticAnalyzer, Serving, SiteGuard,
     Started, Store as KeptStore, Stream, Surface, TraitNode, TypeGraph, TypeKind, TypeNode,
     VALUE_ORIGIN_SET, Verb as KeptVerb, Workspace, behavior, behavior_with, call_graph,
-    call_graph_rows_with, call_graph_with, capabilities, check_invariants, check_invariants_with,
-    commands as kept_commands, completion_rule, coverage, coverage_indexed, coverage_with,
-    doc_facts, entry_points, features, feedings, keeping, module_overview, origin_gaps, outliving,
-    program_meaning, purpose, role, semantic_findings, servings, started, stores as kept_stores,
-    surface, transitive_effects, unresolved_targets
+    call_graph_rows_with, call_graph_with, capabilities, check_invariants,
+    check_invariants_settled, check_invariants_with, commands as kept_commands, completion_rule,
+    coverage, coverage_indexed, coverage_with, doc_facts, entry_points, features, feedings,
+    keeping, module_overview, origin_gaps, outliving, program_meaning, purpose, role,
+    semantic_findings, servings, started, stores as kept_stores, surface, transitive_effects,
+    unresolved_targets
 };
 pub use source::Source;
 

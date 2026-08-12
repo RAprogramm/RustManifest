@@ -110,10 +110,12 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
             .map(rustmanifest_engine::ScipEdges::from_file)
             .transpose()
             .context("loading SCIP index")?;
-        findings.extend(rustmanifest_engine::check_invariants_with(
+        let settled = crate::resolution(args.resolution.as_deref())?;
+        findings.extend(rustmanifest_engine::check_invariants_settled(
             &sources,
             effective.invariants(),
-            scip.as_ref()
+            scip.as_ref(),
+            settled.as_ref()
         ));
     }
     if args.delegate_clippy {

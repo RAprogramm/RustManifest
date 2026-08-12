@@ -14,8 +14,8 @@ use std::cell::OnceCell;
 
 use crate::{
     semantic::{
-        behavior::{FunctionFacts, behavior},
-        calls::{CallGraph, ResolutionContext, call_graph, resolution_context}
+        behavior::FunctionFacts,
+        calls::{CallGraph, ResolutionContext, call_graph, resolution_context_with}
     },
     source::Source
 };
@@ -42,12 +42,6 @@ impl Performed {
         }
     }
 
-    /// Returns the behavioral facts of `sources`, extracting them on the
-    /// first call.
-    pub(super) fn facts(&self, sources: &[Source]) -> &[FunctionFacts] {
-        self.facts.get_or_init(|| behavior(sources))
-    }
-
     /// Returns the facts of `sources` read with what a resolver settled
     /// about them, deriving them on the first call.
     pub(super) fn resolved_facts(
@@ -61,15 +55,28 @@ impl Performed {
 
     /// Returns the resolution context of `sources`, building it on the
     /// first call.
-    pub(super) fn context(&self, sources: &[Source]) -> &ResolutionContext {
-        self.context.get_or_init(|| resolution_context(sources))
+    pub(super) fn context(
+        &self,
+        sources: &[Source],
+        resolution: Option<&rustmanifest_schema::Resolution>
+    ) -> &ResolutionContext {
+        self.context
+            .get_or_init(|| resolution_context_with(sources, resolution))
     }
 
     /// Returns the call graph of `sources`, building it — and whatever it
     /// needs — on the first call.
-    pub(super) fn calls(&self, sources: &[Source]) -> &CallGraph {
-        self.calls
-            .get_or_init(|| call_graph(self.facts(sources), self.context(sources)))
+    pub(super) fn calls(
+        &self,
+        sources: &[Source],
+        resolution: Option<&rustmanifest_schema::Resolution>
+    ) -> &CallGraph {
+        self.calls.get_or_init(|| {
+            call_graph(
+                self.resolved_facts(sources, resolution),
+                self.context(sources, resolution)
+            )
+        })
     }
 }
 
@@ -100,7 +107,7 @@ mod tests {
         let sources = sources();
         let performed = Performed::new();
         assert_eq!(format!("{performed:?}"), format!("{:?}", Performed::new()));
-        assert_eq!(performed.facts(&sources).len(), 2);
+        assert_eq!(performed.resolved_facts(&sources, None).len(), 2);
         assert_ne!(format!("{performed:?}"), format!("{:?}", Performed::new()));
     }
 
@@ -109,18 +116,18 @@ mod tests {
         let sources = sources();
         let performed = Performed::new();
         assert_eq!(
-            performed.facts(&sources).as_ptr(),
-            performed.facts(&sources).as_ptr()
+            performed.resolved_facts(&sources, None).as_ptr(),
+            performed.resolved_facts(&sources, None).as_ptr()
         );
-        assert_eq!(performed.facts(&sources).len(), 2);
+        assert_eq!(performed.resolved_facts(&sources, None).len(), 2);
     }
 
     #[test]
     fn a_call_graph_is_built_once_and_reused() {
         let sources = sources();
         let performed = Performed::new();
-        let first = std::ptr::from_ref(performed.calls(&sources));
-        let second = std::ptr::from_ref(performed.calls(&sources));
+        let first = std::ptr::from_ref(performed.calls(&sources, None));
+        let second = std::ptr::from_ref(performed.calls(&sources, None));
         assert_eq!(first, second);
     }
 
@@ -128,10 +135,10 @@ mod tests {
     fn the_call_graph_derives_the_facts_it_needs() {
         let sources = sources();
         let calls_first = Performed::new();
-        let _ = calls_first.calls(&sources);
+        let _ = calls_first.calls(&sources, None);
         let facts_then_calls = Performed::new();
-        assert_eq!(facts_then_calls.facts(&sources).len(), 2);
-        let _ = facts_then_calls.calls(&sources);
+        assert_eq!(facts_then_calls.resolved_facts(&sources, None).len(), 2);
+        let _ = facts_then_calls.calls(&sources, None);
         assert_eq!(format!("{calls_first:?}"), format!("{facts_then_calls:?}"));
     }
 
@@ -139,9 +146,9 @@ mod tests {
     fn reading_facts_leaves_the_call_graph_unbuilt() {
         let sources = sources();
         let facts_only = Performed::new();
-        assert_eq!(facts_only.facts(&sources).len(), 2);
+        assert_eq!(facts_only.resolved_facts(&sources, None).len(), 2);
         let with_calls = Performed::new();
-        let _ = with_calls.calls(&sources);
+        let _ = with_calls.calls(&sources, None);
         assert_ne!(format!("{facts_only:?}"), format!("{with_calls:?}"));
     }
 }

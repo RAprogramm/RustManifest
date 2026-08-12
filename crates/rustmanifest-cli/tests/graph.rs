@@ -20,6 +20,30 @@ fn rustmanifest() -> Command {
     Command::cargo_bin("rustmanifest").unwrap()
 }
 
+/// Writes the module tree a resolver would state for these files and
+/// answers the path of the overlay.
+fn overlay(dir: &std::path::Path, rows: &[(&str, &str)]) -> std::path::PathBuf {
+    let modules: Vec<String> = rows
+        .iter()
+        .map(|(names, file)| {
+            let root = !names.contains("::");
+            let parent = names.rsplit_once("::").map_or(String::new(), |(above, _)| {
+                format!(", \"parent\": \"{above}\"")
+            });
+            format!(
+                "{{\"names\": \"{names}\", \"file\": \"{file}\", \"crate-root\": {root}{parent}}}"
+            )
+        })
+        .collect();
+    let text = format!(
+        "{{\"resolver\": \"test\", \"calls\": [], \"modules\": [{}]}}",
+        modules.join(", ")
+    );
+    let path = dir.join("resolution.json");
+    std::fs::write(&path, text).unwrap();
+    path
+}
+
 fn make_tree(files: &[(&str, &str)]) -> TempDir {
     let dir = TempDir::new().unwrap();
     for (name, contents) in files {
@@ -39,9 +63,16 @@ fn modules_mermaid_contains_header_nodes_and_edge() {
         ("src/lib.rs", "mod util;\n"),
         ("src/util.rs", "use crate::Item;\n")
     ]);
+    let settled = overlay(
+        tree.path(),
+        &[("demo", "src/lib.rs"), ("demo::util", "src/util.rs")]
+    );
     rustmanifest()
+        .current_dir(tree.path())
         .arg("graph")
-        .arg(tree.path())
+        .arg("--resolution")
+        .arg(&settled)
+        .arg(".")
         .assert()
         .success()
         .stdout(predicate::str::contains("graph LR"))
@@ -55,9 +86,20 @@ fn modules_mermaid_styles_cycle_members() {
         "src/lib.rs",
         "mod a { use crate::b::Item; }\nmod b { use crate::a::Other; }\n"
     )]);
+    let settled = overlay(
+        tree.path(),
+        &[
+            ("demo", "src/lib.rs"),
+            ("demo::a", "src/lib.rs"),
+            ("demo::b", "src/lib.rs")
+        ]
+    );
     rustmanifest()
+        .current_dir(tree.path())
         .arg("graph")
-        .arg(tree.path())
+        .arg("--resolution")
+        .arg(&settled)
+        .arg(".")
         .assert()
         .success()
         .stdout(predicate::str::contains("classDef cycle"))
@@ -71,9 +113,20 @@ fn modules_dot_marks_cycle_members_red() {
         "src/lib.rs",
         "mod a { use crate::b::Item; }\nmod b { use crate::a::Other; }\n"
     )]);
+    let settled = overlay(
+        tree.path(),
+        &[
+            ("demo", "src/lib.rs"),
+            ("demo::a", "src/lib.rs"),
+            ("demo::b", "src/lib.rs")
+        ]
+    );
     rustmanifest()
+        .current_dir(tree.path())
         .arg("graph")
-        .arg(tree.path())
+        .arg("--resolution")
+        .arg(&settled)
+        .arg(".")
         .arg("--format")
         .arg("dot")
         .assert()

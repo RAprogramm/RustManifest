@@ -206,7 +206,10 @@ fn held_for(request: &Request, held: &Derived<'_>) -> Response {
             format!("`{KEPT}` takes [store]")
         );
     };
-    let workspace = rustmanifest_engine::Workspace::new(held.sources);
+    let workspace = held.settled.map_or_else(
+        || rustmanifest_engine::Workspace::new(held.sources),
+        |settled| rustmanifest_engine::Workspace::resolved(held.sources, settled)
+    );
     let asked = rustmanifest_engine::semantic::why_kept(&workspace, store);
     let steps: Vec<serde_json::Value> = asked
         .steps

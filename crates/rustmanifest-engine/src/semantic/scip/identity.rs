@@ -34,8 +34,11 @@ impl SourceIdentity {
 
 /// Builds the identity of every source: the crate from the path,
 /// the module path from the graph's primary module for the file.
-pub(super) fn of_sources(sources: &[Source]) -> Vec<SourceIdentity> {
-    let graph = ModuleGraph::from_sources(sources);
+pub(super) fn of_sources(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<SourceIdentity> {
+    let graph = ModuleGraph::of(sources, settled);
     let mut modules: Vec<Option<(bool, Vec<String>)>> = vec![None; sources.len()];
     for module in graph.modules() {
         let segments: Vec<String> = module.path.split("::").skip(1).map(str::to_owned).collect();

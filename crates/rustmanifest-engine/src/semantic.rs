@@ -44,7 +44,7 @@ mod layout;
 mod loops;
 mod meaning;
 mod module_cycle;
-mod module_graph;
+pub(crate) mod module_graph;
 mod module_overview;
 mod montage;
 mod naming;
@@ -78,8 +78,8 @@ pub use self::{
     },
     calls::{
         CallGraph, RefusalRow, ResolutionContext, call_graph, call_graph_rows,
-        call_graph_rows_with, call_graph_with, resolution_context, resolution_segments,
-        transitive_effects
+        call_graph_rows_with, call_graph_with, resolution_context, resolution_context_with,
+        resolution_segments, resolution_segments_with, transitive_effects
     },
     capability::{
         Capability, Evidence, ModuleCapability, ProvenCapability, Started, capabilities, started
@@ -101,7 +101,9 @@ pub use self::{
     handover::{Mark, copyness, handover_at, handover_marks},
     implement::impl_skeleton,
     intents::{DerivedIntent, derived_intents, derived_intents_with, fulfill_intents},
-    invariant::{check_invariants, check_invariants_over, check_invariants_with},
+    invariant::{
+        check_invariants, check_invariants_over, check_invariants_settled, check_invariants_with
+    },
     keeping::{
         Command, Direction, Ending, Feeding, Keeping, Outliving, Serving, Store, TableStore,
         Telling, Verb, commands, endings, feedings, keeping, outliving, purpose, servings, stores,

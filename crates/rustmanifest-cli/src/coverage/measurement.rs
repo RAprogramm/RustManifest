@@ -18,7 +18,9 @@ pub(super) struct Measurement {
     /// Crate names declared by the manifests around the analyzed paths.
     pub(super) declared: BTreeSet<String>,
     /// Counters the engine produced over those sources.
-    pub(super) report:   Coverage
+    pub(super) report:   Coverage,
+    /// What a resolver settled about the sources, where one ran.
+    pub(super) settled:  Option<rustmanifest_schema::Resolution>
 }
 
 /// Discovers files under the requested paths, reads their sources within
@@ -48,6 +50,7 @@ pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
     Ok(Measurement {
         sources,
         declared,
-        report
+        report,
+        settled
     })
 }

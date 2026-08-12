@@ -50,7 +50,7 @@ fn coverage_reports_parsed_files_and_exits_clean() {
         .stdout(predicate::str::contains(
             "files parsed        2/2       100.0%"
         ))
-        .stdout(predicate::str::contains("modules mapped      2"))
+        .stdout(predicate::str::contains("modules mapped      0"))
         .stdout(predicate::str::contains("structs captured    1"))
         .stdout(predicate::str::contains("(expansions not analyzed)"));
 }

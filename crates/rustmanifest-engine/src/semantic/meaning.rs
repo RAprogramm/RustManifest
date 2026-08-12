@@ -186,7 +186,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::program_meaning;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{module_graph::declared_tree, workspace::Workspace},
+        source::Source
+    };
 
     fn sentences(body: &str) -> Vec<String> {
         sentences_of(&[("src/main.rs", body)])
@@ -200,7 +203,7 @@ mod tests {
             .iter()
             .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
             .collect();
-        program_meaning(&Workspace::new(&sources))
+        program_meaning(&Workspace::resolved(&sources, &declared_tree(&sources)))
             .first()
             .map(super::EntryMeaning::sentences)
             .unwrap_or_default()

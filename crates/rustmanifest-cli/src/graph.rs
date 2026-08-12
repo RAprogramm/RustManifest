@@ -29,11 +29,13 @@ pub(crate) fn run_graph(args: &GraphArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
+    let settled = crate::resolution(args.resolution.as_deref())?;
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution)
+    );
     let lines = match args.kind {
-        GraphKind::Modules => module_lines(
-            &module_overview(&rustmanifest_engine::Workspace::new(&sources)),
-            args.format
-        ),
+        GraphKind::Modules => module_lines(&module_overview(&workspace), args.format),
         GraphKind::Types => type_lines(&TypeGraph::from_sources(&sources), args.format)
     };
     let stdout = std::io::stdout();

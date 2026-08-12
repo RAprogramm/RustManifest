@@ -75,7 +75,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::source::Source;
+    use crate::{semantic::module_graph::declared_tree, source::Source};
 
     #[test]
     fn a_source_inside_a_crate_answers_with_its_module_path() {
@@ -83,7 +83,8 @@ mod tests {
             PathBuf::from("app/src/lib.rs"),
             "pub fn go() {}".to_owned()
         )];
-        let workspace = Workspace::new(&sources);
+        let tree = declared_tree(&sources);
+        let workspace = Workspace::resolved(&sources, &tree);
         assert_eq!(modules_by_source(&workspace)(0), "crate");
     }
 
@@ -93,7 +94,8 @@ mod tests {
             PathBuf::from("app/src/lib.rs"),
             "pub fn go() {}".to_owned()
         )];
-        let workspace = Workspace::new(&sources);
+        let tree = declared_tree(&sources);
+        let workspace = Workspace::resolved(&sources, &tree);
         assert_eq!(modules_by_source(&workspace)(7), "?");
     }
 }

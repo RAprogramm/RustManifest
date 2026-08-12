@@ -50,7 +50,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{module_graph::declared_tree, workspace::Workspace},
+        source::Source
+    };
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -62,7 +65,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::b::Item; } mod b { use std::fmt; pub struct Item; }"
         )];
-        assert!(insights(&Workspace::new(&sources)).is_empty());
+        assert!(insights(&Workspace::resolved(&sources, &declared_tree(&sources))).is_empty());
     }
 
     #[test]
@@ -71,7 +74,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
         )];
-        let found = insights(&Workspace::new(&sources));
+        let found = insights(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(found.len(), 1);
         assert_eq!(
             found[0].detail,
@@ -100,7 +103,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item;"),
             source("src/b.rs", "use crate::a::Other;")
         ];
-        let found = insights(&Workspace::new(&sources));
+        let found = insights(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].source, 1);
         assert_eq!(found[0].range.start, 0);
@@ -113,7 +116,7 @@ mod tests {
             "src/lib.rs",
             "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }"
         )];
-        let found = insights(&Workspace::new(&sources));
+        let found = insights(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(found.len(), 1);
         assert_eq!(
             found[0].detail,
@@ -128,7 +131,7 @@ mod tests {
             "src/lib.rs",
             "use crate::child::Item; mod child { use crate::Error; }"
         )];
-        assert!(insights(&Workspace::new(&sources)).is_empty());
+        assert!(insights(&Workspace::resolved(&sources, &declared_tree(&sources))).is_empty());
     }
 
     #[test]
@@ -137,7 +140,10 @@ mod tests {
             "src/lib.rs",
             "use crate::a::X; mod a { use crate::b::Y; } mod b { use crate::Z; }"
         )];
-        assert_eq!(insights(&Workspace::new(&sources)).len(), 1);
+        assert_eq!(
+            insights(&Workspace::resolved(&sources, &declared_tree(&sources))).len(),
+            1
+        );
     }
 
     #[test]
@@ -146,7 +152,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use crate::a::Thing; use self::Widget; }"
         )];
-        assert!(insights(&Workspace::new(&sources)).is_empty());
+        assert!(insights(&Workspace::resolved(&sources, &declared_tree(&sources))).is_empty());
     }
 
     #[test]
@@ -155,7 +161,7 @@ mod tests {
             "src/lib.rs",
             "mod a { use std::fmt; use serde::Serialize; use crate::nope::Thing; }"
         )];
-        assert!(insights(&Workspace::new(&sources)).is_empty());
+        assert!(insights(&Workspace::resolved(&sources, &declared_tree(&sources))).is_empty());
     }
 
     #[test]
@@ -165,7 +171,7 @@ mod tests {
             source("src/a.rs", "use std::fmt;"),
             source("src/orphan.rs", "use crate::a::Item;")
         ];
-        assert!(insights(&Workspace::new(&sources)).is_empty());
+        assert!(insights(&Workspace::resolved(&sources, &declared_tree(&sources))).is_empty());
     }
 
     #[test]
@@ -174,7 +180,10 @@ mod tests {
             "rules/fail.rs",
             "mod a { use crate::b::Item; } mod b { use crate::a::Other; }"
         )];
-        assert_eq!(insights(&Workspace::new(&sources)).len(), 1);
+        assert_eq!(
+            insights(&Workspace::resolved(&sources, &declared_tree(&sources))).len(),
+            1
+        );
     }
 
     #[test]
@@ -183,14 +192,16 @@ mod tests {
             "src/lib.rs",
             "mod b { use crate::c::X; } mod c { use crate::a::Y; } mod a { use crate::b::Z; }"
         )];
-        let first: Vec<String> = insights(&Workspace::new(&sources))
-            .into_iter()
-            .map(|insight| insight.detail)
-            .collect();
-        let second: Vec<String> = insights(&Workspace::new(&sources))
-            .into_iter()
-            .map(|insight| insight.detail)
-            .collect();
+        let first: Vec<String> =
+            insights(&Workspace::resolved(&sources, &declared_tree(&sources)))
+                .into_iter()
+                .map(|insight| insight.detail)
+                .collect();
+        let second: Vec<String> =
+            insights(&Workspace::resolved(&sources, &declared_tree(&sources)))
+                .into_iter()
+                .map(|insight| insight.detail)
+                .collect();
         assert_eq!(first, second);
     }
 }

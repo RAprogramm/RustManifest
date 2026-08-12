@@ -51,9 +51,20 @@ pub struct ResolutionContext {
     pub granted:     BTreeMap<String, BTreeSet<String>>
 }
 
-/// Builds the full resolution context over `sources`.
+/// Builds the full resolution context over `sources`, with no settled
+/// module tree.
 #[must_use]
 pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
+    resolution_context_with(sources, None)
+}
+
+/// Builds the full resolution context over `sources`, reading which files
+/// a build reaches from the module tree a resolver settled.
+#[must_use]
+pub fn resolution_context_with(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> ResolutionContext {
     let mut trait_impls: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut ext_traits: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let mut supertraits: BTreeMap<String, String> = BTreeMap::new();
@@ -138,7 +149,7 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
         entries.sort_unstable();
     }
     ResolutionContext {
-        segments: resolution_segments(sources),
+        segments: resolution_segments_with(sources, settled),
         trait_impls,
         ext_traits,
         supertraits,
@@ -146,7 +157,7 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
             .iter()
             .map(|source| Target::of_path(&source.path().to_string_lossy()))
             .collect(),
-        loose: loose_sources(sources),
+        loose: loose_sources(sources, settled),
         scopes: Scopes::of(sources),
         variants,
         granted
@@ -157,8 +168,11 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
 /// a loose script, anything cargo never compiles as part of a target.
 /// A call cannot bind into such a file from a compiled one — there is
 /// no build that holds both.
-fn loose_sources(sources: &[Source]) -> Vec<bool> {
-    let graph = crate::semantic::module_graph::ModuleGraph::from_sources(sources);
+fn loose_sources(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<bool> {
+    let graph = crate::semantic::module_graph::ModuleGraph::of(sources, settled);
     let mut compiled = vec![false; sources.len()];
     for module in graph.modules() {
         if module.layout
@@ -211,8 +225,18 @@ fn first_supertrait(definition: &syn::ItemTrait) -> Option<String> {
 /// function.
 #[must_use]
 pub fn resolution_segments(sources: &[Source]) -> BTreeSet<String> {
+    resolution_segments_with(sources, None)
+}
+
+/// Every name a written path may qualify a call with, read from the module
+/// tree a resolver settled where one ran.
+#[must_use]
+pub fn resolution_segments_with(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> BTreeSet<String> {
     let mut segments: BTreeSet<String> = crate::semantic::module_overview::of(
-        &crate::semantic::module_graph::ModuleGraph::from_sources(sources),
+        &crate::semantic::module_graph::ModuleGraph::of(sources, settled),
         sources
     )
     .modules()

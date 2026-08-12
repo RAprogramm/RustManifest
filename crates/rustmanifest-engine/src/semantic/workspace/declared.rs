@@ -40,9 +40,13 @@ impl Declared {
 
     /// Returns the module graph of `sources`, building it on the first
     /// call.
-    pub(super) fn modules(&self, sources: &[Source]) -> &ModuleGraph {
+    pub(super) fn modules(
+        &self,
+        sources: &[Source],
+        settled: Option<&rustmanifest_schema::Resolution>
+    ) -> &ModuleGraph {
         self.modules
-            .get_or_init(|| ModuleGraph::from_sources(sources))
+            .get_or_init(|| ModuleGraph::of(sources, settled))
     }
 }
 
@@ -91,8 +95,8 @@ mod tests {
     fn a_module_graph_is_built_once_and_reused() {
         let sources = sources();
         let declared = Declared::new();
-        let first = std::ptr::from_ref(declared.modules(&sources));
-        let second = std::ptr::from_ref(declared.modules(&sources));
+        let first = std::ptr::from_ref(declared.modules(&sources, None));
+        let second = std::ptr::from_ref(declared.modules(&sources, None));
         assert_eq!(first, second);
     }
 
@@ -103,7 +107,7 @@ mod tests {
         assert_eq!(types_only.types(&sources).types().len(), 1);
         let both = Declared::new();
         assert_eq!(both.types(&sources).types().len(), 1);
-        let _ = both.modules(&sources);
+        let _ = both.modules(&sources, None);
         assert_ne!(format!("{types_only:?}"), format!("{both:?}"));
     }
 }

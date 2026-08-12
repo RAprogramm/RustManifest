@@ -89,12 +89,16 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::source::Source;
+    use crate::{semantic::module_graph::declared_tree, source::Source};
 
     fn rendered(path: &str, text: &str) -> String {
         let sources = vec![Source::new(PathBuf::from(path), text.to_owned())];
         let mut out = String::new();
-        capability_section(&mut out, &Workspace::new(&sources), 10);
+        capability_section(
+            &mut out,
+            &Workspace::resolved(&sources, &declared_tree(&sources)),
+            10
+        );
         out
     }
 

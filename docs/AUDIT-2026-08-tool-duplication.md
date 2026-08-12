@@ -306,36 +306,31 @@ binding it was declared by, not a path, and a name string would read as an
 identity while telling two shadowed bindings apart no better than the text
 does. That row kind is owed its own shape.
 
-## 9a. The module tree swap, and what it still owes
+## 9a. The module tree swap
 
-The resolver records the compiler's module tree; the graph above it still
-rebuilds the mounting from file names. Replacing that construction is
-written and measured, and it is not committed, because it is not finished.
+Landed. The graph is built from the module tree the compiler states; the
+mounting guesswork and the crate-root guess are gone. A module mounted by
+a `path` attribute, one behind a configuration flag, and one whose file
+does not match its name are each placed where the compiler places them.
 
-What the change does: the graph is built from the settled tree, the
-mounting guesswork and the crate-root guess are deleted, and the imports
-of each module are read from the module that writes them — an inline
-module's imports belong to it, which the pooled reading lost.
+Three wiring gaps surfaced while doing it, each found by a failing test
+rather than by reading:
 
-Two wiring gaps it also closed, found by the failures rather than by
-reading: the call graph a workspace derives was built without the
-resolution it holds, and the reachable-file counter measured which
-modules a *layout* root claimed rather than which files the compiler's
-tree mentions at all. Both are fixed in the change.
+- the call graph a workspace derives was built without the resolution the
+  workspace holds, so the overlay reached the facts and not the edges;
+- the reachable-file counter measured which files a *layout* root claimed
+  rather than which files the tree mentions at all;
+- the walker recorded `./src/lib.rs` when asked to walk `.`, which matches
+  nothing a resolver wrote — and a mismatched path reads exactly like a
+  position nobody settled.
 
-What it still owes: ten test fixtures across the call graph, layers,
-meaning, invariants, coverage and the index edges. Thirty-four failed
-when the change was first made, then nineteen, then ten — closed by
-giving fixtures a declared tree, attaching imports to the module that
-writes them, and passing the resolution into the call graph. The
-remainder are fixtures whose expectations encode the old mounting rules
-and have to be read one at a time; the layers fixtures in particular
-expect module edges that the old standalone-root promotion produced.
+The editor server now reads a resolution beside the workspace and rebases
+its paths onto the root, and the check and diagram commands take one.
 
-Until that is done the change stays out of the tree. A green build is not
-a formality here: the readers above the graph decide what a module may
-touch, and a half-migrated tree answers those questions wrongly rather
-than not at all.
+What it cost in honesty: without a resolution there is no module graph,
+so module-scoped answers are silent rather than guessed. That is the
+intended direction — a guessed mounting reads exactly like a derived one
+and is not one.
 
 ## 10. Opinion
 

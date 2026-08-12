@@ -110,7 +110,7 @@ impl ScipEdges {
         for (index, fact) in facts.iter().enumerate() {
             by_short.entry(&fact.function).or_default().push(index);
         }
-        let identities = identity::of_sources(sources);
+        let identities = identity::of_sources(sources, None);
         facts
             .iter()
             .map(|fact| {
@@ -325,7 +325,7 @@ mod tests {
         use rustmanifest_schema::Invariant;
 
         use crate::{
-            semantic::invariant::{check_invariants, check_invariants_with},
+            semantic::{invariant::check_invariants_settled, module_graph::declared_tree},
             source::Source
         };
         let sources = [
@@ -353,7 +353,13 @@ mod tests {
             severity:        None
         };
         assert!(
-            check_invariants(&sources, std::slice::from_ref(&ban)).is_empty(),
+            check_invariants_settled(
+                &sources,
+                std::slice::from_ref(&ban),
+                None,
+                Some(&declared_tree(&sources))
+            )
+            .is_empty(),
             "the macro-wrapped call is invisible to the syntactic resolver"
         );
 
@@ -383,7 +389,12 @@ mod tests {
         put_field(&mut bytes, 2, &document);
         let edges = ScipEdges::from_documents(&wire::documents(&bytes).unwrap());
 
-        let findings = check_invariants_with(&sources, &[ban], Some(&edges));
+        let findings = check_invariants_settled(
+            &sources,
+            &[ban],
+            Some(&edges),
+            Some(&declared_tree(&sources))
+        );
         assert_eq!(findings.len(), 1);
         assert!(
             findings[0]

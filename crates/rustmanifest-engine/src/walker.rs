@@ -50,9 +50,20 @@ pub fn discover<P: AsRef<Path>>(roots: &[P]) -> Result<Vec<PathBuf>, EngineError
         if entry.file_type().is_some_and(|ft| ft.is_file())
             && entry.path().extension().is_some_and(|ext| ext == "rs")
         {
-            files.push(entry.path().to_path_buf());
+            files.push(named(entry.path()));
         }
     }
     files.sort();
     Ok(files)
+}
+
+/// The path a file is recorded under: as walked, with a leading `./`
+/// dropped.
+///
+/// A resolution names files from the workspace root, and a consumer looks
+/// one up by equality. Walking `.` prefixes every path with `./`, which
+/// matches nothing the resolver wrote — and reads exactly like a position
+/// nobody settled.
+fn named(path: &Path) -> PathBuf {
+    path.strip_prefix("./").unwrap_or(path).to_path_buf()
 }

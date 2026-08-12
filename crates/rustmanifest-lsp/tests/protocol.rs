@@ -345,6 +345,7 @@ fn the_why_command_answers_with_the_inference_as_data() {
 /// in the other.
 #[test]
 fn a_chain_crossing_two_open_documents_answers_whole() {
+    let bed = chained_bed();
     let (server, client) = Connection::memory();
     let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
     client
@@ -352,7 +353,13 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
         .send(Message::Request(Request::new(
             1.into(),
             "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
+            serde_json::json!({
+                "capabilities": {},
+                "workspaceFolders": [{
+                    "uri": format!("file://{}", bed.path().display()),
+                    "name": "bed"
+                }]
+            })
         )))
         .unwrap();
     let _initialize_answer = client.receiver.recv().unwrap();
@@ -363,13 +370,15 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
             serde_json::json!({})
         )))
         .unwrap();
+    let store_uri = format!("file://{}", bed.path().join("src/store.rs").display());
+    let lib_uri = format!("file://{}", bed.path().join("src/lib.rs").display());
     for (uri, text) in [
         (
-            "file:///demo/src/store.rs",
+            store_uri.as_str(),
             "pub fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\n"
         ),
         (
-            "file:///demo/src/lib.rs",
+            lib_uri.as_str(),
             "mod store;\nfn keep(entry: &str) { crate::store::persist(entry); }\n"
         )
     ] {
@@ -393,7 +402,7 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
             "workspace/executeCommand".to_owned(),
             serde_json::json!({
                 "command": "rust-manifest.why",
-                "arguments": ["file:///demo/src/lib.rs", "keep", "fs"]
+                "arguments": [lib_uri.as_str(), "keep", "fs"]
             })
         )))
         .unwrap();
@@ -431,6 +440,54 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
 /// The interview scene itself: a function taking a `String` by value,
 /// and a caller handing its local over. The hover on the written call
 /// must tell the move.
+/// A workspace whose call chain crosses two files, with the module tree a
+/// resolver would state beside it.
+fn chained_bed() -> tempfile::TempDir {
+    let bed = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(bed.path().join("src")).unwrap();
+    std::fs::write(
+        bed.path().join("src/store.rs"),
+        "pub fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\n"
+    )
+    .unwrap();
+    std::fs::write(
+        bed.path().join("src/lib.rs"),
+        "mod store;\nfn keep(entry: &str) { crate::store::persist(entry); }\n"
+    )
+    .unwrap();
+    settled_tree(
+        bed.path(),
+        &[("demo", "src/lib.rs"), ("demo::store", "src/store.rs")]
+    );
+    bed
+}
+
+/// Writes beside the workspace the module tree a resolver would state,
+/// which the server reads on the next build.
+fn settled_tree(root: &std::path::Path, rows: &[(&str, &str)]) {
+    let modules: Vec<String> = rows
+        .iter()
+        .map(|(names, file)| {
+            let root_module = !names.contains("::");
+            let parent = names.rsplit_once("::").map_or(String::new(), |(above, _)| {
+                format!(", \"parent\": \"{above}\"")
+            });
+            format!(
+                "{{\"names\": \"{names}\", \"file\": \"{file}\", \"crate-root\": \
+                 {root_module}{parent}}}"
+            )
+        })
+        .collect();
+    std::fs::write(
+        root.join("resolution.json"),
+        format!(
+            "{{\"resolver\": \"test\", \"calls\": [], \"modules\": [{}]}}",
+            modules.join(", ")
+        )
+    )
+    .unwrap();
+}
+
 const HANDED: &str = "fn foo(value: String) {}\nfn main() { let s = String::from(\"hello\"); \
                       foo(s); println!(\"{s}\"); }\n";
 
@@ -1216,6 +1273,14 @@ fn a_declared_invariant_violation_receives_its_diagnostic_with_the_trace() {
          [\"crate::ledger\"]\n"
     )
     .unwrap();
+    settled_tree(
+        bed.path(),
+        &[
+            ("demo", "src/lib.rs"),
+            ("demo::ledger", "src/ledger.rs"),
+            ("demo::api", "src/api.rs")
+        ]
+    );
     let (server, client) = Connection::memory();
     let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client

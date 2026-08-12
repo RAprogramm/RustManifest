@@ -20,6 +20,30 @@ fn rustmanifest() -> Command {
     Command::cargo_bin("rustmanifest").unwrap()
 }
 
+/// Writes the module tree a resolver would state for the fixture.
+fn overlay(dir: &std::path::Path, rows: &[(&str, &str)]) {
+    let modules: Vec<String> = rows
+        .iter()
+        .map(|(names, file)| {
+            let root = !names.contains("::");
+            let parent = names.rsplit_once("::").map_or(String::new(), |(above, _)| {
+                format!(", \"parent\": \"{above}\"")
+            });
+            format!(
+                "{{\"names\": \"{names}\", \"file\": \"{file}\", \"crate-root\": {root}{parent}}}"
+            )
+        })
+        .collect();
+    fs::write(
+        dir.join("resolution.json"),
+        format!(
+            "{{\"resolver\": \"test\", \"calls\": [], \"modules\": [{}]}}",
+            modules.join(", ")
+        )
+    )
+    .unwrap();
+}
+
 fn tree_with_invariant() -> TempDir {
     let dir = TempDir::new().unwrap();
     fs::create_dir_all(dir.path().join("src")).unwrap();
@@ -45,6 +69,14 @@ fn tree_with_invariant() -> TempDir {
          \"Wallet.balance\"\nwrite-only-from = [\"crate::ledger\"]\n"
     )
     .unwrap();
+    overlay(
+        dir.path(),
+        &[
+            ("fixture", "src/lib.rs"),
+            ("fixture::ledger", "src/ledger.rs"),
+            ("fixture::api", "src/api.rs")
+        ]
+    );
     dir
 }
 
@@ -52,12 +84,15 @@ fn tree_with_invariant() -> TempDir {
 fn invariant_violation_is_reported_and_fails_the_run() {
     let tree = tree_with_invariant();
     rustmanifest()
+        .current_dir(tree.path())
         .arg("check")
+        .arg("--resolution")
+        .arg("resolution.json")
         .arg("--config")
-        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("rustmanifest.toml")
         .arg("--format")
         .arg("json")
-        .arg(tree.path())
+        .arg(".")
         .assert()
         .code(1)
         .stdout(predicate::str::contains("WALLET-BALANCE"))
@@ -158,6 +193,14 @@ fn tree_with_indexed_effect() -> TempDir {
     let mut index = Vec::new();
     put_field(&mut index, 2, &document);
     fs::write(dir.path().join("index.scip"), index).unwrap();
+    overlay(
+        dir.path(),
+        &[
+            ("demo", "src/lib.rs"),
+            ("demo::net", "src/net.rs"),
+            ("demo::domain", "src/domain.rs")
+        ]
+    );
     dir
 }
 
@@ -165,12 +208,15 @@ fn tree_with_indexed_effect() -> TempDir {
 fn an_effect_ban_stays_silent_without_the_index() {
     let tree = tree_with_indexed_effect();
     let output = rustmanifest()
+        .current_dir(tree.path())
         .arg("check")
+        .arg("--resolution")
+        .arg("resolution.json")
         .arg("--config")
-        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("rustmanifest.toml")
         .arg("--format")
         .arg("json")
-        .arg(tree.path())
+        .arg(".")
         .output()
         .unwrap();
     assert!(!String::from_utf8(output.stdout).unwrap().contains("NO-NET"));
@@ -180,14 +226,17 @@ fn an_effect_ban_stays_silent_without_the_index() {
 fn the_index_widens_the_graph_the_ban_is_judged_against() {
     let tree = tree_with_indexed_effect();
     rustmanifest()
+        .current_dir(tree.path())
         .arg("check")
+        .arg("--resolution")
+        .arg("resolution.json")
         .arg("--config")
-        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("rustmanifest.toml")
         .arg("--scip")
-        .arg(tree.path().join("index.scip"))
+        .arg("index.scip")
         .arg("--format")
         .arg("json")
-        .arg(tree.path())
+        .arg(".")
         .assert()
         .code(1)
         .stdout(predicate::str::contains("NO-NET"))
@@ -203,12 +252,15 @@ fn the_index_widens_the_graph_the_ban_is_judged_against() {
 fn a_missing_index_fails_the_run_with_context() {
     let tree = tree_with_indexed_effect();
     rustmanifest()
+        .current_dir(tree.path())
         .arg("check")
+        .arg("--resolution")
+        .arg("resolution.json")
         .arg("--config")
-        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("rustmanifest.toml")
         .arg("--scip")
         .arg(tree.path().join("absent.scip"))
-        .arg(tree.path())
+        .arg(".")
         .assert()
         .code(2)
         .stderr(predicate::str::contains("loading SCIP index"));
@@ -218,12 +270,15 @@ fn a_missing_index_fails_the_run_with_context() {
 fn allowed_writer_produces_no_invariant_finding() {
     let tree = tree_with_invariant();
     let output = rustmanifest()
+        .current_dir(tree.path())
         .arg("check")
+        .arg("--resolution")
+        .arg("resolution.json")
         .arg("--config")
-        .arg(tree.path().join("rustmanifest.toml"))
+        .arg("rustmanifest.toml")
         .arg("--format")
         .arg("json")
-        .arg(tree.path())
+        .arg(".")
         .output()
         .unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();

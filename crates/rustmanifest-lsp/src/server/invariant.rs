@@ -44,7 +44,8 @@ pub(super) fn diagnostics(
         held.facts,
         held.graph,
         held.reached,
-        &declared
+        &declared,
+        held.settled
     )
     .into_iter()
     .filter(|finding| finding.location.file == path)

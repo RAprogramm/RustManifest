@@ -75,5 +75,10 @@ pub struct CheckArgs {
     /// edges into dependencies stay outside it. The overlay is additive:
     /// it can only add findings, never remove one.
     #[arg(long, value_name = "INDEX")]
-    pub scip: Option<PathBuf>
+    pub scip: Option<PathBuf>,
+
+    /// Resolution overlay to read from. Module-scoped invariants need one:
+    /// which module a file belongs to is the compiler's answer.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>
 }

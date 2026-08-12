@@ -21,7 +21,12 @@ pub struct GraphArgs {
 
     /// Diagram output format.
     #[arg(long, value_enum, default_value_t = DiagramFormat::Mermaid)]
-    pub format: DiagramFormat
+    pub format: DiagramFormat,
+
+    /// Resolution overlay to read the module tree from. A module diagram
+    /// needs one: which file holds which module is the compiler's answer.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>
 }
 
 /// Diagram content selector.
