@@ -373,8 +373,14 @@ mod tests {
             fixture.clone()
         ];
         let all = behavior(&sources);
-        let graph = call_graph(&all, &super::resolution_context(&sources));
+        let (graph, rows) = super::call_graph_rows(&all, &super::resolution_context(&sources));
         assert!(graph.callees(index_of(&all, "go")).is_empty());
+        assert_eq!(
+            graph.unreachable_named(),
+            1,
+            "the name is written, and written where no build holds it: {rows:?}"
+        );
+        assert_eq!(graph.owned_unmatched(), 0, "{rows:?}");
         let loose = [
             Source::new(
                 PathBuf::from("crates/rules/fixtures/two.rs"),

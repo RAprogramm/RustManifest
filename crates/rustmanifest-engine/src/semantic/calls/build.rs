@@ -94,11 +94,13 @@ fn built(
 ) -> CallGraph {
     let module_segments = &context.segments;
     let tables = name_tables(facts);
-    let workspace_owners: BTreeSet<&str> = facts
-        .iter()
-        .filter_map(|fact| fact.function.rsplit_once("::"))
-        .map(|(owner, _)| owner)
-        .collect();
+    let mut workspace_owners: std::collections::BTreeMap<&str, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (at, fact) in facts.iter().enumerate() {
+        if let Some((owner, _)) = fact.function.rsplit_once("::") {
+            workspace_owners.entry(owner).or_default().push(at);
+        }
+    }
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
     let mut tallies = Tallies::default();
     let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
@@ -164,7 +166,11 @@ fn built(
                 candidate,
                 named.is_some(),
                 matches.as_deref(),
-                &workspace_owners,
+                &|owner| {
+                    workspace_owners.get(owner).is_some_and(|declared| {
+                        !linkable(context, facts, index, declared).is_empty()
+                    })
+                },
                 context
             );
             tallies.book(row);

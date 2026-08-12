@@ -10,7 +10,7 @@
 //! is the single point both the graph's counters and the per-candidate
 //! report pass through, so the two cannot drift apart.
 
-use std::{collections::BTreeSet, fmt};
+use std::fmt;
 
 use super::context::ResolutionContext;
 
@@ -61,7 +61,7 @@ pub(super) fn refusal_row(
     candidate: &str,
     named: bool,
     matches: Option<&[usize]>,
-    workspace_owners: &BTreeSet<&str>,
+    owned_here: &dyn Fn(&str) -> bool,
     context: &ResolutionContext
 ) -> RefusalRow {
     if candidate.strip_prefix("?::").is_some() {
@@ -74,7 +74,7 @@ pub(super) fn refusal_row(
     match matches {
         Some([]) => RefusalRow::NamedElsewhere,
         Some(_) => RefusalRow::Ambiguous,
-        None => unowned(candidate, named, workspace_owners, context)
+        None => unowned(candidate, named, owned_here, context)
     }
 }
 
@@ -82,16 +82,18 @@ pub(super) fn refusal_row(
 ///
 /// A variant of a workspace enum is a value being built, and gets the
 /// row that says so. Otherwise the question is whether an owner that
-/// could carry a member is written at all: a type the workspace gives
-/// methods to, or a trait it declares. A module qualifier is neither —
-/// a module carries no members, and where the workspace declares no
-/// function of that bare name, the written path names an outside
-/// namespace of the same spelling. Reading a module as an owner filed a
-/// third of this row under a lack the workspace never had.
+/// could carry a member is written where the caller can reach it: a
+/// type the workspace gives methods to, or a trait it declares. A
+/// module qualifier is neither — a module carries no members, and where
+/// the workspace declares no function of that bare name, the written
+/// path names an outside namespace of the same spelling. Reading a
+/// module as an owner filed a third of this row under a lack the
+/// workspace never had; reading an unreachable declaration as one filed
+/// a fixture's type as the caller's.
 fn unowned(
     candidate: &str,
     named: bool,
-    workspace_owners: &BTreeSet<&str>,
+    owned_here: &dyn Fn(&str) -> bool,
     context: &ResolutionContext
 ) -> RefusalRow {
     let Some((owner, member)) = candidate.rsplit_once("::") else {
@@ -111,7 +113,7 @@ fn unowned(
     if granting(context, owner, member) {
         return RefusalRow::GrantedWithoutBody;
     }
-    if workspace_owners.contains(owner) || context.trait_impls.contains_key(owner) {
+    if owned_here(owner) || context.trait_impls.contains_key(owner) {
         RefusalRow::OwnerWithoutMember
     } else {
         RefusalRow::Foreign
