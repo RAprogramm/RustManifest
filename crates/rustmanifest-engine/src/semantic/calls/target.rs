@@ -75,6 +75,13 @@ impl Target {
         }
     }
 
+    /// Returns whether both targets belong to the same crate directory —
+    /// the boundary a written visibility is judged against.
+    #[must_use]
+    pub(super) fn same_crate(&self, other: &Self) -> bool {
+        self.root == other.root
+    }
+
     /// Returns whether a caller in this target can reach a definition in
     /// `other`.
     ///

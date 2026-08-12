@@ -291,6 +291,46 @@ mod tests {
         assert_eq!(refused.scip_settled(), 0);
     }
 
+    /// A crate-private method of a neighbouring crate is a coincidence
+    /// of spelling, not a candidate: another crate cannot name it at
+    /// all, so a call on an untyped receiver carrying that name is
+    /// outside code rather than the engine's own typing gap. A
+    /// trait-impl method is exempt — the trait's reach governs it.
+    #[test]
+    fn a_private_method_of_another_crate_is_not_a_candidate() {
+        let calling = Source::new(
+            PathBuf::from("crates/one/src/lib.rs"),
+            "pub fn go() { opaque().join(\"x\"); }\n".to_owned()
+        );
+        let private = Source::new(
+            PathBuf::from("crates/two/src/lib.rs"),
+            "pub struct Held;\nimpl Held { fn join(&self) {} }\n".to_owned()
+        );
+        let sources = [calling.clone(), private];
+        let all = behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        assert_eq!(graph.unknown_receiver(), 0, "the neighbour cannot be named");
+        assert_eq!(graph.unreachable_named(), 1, "named, linkable from nowhere");
+        let shared = Source::new(
+            PathBuf::from("crates/two/src/lib.rs"),
+            "pub struct Held;\nimpl Held { pub fn join(&self) {} }\n".to_owned()
+        );
+        let open = [calling, shared];
+        let seen = behavior(&open);
+        let reached = call_graph(&seen, &super::resolution_context(&open));
+        assert_eq!(
+            reached.unreachable_named(),
+            0,
+            "a public neighbour stays a candidate"
+        );
+        assert!(
+            reached
+                .callees(index_of(&seen, "go"))
+                .contains(&index_of(&seen, "Held::join")),
+            "and the sole public match binds"
+        );
+    }
+
     /// An unqualified call means the definition standing in the calling
     /// scope, even where the workspace carries the name several times:
     /// Rust resolves an unqualified path in the calling scope first, so
