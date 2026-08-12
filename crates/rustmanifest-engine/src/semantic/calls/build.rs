@@ -83,19 +83,70 @@ pub fn call_graph_rows_with(
     (graph, rows)
 }
 
+/// Every workspace body by the owner its written name carries.
+fn owners_of(facts: &[FunctionFacts]) -> std::collections::BTreeMap<&str, Vec<usize>> {
+    let mut owners: std::collections::BTreeMap<&str, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (at, fact) in facts.iter().enumerate() {
+        if let Some((owner, _)) = fact.function.rsplit_once("::") {
+            owners.entry(owner).or_default().push(at);
+        }
+    }
+    owners
+}
+
+/// Books a candidate a resolver already settled, and answers whether it
+/// did.
+///
+/// A candidate reaching a body of this workspace is resolved; one reaching
+/// anything else is a call out of the workspace. Both go through the same
+/// booking as every read candidate, so the counters and the per-candidate
+/// report cannot disagree about them either.
+fn settled_already(
+    asked: (usize, &String),
+    settled: (&Asked, &Asked),
+    tallies: &mut Tallies,
+    rows: Option<&mut Vec<Vec<(String, RefusalRow)>>>
+) -> bool {
+    let (index, candidate) = asked;
+    let (bound, outside) = settled;
+    let held = (index, candidate.clone());
+    if bound.contains(&held) {
+        tallies.resolved += 1;
+        return true;
+    }
+    if !outside.contains(&held) {
+        return false;
+    }
+    tallies.book(RefusalRow::Foreign);
+    if let Some(rows) = rows
+        && let Some(row) = rows.get_mut(index)
+    {
+        row.push((candidate.clone(), RefusalRow::Foreign));
+    }
+    true
+}
+
+/// One candidate of one caller: the pair a settled site answers for.
+type Asked = BTreeSet<(usize, String)>;
+
 /// Binds every call site whose reached body a resolver named, and answers
 /// which candidates that settled.
 ///
-/// A site bound here needs no candidate reading at all: the identity is
-/// stated, and the reading below exists only to guess it from a written
-/// name.
+/// A site the resolver settled needs no candidate reading at all, and that
+/// holds whichever way it landed: a call reaching a body this workspace
+/// declares becomes an edge, and one reaching anything else is a call out
+/// of the workspace. The reading below cannot tell those apart — it binds
+/// by written name, so a call into a dependency lands on a same-named body
+/// here and the graph gains an edge no build has.
 fn bound_by_identity(
     facts: &[FunctionFacts],
     context: &ResolutionContext,
     bodies: &std::collections::BTreeMap<&str, usize>,
     edges: &mut [Vec<usize>]
-) -> BTreeSet<(usize, String)> {
+) -> (Asked, Asked) {
     let mut bound = BTreeSet::new();
+    let mut outside = BTreeSet::new();
     for (index, fact) in facts.iter().enumerate() {
         for site in &fact.call_sites {
             let Some(reached) = context
@@ -106,6 +157,7 @@ fn bound_by_identity(
                 continue;
             };
             let Some(&target) = bodies.get(reached) else {
+                outside.insert((index, site.candidate.clone()));
                 continue;
             };
             bound.insert((index, site.candidate.clone()));
@@ -114,7 +166,8 @@ fn bound_by_identity(
             }
         }
     }
-    bound
+    outside.retain(|held| !bound.contains(held));
+    (bound, outside)
 }
 
 /// Every declared body by the full path a resolver settled for it.
@@ -151,23 +204,21 @@ fn built(
 ) -> CallGraph {
     let module_segments = &context.segments;
     let tables = name_tables(facts);
-    let mut workspace_owners: std::collections::BTreeMap<&str, Vec<usize>> =
-        std::collections::BTreeMap::new();
-    for (at, fact) in facts.iter().enumerate() {
-        if let Some((owner, _)) = fact.function.rsplit_once("::") {
-            workspace_owners.entry(owner).or_default().push(at);
-        }
-    }
+    let workspace_owners = owners_of(facts);
     let bodies = declared_bodies(facts, context);
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
     let mut tallies = Tallies::default();
     let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
     let mut settled: BTreeSet<(usize, usize)> = BTreeSet::new();
-    let by_identity = bound_by_identity(facts, context, &bodies, &mut edges);
+    let (by_identity, outside) = bound_by_identity(facts, context, &bodies, &mut edges);
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
-            if by_identity.contains(&(index, candidate.clone())) {
-                tallies.resolved += 1;
+            if settled_already(
+                (index, candidate),
+                (&by_identity, &outside),
+                &mut tallies,
+                rows.as_deref_mut()
+            ) {
                 continue;
             }
             let named = named_of(candidate, &tables, module_segments);
