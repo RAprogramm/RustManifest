@@ -17,6 +17,7 @@
 //! item every written name reaches, nothing above has to infer either from
 //! how the source spelled it.
 
+mod declaring;
 mod expansion;
 mod load;
 mod naming;
@@ -89,6 +90,7 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
 fn settle_file(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: &mut Resolution) {
     typing::settled(reading, parsed, &mut into.types, &mut into.types_granted);
     naming::settled(reading, parsed, &mut into.paths);
+    declaring::settled(reading, parsed, &mut into.functions);
     for call in parsed
         .syntax()
         .descendants()

@@ -175,6 +175,32 @@ fn the_module_tree_is_the_compilers_and_not_a_reading_of_file_names() {
     );
 }
 
+/// A call names the function it reaches by path, and every declared
+/// function is named the same way — so a reader binds a call to a body by
+/// identity instead of by a shared spelling.
+#[test]
+fn a_call_and_the_body_it_reaches_are_named_the_same_way() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let reached = resolution
+        .calls
+        .iter()
+        .find(|call| call.callee == "find")
+        .and_then(|call| call.reaches.as_deref())
+        .expect("the workspace call names what it reaches");
+    assert_eq!(reached, "fixture::Store::find");
+    assert!(
+        resolution
+            .functions
+            .iter()
+            .any(|declared| declared.names == reached),
+        "no declared function carries that name: {:?}",
+        resolution.functions
+    );
+}
+
 #[test]
 fn resolving_the_same_workspace_twice_states_the_same_thing() {
     let dir = tempfile::tempdir().unwrap();

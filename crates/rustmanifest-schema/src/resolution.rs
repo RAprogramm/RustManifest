@@ -19,6 +19,7 @@
 //! guessing from spelling — see [`typed`] and [`path`] for why each exists.
 
 mod call;
+mod function;
 mod module;
 mod path;
 mod positioned;
@@ -30,6 +31,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::{
     call::{ResolvedCall, ResolvedField},
+    function::ResolvedFunction,
     module::ResolvedModule,
     path::ResolvedPath,
     property::ResolvedProperty,
@@ -66,7 +68,11 @@ pub struct Resolution {
     /// order. Which file holds which module is the compiler's answer, not
     /// something a file-name reading reconstructs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub modules:       Vec<ResolvedModule>
+    pub modules:       Vec<ResolvedModule>,
+    /// Every function the workspace declares, in file then position order,
+    /// named by the full path that reaches it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub functions:     Vec<ResolvedFunction>
 }
 
 impl Resolution {
@@ -87,6 +93,12 @@ impl Resolution {
     #[must_use]
     pub fn type_at(&self, location: &Location) -> Option<&ResolvedType> {
         positioned::at(&self.types, location)
+    }
+
+    /// Returns the function declared at exactly this location.
+    #[must_use]
+    pub fn function_at(&self, location: &Location) -> Option<&ResolvedFunction> {
+        positioned::at(&self.functions, location)
     }
 
     /// Returns what the path written at exactly this location names.
@@ -149,7 +161,8 @@ mod tests {
             at:       located(file, start),
             callee:   callee.to_owned(),
             returns:  "bool".to_owned(),
-            receiver: None
+            receiver: None,
+            reaches:  None
         }
     }
 

@@ -60,6 +60,43 @@ fn settled_path(reading: Reading<'_, '_>, path: &ast::Path) -> Option<ResolvedPa
     })
 }
 
+/// Spells one function from its crate root, crate name first, with the
+/// type or trait it is written under kept in the path.
+///
+/// The module alone does not identify a method: two types declared beside
+/// each other each have a `new`, and both live in that module. The
+/// container is what tells them apart.
+pub(super) fn canonical_function(
+    database: &RootDatabase,
+    function: ra_ap_hir::Function
+) -> Option<String> {
+    let definition = ModuleDef::Function(function);
+    let krate = definition.module(database)?.krate(database);
+    let path = canonical(database, definition, krate.edition(database))?;
+    let Some(under) = written_under(database, function) else {
+        return Some(path);
+    };
+    let (above, named) = path.rsplit_once("::")?;
+    Some(format!("{above}::{under}::{named}"))
+}
+
+/// The type or trait a function is written under, where it is written
+/// under one.
+fn written_under(database: &RootDatabase, function: ra_ap_hir::Function) -> Option<String> {
+    use ra_ap_hir::{AsAssocItem as _, AssocItemContainer};
+
+    match function.as_assoc_item(database)?.container(database) {
+        AssocItemContainer::Trait(held) => Some(held.name(database).as_str().to_owned()),
+        AssocItemContainer::Impl(held) => Some(
+            held.self_ty(database)
+                .as_adt()?
+                .name(database)
+                .as_str()
+                .to_owned()
+        )
+    }
+}
+
 /// Spells `definition` from its crate root, crate name first.
 fn canonical(database: &RootDatabase, definition: ModuleDef, edition: Edition) -> Option<String> {
     let inside = definition.canonical_path(database, edition)?;

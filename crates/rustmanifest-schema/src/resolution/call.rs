@@ -21,7 +21,15 @@ pub struct ResolvedCall {
     pub returns:  String,
     /// Type of the receiver, where the call has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub receiver: Option<String>
+    pub receiver: Option<String>,
+    /// Full path of the function the call reaches, where the resolver
+    /// settled one.
+    ///
+    /// The callee's own name is what a reading can already see written;
+    /// which function it is, is not. Two types with a `new` share a name
+    /// and never a path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reaches:  Option<String>
 }
 
 impl Positioned for ResolvedCall {

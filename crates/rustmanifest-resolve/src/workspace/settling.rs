@@ -41,13 +41,15 @@ pub(super) fn settled_call(
 ) -> Option<ResolvedCall> {
     let function = reading.semantics.resolve_method_call(call)?;
     let returns = function.ret_type(reading.database);
+    let reaches = super::naming::canonical_function(reading.database, function);
     Some(ResolvedCall {
-        at:       reading.located(call.syntax().text_range()),
-        callee:   function.name(reading.database).as_str().to_owned(),
-        returns:  reading.render(&returns)?,
+        at: reading.located(call.syntax().text_range()),
+        callee: function.name(reading.database).as_str().to_owned(),
+        returns: reading.render(&returns)?,
         receiver: call
             .receiver()
             .and_then(|expression| reading.semantics.type_of_expr(&expression))
-            .and_then(|typed| reading.render(&typed.original()))
+            .and_then(|typed| reading.render(&typed.original())),
+        reaches
     })
 }
