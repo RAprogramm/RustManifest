@@ -8,6 +8,31 @@
 use super::{FactCollector, typing::initializer_type, unwrapping::pinned_inner};
 use crate::semantic::{knowledge, std_knowledge::EXTERNAL_CONSTRUCTORS};
 
+/// Methods whose written type argument is the type they hand back, so
+/// the turbofish beside the call is the whole answer.
+///
+/// Each of these is declared to produce exactly its own single type
+/// parameter — nothing is wrapped around it — which is why the written
+/// argument can be read as the result. A method that wraps what it
+/// produces, the way parsing wraps in a fallible, is not on the list.
+const TURBOFISH_RESULTS: [&str; 3] = ["collect", "sum", "product"];
+
+/// The type a call states outright through its own turbofish.
+fn turbofished(call: &syn::ExprMethodCall) -> Option<String> {
+    if !TURBOFISH_RESULTS.contains(&call.method.to_string().as_str()) {
+        return None;
+    }
+    let written = call.turbofish.as_ref()?;
+    let mut types = written.args.iter().filter_map(|argument| match argument {
+        syn::GenericArgument::Type(held) => Some(held),
+        _ => None
+    });
+    let (Some(only), None) = (types.next(), types.next()) else {
+        return None;
+    };
+    crate::semantic::behavior::signature::type_last_segment(only)
+}
+
 impl FactCollector {
     /// The type a resolver settled for the receiver of the call at this
     /// position.
@@ -91,6 +116,9 @@ impl FactCollector {
             }
             syn::Expr::Await(awaited) => self.called_return(&awaited.base),
             syn::Expr::MethodCall(call) => {
+                if let Some(written) = turbofished(call) {
+                    return Some(written);
+                }
                 let owner = self
                     .settled_receiver(expression)
                     .or_else(|| self.expr_type(&call.receiver))?;

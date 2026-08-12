@@ -354,6 +354,22 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A written turbofish on a gathering call states the type it hands
+    /// back, so the chain continues from it: the answer is on the page,
+    /// and no table needs asking.
+    #[test]
+    fn a_written_turbofish_types_what_the_gathering_hands_back() {
+        let (all, graph) = context_graph(
+            "pub struct Held;\nimpl Held { pub fn keep(&self) {} }\npub fn go(counts: \
+             Vec<u8>) {\n    counts.iter().collect::<Held>().keep();\n}\n"
+        );
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "Held::keep"))
+        );
+    }
+
     /// A destructuring `let` over a call handing back a tuple types
     /// every name it binds: which name stands at which position is
     /// written, and the return's own type list answers the rest.
