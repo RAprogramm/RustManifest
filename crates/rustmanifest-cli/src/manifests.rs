@@ -89,13 +89,6 @@ pub fn known_crate_names(manifest: &Path) -> BTreeSet<String> {
     names
 }
 
-/// Whether cargo reports a package at `manifest`, as opposed to a virtual
-/// workspace root that declares none.
-#[must_use]
-pub fn is_package(manifest: &Path) -> bool {
-    package_name(manifest).is_some()
-}
-
 /// The name cargo gives the package whose manifest is `manifest`.
 ///
 /// Matched by manifest path rather than by the workspace root, because a
