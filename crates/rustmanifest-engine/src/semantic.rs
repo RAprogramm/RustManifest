@@ -49,7 +49,6 @@ mod module_overview;
 mod montage;
 mod naming;
 mod oracle;
-mod orphan;
 mod ownership;
 mod rename_detect;
 mod rename_op;
