@@ -6,10 +6,7 @@
 //! it is read.
 
 use super::{FactCollector, typing::initializer_type, unwrapping::pinned_inner};
-use crate::semantic::{
-    knowledge,
-    std_knowledge::{EXTERNAL_CONSTRUCTORS, library_return}
-};
+use crate::semantic::{knowledge, std_knowledge::EXTERNAL_CONSTRUCTORS};
 
 /// Methods whose written type argument is the type they hand back, so
 /// the turbofish beside the call is the whole answer.
@@ -139,9 +136,7 @@ impl FactCollector {
                 {
                     return Some(owner);
                 }
-                declared
-                    .or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
-                    .or_else(|| library_return(&owner, &method).map(str::to_owned))
+                declared.or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
             }
             syn::Expr::Call(call) => {
                 if let Some(inner) = pinned_inner(call) {

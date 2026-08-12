@@ -153,7 +153,16 @@ pub(super) struct Settled {
 /// every table here is keyed by a last segment. Reading the full spelling
 /// into those tables would look up a name nothing declares.
 fn outermost(written: &str) -> Option<String> {
-    let head = written.split('<').next()?.trim();
+    let borrowless = written
+        .trim()
+        .trim_start_matches('&')
+        .trim()
+        .trim_start_matches("mut ")
+        .trim();
+    if let Some(named) = unnamed_shape(borrowless) {
+        return Some(named.to_owned());
+    }
+    let head = borrowless.split('<').next()?.trim();
     let without_borrow = head
         .trim_start_matches('&')
         .trim()
@@ -165,6 +174,27 @@ fn outermost(written: &str) -> Option<String> {
             .chars()
             .all(|letter| letter.is_alphanumeric() || letter == '_'))
     .then(|| named.to_owned())
+}
+
+/// The name the tables speak for a shape the language spells with
+/// punctuation rather than with a path.
+///
+/// A resolver renders a slice as `&[String]` and a tuple as `(u8, u8)`.
+/// Neither has a last path segment to take, so a reading that only knows
+/// how to take one leaves every call written on such a value untyped —
+/// which is most calls on a borrowed sequence.
+fn unnamed_shape(borrowless: &str) -> Option<&'static str> {
+    if borrowless.starts_with('(') {
+        return Some("tuple");
+    }
+    if !borrowless.starts_with('[') {
+        return None;
+    }
+    Some(if borrowless.contains(';') {
+        "array"
+    } else {
+        "slice"
+    })
 }
 
 /// What a resolver settled about one source, by byte range.

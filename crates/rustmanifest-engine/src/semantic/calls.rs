@@ -120,6 +120,46 @@ mod tests {
         (facts, graph)
     }
 
+    /// The same, with what a resolver settled about the types of the
+    /// expressions named by `typed` — each a written fragment and the
+    /// type the resolver states it has.
+    fn context_graph_settled(
+        text: &str,
+        typed: &[(&str, &str)]
+    ) -> (
+        Vec<crate::semantic::behavior::FunctionFacts>,
+        super::CallGraph
+    ) {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let mut resolution = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            types: typed
+                .iter()
+                .map(|(written, rendered)| {
+                    let start =
+                        u32::try_from(text.find(written).expect("the fragment is written"))
+                            .expect("the fixture is small");
+                    rustmanifest_schema::ResolvedType {
+                        at:       rustmanifest_schema::Location {
+                            file:  PathBuf::from("src/lib.rs"),
+                            range: rustmanifest_schema::Range {
+                                start,
+                                end: start
+                                    + u32::try_from(written.len()).expect("the fixture is small")
+                            }
+                        },
+                        rendered: (*rendered).to_owned()
+                    }
+                })
+                .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        resolution.settle();
+        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&resolution));
+        let graph = call_graph(&facts, &super::resolution_context(&sources));
+        (facts, graph)
+    }
+
     #[test]
     fn generic_bound_parameters_dispatch_over_implementors() {
         let (all, graph) = context_graph(
@@ -360,10 +400,14 @@ mod tests {
     /// same member name keeps its own meaning.
     #[test]
     fn a_container_question_types_the_call_written_on_its_answer() {
-        let (all, graph) = context_graph(
+        let (all, graph) = context_graph_settled(
             "pub struct Held;\nimpl Held { pub fn then(&self) {} }\npub fn go(names: Vec<String>, \
              text: &str) {\n    names.is_empty().then(|| 1);\n    \
-             text.starts_with(\"x\").then(|| 2);\n}\n"
+             text.starts_with(\"x\").then(|| 2);\n}\n",
+            &[
+                ("names.is_empty()", "bool"),
+                ("text.starts_with(\"x\")", "bool")
+            ]
         );
         assert_eq!(graph.unknown_receiver(), 0);
         assert!(
@@ -432,10 +476,14 @@ mod tests {
     /// typed too.
     #[test]
     fn a_slice_and_a_path_are_named_where_the_language_leaves_them_bare() {
-        let (all, graph) = context_graph(
+        let (all, graph) = context_graph_settled(
             "use std::path::Path;\npub struct Held;\nimpl Held { pub fn join(&self) {} }\npub fn \
              go(globs: &[String], where_at: &Path) {\n    globs.join(\",\");\n    \
-             where_at.parent().unwrap().join(\"x\");\n}\n"
+             where_at.parent().unwrap().join(\"x\");\n}\n",
+            &[
+                ("globs", "&[String]"),
+                ("where_at.parent().unwrap()", "&std::path::Path")
+            ]
         );
         assert_eq!(graph.unknown_receiver(), 0);
         assert!(
