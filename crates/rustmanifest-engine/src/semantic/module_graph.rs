@@ -1,25 +1,16 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! Module graph of the analyzed workspace slice: crate roots, `mod`
-//! resolution, module paths, and expanded `use` targets.
+//! The module tree of the analyzed workspace, as the compiler states it.
 //!
-//! The graph is built purely from the [`Source`] slice, never from the
-//! filesystem: a `mod name;` declaration resolves to the source whose path
-//! is `name.rs` or `name/mod.rs` relative to the declaring file's
-//! directory, and inline `mod name { .. }` blocks recurse in place. Every
-//! reachable module receives a path of the form `crate`, `crate::a`,
-//! `crate::a::b`.
+//! Each node names the module, the file its body is written in, and the
+//! use targets that module writes. Which file holds which module is not
+//! decided here: a resolver settles it, because the language decides it by
+//! rules a file-name reading cannot follow — a `path` attribute, a
+//! configuration flag, a file whose name differs from the module's.
 //!
-//! Crate roots follow cargo's target layout: `src/lib.rs`, `src/main.rs`,
-//! `src/bin/*`, `build.rs`, and the top level of `tests/`, `benches/`,
-//! and `examples/` (flat files and `*/main.rs`). Every source still
-//! unclaimed after those roots are walked — compile-test fixtures, files
-//! with broken `mod` chains, lone reviewed files — becomes its own
-//! standalone root, marked `layout: false`, so no parsed file is invisible
-//! to module-level checks. A standalone file extracted before a later
-//! root claims it can appear under both crates; counters that deduplicate
-//! by source are unaffected.
+//! Without a settled tree there is no graph. Every reader above treats an
+//! absent module as an unanswered question, which is what it is.
 
 mod resolve;
 mod tree;
@@ -51,7 +42,6 @@ pub(super) struct ModuleNode {
     pub(super) source: usize,
     /// Whether the crate root follows cargo's target layout; `false` for
     /// standalone fallback roots.
-    pub(super) layout: bool,
     /// Expanded `use` targets in declaration order.
     pub(super) uses:   Vec<UseTarget>
 }
@@ -104,7 +94,6 @@ impl ModuleGraph {
                 krate: index,
                 path: below,
                 source,
-                layout: true,
                 uses: Vec::new()
             });
         }

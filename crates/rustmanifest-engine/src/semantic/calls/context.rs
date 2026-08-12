@@ -175,9 +175,7 @@ fn loose_sources(
     let graph = crate::semantic::module_graph::ModuleGraph::of(sources, settled);
     let mut compiled = vec![false; sources.len()];
     for module in graph.modules() {
-        if module.layout
-            && let Some(flag) = compiled.get_mut(module.source)
-        {
+        if let Some(flag) = compiled.get_mut(module.source) {
             *flag = true;
         }
     }

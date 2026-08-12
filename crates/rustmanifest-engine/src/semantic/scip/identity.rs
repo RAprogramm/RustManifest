@@ -39,20 +39,13 @@ pub(super) fn of_sources(
     settled: Option<&rustmanifest_schema::Resolution>
 ) -> Vec<SourceIdentity> {
     let graph = ModuleGraph::of(sources, settled);
-    let mut modules: Vec<Option<(bool, Vec<String>)>> = vec![None; sources.len()];
+    let mut modules: Vec<Option<Vec<String>>> = vec![None; sources.len()];
     for module in graph.modules() {
         let segments: Vec<String> = module.path.split("::").skip(1).map(str::to_owned).collect();
-        let candidate = (module.layout, segments);
         let slot = &mut modules[module.source];
-        let replace = match slot {
-            None => true,
-            Some((layout, kept)) => {
-                (candidate.0 && !*layout)
-                    || (candidate.0 == *layout && candidate.1.len() < kept.len())
-            }
-        };
+        let replace = slot.as_ref().is_none_or(|kept| segments.len() < kept.len());
         if replace {
-            *slot = Some(candidate);
+            *slot = Some(segments);
         }
     }
     sources
@@ -60,7 +53,7 @@ pub(super) fn of_sources(
         .zip(modules)
         .map(|(source, module)| SourceIdentity {
             crate_name: crate_of_path(&source.path().to_string_lossy()),
-            modules:    module.map(|(_, segments)| segments).unwrap_or_default()
+            modules:    module.unwrap_or_default()
         })
         .collect()
 }
