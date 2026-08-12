@@ -219,6 +219,28 @@ fn a_type_carries_the_weight_the_compiler_gives_it() {
     assert_eq!(counted.align, 8);
 }
 
+/// The compiler reads a signature whatever the source elides: the
+/// receiver's type is the impl's, and no written text states it.
+#[test]
+fn a_signature_names_its_parameters_and_what_it_hands_back() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let found = resolution
+        .signatures
+        .iter()
+        .find(|held| held.returns == "Option<u64>")
+        .expect("the fixture declares a fallible reader");
+    assert_eq!(found.params.len(), 1);
+    assert_eq!(found.params[0].name, "self");
+    assert_eq!(
+        found.params[0].mode,
+        rustmanifest_schema::ResolvedMode::Borrowed
+    );
+    assert_eq!(found.params[0].named, "&Store");
+}
+
 #[test]
 fn resolving_the_same_workspace_twice_states_the_same_thing() {
     let dir = tempfile::tempdir().unwrap();

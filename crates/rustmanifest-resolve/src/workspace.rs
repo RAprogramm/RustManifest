@@ -96,7 +96,7 @@ fn settle_file(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: &mut Re
         &mut into.layouts
     );
     naming::settled(reading, parsed, &mut into.paths);
-    declaring::settled(reading, parsed, &mut into.functions);
+    declaring::settled(reading, parsed, &mut into.functions, &mut into.signatures);
     for call in parsed
         .syntax()
         .descendants()

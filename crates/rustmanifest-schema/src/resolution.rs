@@ -25,6 +25,7 @@ mod module;
 mod path;
 mod positioned;
 mod property;
+mod signature;
 mod typed;
 
 use schemars::JsonSchema;
@@ -37,6 +38,7 @@ pub use self::{
     module::ResolvedModule,
     path::ResolvedPath,
     property::ResolvedProperty,
+    signature::{ResolvedMode, ResolvedParam, ResolvedSignature},
     typed::ResolvedType
 };
 use crate::Location;
@@ -78,7 +80,11 @@ pub struct Resolution {
     /// What the compiler says each type the workspace mentions weighs, in
     /// name order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub layouts:       Vec<ResolvedLayout>
+    pub layouts:       Vec<ResolvedLayout>,
+    /// The signature of every declared function, in file then position
+    /// order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub signatures:    Vec<ResolvedSignature>
 }
 
 impl Resolution {
@@ -99,6 +105,13 @@ impl Resolution {
     #[must_use]
     pub fn type_at(&self, location: &Location) -> Option<&ResolvedType> {
         positioned::at(&self.types, location)
+    }
+
+    /// Returns the signature of the function whose name is written at
+    /// exactly this location.
+    #[must_use]
+    pub fn signature_at(&self, location: &Location) -> Option<&ResolvedSignature> {
+        positioned::at(&self.signatures, location)
     }
 
     /// Returns the function declared at exactly this location.
@@ -143,6 +156,7 @@ impl Resolution {
         positioned::settle(&mut self.types);
         positioned::settle(&mut self.paths);
         positioned::settle(&mut self.functions);
+        positioned::settle(&mut self.signatures);
         self.types_granted
             .sort_by(|left, right| left.named.cmp(&right.named));
         self.types_granted.dedup();
