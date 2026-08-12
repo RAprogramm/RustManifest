@@ -24,10 +24,12 @@ pub struct CallGraph {
     /// engine's own understanding gap.
     pub(super) unknown_receiver:  u64,
     /// Candidates whose name the workspace defines, with no definition
-    /// the caller's build target can link against. For the caller such a
-    /// function does not exist, so the call is external by elimination —
-    /// but it is a different unknowing than a name the workspace never
-    /// declares, and mixing the two hid one behind the other.
+    /// the caller can reach: none its build target links against, and
+    /// none its crate may name — every match written private in a
+    /// neighbouring crate. For the caller such a function does not
+    /// exist, so the call is external by elimination — but it is a
+    /// different unknowing than a name the workspace never declares,
+    /// and mixing the two hid one behind the other.
     pub(super) unreachable_named: u64,
     /// Candidates matching more than one linkable workspace function
     /// with no dispatch ground to carry all of them: which one is meant

@@ -22,8 +22,9 @@ pub enum RefusalRow {
     /// A `?::` name the workspace declares reachably: the receiver's
     /// type is what the reading could not settle.
     UnknownReceiver,
-    /// The name is declared in the workspace but links from nowhere the
-    /// caller is built.
+    /// The name is declared in the workspace but reaches the caller from
+    /// nowhere: not linkable from its build target, or written private
+    /// in another crate and therefore unnameable here.
     NamedElsewhere,
     /// Several linkable functions match: the gate refuses to guess.
     Ambiguous,
