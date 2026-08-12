@@ -29,6 +29,7 @@ pub mod overlays;
 pub mod overview;
 pub mod prescribe;
 pub mod report;
+pub mod resolve;
 
 use std::{path::PathBuf, process::ExitCode};
 
@@ -98,7 +99,9 @@ pub enum Command {
     /// Print the code the canonical form asks for, and what it buys.
     Prescribe(prescribe::PrescribeArgs),
     /// Print everything the engine knows about the program in one pass.
-    Report(report::ReportArgs)
+    Report(report::ReportArgs),
+    /// Ask the resolver what it settles about this workspace.
+    Resolve(resolve::ResolveArgs)
 }
 
 /// Entry point used by both the binary and integration tests.
@@ -120,7 +123,8 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Meaning(args) => meaning::run_meaning(&args),
         Command::Overview(args) => overview::run_overview(&args),
         Command::Prescribe(args) => prescribe::run_prescribe(&args),
-        Command::Report(args) => report::run_report(&args)
+        Command::Report(args) => report::run_report(&args),
+        Command::Resolve(args) => resolve::run_resolve(&args)
     }
 }
 
