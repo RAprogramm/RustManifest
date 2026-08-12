@@ -220,7 +220,33 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = behavior(&sources);
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            paths: [
+                ("u32::MAX", "core::u32::MAX", "const"),
+                ("None", "core::option::None", "variant")
+            ]
+            .into_iter()
+            .map(|(written, names, kind)| {
+                let start = u32::try_from(text.find(written).unwrap()).unwrap();
+                rustmanifest_schema::ResolvedPath {
+                    at:        rustmanifest_schema::Location {
+                        file:  PathBuf::from("src/lib.rs"),
+                        range: rustmanifest_schema::Range {
+                            start,
+                            end: start + u32::try_from(written.len()).unwrap()
+                        }
+                    },
+                    names:     names.to_owned(),
+                    kind:      kind.to_owned(),
+                    declaring: "core".to_owned()
+                }
+            })
+            .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&settled));
         let handbacks: Vec<Provenance> = facts
             .iter()
             .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))

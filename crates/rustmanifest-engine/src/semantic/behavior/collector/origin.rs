@@ -94,9 +94,6 @@ impl FactCollector {
         if self.settled_item(path) {
             return Provenance::Constant(written_path(path));
         }
-        if let Some(named) = crate::semantic::std_knowledge::value_path(path) {
-            return Provenance::Constant(named);
-        }
         if let Some(named) = self.declared_path(path) {
             return Provenance::Constant(named);
         }

@@ -18,7 +18,6 @@ mod method_effect;
 mod presence;
 mod result;
 mod selection;
-mod value_path;
 
 pub(super) use self::{
     arithmetic::operation_method,
@@ -27,8 +26,7 @@ pub(super) use self::{
     method_effect::method_effect,
     presence::{Presence, presence_method},
     result::method_result,
-    selection::selects_an_element,
-    value_path::value_path
+    selection::selects_an_element
 };
 
 /// The language's own primitive types, which are copied rather than
