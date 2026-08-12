@@ -13,6 +13,7 @@
 
 mod arithmetic;
 mod flow;
+mod library_return;
 mod macro_value;
 mod method_effect;
 mod presence;
@@ -23,6 +24,7 @@ mod value_path;
 pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
+    library_return::library_return,
     macro_value::{macro_leaves, macro_value},
     method_effect::method_effect,
     presence::{Presence, presence_method},

@@ -34,6 +34,14 @@ pub(super) fn written_type_segment(ty: &syn::Type) -> Option<String> {
 /// the wrapped type the receiver; a trait object renders as its first
 /// trait bound, so calls through it resolve as dispatch over the
 /// trait's implementors.
+/// The name a written slice or array stands under. The language gives
+/// the type no path of its own, and a call on one is a call on the
+/// library's own sequence — never on anything a workspace declares — so
+/// naming it keeps such a receiver out of the untyped row without
+/// putting a workspace type in its place. No idiomatic Rust type is
+/// spelled this way, so the name cannot collide with a written one.
+pub(in crate::semantic::behavior) const SLICE: &str = "slice";
+
 pub(in crate::semantic::behavior) fn type_last_segment(ty: &syn::Type) -> Option<String> {
     match ty {
         syn::Type::Path(path) => {
@@ -66,6 +74,7 @@ pub(in crate::semantic::behavior) fn type_last_segment(ty: &syn::Type) -> Option
                 None
             }
         }),
+        syn::Type::Slice(_) | syn::Type::Array(_) => Some(SLICE.to_owned()),
         _ => None
     }
 }

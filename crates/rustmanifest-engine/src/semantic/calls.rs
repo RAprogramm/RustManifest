@@ -354,6 +354,25 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A slice has no written path of its own, and a call on one is the
+    /// library's, never a workspace method of the same name — naming it
+    /// keeps such a receiver out of the untyped row. A path asked for
+    /// its parent hands back a path, so the chain written on it stays
+    /// typed too.
+    #[test]
+    fn a_slice_and_a_path_are_named_where_the_language_leaves_them_bare() {
+        let (all, graph) = context_graph(
+            "use std::path::Path;\npub struct Held;\nimpl Held { pub fn join(&self) {} }\npub fn \
+             go(globs: &[String], where_at: &Path) {\n    globs.join(\",\");\n    \
+             where_at.parent().unwrap().join(\"x\");\n}\n"
+        );
+        assert_eq!(graph.unknown_receiver(), 0);
+        assert!(
+            graph.callees(index_of(&all, "go")).is_empty(),
+            "neither call is the workspace method of that name"
+        );
+    }
+
     /// A written turbofish on a gathering call states the type it hands
     /// back, so the chain continues from it: the answer is on the page,
     /// and no table needs asking.
