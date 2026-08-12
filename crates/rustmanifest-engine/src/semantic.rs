@@ -79,7 +79,7 @@ pub use self::{
     calls::{
         CallGraph, RefusalRow, ResolutionContext, call_graph, call_graph_rows,
         call_graph_rows_with, call_graph_with, resolution_context, resolution_context_with,
-        resolution_segments, resolution_segments_with, transitive_effects
+        resolution_segments_with, transitive_effects
     },
     capability::{
         Capability, Evidence, ModuleCapability, ProvenCapability, Started, capabilities, started

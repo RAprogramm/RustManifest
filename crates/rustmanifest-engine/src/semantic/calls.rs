@@ -30,8 +30,7 @@ mod target;
 pub use self::{
     build::{call_graph, call_graph_rows, call_graph_rows_with, call_graph_with},
     context::{
-        ResolutionContext, resolution_context, resolution_context_with, resolution_segments,
-        resolution_segments_with
+        ResolutionContext, resolution_context, resolution_context_with, resolution_segments_with
     },
     effects::transitive_effects,
     graph::CallGraph,
@@ -1076,8 +1075,15 @@ mod tests {
                 "pub fn run() { rusty_core::helper(); }".to_owned()
             )
         ];
+        let settled = mounted(&[
+            ("rusty_core", "crates/rusty-core/src/lib.rs"),
+            ("rusty_app", "crates/rusty-app/src/lib.rs")
+        ]);
         let all = crate::semantic::behavior(&sources);
-        let graph = call_graph(&all, &super::resolution_context(&sources));
+        let graph = call_graph(
+            &all,
+            &super::resolution_context_with(&sources, Some(&settled))
+        );
         assert_eq!(
             graph.callees(index_of(&all, "run")),
             &[index_of(&all, "helper")]

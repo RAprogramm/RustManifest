@@ -15,7 +15,7 @@ use crate::{semantic::expr::impl_type_name, source::Source};
 /// facts themselves.
 #[derive(Debug, Default)]
 pub struct ResolutionContext {
-    /// Module and crate qualifiers, from [`resolution_segments`].
+    /// Module and crate qualifiers, from [`resolution_segments_with`].
     pub segments:    BTreeSet<String>,
     /// Trait name to the sorted types implementing it, for dynamic
     /// dispatch: a call through `dyn Trait` produces an edge to every
@@ -149,7 +149,7 @@ pub fn resolution_context_with(
         entries.sort_unstable();
     }
     ResolutionContext {
-        segments: resolution_segments_with(sources, settled),
+        segments: resolution_segments_with(settled),
         trait_impls,
         ext_traits,
         supertraits,
@@ -214,49 +214,24 @@ fn first_supertrait(definition: &syn::ItemTrait) -> Option<String> {
     })
 }
 
-/// Builds the qualifier set for call resolution over `sources`.
+/// Every name a written path may qualify a call with: each crate the
+/// resolver names and each module inside it.
 ///
-/// The set holds the last segment of every module path plus the name of
-/// every workspace crate, derived from the `<crate>/src/` path
-/// convention with `-` normalized to `_`. A candidate qualified by any
-/// of these resolves like a module qualifier — to a unique bare free
-/// function.
-#[must_use]
-pub fn resolution_segments(sources: &[Source]) -> BTreeSet<String> {
-    resolution_segments_with(sources, None)
-}
-
-/// Every name a written path may qualify a call with, read from the module
-/// tree a resolver settled where one ran.
+/// Read straight off the settled tree. The reading that stood here built a
+/// whole module overview to take the last segment of each path, then
+/// scanned every source path for a directory sitting above `src` to guess
+/// the crate names — both are stated outright by the tree.
 #[must_use]
 pub fn resolution_segments_with(
-    sources: &[Source],
     settled: Option<&rustmanifest_schema::Resolution>
 ) -> BTreeSet<String> {
-    let mut segments: BTreeSet<String> = crate::semantic::module_overview::of(
-        &crate::semantic::module_graph::ModuleGraph::of(sources, settled),
-        sources,
-        settled
-    )
-    .modules()
-    .iter()
-    .filter_map(|module| module.path.rsplit("::").next())
-    .map(ToOwned::to_owned)
-    .collect();
-    for source in sources {
-        let mut components = source.path().components().peekable();
-        let mut previous: Option<String> = None;
-        while let Some(component) = components.next() {
-            let name = component.as_os_str().to_string_lossy();
-            if name == "src"
-                && components.peek().is_some()
-                && let Some(krate) = previous.take()
-            {
-                segments.insert(krate.replace('-', "_"));
-                break;
-            }
-            previous = Some(name.into_owned());
-        }
-    }
-    segments
+    let Some(resolution) = settled else {
+        return BTreeSet::new();
+    };
+    resolution
+        .modules
+        .iter()
+        .flat_map(|module| module.names.split("::"))
+        .map(|segment| segment.replace('-', "_"))
+        .collect()
 }
