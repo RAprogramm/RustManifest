@@ -6,6 +6,13 @@
 //! asked to sort itself hands back nothing, and a reading that does not
 //! know this leaves every call further along the chain untyped.
 //!
+//! The truth-answering rows are here for the same reason: a question a
+//! container answers about itself is fixed by the library, and the pair
+//! of owner and method is what states it. Keying such a row by the
+//! method name alone would be a guess — a program writing its own
+//! `is_empty` would be credited with the library's answer — so the
+//! owner is always part of the row.
+//!
 //! Only rows the library's own signatures fix are written here, with
 //! the fallible and optional wrappers already unwrapped — the reading
 //! sees through `?` and `unwrap` elsewhere, and a row that kept the
@@ -15,7 +22,38 @@
 
 /// `(type, method, returned type)` rows the library's own signatures
 /// fix, wrappers unwrapped.
-const LIBRARY_RETURNS: [(&str, &str, &str); 22] = [
+const LIBRARY_RETURNS: [(&str, &str, &str); 53] = [
+    ("Vec", "is_empty", "bool"),
+    ("Vec", "contains", "bool"),
+    ("slice", "is_empty", "bool"),
+    ("slice", "contains", "bool"),
+    ("slice", "starts_with", "bool"),
+    ("slice", "ends_with", "bool"),
+    ("String", "is_empty", "bool"),
+    ("String", "contains", "bool"),
+    ("String", "starts_with", "bool"),
+    ("String", "ends_with", "bool"),
+    ("str", "is_empty", "bool"),
+    ("str", "contains", "bool"),
+    ("str", "starts_with", "bool"),
+    ("str", "ends_with", "bool"),
+    ("BTreeMap", "is_empty", "bool"),
+    ("BTreeMap", "contains_key", "bool"),
+    ("HashMap", "is_empty", "bool"),
+    ("HashMap", "contains_key", "bool"),
+    ("BTreeSet", "is_empty", "bool"),
+    ("BTreeSet", "contains", "bool"),
+    ("HashSet", "is_empty", "bool"),
+    ("HashSet", "contains", "bool"),
+    ("Path", "exists", "bool"),
+    ("Path", "is_file", "bool"),
+    ("Path", "is_dir", "bool"),
+    ("Path", "is_absolute", "bool"),
+    ("Path", "starts_with", "bool"),
+    ("Path", "ends_with", "bool"),
+    ("PathBuf", "exists", "bool"),
+    ("PathBuf", "is_file", "bool"),
+    ("PathBuf", "is_dir", "bool"),
     ("Path", "parent", "Path"),
     ("Path", "join", "PathBuf"),
     ("Path", "with_extension", "PathBuf"),
@@ -65,5 +103,21 @@ mod tests {
         assert_eq!(library_return("Path", "parent"), Some("Path"));
         assert_eq!(library_return("Path", "join"), Some("PathBuf"));
         assert_eq!(library_return("Path", "unknown_to_us"), None);
+    }
+
+    /// A question a container answers about itself hands back a truth,
+    /// and the owner is part of the row: a type of the program's own
+    /// carrying the same member name is not credited with the library's
+    /// answer.
+    #[test]
+    fn a_container_answers_a_question_about_itself_with_a_truth() {
+        assert_eq!(library_return("Vec", "is_empty"), Some("bool"));
+        assert_eq!(library_return("str", "starts_with"), Some("bool"));
+        assert_eq!(library_return("BTreeMap", "contains_key"), Some("bool"));
+        assert_eq!(
+            library_return("Held", "is_empty"),
+            None,
+            "a name alone answers nothing here"
+        );
     }
 }

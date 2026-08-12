@@ -354,6 +354,24 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A question a container answers about itself hands back a truth,
+    /// so the call written on that answer has a typed receiver — and
+    /// the row is keyed by the owner, so a workspace type carrying the
+    /// same member name keeps its own meaning.
+    #[test]
+    fn a_container_question_types_the_call_written_on_its_answer() {
+        let (all, graph) = context_graph(
+            "pub struct Held;\nimpl Held { pub fn then(&self) {} }\npub fn go(names: Vec<String>, \
+             text: &str) {\n    names.is_empty().then(|| 1);\n    \
+             text.starts_with(\"x\").then(|| 2);\n}\n"
+        );
+        assert_eq!(graph.unknown_receiver(), 0);
+        assert!(
+            graph.callees(index_of(&all, "go")).is_empty(),
+            "neither answer is the workspace type of that member name"
+        );
+    }
+
     /// A pack states what a crate's own field holds and what one step
     /// of a sequence field carries, so a value read off the tree types
     /// the calls written on it.
