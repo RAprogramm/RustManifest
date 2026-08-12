@@ -18,6 +18,29 @@ impl FactCollector {
     /// it. Reading only the bare form left every borrowed receiver
     /// untyped, which is most of them.
     pub(super) fn expr_type(&self, expression: &syn::Expr) -> Option<String> {
+        if let Some(settled) = self.settled_expr_type(expression) {
+            return Some(settled);
+        }
+        self.read_expr_type(expression)
+    }
+
+    /// The type a resolver settled for the expression at this position.
+    ///
+    /// Asked first, and for every shape of expression, because it is the
+    /// only answer here that was derived rather than inferred from
+    /// spelling. What follows it is a reading of the written text, kept
+    /// for sources no resolver ran over and for positions it left out.
+    fn settled_expr_type(&self, expression: &syn::Expr) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = expression.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.typed.get(&(start, end)).cloned()
+    }
+
+    /// The type the written text alone proves an expression has.
+    fn read_expr_type(&self, expression: &syn::Expr) -> Option<String> {
         match expression {
             syn::Expr::Reference(borrowed) => self.expr_type(&borrowed.expr),
             syn::Expr::Paren(inner) => self.expr_type(&inner.expr),

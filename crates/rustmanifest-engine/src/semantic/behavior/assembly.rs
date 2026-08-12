@@ -129,7 +129,13 @@ pub(super) struct Settled {
     pub(super) receivers: std::collections::BTreeMap<(u32, u32), String>,
     /// Type holding the field read at a position, and the type that
     /// field itself has.
-    pub(super) fields:    std::collections::BTreeMap<(u32, u32), (String, String)>
+    pub(super) fields:    std::collections::BTreeMap<(u32, u32), (String, String)>,
+    /// Type of the expression written at a position, whatever its shape.
+    ///
+    /// This one is not about calls or fields: it answers for every
+    /// expression the resolver settled, which is what lets a reading stop
+    /// deciding a type from how the expression was spelled.
+    pub(super) types:     std::collections::BTreeMap<(u32, u32), String>
 }
 
 /// The name the tables speak: the outermost type of a written type, with
@@ -190,6 +196,16 @@ fn settled_types(
             (field.at.range.start, field.at.range.end),
             (owner, produced)
         );
+    }
+    for typed in &resolution.types {
+        if typed.at.file != source.path() {
+            continue;
+        }
+        if let Some(named) = outermost(&typed.rendered) {
+            settled
+                .types
+                .insert((typed.at.range.start, typed.at.range.end), named);
+        }
     }
     settled
 }

@@ -91,6 +91,46 @@ mod tests {
         behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
     }
 
+    /// The facts of `text` read with a resolver's answer that the
+    /// expression spelled `expression` has type `rendered`.
+    fn facts_typed(text: &str, expression: &str, rendered: &str) -> Vec<FunctionFacts> {
+        let start = u32::try_from(text.find(expression).expect("the expression is written"))
+            .expect("the fixture is small");
+        let mut resolution = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            types: vec![rustmanifest_schema::ResolvedType {
+                at:       rustmanifest_schema::Location {
+                    file:  PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start,
+                        end: start
+                            + u32::try_from(expression.len()).expect("the fixture is small")
+                    }
+                },
+                rendered: rendered.to_owned()
+            }],
+            ..rustmanifest_schema::Resolution::default()
+        };
+        resolution.settle();
+        super::behavior_with(
+            &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
+            Some(&resolution)
+        )
+    }
+
+    /// A field hanging off an expression the written text cannot type is
+    /// unnamed on its own, and named the moment a resolver states the
+    /// type — with nothing in between reading how it was spelled.
+    #[test]
+    fn a_type_the_resolver_settled_names_a_field_the_reading_leaves_unnamed() {
+        let text = "fn go(outer: Outer) { outer.inner.count = 1; }";
+        let read = facts(text);
+        assert_eq!(named(&read, "go").writes, vec!["?.count".to_owned()]);
+
+        let all = facts_typed(text, "outer.inner", "Inner");
+        assert_eq!(named(&all, "go").writes, vec!["Inner.count".to_owned()]);
+    }
+
     fn named<'a>(all: &'a [FunctionFacts], name: &str) -> &'a FunctionFacts {
         all.iter().find(|facts| facts.function == name).unwrap()
     }
