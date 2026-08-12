@@ -15,6 +15,13 @@ use crate::{semantic::expr::impl_type_name, source::Source};
 /// facts themselves.
 #[derive(Debug, Default)]
 pub struct ResolutionContext {
+    /// Path of each analyzed source, by its index — what a fact's source
+    /// number stands for.
+    pub files:       Vec<std::path::PathBuf>,
+    /// What each call site reaches and what each declared body is called,
+    /// both by the full path — the identity a written name does not
+    /// carry. Empty where no resolver ran.
+    pub identity:    Identity,
     /// Module and crate qualifiers, from [`resolution_segments_with`].
     pub segments:    BTreeSet<String>,
     /// Trait name to the sorted types implementing it, for dynamic
@@ -65,6 +72,7 @@ pub fn resolution_context_with(
     sources: &[Source],
     settled: Option<&rustmanifest_schema::Resolution>
 ) -> ResolutionContext {
+    let identity = Identity::of(settled);
     let mut trait_impls: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut ext_traits: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let mut supertraits: BTreeMap<String, String> = BTreeMap::new();
@@ -149,6 +157,8 @@ pub fn resolution_context_with(
         entries.sort_unstable();
     }
     ResolutionContext {
+        identity,
+        files: named_files(sources),
         segments: resolution_segments_with(settled),
         trait_impls,
         ext_traits,
@@ -212,6 +222,87 @@ fn first_supertrait(definition: &syn::ItemTrait) -> Option<String> {
             None
         }
     })
+}
+
+/// The path of every analyzed source, by its index.
+fn named_files(sources: &[Source]) -> Vec<std::path::PathBuf> {
+    sources
+        .iter()
+        .map(|source| source.path().to_path_buf())
+        .collect()
+}
+
+/// What a resolver settled about identity: the body each call reaches and
+/// the name each declared body carries, both keyed by the place they are
+/// written at.
+///
+/// A call graph built from written names has to decide which `new` a
+/// candidate means; with these two tables it does not decide, it reads.
+#[derive(Debug, Default)]
+pub struct Identity {
+    /// Full path each call site reaches, by file and byte range.
+    reaches:  std::collections::BTreeMap<(std::path::PathBuf, u32, u32), String>,
+    /// Full path each declared body carries, by file and byte range.
+    declared: std::collections::BTreeMap<(std::path::PathBuf, u32, u32), String>
+}
+
+impl Identity {
+    /// Reads both tables out of a resolution, or answers with neither.
+    fn of(settled: Option<&rustmanifest_schema::Resolution>) -> Self {
+        let Some(resolution) = settled else {
+            return Self::default();
+        };
+        Self {
+            reaches:  resolution
+                .calls
+                .iter()
+                .filter_map(|call| {
+                    let reaches = call.reaches.clone()?;
+                    Some((keyed(&call.at), reaches))
+                })
+                .collect(),
+            declared: resolution
+                .functions
+                .iter()
+                .map(|declared| (keyed(&declared.at), declared.names.clone()))
+                .collect()
+        }
+    }
+
+    /// The full path the call written at this place reaches.
+    #[must_use]
+    pub fn reached(
+        &self,
+        file: &std::path::Path,
+        site: rustmanifest_schema::Range
+    ) -> Option<&str> {
+        self.reaches
+            .get(&(file.to_path_buf(), site.start, site.end))
+            .map(String::as_str)
+    }
+
+    /// The full path the body declared at this place carries.
+    #[must_use]
+    pub fn declared_as(
+        &self,
+        file: &std::path::Path,
+        at: rustmanifest_schema::Range
+    ) -> Option<&str> {
+        self.declared
+            .get(&(file.to_path_buf(), at.start, at.end))
+            .map(String::as_str)
+    }
+
+    /// Whether a resolver settled any identity at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.declared.is_empty()
+    }
+}
+
+/// The lookup key one settled location stands for.
+fn keyed(at: &rustmanifest_schema::Location) -> (std::path::PathBuf, u32, u32) {
+    (at.file.clone(), at.range.start, at.range.end)
 }
 
 /// Every name a written path may qualify a call with: each crate the

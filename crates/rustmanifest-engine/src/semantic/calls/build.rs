@@ -83,6 +83,63 @@ pub fn call_graph_rows_with(
     (graph, rows)
 }
 
+/// Binds every call site whose reached body a resolver named, and answers
+/// which candidates that settled.
+///
+/// A site bound here needs no candidate reading at all: the identity is
+/// stated, and the reading below exists only to guess it from a written
+/// name.
+fn bound_by_identity(
+    facts: &[FunctionFacts],
+    context: &ResolutionContext,
+    bodies: &std::collections::BTreeMap<&str, usize>,
+    edges: &mut [Vec<usize>]
+) -> BTreeSet<(usize, String)> {
+    let mut bound = BTreeSet::new();
+    for (index, fact) in facts.iter().enumerate() {
+        for site in &fact.call_sites {
+            let Some(reached) = context
+                .files
+                .get(fact.source)
+                .and_then(|file| context.identity.reached(file, site.site))
+            else {
+                continue;
+            };
+            let Some(&target) = bodies.get(reached) else {
+                continue;
+            };
+            bound.insert((index, site.candidate.clone()));
+            if !edges[index].contains(&target) {
+                edges[index].push(target);
+            }
+        }
+    }
+    bound
+}
+
+/// Every declared body by the full path a resolver settled for it.
+///
+/// The pairing a written name cannot make: a fact holds where a body is
+/// written, and the resolution holds what the body at that place is
+/// called.
+fn declared_bodies<'a>(
+    facts: &[FunctionFacts],
+    context: &'a ResolutionContext
+) -> std::collections::BTreeMap<&'a str, usize> {
+    let mut bodies = std::collections::BTreeMap::new();
+    for (index, fact) in facts.iter().enumerate() {
+        let Some(named) = context
+            .files
+            .get(fact.source)
+            .and_then(|file| context.identity.declared_as(file, fact.range))
+        else {
+            continue;
+        };
+        bodies.entry(named).or_insert(index);
+    }
+    bodies
+}
+
 /// The one builder both public forms call: resolves every candidate,
 /// books each refusal into its row, and hands the row to the collector
 /// where one listens.
@@ -101,12 +158,18 @@ fn built(
             workspace_owners.entry(owner).or_default().push(at);
         }
     }
+    let bodies = declared_bodies(facts, context);
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
     let mut tallies = Tallies::default();
     let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
     let mut settled: BTreeSet<(usize, usize)> = BTreeSet::new();
+    let by_identity = bound_by_identity(facts, context, &bodies, &mut edges);
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
+            if by_identity.contains(&(index, candidate.clone())) {
+                tallies.resolved += 1;
+                continue;
+            }
             let named = named_of(candidate, &tables, module_segments);
             let matches = named
                 .as_ref()
