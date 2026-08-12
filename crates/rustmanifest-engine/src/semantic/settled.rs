@@ -96,8 +96,7 @@ mod tests {
         )];
         let resolution = Resolution {
             resolver: "test".to_owned(),
-            fields:   Vec::new(),
-            calls:    vec![ResolvedCall {
+            calls: vec![ResolvedCall {
                 at:       Location {
                     file:  PathBuf::from("src/lib.rs"),
                     range: Range {
@@ -107,7 +106,8 @@ mod tests {
                 callee:   "is_some".to_owned(),
                 returns:  "bool".to_owned(),
                 receiver: None
-            }]
+            }],
+            ..Resolution::default()
         };
         let settled = Settled::new(Some(&resolution), &sources);
         let facts = crate::semantic::behavior::behavior(&sources);

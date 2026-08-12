@@ -6,48 +6,32 @@
 //! The shape lives here, in the crate every part of the engine already
 //! depends on, so that the engine can read a resolution without depending
 //! on whatever produced it. The producer is a separate crate carrying the
-//! rust-analyzer libraries; nothing of that reaches this far.
+//! language-server libraries; nothing of that reaches this far.
 //!
 //! A position the resolver could not settle is **absent**. Absence is the
 //! only encoding of "not answered" this shape has, so a consumer cannot
 //! read an empty string as a resolved name.
+//!
+//! Four kinds of row travel together because they answer the four questions
+//! a reading of written text cannot answer for itself: which function a call
+//! reaches, which type holds a field, what type an expression has, and which
+//! item a written name names. The last two are what let a reader stop
+//! guessing from spelling — see [`typed`] and [`path`] for why each exists.
+
+mod call;
+mod path;
+mod positioned;
+mod typed;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub use self::{
+    call::{ResolvedCall, ResolvedField},
+    path::ResolvedPath,
+    typed::ResolvedType
+};
 use crate::Location;
-
-/// One call a resolver settled.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub struct ResolvedCall {
-    /// File and byte range of the call expression.
-    pub at:       Location,
-    /// Name of the function the call reaches.
-    pub callee:   String,
-    /// Type the call hands back, as the resolver renders it.
-    pub returns:  String,
-    /// Type of the receiver, where the call has one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub receiver: Option<String>
-}
-
-/// One field access a resolver settled.
-///
-/// The engine reads a field by naming the type that holds it, and a type
-/// outside the workspace is one the written text cannot name. This row
-/// answers exactly that: which type the value being read from has, and
-/// which type the field itself has.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub struct ResolvedField {
-    /// File and byte range of the field expression.
-    pub at:       Location,
-    /// Type of the value the field is read out of.
-    pub owner:    String,
-    /// Type the field itself has, as the resolver renders it.
-    pub produced: String
-}
 
 /// Everything one resolution run settled about one workspace.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -60,7 +44,15 @@ pub struct Resolution {
     pub calls:    Vec<ResolvedCall>,
     /// Field accesses the resolver settled, in file then position order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub fields:   Vec<ResolvedField>
+    pub fields:   Vec<ResolvedField>,
+    /// Types of expressions the resolver settled, in file then position
+    /// order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub types:    Vec<ResolvedType>,
+    /// Written paths the resolver settled to an item, in file then position
+    /// order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths:    Vec<ResolvedPath>
 }
 
 impl Resolution {
@@ -68,29 +60,38 @@ impl Resolution {
     /// the resolver settled none.
     #[must_use]
     pub fn at(&self, location: &Location) -> Option<&ResolvedCall> {
-        self.calls.iter().find(|call| &call.at == location)
+        positioned::at(&self.calls, location)
     }
 
-    /// Sorts the calls into the order the shape promises and drops exact
-    /// repeats, so two runs over the same workspace produce the same bytes.
+    /// Returns the field access settled at exactly this location.
+    #[must_use]
+    pub fn field_at(&self, location: &Location) -> Option<&ResolvedField> {
+        positioned::at(&self.fields, location)
+    }
+
+    /// Returns the type of the expression written at exactly this location.
+    #[must_use]
+    pub fn type_at(&self, location: &Location) -> Option<&ResolvedType> {
+        positioned::at(&self.types, location)
+    }
+
+    /// Returns what the path written at exactly this location names.
+    #[must_use]
+    pub fn path_at(&self, location: &Location) -> Option<&ResolvedPath> {
+        positioned::at(&self.paths, location)
+    }
+
+    /// Sorts every kind of row into the order the shape promises and drops
+    /// exact repeats, so two runs over the same workspace produce the same
+    /// bytes.
+    ///
+    /// This is also what establishes the order the lookups bisect, so a
+    /// resolution assembled by hand is settled before it is read.
     pub fn settle(&mut self) {
-        self.fields.sort_by(|left, right| {
-            left.at
-                .file
-                .cmp(&right.at.file)
-                .then(left.at.range.start.cmp(&right.at.range.start))
-                .then(left.at.range.end.cmp(&right.at.range.end))
-        });
-        self.fields.dedup();
-        self.calls.sort_by(|left, right| {
-            left.at
-                .file
-                .cmp(&right.at.file)
-                .then(left.at.range.start.cmp(&right.at.range.start))
-                .then(left.at.range.end.cmp(&right.at.range.end))
-                .then(left.callee.cmp(&right.callee))
-        });
-        self.calls.dedup();
+        positioned::settle(&mut self.fields);
+        positioned::settle(&mut self.calls);
+        positioned::settle(&mut self.types);
+        positioned::settle(&mut self.paths);
     }
 }
 
@@ -126,13 +127,19 @@ mod tests {
         }
     }
 
+    fn resolution(calls: Vec<ResolvedCall>) -> Resolution {
+        let mut built = Resolution {
+            resolver: "test".to_owned(),
+            calls,
+            ..Resolution::default()
+        };
+        built.settle();
+        built
+    }
+
     #[test]
     fn a_settled_call_is_found_by_its_location() {
-        let resolution = Resolution {
-            resolver: "test".to_owned(),
-            fields:   Vec::new(),
-            calls:    vec![call("src/lib.rs", 10, "is_some")]
-        };
+        let resolution = resolution(vec![call("src/lib.rs", 10, "is_some")]);
         let found = resolution
             .at(&located("src/lib.rs", 10))
             .expect("the call is settled");
@@ -142,27 +149,18 @@ mod tests {
 
     #[test]
     fn a_position_the_resolver_did_not_settle_is_absent() {
-        let resolution = Resolution {
-            resolver: "test".to_owned(),
-            fields:   Vec::new(),
-            calls:    vec![call("src/lib.rs", 10, "go")]
-        };
+        let resolution = resolution(vec![call("src/lib.rs", 10, "go")]);
         assert!(resolution.at(&located("src/lib.rs", 99)).is_none());
     }
 
     #[test]
     fn settling_orders_by_file_then_position_and_drops_repeats() {
-        let mut resolution = Resolution {
-            resolver: "test".to_owned(),
-            fields:   Vec::new(),
-            calls:    vec![
-                call("src/z.rs", 1, "z"),
-                call("src/a.rs", 20, "b"),
-                call("src/a.rs", 5, "a"),
-                call("src/a.rs", 5, "a"),
-            ]
-        };
-        resolution.settle();
+        let resolution = resolution(vec![
+            call("src/z.rs", 1, "z"),
+            call("src/a.rs", 20, "b"),
+            call("src/a.rs", 5, "a"),
+            call("src/a.rs", 5, "a"),
+        ]);
         let order: Vec<&str> = resolution
             .calls
             .iter()
@@ -175,5 +173,71 @@ mod tests {
     fn an_unresolved_receiver_is_left_out_of_the_json() {
         let text = serde_json::to_string(&call("src/lib.rs", 0, "go")).unwrap();
         assert!(!text.contains("receiver"));
+    }
+
+    #[test]
+    fn a_type_is_found_at_the_position_the_expression_is_written_at() {
+        let mut settled = Resolution {
+            resolver: "test".to_owned(),
+            types: vec![
+                ResolvedType {
+                    at:       located("src/lib.rs", 40),
+                    rendered: "u32".to_owned()
+                },
+                ResolvedType {
+                    at:       located("src/lib.rs", 10),
+                    rendered: "String".to_owned()
+                },
+            ],
+            ..Resolution::default()
+        };
+        settled.settle();
+        assert_eq!(
+            settled
+                .type_at(&located("src/lib.rs", 10))
+                .expect("the type is settled")
+                .rendered,
+            "String"
+        );
+        assert!(settled.type_at(&located("src/lib.rs", 11)).is_none());
+    }
+
+    #[test]
+    fn two_namesakes_keep_the_crate_that_declares_them_apart() {
+        let mut settled = Resolution {
+            resolver: "test".to_owned(),
+            paths: vec![
+                ResolvedPath {
+                    at:        located("src/lib.rs", 10),
+                    names:     "std::io::Error".to_owned(),
+                    kind:      "struct".to_owned(),
+                    declaring: "std".to_owned()
+                },
+                ResolvedPath {
+                    at:        located("src/lib.rs", 30),
+                    names:     "mycrate::Error".to_owned(),
+                    kind:      "enum".to_owned(),
+                    declaring: "mycrate".to_owned()
+                },
+            ],
+            ..Resolution::default()
+        };
+        settled.settle();
+        let first = settled
+            .path_at(&located("src/lib.rs", 10))
+            .expect("the path is settled");
+        let second = settled
+            .path_at(&located("src/lib.rs", 30))
+            .expect("the path is settled");
+        assert_ne!(first.declaring, second.declaring);
+        assert_ne!(first.names, second.names);
+    }
+
+    #[test]
+    fn rows_absent_from_a_run_are_absent_from_the_json() {
+        let text = serde_json::to_string(&resolution(Vec::new())).unwrap();
+        assert!(!text.contains("types"));
+        assert!(!text.contains("paths"));
+        assert!(!text.contains("fields"));
     }
 }

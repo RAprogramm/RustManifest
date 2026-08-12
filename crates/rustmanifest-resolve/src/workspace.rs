@@ -49,8 +49,7 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
     );
     let mut resolution = Resolution {
         resolver: format!("rustmanifest-resolve {}", env!("CARGO_PKG_VERSION")),
-        calls:    Vec::new(),
-        fields:   Vec::new()
+        ..Resolution::default()
     };
     attach_db(&database, || {
         let semantics = Semantics::new(&database);
