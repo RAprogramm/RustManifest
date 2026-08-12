@@ -22,6 +22,19 @@ pub(super) struct Returned {
     pub(super) never:   bool
 }
 
+/// The type behind every written borrow: a method handing back `&T`
+/// hands back a `T` to call on, since the language derefs for the call
+/// itself. Reading only the bare form left every accessor returning a
+/// reference with no return row at all, and every chain written on one
+/// with an untyped receiver.
+fn peeled(ty: &syn::Type) -> &syn::Type {
+    match ty {
+        syn::Type::Reference(reference) => peeled(&reference.elem),
+        syn::Type::Paren(inner) => peeled(&inner.elem),
+        other => other
+    }
+}
+
 /// Reads a signature's plain return type and, for `Result`/`Option`
 /// returns, the success type carried in the first type argument.
 pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Option<Returned> {
@@ -37,7 +50,7 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
             never:   true
         });
     }
-    let syn::Type::Path(path) = ty.as_ref() else {
+    let syn::Type::Path(path) = peeled(ty.as_ref()) else {
         return None;
     };
     let segment = path.path.segments.last()?;

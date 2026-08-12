@@ -354,6 +354,24 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// An accessor handing back a borrow types the chain written on it:
+    /// the language derefs for the call, so `&T` is a `T` to call on,
+    /// and reading only the bare form left every such accessor with no
+    /// return row at all.
+    #[test]
+    fn an_accessor_handing_back_a_borrow_types_the_chain() {
+        let (all, graph) = context_graph(
+            "pub struct Graph;\nimpl Graph { pub fn count(&self) {} }\npub struct \
+             Held;\nimpl Held { pub fn graph(&self) -> &Graph { &Graph } }\npub fn go(held: \
+             &Held) {\n    held.graph().count();\n}\n"
+        );
+        assert!(
+            graph
+                .callees(index_of(&all, "go"))
+                .contains(&index_of(&all, "Graph::count"))
+        );
+    }
+
     /// A comparison is a truth value by the language's own rule, so a
     /// call written on one has a typed receiver: the workspace method
     /// of the same name is not what it means, and the count says so.
