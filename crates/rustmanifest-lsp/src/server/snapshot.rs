@@ -49,7 +49,10 @@ struct Built {
     /// The memory shape of every captured type.
     shapes:  Vec<TypeShape>,
     /// The compiler's trait index, where the workspace carries one.
-    oracle:  Option<Indexed>
+    oracle:  Option<Indexed>,
+    /// What a resolver settled about the sources, where the workspace
+    /// carries an overlay beside its manifest.
+    settled: Option<rustmanifest_schema::Resolution>
 }
 
 /// The compiler's trait index with its freshness reading.
@@ -92,6 +95,7 @@ impl Snapshot {
             let types = TypeGraph::from_sources(&sources);
             let shaped = shapes(&sources);
             let oracle = compiler_index(self.root.as_deref(), &sources);
+            let settled = settled_overlay(self.root.as_deref());
             self.built = Some(Built {
                 sources,
                 facts,
@@ -99,7 +103,8 @@ impl Snapshot {
                 reached,
                 types,
                 shapes: shaped,
-                oracle
+                oracle,
+                settled
             });
             self.dirty = false;
         }
@@ -113,7 +118,8 @@ impl Snapshot {
             reached: Vec::new(),
             types:   TypeGraph::from_sources(&[]),
             shapes:  Vec::new(),
-            oracle:  None
+            oracle:  None,
+            settled: None
         });
         Derived {
             sources: &held.sources,
@@ -122,9 +128,22 @@ impl Snapshot {
             reached: &held.reached,
             types:   &held.types,
             shapes:  &held.shapes,
-            oracle:  held.oracle.as_ref()
+            oracle:  held.oracle.as_ref(),
+            settled: held.settled.as_ref()
         }
     }
+}
+
+/// What a resolver settled about this workspace, read from
+/// `resolution.json` beside the manifest; nothing where none was written.
+///
+/// The same discipline as the documentation index: absent overlay, absent
+/// answers. What it carries — the type of every expression and whether the
+/// compiler copies or moves each type — is what no reading of the written
+/// text can state, so its absence is a quieter editor and never a guess.
+fn settled_overlay(root: Option<&std::path::Path>) -> Option<rustmanifest_schema::Resolution> {
+    let text = std::fs::read_to_string(root?.join("resolution.json")).ok()?;
+    serde_json::from_str(&text).ok()
 }
 
 /// Every rustdoc JSON emission under the root's `target/doc`, merged
@@ -189,7 +208,10 @@ pub(super) struct Derived<'a> {
     pub(super) shapes:  &'a [TypeShape],
     /// The compiler's trait index with its freshness reading, where the
     /// workspace carries one.
-    pub(super) oracle:  Option<&'a Indexed>
+    pub(super) oracle:  Option<&'a Indexed>,
+    /// What a resolver settled about the sources, where the workspace
+    /// carries an overlay.
+    pub(super) settled: Option<&'a rustmanifest_schema::Resolution>
 }
 
 /// Builds the source slice: the root's files off disk, buffers overlaid,

@@ -492,13 +492,13 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
     let value = held["contents"]["value"].as_str().unwrap();
     assert!(value.contains("**ownership at this call**"), "{value}");
     assert!(
-        value.contains("`value: String` is taken by value, and `String` is not `Copy`"),
+        value.contains("`value: String` is taken by value"),
         "{value}"
     );
-    assert!(value.contains("unusable after this line"), "{value}");
     assert!(
-        value.contains("calling `foo` moves 1 value(s) in"),
-        "{value}"
+        value.contains("unsettled"),
+        "a session with no resolution beside it must say the question is open rather than \
+         claim an answer: {value}"
     );
     client
         .sender
@@ -738,11 +738,9 @@ fn a_hover_on_a_type_name_cards_its_facts() {
     );
     assert!(value.contains("✓ `Display` — a written impl"), "{value}");
     assert!(
-        value.contains(
-            "✗ `Copy` — not derived, and `name: String` owns heap data — a type holding it cannot \
-             be `Copy`"
-        ),
-        "{value}"
+        value.contains("`Copy` — not derived"),
+        "without a resolution beside the session, which field forbids the copy is the \
+         compiler's answer and stays unclaimed: {value}"
     );
     assert!(
         value.contains("– `Default` — not written in the workspace"),
@@ -817,7 +815,10 @@ fn inlay_hints_mark_the_fate_of_each_argument() {
     };
     let hints = answer.response_result.as_ref().unwrap().as_array().unwrap();
     assert_eq!(hints.len(), 1, "{hints:?}");
-    assert_eq!(hints[0]["label"], "moves", "{hints:?}");
+    assert_eq!(
+        hints[0]["label"], "by value?",
+        "a session with no resolution beside it states the open question: {hints:?}"
+    );
     let line = HANDED.lines().nth(1).unwrap();
     let argument = line.find("foo(s)").unwrap() + 4;
     assert_eq!(hints[0]["position"]["line"], 1, "{hints:?}");

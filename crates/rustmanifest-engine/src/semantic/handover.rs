@@ -36,6 +36,7 @@ pub fn handover_at(
     facts: &[FunctionFacts],
     graph: &CallGraph,
     types: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>,
     file: usize,
     offset: u32
 ) -> Option<Answer> {
@@ -44,7 +45,7 @@ pub fn handover_at(
     if callee.params.is_empty() {
         return None;
     }
-    Some(story(callee, types))
+    Some(story(callee, types, settled))
 }
 
 /// The innermost recorded call site of `file` covering `offset`, with
@@ -89,11 +90,15 @@ fn resolved_callee(
 
 /// The ownership story of one call: a step per declared parameter and a
 /// conclusion counting where the values go.
-fn story(callee: &FunctionFacts, types: &TypeGraph) -> Answer {
+fn story(
+    callee: &FunctionFacts,
+    types: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Answer {
     let mut steps = Vec::new();
     let mut tallies = [0u32; 4];
     for param in &callee.params {
-        let (step, tally) = told(param, types);
+        let (step, tally) = told(param, types, settled);
         steps.push(step);
         tallies[tally] += 1;
     }
@@ -122,10 +127,14 @@ fn story(callee: &FunctionFacts, types: &TypeGraph) -> Answer {
 
 /// One parameter's step, with the tally slot it lands in: move, copy,
 /// borrow, or unsettled by-value pass.
-fn told(param: &ParamFacts, types: &TypeGraph) -> (TraceStep, usize) {
+fn told(
+    param: &ParamFacts,
+    types: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> (TraceStep, usize) {
     let (name, type_name) = (&param.name, &param.type_name);
     match param.mode {
-        ParamMode::Owned => match copyness(types, type_name) {
+        ParamMode::Owned => match copyness(types, settled, type_name) {
             Some(false) => (
                 TraceStep {
                     fact:   format!(
@@ -191,26 +200,40 @@ fn told(param: &ParamFacts, types: &TypeGraph) -> (TraceStep, usize) {
 /// answers for workspace types by their derives and impls, and nothing
 /// answers otherwise.
 ///
-/// A library type is still answered from two written lists — one of names
-/// that are copied, one of names that are not. Both are the compiler's
-/// answer transcribed by hand, incomplete by construction, and silently
-/// wrong for any type nobody added. The answer now also travels in a
-/// resolution, per type; this tier is reached without one, so the lists
-/// stand until it can be handed one. The ownership check, which can be,
-/// already prefers the compiler's grant.
+/// A library type is the compiler's answer, carried per type by a
+/// resolution that ran. Where none ran the question is unanswered rather
+/// than guessed: two written lists of library names used to answer it, and
+/// both were the compiler's answer transcribed by hand — incomplete by
+/// construction and silently wrong for every type nobody thought to add.
 #[must_use]
-pub fn copyness(types: &TypeGraph, type_name: &str) -> Option<bool> {
-    if std_knowledge::is_copy_type(type_name) {
+pub fn copyness(
+    types: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>,
+    type_name: &str
+) -> Option<bool> {
+    if std_knowledge::is_primitive_copy(type_name) {
         return Some(true);
     }
-    if std_knowledge::is_owning_type(type_name) {
-        return Some(false);
+    if let Some(granted) = granted_copy(settled, type_name) {
+        return Some(granted);
     }
     let node = types.type_named(type_name)?;
     Some(
         node.derives.iter().any(|derive| derive == "Copy")
             || types.traits_implemented(type_name).contains(&"Copy")
     )
+}
+
+/// What a resolver settled about values of the type named `named`, where
+/// one ran and mentioned that type at all.
+fn granted_copy(settled: Option<&rustmanifest_schema::Resolution>, named: &str) -> Option<bool> {
+    settled?
+        .types_granted
+        .iter()
+        .find(|row| {
+            crate::semantic::behavior::outermost_name(&row.named).as_deref() == Some(named)
+        })
+        .map(|row| row.copy)
 }
 
 #[cfg(test)]
@@ -235,19 +258,39 @@ mod tests {
     };
 
     fn asked(text: &str, at: &str) -> Option<Answer> {
+        asked_settled(text, at, &[])
+    }
+
+    /// The same question with what a resolver settled about the types
+    /// named in `granted` — each a type name and whether the compiler
+    /// says values of it are copied.
+    fn asked_settled(text: &str, at: &str, granted: &[(&str, bool)]) -> Option<Answer> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let facts = behavior(&sources);
         let graph = call_graph(&facts, &resolution_context(&sources));
         let types = TypeGraph::from_sources(&sources);
         let offset = u32::try_from(text.find(at).unwrap()).unwrap() + 1;
-        handover_at(&facts, &graph, &types, 0, offset)
+        let mut resolution = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            types_granted: granted
+                .iter()
+                .map(|(named, copy)| rustmanifest_schema::ResolvedProperty {
+                    named: (*named).to_owned(),
+                    copy:  *copy
+                })
+                .collect(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        resolution.settle();
+        handover_at(&facts, &graph, &types, Some(&resolution), 0, offset)
     }
 
     #[test]
     fn a_by_value_pass_of_a_known_owner_is_told_as_a_move() {
-        let answer = asked(
+        let answer = asked_settled(
             "fn foo(value: String) {}\nfn main() { let s = String::from(\"hello\"); foo(s); }",
-            "foo(s)"
+            "foo(s)",
+            &[("String", false)]
         )
         .unwrap();
         assert!(answer.steps[0].fact.contains("`String` is not `Copy`"));
@@ -326,10 +369,11 @@ mod tests {
 
     #[test]
     fn a_slice_parameter_is_a_recorded_borrow_not_a_gap() {
-        let answer = asked(
+        let answer = asked_settled(
             "fn pack(text: String, bytes: &[u8]) {}\nfn main() { let s = String::new(); let b = \
              vec![0u8]; pack(s, &b); }",
-            "pack(s, &b)"
+            "pack(s, &b)",
+            &[("String", false)]
         )
         .unwrap();
         assert_eq!(answer.steps.len(), 2, "{answer:?}");

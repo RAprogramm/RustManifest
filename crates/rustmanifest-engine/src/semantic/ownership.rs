@@ -185,9 +185,6 @@ fn granted_copy(settled: Option<&rustmanifest_schema::Resolution>, named: &str) 
     if super::std_knowledge::is_primitive_copy(named) {
         return true;
     }
-    if super::std_knowledge::is_copy_type(named) {
-        return true;
-    }
     settled.is_some_and(|resolution| {
         resolution.types_granted.iter().any(|row| {
             row.copy && super::behavior::outermost_name(&row.named).as_deref() == Some(named)

@@ -31,42 +31,24 @@ pub(super) use self::{
     value_path::value_path
 };
 
-/// The language's own primitives, which are copied by the grammar
-/// itself, followed by the library names still transcribed here.
+/// The language's own primitive types, which are copied rather than
+/// moved by the grammar itself.
 ///
-/// The primitives are not library knowledge and this part does not grow.
-/// The library names below them are the compiler's answer written out by
-/// hand: they stay only until a resolution reaches the tier that asks —
-/// the ownership check already prefers the compiler's own grant and falls
-/// back to this list, the handover tier cannot yet be handed one.
-pub(super) const COPY_TYPES: [&str; 26] = [
-    "Duration",
-    "IpAddr",
-    "Ipv4Addr",
-    "Ipv6Addr",
-    "NonZeroU32",
-    "NonZeroU64",
-    "NonZeroUsize",
-    "Ordering",
-    "SocketAddr",
-    "bool",
-    "char",
-    "f32",
-    "f64",
-    "i8",
-    "i16",
-    "i32",
-    "i64",
-    "i128",
-    "isize",
-    "str",
-    "u8",
-    "u16",
-    "u32",
-    "u64",
-    "u128",
-    "usize"
+/// This is not library knowledge and it does not grow: the set of
+/// primitives is fixed by the language. Whether a library type is copied
+/// is the compiler's answer, carried per type by a resolution — two
+/// written lists of library names used to answer it here, and both were
+/// that answer transcribed by hand, incomplete by construction and
+/// silently wrong for every name nobody added.
+pub(super) const PRIMITIVE_COPY_TYPES: [&str; 17] = [
+    "bool", "char", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "str", "u8", "u16",
+    "u32", "u64", "u128", "usize"
 ];
+
+/// Whether `name` is one of the language's own copied primitives.
+pub(super) fn is_primitive_copy(name: &str) -> bool {
+    PRIMITIVE_COPY_TYPES.contains(&name)
+}
 
 /// Methods on std containers, strings, and cells that mutate their
 /// receiver in place.
@@ -123,46 +105,6 @@ pub(super) fn consuming_method(method: &str) -> bool {
         )
 }
 
-/// Returns whether the type with last path segment `name` is provably
-/// `Copy` by std knowledge alone.
-pub(super) fn is_copy_type(name: &str) -> bool {
-    COPY_TYPES.contains(&name)
-}
-
-/// Whether `name` is one of the language's own copied primitives, as
-/// opposed to a library type the compiler decides about.
-pub(super) fn is_primitive_copy(name: &str) -> bool {
-    !name.chars().next().is_some_and(char::is_uppercase) && COPY_TYPES.contains(&name)
-}
-
-/// Well-known owning std types by their last path segment: provably not
-/// `Copy`, so passing one by value provably moves it.
-pub(super) const OWNING_TYPES: [&str; 17] = [
-    "Arc",
-    "BTreeMap",
-    "BTreeSet",
-    "Box",
-    "File",
-    "HashMap",
-    "HashSet",
-    "Mutex",
-    "OsString",
-    "PathBuf",
-    "Rc",
-    "RwLock",
-    "String",
-    "TcpListener",
-    "TcpStream",
-    "Vec",
-    "VecDeque"
-];
-
-/// Returns whether the type with last path segment `name` is a known
-/// std owner: provably not `Copy` by std knowledge alone.
-pub(super) fn is_owning_type(name: &str) -> bool {
-    OWNING_TYPES.contains(&name)
-}
-
 /// Well-known external constructor functions by call name, with the
 /// concrete type each one produces (`Result`/`Option` wrappers already
 /// unwrapped, since these are consumed behind `unwrap`/`?`).
@@ -177,13 +119,16 @@ pub(super) const EXTERNAL_CONSTRUCTORS: [(&str, &str); 2] =
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{MUTATING_METHODS, consuming_method, is_copy_type};
+    use super::{MUTATING_METHODS, consuming_method, is_primitive_copy};
 
+    /// The language's own primitives answer here and nothing else does:
+    /// a library type that happens to be copied is the compiler's answer,
+    /// and claiming it from a written list is what this replaced.
     #[test]
-    fn scalars_and_known_std_types_are_copy() {
-        assert!(is_copy_type("u32"));
-        assert!(is_copy_type("Duration"));
-        assert!(!is_copy_type("String"));
+    fn the_languages_own_primitives_answer_and_no_library_name_is_claimed() {
+        assert!(is_primitive_copy("u32"));
+        assert!(!is_primitive_copy("Duration"));
+        assert!(!is_primitive_copy("String"));
     }
 
     #[test]

@@ -41,6 +41,7 @@ pub fn handover_marks(
     facts: &[FunctionFacts],
     graph: &CallGraph,
     types: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>,
     file: usize
 ) -> Vec<Mark> {
     let Some(source) = sources.get(file) else {
@@ -65,7 +66,7 @@ pub fn handover_marks(
             let Some(call) = written.calls.iter().find(|call| call.site == site.site) else {
                 continue;
             };
-            marks.extend(aligned(&facts[callee], call, types));
+            marks.extend(aligned(&facts[callee], call, types, settled));
         }
     }
     marks.sort_by_key(|mark| mark.range.start);
@@ -74,7 +75,12 @@ pub fn handover_marks(
 
 /// The marks of one call whose written arguments align with the
 /// callee's declared parameters, receiver included.
-fn aligned(callee: &FunctionFacts, call: &Call, types: &TypeGraph) -> Vec<Mark> {
+fn aligned(
+    callee: &FunctionFacts,
+    call: &Call,
+    types: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<Mark> {
     let params = &callee.params;
     let skipped = if params.len() == call.arguments.len() {
         0
@@ -89,7 +95,7 @@ fn aligned(callee: &FunctionFacts, call: &Call, types: &TypeGraph) -> Vec<Mark> 
         .map(|(param, argument)| Mark {
             range: *argument,
             label: match param.mode {
-                ParamMode::Owned => match copyness(types, &param.type_name) {
+                ParamMode::Owned => match copyness(types, settled, &param.type_name) {
                     Some(false) => "moves",
                     Some(true) => "copies",
                     None => "by value?"
@@ -178,7 +184,16 @@ mod tests {
         let facts = behavior(&sources);
         let graph = call_graph(&facts, &resolution_context(&sources));
         let types = TypeGraph::from_sources(&sources);
-        handover_marks(&sources, &facts, &graph, &types, 0)
+        let mut resolution = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            types_granted: vec![rustmanifest_schema::ResolvedProperty {
+                named: "String".to_owned(),
+                copy:  false
+            }],
+            ..rustmanifest_schema::Resolution::default()
+        };
+        resolution.settle();
+        handover_marks(&sources, &facts, &graph, &types, Some(&resolution), 0)
             .into_iter()
             .map(|mark| {
                 (

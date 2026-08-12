@@ -127,7 +127,8 @@ pub(super) fn type_card(
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
     shape: Option<&rustmanifest_engine::semantic::TypeShape>,
-    oracle: Option<&super::snapshot::Indexed>
+    oracle: Option<&super::snapshot::Indexed>,
+    settled: Option<&rustmanifest_schema::Resolution>
 ) -> String {
     let kind = match node.kind {
         rustmanifest_engine::TypeKind::Struct => "struct",
@@ -140,7 +141,7 @@ pub(super) fn type_card(
     fence.push("}\n```".to_owned());
     let mut lines = vec![fence.join("\n")];
     lines.push("---".to_owned());
-    lines.push(traits_section(types, node, implemented, oracle));
+    lines.push(traits_section(types, node, implemented, oracle, settled));
     if let Some(shape) = shape {
         let mut memory = Vec::new();
         if let Some(payload) = shape.payload {
@@ -189,7 +190,8 @@ fn traits_section(
     types: &rustmanifest_engine::TypeGraph,
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
-    oracle: Option<&super::snapshot::Indexed>
+    oracle: Option<&super::snapshot::Indexed>,
+    settled: Option<&rustmanifest_schema::Resolution>
 ) -> String {
     let mut told = vec!["**traits**".to_owned()];
     let mut named: Vec<&str> = ASKED_TRAITS.to_vec();
@@ -207,7 +209,7 @@ fn traits_section(
     for trait_name in named {
         told.push(format!(
             "- {}",
-            verdict(types, node, implemented, asked, trait_name)
+            verdict(types, node, implemented, asked, settled, trait_name)
         ));
     }
     match asked {
@@ -258,6 +260,7 @@ fn verdict(
     node: &rustmanifest_engine::TypeNode,
     implemented: &[&str],
     asked: Option<&super::snapshot::Indexed>,
+    settled: Option<&rustmanifest_schema::Resolution>,
     trait_name: &str
 ) -> String {
     if node.derives.iter().any(|derive| derive == trait_name) {
@@ -268,7 +271,8 @@ fn verdict(
     }
     if trait_name == "Copy"
         && let Some(owning) = node.fields.iter().find(|field| {
-            rustmanifest_engine::semantic::copyness(types, &field.type_name) == Some(false)
+            rustmanifest_engine::semantic::copyness(types, settled, &field.type_name)
+                == Some(false)
         })
     {
         return format!(

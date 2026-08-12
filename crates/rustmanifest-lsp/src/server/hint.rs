@@ -42,6 +42,7 @@ pub(super) fn answer(request: &Request, held: &Derived<'_>) -> Response {
                 held.facts,
                 held.graph,
                 held.types,
+                held.settled,
                 file
             )
             .into_iter()

@@ -98,7 +98,8 @@ fn typed_card(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> 
         node,
         &implemented,
         shape,
-        held.oracle
+        held.oracle,
+        held.settled
     ))
 }
 
@@ -109,6 +110,7 @@ fn call_story(held: &Derived<'_>, file: usize, offset: usize) -> Option<String> 
         held.facts,
         held.graph,
         held.types,
+        held.settled,
         file,
         u32::try_from(offset).ok()?
     )?;
