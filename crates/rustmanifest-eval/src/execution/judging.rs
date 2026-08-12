@@ -25,16 +25,16 @@ pub(super) fn run_judge(args: &JudgeArgs) -> Result<ExitCode, EvalError> {
     for verdict in &judged.verdicts {
         writeln!(
             handle,
-            "{}\t{} {}\t{}",
+            "{}\t{}\t{}\t{}",
             verdict.repo,
-            verdict.type_name,
-            verdict.trait_name,
+            verdict.genre,
+            verdict.subject,
             verdict.error.as_deref().unwrap_or("accepted")
         )?;
     }
     writeln!(
         handle,
-        "accepted {}/{} (cap {} per repo), verdicts written to {}",
+        "accepted {}/{} (cap {} per repo and genre), verdicts written to {}",
         judged.accepted(),
         judged.verdicts.len(),
         judged.limit,

@@ -9,7 +9,7 @@ use std::{
     process::Command
 };
 
-use super::candidates::Candidate;
+use super::candidate::Candidate;
 use crate::error::EvalError;
 
 /// One repository's bed: the copied tree and its temporary home.
@@ -48,7 +48,7 @@ impl Bed {
     }
 
     /// Lands one candidate, judges it with the real build, restores the
-    /// file, and answers the compiler's first error line where it
+    /// tree, and answers the compiler's first error line where it
     /// refused — nothing where it accepted.
     ///
     /// # Errors
@@ -62,6 +62,12 @@ impl Bed {
         };
         let kept = std::fs::read_to_string(&candidate.file).map_err(named)?;
         std::fs::write(&candidate.file, &candidate.installed).map_err(named)?;
+        if let Some(planted) = &candidate.planted {
+            if let Some(parent) = planted.file.parent() {
+                std::fs::create_dir_all(parent).map_err(named)?;
+            }
+            std::fs::write(&planted.file, &planted.text).map_err(named)?;
+        }
         let built = Command::new("cargo")
             .arg("check")
             .arg("--workspace")
@@ -71,6 +77,9 @@ impl Bed {
             .output()
             .map_err(named)?;
         std::fs::write(&candidate.file, kept).map_err(named)?;
+        if let Some(planted) = &candidate.planted {
+            std::fs::remove_file(&planted.file).map_err(named)?;
+        }
         if built.status.success() {
             return Ok(None);
         }

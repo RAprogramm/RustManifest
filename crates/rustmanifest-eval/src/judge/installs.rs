@@ -1,27 +1,15 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! The installations a tree offers for judgement: every type the
-//! montage confirms a canon installation for, up to the stated cap.
+//! The install genre's candidates: every type the montage confirms a
+//! canon installation for, up to the stated cap.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rustmanifest_engine::{Source, walker};
 
+use super::candidate::Candidate;
 use crate::error::EvalError;
-
-/// One installation the montage confirms: the target file, the type,
-/// the trait, and the whole installed text ready to land.
-pub(super) struct Candidate {
-    /// File the installation lands in, inside the bed.
-    pub(super) file:       PathBuf,
-    /// The type the installation is for.
-    pub(super) type_name:  String,
-    /// The installed trait.
-    pub(super) trait_name: String,
-    /// The whole text of the file after installation.
-    pub(super) installed:  String
-}
 
 /// Lists up to `limit` confirmed installations over the tree at `root`.
 ///
@@ -60,10 +48,10 @@ pub(super) fn listed(root: &Path, limit: usize) -> Result<Vec<Candidate>, EvalEr
                 continue;
             };
             found.push(Candidate {
-                file:       sources[node.source].path().to_path_buf(),
-                type_name:  node.name.clone(),
-                trait_name: trait_name.to_owned(),
-                installed:  gain.installed
+                subject:   format!("{} {trait_name}", node.name),
+                file:      sources[node.source].path().to_path_buf(),
+                installed: gain.installed,
+                planted:   None
             });
         }
     }
