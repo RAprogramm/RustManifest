@@ -354,6 +354,23 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A pack states what one step of a crate's own sequence carries,
+    /// so the loop binding is typed and every call written on it names
+    /// its owner instead of standing untyped.
+    #[test]
+    fn a_packed_sequence_types_what_its_loop_binds() {
+        let (all, graph) = context_graph(
+            "use ignore::WalkBuilder;\npub struct Held;\nimpl Held { pub fn path(&self) {} }\npub \
+             fn go(root: &str) {\n    let builder = WalkBuilder::new(root);\n    for entry in \
+             builder.build() {\n        entry.path();\n    }\n}\n"
+        );
+        assert_eq!(graph.unknown_receiver(), 0);
+        assert!(
+            graph.callees(index_of(&all, "go")).is_empty(),
+            "the entry is the crate's, not the workspace type of the same member name"
+        );
+    }
+
     /// A binding taken from a `match` carries what its arms agree on:
     /// the language requires the agreement, an arm that returns instead
     /// of handing a value back has no type to disagree with, and the

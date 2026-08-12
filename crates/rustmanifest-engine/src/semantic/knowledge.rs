@@ -12,6 +12,7 @@
 //! facts always win — a pack is consulted only when the workspace
 //! itself has no answer.
 
+mod ignore;
 mod reqwest;
 mod result;
 mod statement;
@@ -35,6 +36,12 @@ pub(super) struct CrateKnowledge {
     /// `(type, method, returned type)` rows typing the crate's builder
     /// and accessor chains, wrappers unwrapped the same way.
     pub method_returns: &'static [(&'static str, &'static str, &'static str)],
+    /// `(type, method, element)` rows for the methods that hand back a
+    /// sequence, naming what one step of it carries. A wrapper the
+    /// sequence puts around each step is already unwrapped, the way the
+    /// return rows unwrap theirs, because the written loop consumes it
+    /// on the spot.
+    pub iterated:       &'static [(&'static str, &'static str, &'static str)],
     /// `(type, method, effect)` rows for the calls that actually
     /// perform the effect.
     pub method_effects: &'static [(&'static str, &'static str, Effect)],
@@ -44,7 +51,7 @@ pub(super) struct CrateKnowledge {
 }
 
 /// Every registered pack.
-const PACKS: [&CrateKnowledge; 3] = [&reqwest::PACK, &tempfile::PACK, &tokio::PACK];
+const PACKS: [&CrateKnowledge; 4] = [&ignore::PACK, &reqwest::PACK, &tempfile::PACK, &tokio::PACK];
 
 /// Looks up the type produced by a known external constructor call.
 pub(super) fn constructor_type(name: &str) -> Option<&'static str> {
@@ -62,6 +69,15 @@ pub(super) fn method_return(owner: &str, method: &str) -> Option<&'static str> {
         .flat_map(|pack| pack.method_returns)
         .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
         .map(|(_, _, returned)| *returned)
+}
+
+/// Looks up what one step of a pack-known sequence carries.
+pub(super) fn iterated_element(owner: &str, method: &str) -> Option<&'static str> {
+    PACKS
+        .iter()
+        .flat_map(|pack| pack.iterated)
+        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
+        .map(|(_, _, element)| *element)
 }
 
 /// Looks up the effect performed by a pack-known method call.

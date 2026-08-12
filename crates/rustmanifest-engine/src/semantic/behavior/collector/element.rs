@@ -30,8 +30,17 @@ impl FactCollector {
             syn::Expr::MethodCall(call) if follows(&call.method.to_string()) => {
                 self.element_of(&call.receiver)
             }
+            syn::Expr::MethodCall(call) => self.packed_element(call),
             _ => None
         }
+    }
+
+    /// What one step of a sequence a pack knows carries: the receiver's
+    /// own type answers which sequence is being read.
+    fn packed_element(&self, call: &syn::ExprMethodCall) -> Option<String> {
+        let owner = self.expr_type(&call.receiver)?;
+        crate::semantic::knowledge::iterated_element(&owner, &call.method.to_string())
+            .map(ToOwned::to_owned)
     }
 
     /// Key and value types an iterated map hands out as a pair, seen

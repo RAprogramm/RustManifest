@@ -15,6 +15,7 @@ pub(super) const PACK: CrateKnowledge = CrateKnowledge {
         ("TempDir", "keep", "PathBuf"),
         ("NamedTempFile", "path", "Path")
     ],
+    iterated:       &[],
     method_effects: &[
         ("NamedTempFile", "keep", Effect::FileSystem),
         ("NamedTempFile", "persist", Effect::FileSystem),
