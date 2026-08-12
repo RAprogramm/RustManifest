@@ -50,6 +50,26 @@ fn mark_unsafe(collector: &mut FactCollector, signature: &syn::Signature) {
     }
 }
 
+/// What the function takes, as the compiler read its signature — and, for
+/// a source no resolver ran over, as the written text spells it.
+fn taken(
+    known: &Known<'_>,
+    bytes: &std::ops::Range<usize>,
+    signature: &syn::Signature,
+    context: &ItemContext<'_>
+) -> Vec<super::types::ParamFacts> {
+    let at = (
+        u32::try_from(bytes.start).unwrap_or(u32::MAX),
+        u32::try_from(bytes.end).unwrap_or(u32::MAX)
+    );
+    known
+        .settled
+        .params
+        .get(&at)
+        .cloned()
+        .unwrap_or_else(|| param_facts(signature, context.impl_type))
+}
+
 pub(super) fn function_facts(
     source: usize,
     function: String,
@@ -60,7 +80,7 @@ pub(super) fn function_facts(
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let census = name_census(block);
-    let params = param_facts(signature, context.impl_type);
+    let params = taken(known, &bytes, signature, context);
     let mut collector = FactCollector {
         facts:            FunctionFacts {
             function,

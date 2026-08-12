@@ -119,6 +119,42 @@ mod tests {
         )
     }
 
+    /// The compiler reads a receiver's type from the impl it is written
+    /// in; the text says only `self`, so a reading of the text cannot.
+    #[test]
+    fn a_settled_signature_types_the_receiver_the_text_leaves_bare() {
+        let text = "struct Wallet;\nimpl Wallet { fn peek(&self) {} }\n";
+        let start = u32::try_from(text.find("peek").unwrap()).unwrap();
+        let mut settled = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            signatures: vec![rustmanifest_schema::ResolvedSignature {
+                at:      rustmanifest_schema::Location {
+                    file:  PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start,
+                        end: start + 4
+                    }
+                },
+                params:  vec![rustmanifest_schema::ResolvedParam {
+                    name:  "self".to_owned(),
+                    named: "&Wallet".to_owned(),
+                    mode:  rustmanifest_schema::ResolvedMode::Borrowed
+                }],
+                returns: "()".to_owned()
+            }],
+            ..rustmanifest_schema::Resolution::default()
+        };
+        settled.settle();
+        let all = super::behavior_with(
+            &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
+            Some(&settled)
+        );
+        let peek = named(&all, "Wallet::peek");
+        assert_eq!(peek.params.len(), 1);
+        assert_eq!(peek.params[0].type_name, "Wallet");
+        assert_eq!(peek.params[0].mode, super::ParamMode::Borrowed);
+    }
+
     /// A field hanging off an expression the written text cannot type is
     /// unnamed on its own, and named the moment a resolver states the
     /// type — with nothing in between reading how it was spelled.

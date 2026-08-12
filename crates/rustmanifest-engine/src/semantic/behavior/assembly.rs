@@ -136,6 +136,9 @@ pub(super) struct Settled {
     /// expression the resolver settled, which is what lets a reading stop
     /// deciding a type from how the expression was spelled.
     pub(super) types:     std::collections::BTreeMap<(u32, u32), String>,
+    /// Parameters of the function whose name is written at a position, as
+    /// the compiler read its signature.
+    pub(super) params:    std::collections::BTreeMap<(u32, u32), Vec<super::types::ParamFacts>>,
     /// Kind of item the path written at a position reaches.
     ///
     /// A path is either a name this body bound or an item declared
@@ -244,6 +247,36 @@ fn settled_types(
                 .types
                 .insert((typed.at.range.start, typed.at.range.end), named);
         }
+    }
+    for held in &resolution.signatures {
+        if held.at.file != source.path() {
+            continue;
+        }
+        settled.params.insert(
+            (held.at.range.start, held.at.range.end),
+            held.params
+                .iter()
+                .filter_map(|param| {
+                    Some(super::types::ParamFacts {
+                        name:        param.name.clone(),
+                        type_name:   outermost(&param.named)?,
+                        mode:        match param.mode {
+                            rustmanifest_schema::ResolvedMode::Owned => {
+                                super::types::ParamMode::Owned
+                            }
+                            rustmanifest_schema::ResolvedMode::Borrowed => {
+                                super::types::ParamMode::Borrowed
+                            }
+                            rustmanifest_schema::ResolvedMode::BorrowedMut => {
+                                super::types::ParamMode::BorrowedMut
+                            }
+                        },
+                        uses:        0,
+                        field_reads: 0
+                    })
+                })
+                .collect()
+        );
     }
     for path in &resolution.paths {
         if path.at.file != source.path() {
