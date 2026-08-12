@@ -185,9 +185,19 @@ fn told(param: &ParamFacts, types: &TypeGraph) -> (TraceStep, usize) {
     }
 }
 
-/// Whether `type_name` is `Copy`, where that is provable: the std
-/// tables answer for known library types, the type graph for workspace
-/// types by their derives and impls, and nothing answers otherwise.
+/// Whether `type_name` is `Copy`, where that is provable.
+///
+/// The language's own primitives answer for themselves, the type graph
+/// answers for workspace types by their derives and impls, and nothing
+/// answers otherwise.
+///
+/// A library type is still answered from two written lists — one of names
+/// that are copied, one of names that are not. Both are the compiler's
+/// answer transcribed by hand, incomplete by construction, and silently
+/// wrong for any type nobody added. The answer now also travels in a
+/// resolution, per type; this tier is reached without one, so the lists
+/// stand until it can be handed one. The ownership check, which can be,
+/// already prefers the compiler's grant.
 #[must_use]
 pub fn copyness(types: &TypeGraph, type_name: &str) -> Option<bool> {
     if std_knowledge::is_copy_type(type_name) {

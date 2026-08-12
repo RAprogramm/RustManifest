@@ -49,6 +49,7 @@ mod trait_default;
 mod types;
 mod value;
 
+pub(in crate::semantic) use self::assembly::outermost as outermost_name;
 pub use self::{
     assembly::{behavior, behavior_with},
     choice::{Alternative, CHOICE_SET, Choice, Closure},

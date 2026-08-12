@@ -31,7 +31,14 @@ pub(super) use self::{
     value_path::value_path
 };
 
-/// Well-known always-`Copy` types by their last path segment.
+/// The language's own primitives, which are copied by the grammar
+/// itself, followed by the library names still transcribed here.
+///
+/// The primitives are not library knowledge and this part does not grow.
+/// The library names below them are the compiler's answer written out by
+/// hand: they stay only until a resolution reaches the tier that asks —
+/// the ownership check already prefers the compiler's own grant and falls
+/// back to this list, the handover tier cannot yet be handed one.
 pub(super) const COPY_TYPES: [&str; 26] = [
     "Duration",
     "IpAddr",
@@ -120,6 +127,12 @@ pub(super) fn consuming_method(method: &str) -> bool {
 /// `Copy` by std knowledge alone.
 pub(super) fn is_copy_type(name: &str) -> bool {
     COPY_TYPES.contains(&name)
+}
+
+/// Whether `name` is one of the language's own copied primitives, as
+/// opposed to a library type the compiler decides about.
+pub(super) fn is_primitive_copy(name: &str) -> bool {
+    !name.chars().next().is_some_and(char::is_uppercase) && COPY_TYPES.contains(&name)
 }
 
 /// Well-known owning std types by their last path segment: provably not

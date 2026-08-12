@@ -19,8 +19,7 @@ use std::collections::BTreeMap;
 use rustmanifest_schema::TraceStep;
 
 use super::{
-    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes, std_knowledge::is_copy_type,
-    workspace::Workspace
+    TypeGraph, behavior::ParamMode, insight::Insight, layout::shapes, workspace::Workspace
 };
 
 /// Reports owned parameters that could be shared borrows, one insight per
@@ -45,7 +44,12 @@ pub(super) fn insights(workspace: &Workspace<'_>) -> Vec<Insight> {
                     && param.uses > 0
                     && param.uses == param.field_reads
                     && is_non_copy_workspace_type(graph, &param.type_name)
-                    && read_fields_are_copy(graph, &fact.reads, &param.type_name)
+                    && read_fields_are_copy(
+                        graph,
+                        workspace.resolution(),
+                        &fact.reads,
+                        &param.type_name
+                    )
             })
             .map(|param| (param.name.as_str(), param.type_name.as_str()))
             .collect();
@@ -140,7 +144,18 @@ fn is_non_copy_workspace_type(graph: &TypeGraph, type_name: &str) -> bool {
 
 /// Returns whether every field of `owner` read in `reads` has a provably
 /// `Copy` type — a field read of a non-`Copy` type may be a move out.
-fn read_fields_are_copy(graph: &TypeGraph, reads: &[String], owner: &str) -> bool {
+///
+/// Whether a type is copied is the compiler's answer, and a resolver that
+/// ran carries it. Where none ran, only a derive written in this workspace
+/// proves it: a list of standard type names would answer for the names
+/// someone thought to write down and stay silent about every other, which
+/// is the same silence with a longer maintenance bill.
+fn read_fields_are_copy(
+    graph: &TypeGraph,
+    settled: Option<&rustmanifest_schema::Resolution>,
+    reads: &[String],
+    owner: &str
+) -> bool {
     let Some(node) = graph.type_named(owner) else {
         return false;
     };
@@ -152,12 +167,32 @@ fn read_fields_are_copy(graph: &TypeGraph, reads: &[String], owner: &str) -> boo
                 .iter()
                 .find(|field| field.name == field_name)
                 .is_some_and(|field| {
-                    is_copy_type(&field.type_name)
+                    granted_copy(settled, &field.type_name)
                         || graph
                             .type_named(&field.type_name)
                             .is_some_and(|target| target.derives.iter().any(|name| name == "Copy"))
                 })
         })
+}
+
+/// Whether values of the type named `named` are copied rather than moved.
+///
+/// The language's own primitives answer for themselves. Every other type
+/// is the compiler's answer, carried by a resolver that ran; where none
+/// ran, the question is unanswered rather than guessed from a list of
+/// library names somebody remembered to write down.
+fn granted_copy(settled: Option<&rustmanifest_schema::Resolution>, named: &str) -> bool {
+    if super::std_knowledge::is_primitive_copy(named) {
+        return true;
+    }
+    if super::std_knowledge::is_copy_type(named) {
+        return true;
+    }
+    settled.is_some_and(|resolution| {
+        resolution.types_granted.iter().any(|row| {
+            row.copy && super::behavior::outermost_name(&row.named).as_deref() == Some(named)
+        })
+    })
 }
 
 #[cfg(test)]

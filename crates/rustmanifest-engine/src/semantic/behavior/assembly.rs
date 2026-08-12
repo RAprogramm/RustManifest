@@ -152,7 +152,7 @@ pub(super) struct Settled {
 /// The resolver answers in full — `Option<&<T as Deref>::Target>` — while
 /// every table here is keyed by a last segment. Reading the full spelling
 /// into those tables would look up a name nothing declares.
-fn outermost(written: &str) -> Option<String> {
+pub(in crate::semantic) fn outermost(written: &str) -> Option<String> {
     let borrowless = written
         .trim()
         .trim_start_matches('&')

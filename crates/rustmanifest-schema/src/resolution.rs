@@ -21,6 +21,7 @@
 mod call;
 mod path;
 mod positioned;
+mod property;
 mod typed;
 
 use schemars::JsonSchema;
@@ -29,6 +30,7 @@ use serde::{Deserialize, Serialize};
 pub use self::{
     call::{ResolvedCall, ResolvedField},
     path::ResolvedPath,
+    property::ResolvedProperty,
     typed::ResolvedType
 };
 use crate::Location;
@@ -39,20 +41,25 @@ use crate::Location;
 pub struct Resolution {
     /// Version of the resolver that produced it, so a stale overlay is
     /// recognisable rather than silently trusted.
-    pub resolver: String,
+    pub resolver:      String,
     /// Calls the resolver settled, in file then position order.
-    pub calls:    Vec<ResolvedCall>,
+    pub calls:         Vec<ResolvedCall>,
     /// Field accesses the resolver settled, in file then position order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub fields:   Vec<ResolvedField>,
+    pub fields:        Vec<ResolvedField>,
     /// Types of expressions the resolver settled, in file then position
     /// order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub types:    Vec<ResolvedType>,
+    pub types:         Vec<ResolvedType>,
     /// Written paths the resolver settled to an item, in file then position
     /// order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub paths:    Vec<ResolvedPath>
+    pub paths:         Vec<ResolvedPath>,
+    /// What the compiler grants each type the workspace mentions, in name
+    /// order. Keyed by type rather than by position: the property belongs
+    /// to the type, not to the place it was written at.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub types_granted: Vec<ResolvedProperty>
 }
 
 impl Resolution {
@@ -81,6 +88,15 @@ impl Resolution {
         positioned::at(&self.paths, location)
     }
 
+    /// Returns what the compiler grants the type rendered as `named`.
+    #[must_use]
+    pub fn granted(&self, named: &str) -> Option<&ResolvedProperty> {
+        self.types_granted
+            .binary_search_by(|row| row.named.as_str().cmp(named))
+            .ok()
+            .and_then(|found| self.types_granted.get(found))
+    }
+
     /// Sorts every kind of row into the order the shape promises and drops
     /// exact repeats, so two runs over the same workspace produce the same
     /// bytes.
@@ -92,6 +108,9 @@ impl Resolution {
         positioned::settle(&mut self.calls);
         positioned::settle(&mut self.types);
         positioned::settle(&mut self.paths);
+        self.types_granted
+            .sort_by(|left, right| left.named.cmp(&right.named));
+        self.types_granted.dedup();
     }
 }
 

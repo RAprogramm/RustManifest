@@ -83,7 +83,7 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
 
 /// Asks every question of one parsed file.
 fn settle_file(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: &mut Resolution) {
-    typing::settled(reading, parsed, &mut into.types);
+    typing::settled(reading, parsed, &mut into.types, &mut into.types_granted);
     naming::settled(reading, parsed, &mut into.paths);
     for call in parsed
         .syntax()

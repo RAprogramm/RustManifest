@@ -15,33 +15,41 @@
 //! per literal doubles the overlay to say what the text already says.
 
 use ra_ap_syntax::{AstNode, ast};
-use rustmanifest_schema::ResolvedType;
+use rustmanifest_schema::{ResolvedProperty, ResolvedType};
 
 use super::reading::Reading;
 
 /// Records the type of every expression of `parsed` that the resolver
-/// settles.
+/// settles, and what the compiler grants each type so recorded.
+///
+/// The grant travels with the type rather than with the position: whether
+/// a value is copied when it is passed by value is fixed by its type, and
+/// asking the compiler once per occurrence costs nothing beyond the answer
+/// it already has to hand.
 pub(super) fn settled(
     reading: Reading<'_, '_>,
     parsed: &ast::SourceFile,
-    into: &mut Vec<ResolvedType>
+    into: &mut Vec<ResolvedType>,
+    granted: &mut Vec<ResolvedProperty>
 ) {
     for expression in parsed.syntax().descendants().filter_map(ast::Expr::cast) {
-        if let Some(settled) = settled_expression(reading, &expression) {
-            into.push(settled);
+        if matches!(expression, ast::Expr::Literal(_)) {
+            continue;
         }
+        let Some(typed) = reading.semantics.type_of_expr(&expression) else {
+            continue;
+        };
+        let typed = typed.original();
+        let Some(rendered) = reading.render(&typed) else {
+            continue;
+        };
+        granted.push(ResolvedProperty {
+            copy:  typed.is_copy(reading.database),
+            named: rendered.clone()
+        });
+        into.push(ResolvedType {
+            at: reading.located(expression.syntax().text_range()),
+            rendered
+        });
     }
-}
-
-/// Reads one expression, answering `None` where the resolver settled
-/// nothing or the expression states its own type.
-fn settled_expression(reading: Reading<'_, '_>, expression: &ast::Expr) -> Option<ResolvedType> {
-    if matches!(expression, ast::Expr::Literal(_)) {
-        return None;
-    }
-    let typed = reading.semantics.type_of_expr(expression)?.original();
-    Some(ResolvedType {
-        at:       reading.located(expression.syntax().text_range()),
-        rendered: reading.render(&typed)?
-    })
 }
