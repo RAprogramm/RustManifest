@@ -23,14 +23,9 @@ pub(super) fn use_targets(items: &[syn::Item], inside: &str, into: &mut Vec<(Str
     for item in items {
         match item {
             syn::Item::Use(imported) => {
-                let bytes = imported.span().byte_range();
-                let range = Range {
-                    start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-                    end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
-                };
                 let mut written = Vec::new();
                 expanded(&imported.tree, "", &mut written);
-                into.extend(written.into_iter().map(|target| {
+                into.extend(written.into_iter().map(|(target, range)| {
                     (
                         inside.to_owned(),
                         UseTarget {
@@ -50,8 +45,13 @@ pub(super) fn use_targets(items: &[syn::Item], inside: &str, into: &mut Vec<(Str
     }
 }
 
-/// Expands one use tree into the full paths it imports.
-fn expanded(tree: &syn::UseTree, prefix: &str, into: &mut Vec<String>) {
+/// Expands one use tree into the full paths it imports, each with the
+/// range of the leaf that names it.
+///
+/// The leaf's own range, not the whole item's: a resolution answers what a
+/// written name reaches by the place it is written at, and a grouped
+/// import writes several names in one item.
+fn expanded(tree: &syn::UseTree, prefix: &str, into: &mut Vec<(String, Range)>) {
     let joined = |name: &str| {
         if prefix.is_empty() {
             name.to_owned()
@@ -63,13 +63,28 @@ fn expanded(tree: &syn::UseTree, prefix: &str, into: &mut Vec<String>) {
         syn::UseTree::Path(held) => {
             expanded(&held.tree, &joined(&held.ident.to_string()), into);
         }
-        syn::UseTree::Name(held) => into.push(joined(&held.ident.to_string())),
-        syn::UseTree::Rename(held) => into.push(joined(&held.ident.to_string())),
-        syn::UseTree::Glob(_) => into.push(joined("*")),
+        syn::UseTree::Name(held) => {
+            into.push((joined(&held.ident.to_string()), ranged(held.ident.span())));
+        }
+        syn::UseTree::Rename(held) => {
+            into.push((joined(&held.ident.to_string()), ranged(held.ident.span())));
+        }
+        syn::UseTree::Glob(held) => {
+            into.push((joined("*"), ranged(held.star_token.span())));
+        }
         syn::UseTree::Group(held) => {
             for inner in &held.items {
                 expanded(inner, prefix, into);
             }
         }
+    }
+}
+
+/// The byte range one span covers.
+fn ranged(span: proc_macro2::Span) -> Range {
+    let bytes = span.byte_range();
+    Range {
+        start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+        end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
     }
 }

@@ -106,8 +106,11 @@ mod tests {
         let found = insights(&Workspace::resolved(&sources, &declared_tree(&sources)));
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].source, 1);
-        assert_eq!(found[0].range.start, 0);
-        assert_eq!(found[0].range.end, 19);
+        assert_eq!(
+            found[0].range.start, 14,
+            "the finding anchors at the imported name"
+        );
+        assert_eq!(found[0].range.end, 18);
     }
 
     #[test]
