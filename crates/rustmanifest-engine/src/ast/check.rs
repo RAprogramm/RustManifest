@@ -6,7 +6,7 @@
 
 use super::{
     Occurrence, api_size, constant_encapsulation, constructor_design, delegating_constructors,
-    entity_naming, fakes_over_mocks, immutability_first, method_naming
+    entity_naming, immutability_first, method_naming
 };
 
 /// Built-in structural checks addressable from `definition.ast.check`.
@@ -26,9 +26,7 @@ pub(super) enum Check {
     /// `immutability-first` — `set_*` mutators taking `&mut self` (§7).
     ImmutabilityFirst,
     /// `constant-encapsulation` — module-level `pub const` items (§8).
-    ConstantEncapsulation,
-    /// `fakes-over-mocks` — mock-library imports and `#[automock]` (§9).
-    FakesOverMocks
+    ConstantEncapsulation
 }
 
 impl Check {
@@ -42,7 +40,6 @@ impl Check {
             "delegating-constructors" => Some(Self::DelegatingConstructors),
             "immutability-first" => Some(Self::ImmutabilityFirst),
             "constant-encapsulation" => Some(Self::ConstantEncapsulation),
-            "fakes-over-mocks" => Some(Self::FakesOverMocks),
             _ => None
         }
     }
@@ -56,8 +53,7 @@ impl Check {
             Self::ConstructorDesign => constructor_design::occurrences(file),
             Self::DelegatingConstructors => delegating_constructors::occurrences(file),
             Self::ImmutabilityFirst => immutability_first::occurrences(file),
-            Self::ConstantEncapsulation => constant_encapsulation::occurrences(file),
-            Self::FakesOverMocks => fakes_over_mocks::occurrences(file)
+            Self::ConstantEncapsulation => constant_encapsulation::occurrences(file)
         }
     }
 }

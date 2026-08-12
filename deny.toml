@@ -27,6 +27,11 @@ confidence-threshold = 0.92
 multiple-versions = "deny"
 wildcards = "deny"
 highlight = "all"
+deny = [
+    { crate = "mockall", reason = "tests use hand-written fakes with real behavior, not generated mocks (STRUCTURE.md section 9)" },
+    { crate = "mockito", reason = "tests use hand-written fakes with real behavior, not generated mocks (STRUCTURE.md section 9)" },
+    { crate = "mockiato", reason = "tests use hand-written fakes with real behavior, not generated mocks (STRUCTURE.md section 9)" },
+]
 skip = [
     { crate = "syn@2", reason = "async-trait and tokio-macros moved to syn 3 while the wider proc-macro ecosystem is still on syn 2; both are needed until the migration completes" },
 ]

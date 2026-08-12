@@ -33,7 +33,7 @@ fn pack_contains_ast_rules() {
         .iter()
         .filter(|rule| matches!(rule.definition, RuleDefinition::Ast { .. }))
         .count();
-    assert!(count >= 8, "expected at least 8 ast rules, found {count}");
+    assert!(count >= 7, "expected at least 7 ast rules, found {count}");
 }
 
 #[test]

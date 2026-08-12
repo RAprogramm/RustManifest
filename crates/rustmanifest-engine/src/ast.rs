@@ -18,7 +18,6 @@ mod constant_encapsulation;
 mod constructor_design;
 mod delegating_constructors;
 mod entity_naming;
-mod fakes_over_mocks;
 mod immutability_first;
 mod method_naming;
 
