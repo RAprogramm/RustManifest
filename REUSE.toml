@@ -10,7 +10,7 @@ SPDX-FileCopyrightText = "2026 RAprogramm <andrey.rozanov.vl@gmail.com>"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
-path = "crates/rustmanifest-schema/schemas/*.json"
+path = ["crates/rustmanifest-schema/schemas/*.json", "crates/rustmanifest-engine/src/semantic/oracle/emission.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 RAprogramm <andrey.rozanov.vl@gmail.com>"
 SPDX-License-Identifier = "MIT"

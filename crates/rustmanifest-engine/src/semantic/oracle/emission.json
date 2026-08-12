@@ -1,0 +1,778 @@
+{
+ "crate_version": "0.1.0",
+ "external_crates": {},
+ "format_version": 61,
+ "includes_private": true,
+ "index": {
+  "3": {
+   "attrs": [],
+   "const_stability": null,
+   "crate_id": 0,
+   "deprecation": null,
+   "docs": null,
+   "id": 3,
+   "inner": {
+    "impl": {
+     "blanket_impl": null,
+     "for": {
+      "resolved_path": {
+       "args": null,
+       "id": 0,
+       "path": "User"
+      }
+     },
+     "generics": {
+      "params": [],
+      "where_predicates": []
+     },
+     "is_negative": false,
+     "is_synthetic": true,
+     "is_unsafe": false,
+     "items": [],
+     "provided_trait_methods": [],
+     "trait": {
+      "args": null,
+      "id": 4,
+      "path": "Sync"
+     }
+    }
+   },
+   "links": {},
+   "name": null,
+   "span": null,
+   "stability": null,
+   "visibility": "default"
+  },
+  "44": {
+   "attrs": [],
+   "const_stability": null,
+   "crate_id": 0,
+   "deprecation": null,
+   "docs": null,
+   "id": 44,
+   "inner": {
+    "impl": {
+     "blanket_impl": {
+      "generic": "T"
+     },
+     "for": {
+      "resolved_path": {
+       "args": null,
+       "id": 0,
+       "path": "User"
+      }
+     },
+     "generics": {
+      "params": [
+       {
+        "kind": {
+         "type": {
+          "bounds": [],
+          "default": null,
+          "is_synthetic": false
+         }
+        },
+        "name": "T"
+       }
+      ],
+      "where_predicates": [
+       {
+        "bound_predicate": {
+         "bounds": [
+          {
+           "trait_bound": {
+            "generic_params": [],
+            "modifier": "none",
+            "trait": {
+             "args": null,
+             "id": 45,
+             "path": "Display"
+            }
+           }
+          },
+          {
+           "trait_bound": {
+            "generic_params": [],
+            "modifier": "maybe",
+            "trait": {
+             "args": null,
+             "id": 17,
+             "path": "Sized"
+            }
+           }
+          }
+         ],
+         "generic_params": [],
+         "type": {
+          "generic": "T"
+         }
+        }
+       }
+      ]
+     },
+     "is_negative": false,
+     "is_synthetic": false,
+     "is_unsafe": false,
+     "items": [
+      42
+     ],
+     "provided_trait_methods": [],
+     "trait": {
+      "args": null,
+      "id": 46,
+      "path": "ToString"
+     }
+    }
+   },
+   "links": {},
+   "name": null,
+   "span": null,
+   "stability": null,
+   "visibility": "default"
+  },
+  "50": {
+   "attrs": [],
+   "const_stability": null,
+   "crate_id": 0,
+   "deprecation": null,
+   "docs": null,
+   "id": 50,
+   "inner": {
+    "impl": {
+     "blanket_impl": null,
+     "for": {
+      "resolved_path": {
+       "args": null,
+       "id": 0,
+       "path": "User"
+      }
+     },
+     "generics": {
+      "params": [],
+      "where_predicates": []
+     },
+     "is_negative": false,
+     "is_synthetic": false,
+     "is_unsafe": false,
+     "items": [
+      47
+     ],
+     "provided_trait_methods": [],
+     "trait": {
+      "args": null,
+      "id": 45,
+      "path": "Display"
+     }
+    }
+   },
+   "links": {},
+   "name": null,
+   "span": {
+    "begin": [
+     2,
+     1
+    ],
+    "end": [
+     4,
+     2
+    ],
+    "filename": "src/lib.rs"
+   },
+   "stability": null,
+   "visibility": "default"
+  }
+ },
+ "paths": {},
+ "root": 51,
+ "target": {
+  "target_features": [
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "adx",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse2"
+    ],
+    "name": "aes",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-avx512",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-bf16",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-complex",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-fp8",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-fp16",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-int8",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "amx-tile"
+    ],
+    "name": "amx-movrs",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "amx-tile",
+    "unstable_feature_gate": "x86_amx_intrinsics"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "apxf",
+    "unstable_feature_gate": "apx_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse4.2"
+    ],
+    "name": "avx",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx"
+    ],
+    "name": "avx2",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512bf16",
+     "avx512bitalg",
+     "avx512bw",
+     "avx512cd",
+     "avx512dq",
+     "avx512f",
+     "avx512fp16",
+     "avx512ifma",
+     "avx512vbmi",
+     "avx512vbmi2",
+     "avx512vl",
+     "avx512vnni",
+     "avx512vpopcntdq"
+    ],
+    "name": "avx10.1",
+    "unstable_feature_gate": "avx10_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx10.1",
+     "avxvnni",
+     "avxvnniint8",
+     "avxvnniint16"
+    ],
+    "name": "avx10.2",
+    "unstable_feature_gate": "avx10_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512bw"
+    ],
+    "name": "avx512bf16",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512bw"
+    ],
+    "name": "avx512bitalg",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512bw",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512cd",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512dq",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2",
+     "fma",
+     "f16c"
+    ],
+    "name": "avx512f",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512bw"
+    ],
+    "name": "avx512fp16",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512ifma",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512bw"
+    ],
+    "name": "avx512vbmi",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512bw"
+    ],
+    "name": "avx512vbmi2",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512vl",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512vnni",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512vp2intersect",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx512f"
+    ],
+    "name": "avx512vpopcntdq",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "avxifma",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "avxneconvert",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "avxvnni",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "avxvnniint8",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "avxvnniint16",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "bmi1",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "bmi2",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "clflushopt",
+    "unstable_feature_gate": "clflushopt_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "cmpxchg16b",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "ermsb",
+    "unstable_feature_gate": "ermsb_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx"
+    ],
+    "name": "f16c",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx"
+    ],
+    "name": "fma",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx",
+     "sse4a"
+    ],
+    "name": "fma4",
+    "unstable_feature_gate": "fma4_target_feature"
+   },
+   {
+    "globally_enabled": true,
+    "implies_features": [],
+    "name": "fxsr",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse2"
+    ],
+    "name": "gfni",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse2"
+    ],
+    "name": "kl",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "lahfsahf",
+    "unstable_feature_gate": "lahfsahf_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "lzcnt",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "movbe",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "movrs",
+    "unstable_feature_gate": "movrs_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse2"
+    ],
+    "name": "pclmulqdq",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "popcnt",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "prfchw",
+    "unstable_feature_gate": "prfchw_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "rdrand",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "rdseed",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "rtm",
+    "unstable_feature_gate": "rtm_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse2"
+    ],
+    "name": "sha",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "sha512",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx"
+    ],
+    "name": "sm3",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2"
+    ],
+    "name": "sm4",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": true,
+    "implies_features": [],
+    "name": "sse",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": true,
+    "implies_features": [
+     "sse"
+    ],
+    "name": "sse2",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse2"
+    ],
+    "name": "sse3",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "ssse3"
+    ],
+    "name": "sse4.1",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse4.1"
+    ],
+    "name": "sse4.2",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse3"
+    ],
+    "name": "sse4a",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "sse3"
+    ],
+    "name": "ssse3",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "tbm",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx2",
+     "aes"
+    ],
+    "name": "vaes",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "avx",
+     "pclmulqdq"
+    ],
+    "name": "vpclmulqdq",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "kl"
+    ],
+    "name": "widekl",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": true,
+    "implies_features": [],
+    "name": "x87",
+    "unstable_feature_gate": "x87_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "fma4",
+     "avx",
+     "sse4a"
+    ],
+    "name": "xop",
+    "unstable_feature_gate": "xop_target_feature"
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [],
+    "name": "xsave",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "xsave"
+    ],
+    "name": "xsavec",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "xsave"
+    ],
+    "name": "xsaveopt",
+    "unstable_feature_gate": null
+   },
+   {
+    "globally_enabled": false,
+    "implies_features": [
+     "xsave"
+    ],
+    "name": "xsaves",
+    "unstable_feature_gate": null
+   }
+  ],
+  "triple": "x86_64-unknown-linux-gnu"
+ }
+}

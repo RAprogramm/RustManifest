@@ -2250,6 +2250,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustdoc-types"
+version = "0.61.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa251f75d3b9d5d5d8317ce526dfa4a040c15938d82fd3a5443d103f30a66932"
+dependencies = [
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
 name = "rustix"
 version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2306,6 +2316,7 @@ dependencies = [
  "quote",
  "rayon",
  "regex",
+ "rustdoc-types",
  "rustmanifest-rules-core",
  "rustmanifest-schema",
  "serde",
