@@ -15,13 +15,16 @@ use crate::semantic::{behavior::FunctionFacts, calls::CallGraph};
 /// States how one traversed call edge was established, so a derivation
 /// never claims more certainty than its weakest hop: dispatch over
 /// several implementors admits possibility, an edge only the SCIP index
-/// resolved names the index as its source, and everything else is the
-/// syntactic resolver's unique match.
+/// resolved names the index as its source, an edge the index settled
+/// among several syntactic matches names both layers, and everything
+/// else is the syntactic resolver's unique match.
 pub(in crate::semantic) fn edge_reason(graph: &CallGraph, from: usize, to: usize) -> &'static str {
     if graph.possibilistic(from, to) {
         "dispatch edge over several implementors — the effect is possible, not certain"
     } else if graph.indexed(from, to) {
         "name-resolved call edge, read from the SCIP index"
+    } else if graph.settled(from, to) {
+        "call edge settled among several name matches by the SCIP index"
     } else {
         "resolved call edge"
     }

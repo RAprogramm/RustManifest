@@ -103,6 +103,7 @@ fn measure(
         call_candidates_ambiguous:   calls.ambiguous(),
         call_candidates_owned:       calls.owned_unmatched(),
         call_candidates_scip:        calls.scip_resolved(),
+        call_candidates_settled:     calls.scip_settled(),
         origins_total:               settled.total,
         origins_derived:             settled.derived
     }

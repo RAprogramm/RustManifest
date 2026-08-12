@@ -239,6 +239,79 @@ mod tests {
         assert!(!plain.indexed(caller, index_of(&all, "Wallet::credit")));
     }
 
+    /// A candidate matching several linkable functions binds when the
+    /// index confirms exactly one of them — the uniqueness gate admits
+    /// the single confirmed match — and stays refused when the index
+    /// confirms both, because two confirmations settle nothing.
+    #[test]
+    fn the_index_settles_an_ambiguous_candidate_to_its_one_confirmed_match() {
+        let sources = [
+            Source::new(
+                PathBuf::from("src/one.rs"),
+                "pub fn fetch() {}\n".to_owned()
+            ),
+            Source::new(
+                PathBuf::from("src/two.rs"),
+                "pub fn fetch() {}\n".to_owned()
+            ),
+            Source::new(
+                PathBuf::from("src/lib.rs"),
+                "fn caller() { fetch(); }\n".to_owned()
+            )
+        ];
+        let all = behavior(&sources);
+        let context = super::resolution_context(&sources);
+        let caller = index_of(&all, "caller");
+        let matched: Vec<usize> = all
+            .iter()
+            .enumerate()
+            .filter_map(|(at, fact)| (fact.function == "fetch").then_some(at))
+            .collect();
+        assert_eq!(matched.len(), 2, "two same-named free functions");
+        let plain = call_graph(&all, &context);
+        assert_eq!(plain.ambiguous(), 1);
+        assert!(plain.callees(caller).is_empty());
+        let mut overlay = vec![Vec::new(); all.len()];
+        overlay[caller] = vec![matched[0]];
+        let graph = super::call_graph_with(&all, &context, Some(&overlay));
+        assert_eq!(graph.callees(caller), &[matched[0]]);
+        assert_eq!(graph.ambiguous(), 0);
+        assert_eq!(graph.scip_settled(), 1);
+        assert!(graph.settled(caller, matched[0]));
+        assert_eq!(
+            graph.scip_resolved(),
+            0,
+            "a settled edge is not recounted as an additive one"
+        );
+        let mut both = vec![Vec::new(); all.len()];
+        both[caller] = matched;
+        let refused = super::call_graph_with(&all, &context, Some(&both));
+        assert_eq!(refused.ambiguous(), 1);
+        assert_eq!(refused.scip_settled(), 0);
+    }
+
+    /// The same settlement reaches the untyped receiver: a `?::` name
+    /// several methods carry is one confirmed match away from binding,
+    /// and the row it would have landed in empties.
+    #[test]
+    fn the_index_settles_an_untyped_receiver_to_its_one_confirmed_method() {
+        let all = facts(
+            "fn go() { opaque().ping(); }\nstruct A;\nimpl A { fn ping(&self) {} }\nstruct \
+             B;\nimpl B { fn ping(&self) {} }"
+        );
+        let context = super::ResolutionContext::default();
+        let caller = index_of(&all, "go");
+        let chosen = index_of(&all, "A::ping");
+        let plain = call_graph(&all, &context);
+        assert_eq!(plain.unknown_receiver(), 1);
+        let mut overlay = vec![Vec::new(); all.len()];
+        overlay[caller] = vec![chosen];
+        let graph = super::call_graph_with(&all, &context, Some(&overlay));
+        assert!(graph.callees(caller).contains(&chosen));
+        assert_eq!(graph.unknown_receiver(), 0);
+        assert_eq!(graph.scip_settled(), 1);
+    }
+
     #[test]
     fn trait_object_calls_dispatch_to_every_implementor() {
         let (all, graph) = context_graph(

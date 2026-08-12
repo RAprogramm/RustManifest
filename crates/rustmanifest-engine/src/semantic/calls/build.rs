@@ -34,9 +34,14 @@ pub fn call_graph(facts: &[FunctionFacts], context: &ResolutionContext) -> CallG
 /// Builds the call graph with an optional SCIP overlay.
 ///
 /// The overlay holds per-fact callee fact indices already bound by the
-/// index layer, applied after the syntactic candidates. An edge the
-/// candidates already produced is not recounted, so
-/// [`CallGraph::scip_resolved`] states exactly what the index added.
+/// index layer, and it works twice. Inside the candidate loop it
+/// settles ambiguity: a candidate matching several linkable functions
+/// binds when the index confirms exactly one of them — the uniqueness
+/// gate still admits only a single confirmed match, and the edge is
+/// marked settled so a trace names both layers. After the loop the
+/// remaining overlay edges land additively; an edge the candidates
+/// already produced is not recounted, so [`CallGraph::scip_resolved`]
+/// states exactly what the index added on its own.
 #[must_use]
 pub fn call_graph_with(
     facts: &[FunctionFacts],
@@ -80,6 +85,7 @@ fn built(
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
     let mut tallies = Tallies::default();
     let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
+    let mut settled: BTreeSet<(usize, usize)> = BTreeSet::new();
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
             let named = candidate.strip_prefix("?::").map_or_else(
@@ -107,6 +113,20 @@ fn built(
                     edges[index].push(*only);
                 }
                 continue;
+            }
+            if let (Some(found), Some(over)) = (matches.as_deref(), overlay)
+                && found.len() > 1
+                && let Some(listed) = over.get(index)
+            {
+                let mut confirmed = found.iter().copied().filter(|held| listed.contains(held));
+                if let (Some(only), None) = (confirmed.next(), confirmed.next()) {
+                    tallies.resolved += 1;
+                    settled.insert((index, only));
+                    if !edges[index].contains(&only) {
+                        edges[index].push(only);
+                    }
+                    continue;
+                }
             }
             let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(o, m)| {
                 linkable(
@@ -149,7 +169,7 @@ fn built(
             !linkable(context, facts, caller, &[callee]).is_empty()
         })
     });
-    tallies.graph(edges, indexed, possibilistic)
+    tallies.graph(edges, indexed, settled, possibilistic)
 }
 
 /// The resolution tallies while the graph is under construction.
@@ -190,6 +210,7 @@ impl Tallies {
         self,
         edges: Vec<Vec<usize>>,
         indexed: BTreeSet<(usize, usize)>,
+        settled: BTreeSet<(usize, usize)>,
         possibilistic: BTreeSet<(usize, usize)>
     ) -> CallGraph {
         CallGraph {
@@ -202,6 +223,7 @@ impl Tallies {
             ambiguous: self.ambiguous,
             owned_unmatched: self.owned_unmatched,
             indexed,
+            settled,
             possibilistic
         }
     }

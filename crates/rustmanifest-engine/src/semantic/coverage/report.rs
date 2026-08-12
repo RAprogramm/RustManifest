@@ -92,6 +92,10 @@ pub struct Coverage {
     /// Call edges added by a SCIP index overlay beyond the syntactic
     /// candidates; zero when no index was supplied.
     pub call_candidates_scip:        u64,
+    /// Candidates the index settled among several syntactic matches —
+    /// would-be ambiguous refusals bound to the one confirmed match;
+    /// zero when no index was supplied.
+    pub call_candidates_settled:     u64,
     /// Value positions recorded across the value tier's channels: the
     /// operands of an operation, the scrutinee and alternatives of a
     /// choice, the value of a handback, the written arguments of a call

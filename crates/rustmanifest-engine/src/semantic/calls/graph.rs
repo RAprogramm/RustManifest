@@ -43,6 +43,11 @@ pub struct CallGraph {
     /// alone had not produced — resolution owed to the index, kept as
     /// pairs so every consumer can state an edge's provenance.
     pub(super) indexed:           BTreeSet<(usize, usize)>,
+    /// Edges settled among several syntactic name matches by the index:
+    /// the candidates proposed the set, the index confirmed exactly one
+    /// member, and the uniqueness gate bound that one — certainty owed
+    /// to both layers, kept as pairs for the same provenance duty.
+    pub(super) settled:           BTreeSet<(usize, usize)>,
     /// Edges born from dispatch over several implementors — the callee
     /// is one possibility among siblings, not a certainty.
     pub(super) possibilistic:     BTreeSet<(usize, usize)>
@@ -113,6 +118,20 @@ impl CallGraph {
     #[must_use]
     pub fn indexed(&self, from: usize, to: usize) -> bool {
         self.indexed.contains(&(from, to))
+    }
+
+    /// Candidates the index settled among several syntactic matches —
+    /// refusals the ambiguous row would otherwise hold.
+    #[must_use]
+    pub fn scip_settled(&self) -> u64 {
+        u64::try_from(self.settled.len()).unwrap_or(u64::MAX)
+    }
+
+    /// Returns whether the edge was settled among several name matches
+    /// by the index — the syntax proposed the set, the index chose.
+    #[must_use]
+    pub fn settled(&self, from: usize, to: usize) -> bool {
+        self.settled.contains(&(from, to))
     }
 
     /// Returns whether the edge came from dispatch over several

@@ -74,11 +74,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 calls_ambiguous = report.call_candidates_ambiguous,
                 calls_owned = report.call_candidates_owned,
                 call_accounted = report.call_accounted_rate(),
-                scip_tail = if report.call_candidates_scip == 0 {
-                    String::new()
-                } else {
-                    format!("   scip edges +{}", report.call_candidates_scip)
-                }
+                scip_tail = scip_tail(report)
             )
         ),
         line(
@@ -98,6 +94,23 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
             &format!("item macros seen {macros}   (expansions not analyzed)")
         ),
     ]
+}
+
+/// The index's contribution appended to the call-candidates line:
+/// additive edges, and ambiguity settlements where the index confirmed
+/// exactly one of several syntactic matches. Empty without an index.
+fn scip_tail(report: &Coverage) -> String {
+    let added = if report.call_candidates_scip == 0 {
+        String::new()
+    } else {
+        format!("   scip edges +{}", report.call_candidates_scip)
+    };
+    let settled = if report.call_candidates_settled == 0 {
+        String::new()
+    } else {
+        format!("   scip settled {}", report.call_candidates_settled)
+    };
+    added + &settled
 }
 
 #[cfg(test)]
@@ -142,6 +155,7 @@ mod tests {
             call_candidates_ambiguous:   30,
             call_candidates_owned:       14,
             call_candidates_scip:        0,
+            call_candidates_settled:     0,
             origins_total:               1400,
             origins_derived:             1050
         };
@@ -200,5 +214,28 @@ mod tests {
         };
         let lines = report_lines(&report);
         assert!(lines[5].ends_with("accounted 40.0%   scip edges +3"));
+    }
+
+    /// A settled count appears beside the additive edges, and each part
+    /// stands alone when the other is zero.
+    #[test]
+    fn scip_settlements_appear_beside_the_added_edges() {
+        let report = Coverage {
+            call_candidates_total: 10,
+            call_candidates_resolved: 4,
+            call_candidates_scip: 3,
+            call_candidates_settled: 2,
+            ..Coverage::default()
+        };
+        let lines = report_lines(&report);
+        assert!(lines[5].ends_with("scip edges +3   scip settled 2"));
+        let alone = Coverage {
+            call_candidates_total: 10,
+            call_candidates_resolved: 4,
+            call_candidates_settled: 2,
+            ..Coverage::default()
+        };
+        let only = report_lines(&alone);
+        assert!(only[5].ends_with("accounted 40.0%   scip settled 2"));
     }
 }
