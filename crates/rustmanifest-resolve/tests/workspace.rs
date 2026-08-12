@@ -150,6 +150,31 @@ fn a_written_name_carries_the_item_it_reaches_and_the_crate_declaring_it() {
     assert_eq!(store.names, "fixture::Store");
 }
 
+/// The compiler's own module tree is recorded, so nothing above has to
+/// guess which file holds which module from how the files are named.
+#[test]
+fn the_module_tree_is_the_compilers_and_not_a_reading_of_file_names() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let root = resolution
+        .modules
+        .iter()
+        .find(|module| module.crate_root && module.names == "fixture")
+        .expect("the crate root is recorded");
+    assert_eq!(root.file, Path::new("src/main.rs"));
+    assert!(root.parent.is_none());
+    assert!(
+        resolution
+            .modules
+            .iter()
+            .all(|module| module.file.is_relative()),
+        "a module names its file from the machine root: {:?}",
+        resolution.modules
+    );
+}
+
 #[test]
 fn resolving_the_same_workspace_twice_states_the_same_thing() {
     let dir = tempfile::tempdir().unwrap();

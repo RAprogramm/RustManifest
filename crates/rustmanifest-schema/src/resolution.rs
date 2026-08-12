@@ -19,6 +19,7 @@
 //! guessing from spelling — see [`typed`] and [`path`] for why each exists.
 
 mod call;
+mod module;
 mod path;
 mod positioned;
 mod property;
@@ -29,6 +30,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::{
     call::{ResolvedCall, ResolvedField},
+    module::ResolvedModule,
     path::ResolvedPath,
     property::ResolvedProperty,
     typed::ResolvedType
@@ -59,7 +61,12 @@ pub struct Resolution {
     /// order. Keyed by type rather than by position: the property belongs
     /// to the type, not to the place it was written at.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub types_granted: Vec<ResolvedProperty>
+    pub types_granted: Vec<ResolvedProperty>,
+    /// The compiler's own module tree of the workspace, in module-path
+    /// order. Which file holds which module is the compiler's answer, not
+    /// something a file-name reading reconstructs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modules:       Vec<ResolvedModule>
 }
 
 impl Resolution {

@@ -22,6 +22,7 @@ mod load;
 mod naming;
 mod reading;
 mod settling;
+mod tree;
 mod typing;
 
 use std::path::Path;
@@ -69,6 +70,9 @@ pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
             };
             settle_file(reading, &parsed, &mut resolution);
         }
+    });
+    attach_db(&database, || {
+        tree::settled(&database, &files, &inside, &mut resolution.modules);
     });
     resolution.settle();
     debug!(
