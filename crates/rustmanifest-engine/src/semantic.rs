@@ -19,7 +19,6 @@ mod capability;
 mod check;
 mod composition;
 mod coverage;
-mod dead;
 mod deduce;
 mod doc_synth;
 mod doc_truth;

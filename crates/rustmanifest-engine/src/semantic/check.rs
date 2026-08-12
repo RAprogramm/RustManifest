@@ -9,8 +9,8 @@
 //! addition of a check touches exactly one place: the enumeration below.
 
 use super::{
-    composition, dead, doc_truth, field_group, insight::Insight, io_forms, loops, module_cycle,
-    naming, orphan, ownership, workspace::Workspace
+    composition, doc_truth, field_group, insight::Insight, io_forms, loops, module_cycle, naming,
+    orphan, ownership, workspace::Workspace
 };
 
 /// Built-in semantic checks addressable from `definition.semantic`.
@@ -41,8 +41,6 @@ pub(super) enum Check {
     /// `orphan-file` — files reachable from no crate root, with a
     /// plausible forgotten `mod` mount point.
     OrphanFile,
-    /// `dead-function` — private functions no call ever mentions.
-    DeadFunction,
     /// `output-lock-run` — a run of prints taking the stream lock once
     /// per call.
     OutputLockRun,
@@ -70,7 +68,6 @@ impl Check {
             "deceptive-name" => Some(Self::DeceptiveName),
             "deceptive-doc" => Some(Self::DeceptiveDoc),
             "orphan-file" => Some(Self::OrphanFile),
-            "dead-function" => Some(Self::DeadFunction),
             "output-lock-run" => Some(Self::OutputLockRun),
             "output-in-loop" => Some(Self::OutputInLoop),
             "output-constant-format" => Some(Self::OutputConstantFormat),
@@ -92,7 +89,6 @@ impl Check {
             Self::DeceptiveName => naming::insights(workspace),
             Self::DeceptiveDoc => doc_truth::insights(workspace),
             Self::OrphanFile => orphan::insights(workspace),
-            Self::DeadFunction => dead::insights(workspace),
             Self::OutputLockRun => io_forms::lock_run_insights(workspace),
             Self::OutputInLoop => io_forms::loop_write_insights(workspace),
             Self::OutputConstantFormat => io_forms::literal_format_insights(workspace),

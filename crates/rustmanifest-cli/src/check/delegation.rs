@@ -13,6 +13,10 @@ use tracing::warn;
 /// delegated findings.
 const CLIPPY_INDEX_URL: &str = "https://rust-lang.github.io/rust-clippy/master/index.html#";
 
+/// Listing of the compiler's own lints, used as the rationale of a
+/// delegated rustc diagnostic.
+const RUSTC_LINT_INDEX_URL: &str = "https://doc.rust-lang.org/rustc/lints/listing/index.html";
+
 /// Runs `cargo clippy --message-format=json --quiet` in the first analyzed
 /// path and converts its diagnostics into advisory findings, sorted by
 /// `(file, range start, rule id)` for deterministic output.
@@ -77,10 +81,16 @@ pub(super) fn delegated_clippy_findings(paths: &[PathBuf]) -> Vec<Finding> {
 /// Parses one line of `cargo clippy --message-format=json` output into a
 /// [`Finding`].
 ///
-/// Returns `None` for lines that are not clippy diagnostics: other cargo
-/// message kinds, rustc diagnostics without a `clippy::` code, and summary
-/// messages without a primary span. Lines that are not valid JSON are
-/// logged as a [`warn`] entry and skipped.
+/// Returns `None` for lines that are not diagnostics: other cargo message
+/// kinds, messages carrying no lint code, and summary messages without a
+/// primary span. Lines that are not valid JSON are logged as a [`warn`]
+/// entry and skipped.
+///
+/// The compiler's own lints are taken as well as clippy's. Dropping them
+/// was what made this project write its own unreferenced-function check,
+/// its own unused-import census and its own reachability walk — every one
+/// of them a worse answer to a question already in the same output
+/// stream.
 fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
     let value: serde_json::Value = match serde_json::from_str(line) {
         Ok(value) => value,
@@ -94,7 +104,10 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
     }
     let message = value.get("message")?;
     let code = message.get("code")?.get("code")?.as_str()?;
-    let lint_anchor = code.strip_prefix("clippy::")?;
+    let rationale = code.strip_prefix("clippy::").map_or_else(
+        || RUSTC_LINT_INDEX_URL.to_owned(),
+        |anchor| format!("{CLIPPY_INDEX_URL}{anchor}")
+    );
     let severity = match message.get("level").and_then(serde_json::Value::as_str) {
         Some("error") => Severity::Error,
         Some("warning") => Severity::Warning,
@@ -129,7 +142,7 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
             }
         },
         message: text.to_owned(),
-        rationale_uri: format!("{CLIPPY_INDEX_URL}{lint_anchor}"),
+        rationale_uri: rationale,
         trace: Vec::new(),
         fixes: Vec::new()
     })
