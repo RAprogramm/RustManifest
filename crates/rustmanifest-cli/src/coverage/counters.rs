@@ -65,7 +65,8 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 "resolved in-workspace {calls_resolved}  {call_rate:.1}%   external \
                  {calls_external}   unknown receiver {calls_unknown}   named elsewhere \
                  {calls_unreachable}   ambiguous {calls_ambiguous}   owner without member \
-                 {calls_owned}   construction {calls_built}   accounted \
+                 {calls_owned}   granted without body {calls_granted}   construction \
+                 {calls_built}   accounted \
                  {call_accounted:.1}%{scip_tail}",
                 calls_resolved = report.call_candidates_resolved,
                 call_rate = report.call_resolution_rate(),
@@ -74,6 +75,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 calls_unreachable = report.call_candidates_unreachable,
                 calls_ambiguous = report.call_candidates_ambiguous,
                 calls_owned = report.call_candidates_owned,
+                calls_granted = report.call_candidates_granted,
                 calls_built = report.call_candidates_built,
                 call_accounted = report.call_accounted_rate(),
                 scip_tail = scip_tail(report)
@@ -156,6 +158,7 @@ mod tests {
             call_candidates_unreachable: 90,
             call_candidates_ambiguous:   30,
             call_candidates_owned:       14,
+            call_candidates_granted:     0,
             call_candidates_built:       0,
             call_candidates_scip:        0,
             call_candidates_settled:     0,
@@ -188,7 +191,7 @@ mod tests {
             lines[5],
             "call candidates     5000      resolved in-workspace 1066  21.3%   external 3600   \
              unknown receiver 200   named elsewhere 90   ambiguous 30   owner without member \
-             14   construction 0   accounted 95.1%"
+             14   granted without body 0   construction 0   accounted 95.1%"
         );
         assert_eq!(
             lines[6],

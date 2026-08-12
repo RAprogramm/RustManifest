@@ -30,6 +30,10 @@ pub enum RefusalRow {
     Ambiguous,
     /// The declared owner carries no such member.
     OwnerWithoutMember,
+    /// The owner carries the member, granted by a derive or by a trait
+    /// it implements, and no source in the slice holds its body — the
+    /// text was written by the expansion the reading does not see.
+    GrantedWithoutBody,
     /// The candidate names a variant of a workspace enum: a value is
     /// being built there, and nothing is being called. It is recorded
     /// rather than dropped, because a candidate that leaves the count
@@ -45,6 +49,7 @@ impl fmt::Display for RefusalRow {
             Self::NamedElsewhere => "named-elsewhere",
             Self::Ambiguous => "ambiguous",
             Self::OwnerWithoutMember => "owner-without-member",
+            Self::GrantedWithoutBody => "granted-without-body",
             Self::Construction => "construction"
         })
     }
@@ -103,9 +108,34 @@ fn unowned(
     {
         return RefusalRow::Construction;
     }
+    if granting(context, owner, member) {
+        return RefusalRow::GrantedWithoutBody;
+    }
     if workspace_owners.contains(owner) || context.trait_impls.contains_key(owner) {
         RefusalRow::OwnerWithoutMember
     } else {
         RefusalRow::Foreign
     }
+}
+
+/// Whether a trait the owner carries without writing a body grants the
+/// named member: a derive above the type, or an implemented trait whose
+/// blanket companion provides the member — `Display` granting
+/// `to_string` is the written case of that.
+fn granting(context: &ResolutionContext, owner: &str, member: &str) -> bool {
+    const GRANTED_MEMBERS: [(&str, &str); 8] = [
+        ("clone", "Clone"),
+        ("default", "Default"),
+        ("cmp", "Ord"),
+        ("partial_cmp", "PartialOrd"),
+        ("eq", "PartialEq"),
+        ("ne", "PartialEq"),
+        ("hash", "Hash"),
+        ("to_string", "Display")
+    ];
+    context.granted.get(owner).is_some_and(|carried| {
+        GRANTED_MEMBERS
+            .iter()
+            .any(|(named, granting)| *named == member && carried.contains(*granting))
+    })
 }

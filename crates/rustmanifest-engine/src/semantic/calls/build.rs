@@ -244,7 +244,9 @@ struct Tallies {
     owned_unmatched:   u64,
     /// Candidates naming a variant of a workspace enum: values built,
     /// not functions called.
-    constructions:     u64
+    constructions:     u64,
+    /// Candidates whose member the owner carries without a written body.
+    granted:           u64
 }
 
 impl Tallies {
@@ -258,6 +260,7 @@ impl Tallies {
             RefusalRow::NamedElsewhere => self.unreachable_named += 1,
             RefusalRow::Ambiguous => self.ambiguous += 1,
             RefusalRow::OwnerWithoutMember => self.owned_unmatched += 1,
+            RefusalRow::GrantedWithoutBody => self.granted += 1,
             RefusalRow::Construction => self.constructions += 1
         }
     }
@@ -280,6 +283,7 @@ impl Tallies {
             ambiguous: self.ambiguous,
             owned_unmatched: self.owned_unmatched,
             constructions: self.constructions,
+            granted: self.granted,
             indexed,
             settled,
             possibilistic

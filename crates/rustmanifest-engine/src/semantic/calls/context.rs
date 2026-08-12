@@ -39,7 +39,12 @@ pub struct ResolutionContext {
     pub scopes:      Scopes,
     /// Enum name to its written variant names. A candidate naming one of
     /// them builds a value; nothing is being called there.
-    pub variants:    BTreeMap<String, BTreeSet<String>>
+    pub variants:    BTreeMap<String, BTreeSet<String>>,
+    /// Type name to the traits it carries without writing a body: the
+    /// derives written above it, and the traits it implements. A member
+    /// one of them grants exists on the type even though no source in
+    /// the slice holds its body.
+    pub granted:     BTreeMap<String, BTreeSet<String>>
 }
 
 /// Builds the full resolution context over `sources`.
@@ -49,6 +54,7 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
     let mut ext_traits: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
     let mut supertraits: BTreeMap<String, String> = BTreeMap::new();
     let mut variants: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut granted: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for source in sources {
         let Some(file) = source.tree() else {
             continue;
@@ -67,12 +73,26 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
                     else {
                         continue;
                     };
+                    granted
+                        .entry(implementor.clone())
+                        .or_default()
+                        .insert(trait_name.clone());
                     let implementors = trait_impls.entry(trait_name).or_default();
                     if !implementors.contains(&implementor) {
                         implementors.push(implementor);
                     }
                 }
+                syn::Item::Struct(definition) => {
+                    granted
+                        .entry(definition.ident.to_string())
+                        .or_default()
+                        .extend(derived_traits(&definition.attrs));
+                }
                 syn::Item::Enum(definition) => {
+                    granted
+                        .entry(definition.ident.to_string())
+                        .or_default()
+                        .extend(derived_traits(&definition.attrs));
                     variants.insert(
                         definition.ident.to_string(),
                         definition
@@ -123,8 +143,26 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
             .map(|source| Target::of_path(&source.path().to_string_lossy()))
             .collect(),
         scopes: Scopes::of(sources),
-        variants
+        variants,
+        granted
     }
+}
+
+/// The trait names a `#[derive(...)]` attribute writes.
+fn derived_traits(attrs: &[syn::Attribute]) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    for attr in attrs {
+        if !attr.path().is_ident("derive") {
+            continue;
+        }
+        drop(attr.parse_nested_meta(|meta| {
+            if let Some(name) = meta.path.segments.last() {
+                found.insert(name.ident.to_string());
+            }
+            Ok(())
+        }));
+    }
+    found
 }
 
 /// Last segment of a trait definition's first supertrait bound.

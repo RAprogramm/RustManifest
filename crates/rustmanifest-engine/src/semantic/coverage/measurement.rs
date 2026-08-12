@@ -102,6 +102,7 @@ fn measure(
         call_candidates_unreachable: calls.unreachable_named(),
         call_candidates_ambiguous:   calls.ambiguous(),
         call_candidates_owned:       calls.owned_unmatched(),
+        call_candidates_granted:     calls.granted(),
         call_candidates_built:       calls.constructions(),
         call_candidates_scip:        calls.scip_resolved(),
         call_candidates_settled:     calls.scip_settled(),

@@ -325,9 +325,33 @@ mod tests {
                 + graph.unreachable_named()
                 + graph.ambiguous()
                 + graph.owned_unmatched()
+                + graph.granted()
                 + graph.constructions(),
             "a refusal outside every row would be countable only by subtraction"
         );
+    }
+
+    /// A member a derive writes is a member the owner carries: the row
+    /// says the body is missing from the slice, not that the type lacks
+    /// the ability. A trait the type implements grants the same way —
+    /// writing `Display` grants `to_string` through its blanket
+    /// companion.
+    #[test]
+    fn a_derived_member_is_granted_rather_than_missing() {
+        let text = concat!(
+            "#[derive(Clone, Default)]\npub struct Held;\n",
+            "pub struct Named;\nimpl std::fmt::Display for Named {\n    fn fmt(&self, out: &mut \
+             std::fmt::Formatter<'_>) -> std::fmt::Result { out.write_str(\"x\") }\n}\n",
+            "pub struct Bare;\nimpl Bare { pub fn keep(&self) {} }\n",
+            "pub fn go() {\n    Held::default();\n    Held::clone(&Held);\n    \
+             Named::to_string(&Named);\n    Bare::missing();\n}\n"
+        );
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let all = behavior(&sources);
+        let context = super::resolution_context(&sources);
+        let (graph, rows) = super::call_graph_rows(&all, &context);
+        assert_eq!(graph.granted(), 3, "{rows:?}");
+        assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
     /// A crate-private method of a neighbouring crate is a coincidence

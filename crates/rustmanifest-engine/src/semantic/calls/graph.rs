@@ -45,6 +45,9 @@ pub struct CallGraph {
     /// where the reading looked for a call. Counted under its own name
     /// so the total holds no unexplained residue.
     pub(super) constructions:     u64,
+    /// Candidates whose owner carries the member through a derive or an
+    /// implemented trait, with no body in the slice to bind to.
+    pub(super) granted:           u64,
     /// Edges added by the SCIP overlay that the syntactic candidates
     /// alone had not produced — resolution owed to the index, kept as
     /// pairs so every consumer can state an edge's provenance.
@@ -117,6 +120,12 @@ impl CallGraph {
     #[must_use]
     pub const fn constructions(&self) -> u64 {
         self.constructions
+    }
+
+    /// Candidates the owner carries without a written body.
+    #[must_use]
+    pub const fn granted(&self) -> u64 {
+        self.granted
     }
 
     /// Edges the SCIP overlay added beyond the syntactic candidates.
