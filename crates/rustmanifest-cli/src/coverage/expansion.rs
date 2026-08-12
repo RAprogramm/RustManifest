@@ -69,9 +69,10 @@ pub(super) fn drift_line(
     let (shared, plain_only, expanded_only) = universe_drift(&plain, &expanded);
     line(
         "universe drift",
-        &format!("{shared} shared"),
+        &shared.to_string(),
         &format!(
-            "plain-only {plain_only} (cfg-stripped bodies)   expanded-only {expanded_only}              (macro-generated)"
+            "shared   plain-only {plain_only} (cfg-stripped bodies)   expanded-only \
+             {expanded_only} (macro-generated)"
         )
     )
 }
@@ -152,6 +153,18 @@ mod tests {
             .collect();
         assert_eq!(super::universe_drift(&plain, &expanded), (1, 1, 1));
         assert_eq!(super::universe_drift(&plain, &plain), (2, 0, 0));
+    }
+
+    /// The drift line keeps its columns whatever the counts measure: a
+    /// four-digit shared count is a value like any other, and the words
+    /// naming it live in the tail, so the separator cannot be eaten.
+    #[test]
+    fn the_drift_line_keeps_its_columns_at_four_digits() {
+        let rendered = super::line("universe drift", "1395", "shared   plain-only 1234");
+        assert!(
+            rendered.starts_with("universe drift      1395      shared"),
+            "{rendered}"
+        );
     }
 
     use rustmanifest_engine::ExpansionReport;
