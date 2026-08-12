@@ -30,6 +30,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 rustdoc-types = { workspace = true }
+scip = { workspace = true }
+protobuf = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

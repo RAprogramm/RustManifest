@@ -44,6 +44,8 @@ schemars = "1"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 rustdoc-types = "0.61"
+scip = "0.9"
+protobuf = "3.7"
 toml = "1"
 rayon = "1"
 ignore = "0.4"
