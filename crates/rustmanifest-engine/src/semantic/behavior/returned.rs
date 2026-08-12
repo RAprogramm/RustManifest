@@ -17,6 +17,9 @@ pub(super) struct Returned {
     pub(super) error:   Option<String>,
     /// Element type of a sequence return, where the return declares one.
     pub(super) element: Option<String>,
+    /// Positional type names of a tuple return, in written order, so a
+    /// destructuring `let` types every name it binds.
+    pub(super) tuple:   Vec<String>,
     /// Whether the signature declares the never type, so a call to this
     /// function does not return to its caller.
     pub(super) never:   bool
@@ -47,7 +50,27 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
             success: None,
             error:   None,
             element: None,
+            tuple:   Vec::new(),
             never:   true
+        });
+    }
+    if let syn::Type::Tuple(written) = peeled(ty.as_ref()) {
+        let positions: Vec<String> = written
+            .elems
+            .iter()
+            .filter_map(super::signature::type_last_segment)
+            .map(|name| resolve_self(name, owner))
+            .collect();
+        if positions.len() != written.elems.len() {
+            return None;
+        }
+        return Some(Returned {
+            plain:   "()".to_owned(),
+            success: None,
+            error:   None,
+            element: None,
+            tuple:   positions,
+            never:   false
         });
     }
     let syn::Type::Path(path) = peeled(ty.as_ref()) else {
@@ -78,6 +101,7 @@ pub(super) fn returned_of(signature: &syn::Signature, owner: Option<&str>) -> Op
         success,
         error,
         element,
+        tuple: Vec::new(),
         never: false
     })
 }

@@ -354,6 +354,22 @@ mod tests {
         assert_eq!(graph.owned_unmatched(), 1, "{rows:?}");
     }
 
+    /// A destructuring `let` over a call handing back a tuple types
+    /// every name it binds: which name stands at which position is
+    /// written, and the return's own type list answers the rest.
+    #[test]
+    fn a_destructured_tuple_return_types_every_name_it_binds() {
+        let (all, graph) = context_graph(
+            "pub struct Graph;\nimpl Graph { pub fn count(&self) {} }\npub struct Rows;\nimpl \
+             Rows { pub fn total(&self) {} }\npub fn built() -> (Graph, Rows) { (Graph, Rows) \
+             }\npub fn go() {\n    let (graph, rows) = built();\n    graph.count();\n    \
+             rows.total();\n}\n"
+        );
+        let callees = graph.callees(index_of(&all, "go"));
+        assert!(callees.contains(&index_of(&all, "Graph::count")));
+        assert!(callees.contains(&index_of(&all, "Rows::total")));
+    }
+
     /// An accessor handing back a borrow types the chain written on it:
     /// the language derefs for the call, so `&T` is a `T` to call on,
     /// and reading only the bare form left every such accessor with no
