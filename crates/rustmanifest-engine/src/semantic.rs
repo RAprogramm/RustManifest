@@ -50,7 +50,6 @@ mod module_cycle;
 mod module_graph;
 mod module_overview;
 mod montage;
-mod moved;
 mod naming;
 mod oracle;
 mod orphan;
