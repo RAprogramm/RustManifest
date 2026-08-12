@@ -18,6 +18,7 @@ pub mod analyzed;
 pub mod ask;
 pub mod check;
 pub mod coverage;
+pub mod document;
 pub mod expand;
 pub mod explain;
 pub mod facts;
@@ -82,6 +83,8 @@ pub enum Command {
     Coverage(CoverageArgs),
     /// Print the rationale and methodology excerpt for a rule.
     Explain(ExplainArgs),
+    /// Ask the compiler for its documentation index of this workspace.
+    Document(document::DocumentArgs),
     /// Print behavioral facts of every function as JSON.
     Facts(facts::FactsArgs),
     /// Print an architecture diagram of the analyzed sources.
@@ -111,6 +114,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Check(args) => run_check(&args),
         Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Explain(args) => run_explain(&args),
+        Command::Document(args) => document::run_document(&args),
         Command::Facts(args) => facts::run_facts(&args),
         Command::Graph(args) => graph::run_graph(&args),
         Command::Learn(args) => learn::run_learn(&args),
