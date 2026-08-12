@@ -3,31 +3,27 @@ source: crates/rustmanifest-report/src/sarif.rs
 expression: output
 ---
 {
-  "version": "2.1.0",
-  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json",
   "runs": [
     {
-      "tool": {
-        "driver": {
-          "name": "rustmanifest",
-          "version": "0.0.0",
-          "informationUri": "https://github.com/RAprogramm/RustManifest",
-          "rules": [
-            {
-              "id": "RM-SEC-001",
-              "name": "RM-SEC-001",
-              "shortDescription": {
-                "text": "Hardcoded credentials: matched at bytes 10..25"
-              },
-              "helpUri": "rustmanifest://methodology/security#creds"
-            }
-          ]
-        }
-      },
       "results": [
         {
-          "ruleId": "RM-SEC-001",
           "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/lib.rs"
+                },
+                "region": {
+                  "byteLength": 15,
+                  "byteOffset": 10,
+                  "endLine": 1,
+                  "startLine": 1
+                }
+              }
+            }
+          ],
           "message": {
             "text": "Hardcoded credentials: matched at bytes 10..25"
           },
@@ -39,21 +35,27 @@ expression: output
               }
             ]
           },
-          "locations": [
+          "ruleId": "RM-SEC-001"
+        }
+      ],
+      "tool": {
+        "driver": {
+          "informationUri": "https://github.com/RAprogramm/RustManifest",
+          "name": "rustmanifest",
+          "rules": [
             {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "src/lib.rs"
-                },
-                "region": {
-                  "byteOffset": 10,
-                  "byteLength": 15
-                }
+              "helpUri": "rustmanifest://methodology/security#creds",
+              "id": "RM-SEC-001",
+              "name": "RM-SEC-001",
+              "shortDescription": {
+                "text": "Hardcoded credentials: matched at bytes 10..25"
               }
             }
-          ]
+          ],
+          "version": "0.0.0"
         }
-      ]
+      }
     }
-  ]
+  ],
+  "version": "2.1.0"
 }

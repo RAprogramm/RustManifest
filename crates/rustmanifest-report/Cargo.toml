@@ -20,6 +20,7 @@ anstream = { workspace = true }
 anstyle = { workspace = true }
 rustmanifest-schema = { workspace = true }
 serde = { workspace = true }
+serde-sarif = "0.8"
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 

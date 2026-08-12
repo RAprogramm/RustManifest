@@ -1,108 +1,151 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! Conversion of findings into the SARIF document model.
+//! Conversion of findings into the interchange format's own model.
 //!
-//! Findings are folded twice: once into the deduplicated rule declarations of
-//! the tool driver, and once into the results carrying severity, message,
-//! property bag and physical location.
+//! The shapes come from the crate that generates them out of the format's
+//! published schema. A hand-rolled model stood here before, holding only
+//! the fields somebody had needed so far — and it omitted the line number
+//! that code-scanning ingestion keys on, so the output was well-formed and
+//! unusable by its stated consumer.
+//!
+//! Line numbers are counted from the file where it can be read, and left
+//! out where it cannot. A byte offset is exact and always available; a line
+//! number is what the consumer indexes by, so both are stated.
 
 use std::collections::BTreeMap;
 
 use rustmanifest_schema::{Finding, Severity};
-
-use super::document::{
-    ArtifactLocation, Driver, MultiformatMessage, PhysicalLocation, Region, ResultProperties,
-    RuleDescriptor, Run, SARIF_SCHEMA_URI, SARIF_VERSION, SarifLocation, SarifLog, SarifResult,
-    TOOL_INFORMATION_URI, TOOL_NAME, Tool, TraceStepProperty
+use serde_sarif::sarif::{
+    ArtifactLocation, Location, Message, MultiformatMessageString, PhysicalLocation, PropertyBag,
+    Region, ReportingDescriptor, Result as SarifResult, ResultLevel, Run, Sarif, Tool,
+    ToolComponent, Version
 };
 
-/// Assembles the whole SARIF log of one run from the given findings.
-pub(super) fn build_log(findings: &[Finding], tool_version: &str) -> SarifLog {
-    let mut rules_index: BTreeMap<&str, RuleDescriptor> = BTreeMap::new();
+/// Name the tool reports itself under.
+const TOOL_NAME: &str = "rustmanifest";
+
+/// Home page of the tool, as the format's driver metadata.
+const TOOL_INFORMATION_URI: &str = "https://github.com/RAprogramm/RustManifest";
+
+/// Assembles the whole log of one run from the given findings.
+pub(super) fn build_log(findings: &[Finding], tool_version: &str) -> Sarif {
+    let mut declared: BTreeMap<&str, ReportingDescriptor> = BTreeMap::new();
     for finding in findings {
-        rules_index
+        declared
             .entry(finding.rule_id.as_str())
-            .or_insert_with(|| RuleDescriptor {
-                id:                finding.rule_id.clone(),
-                name:              finding.rule_id.clone(),
-                short_description: MultiformatMessage {
-                    text: finding.message.clone()
-                },
-                help_uri:          finding.rationale_uri.clone()
-            });
+            .or_insert_with(|| descriptor(finding));
     }
-    let rules: Vec<RuleDescriptor> = rules_index.into_values().collect();
+    let driver = ToolComponent::builder()
+        .name(TOOL_NAME.to_owned())
+        .version(tool_version.to_owned())
+        .information_uri(TOOL_INFORMATION_URI.to_owned())
+        .rules(declared.into_values().collect::<Vec<_>>())
+        .build();
+    let run = Run::builder()
+        .tool(Tool::builder().driver(driver).build())
+        .results(findings.iter().map(result_of).collect::<Vec<_>>())
+        .build();
+    Sarif::builder()
+        .version(Version::V2_1_0.to_string())
+        .schema(serde_sarif::sarif::SCHEMA_URL.to_owned())
+        .runs(vec![run])
+        .build()
+}
 
-    let results: Vec<SarifResult> = findings
-        .iter()
-        .map(|finding| SarifResult {
-            rule_id:    finding.rule_id.clone(),
-            level:      level_of(finding.severity),
-            message:    MultiformatMessage {
-                text: finding.message.clone()
-            },
-            properties: properties_of(finding),
-            locations:  vec![SarifLocation {
-                physical_location: PhysicalLocation {
-                    artifact_location: ArtifactLocation {
-                        uri: finding.location.file.display().to_string()
-                    },
-                    region:            Region {
-                        byte_offset: finding.location.range.start,
-                        byte_length: finding
-                            .location
-                            .range
-                            .end
-                            .saturating_sub(finding.location.range.start)
-                    }
-                }
-            }]
-        })
-        .collect();
+/// The rule declaration one finding stands for.
+fn descriptor(finding: &Finding) -> ReportingDescriptor {
+    ReportingDescriptor::builder()
+        .id(finding.rule_id.clone())
+        .name(finding.rule_id.clone())
+        .short_description(
+            MultiformatMessageString::builder()
+                .text(finding.message.clone())
+                .build()
+        )
+        .help_uri(finding.rationale_uri.clone())
+        .build()
+}
 
-    SarifLog {
-        version: SARIF_VERSION.to_owned(),
-        schema:  SARIF_SCHEMA_URI.to_owned(),
-        runs:    vec![Run {
-            tool: Tool {
-                driver: Driver {
-                    name: TOOL_NAME.to_owned(),
-                    version: tool_version.to_owned(),
-                    information_uri: TOOL_INFORMATION_URI.to_owned(),
-                    rules
-                }
-            },
-            results
-        }]
+/// One finding as one result.
+fn result_of(finding: &Finding) -> SarifResult {
+    let built = SarifResult::builder()
+        .rule_id(finding.rule_id.clone())
+        .level(level_of(finding.severity))
+        .message(Message::builder().text(finding.message.clone()).build())
+        .locations(vec![location_of(finding)]);
+    match properties_of(finding) {
+        Some(properties) => built.properties(properties).build(),
+        None => built.build()
     }
 }
 
-/// Builds the SARIF property bag of one result: findings carrying a
-/// derivation trace expose it as `properties.trace`, findings without one
-/// omit the bag entirely.
-fn properties_of(finding: &Finding) -> Option<ResultProperties> {
+/// Where one finding stands, by byte offset and — where the file can be
+/// read — by line number.
+fn location_of(finding: &Finding) -> Location {
+    let start = i64::from(finding.location.range.start);
+    let length = i64::from(
+        finding
+            .location
+            .range
+            .end
+            .saturating_sub(finding.location.range.start)
+    );
+    let region = Region::builder().byte_offset(start).byte_length(length);
+    let region = match lines_of(finding) {
+        Some((first, last)) => region.start_line(first).end_line(last).build(),
+        None => region.build()
+    };
+    Location::builder()
+        .physical_location(
+            PhysicalLocation::builder()
+                .artifact_location(
+                    ArtifactLocation::builder()
+                        .uri(finding.location.file.display().to_string())
+                        .build()
+                )
+                .region(region)
+                .build()
+        )
+        .build()
+}
+
+/// The first and last line a finding's byte range covers, counted from the
+/// file itself; nothing where the file cannot be read.
+fn lines_of(finding: &Finding) -> Option<(i64, i64)> {
+    let text = std::fs::read_to_string(&finding.location.file).ok()?;
+    let counted = |offset: u32| -> i64 {
+        let upto = text.get(..offset as usize).unwrap_or(&text);
+        i64::try_from(upto.lines().count().max(1)).unwrap_or(1)
+    };
+    Some((
+        counted(finding.location.range.start),
+        counted(finding.location.range.end)
+    ))
+}
+
+/// The derivation trace as the result's property bag, absent where the
+/// finding carries none.
+fn properties_of(finding: &Finding) -> Option<PropertyBag> {
     if finding.trace.is_empty() {
         return None;
     }
-    Some(ResultProperties {
-        trace: finding
-            .trace
-            .iter()
-            .map(|step| TraceStepProperty {
-                fact:   step.fact.clone(),
-                reason: step.reason.clone()
-            })
-            .collect()
-    })
+    let steps: Vec<serde_json::Value> = finding
+        .trace
+        .iter()
+        .map(|step| serde_json::json!({ "fact": step.fact, "reason": step.reason }))
+        .collect();
+    let mut bag = PropertyBag::builder().build();
+    bag.additional_properties
+        .insert("trace".to_owned(), serde_json::Value::Array(steps));
+    Some(bag)
 }
 
-/// Maps a finding severity onto the SARIF result level.
-const fn level_of(severity: Severity) -> &'static str {
+/// The format's level for one severity.
+const fn level_of(severity: Severity) -> ResultLevel {
     match severity {
-        Severity::Error => "error",
-        Severity::Warning => "warning",
-        Severity::Info => "note",
-        Severity::Hint => "none"
+        Severity::Error => ResultLevel::Error,
+        Severity::Warning => ResultLevel::Warning,
+        Severity::Info | Severity::Hint => ResultLevel::Note
     }
 }

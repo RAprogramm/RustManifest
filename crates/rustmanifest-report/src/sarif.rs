@@ -3,15 +3,13 @@
 
 //! SARIF 2.1.0 renderer.
 //!
-//! The output schema is intentionally hand-rolled rather than imported from a
-//! third-party crate. SARIF is large; this renderer emits only the fields
-//! used by GitHub code scanning and other common ingesters: tool driver
-//! metadata, declared rules, and results with byte-precise physical
-//! locations. The document model lives in [`document`], the fold from
-//! findings into it in [`conversion`].
+//! The document model comes from the crate that generates it out of the
+//! format's published schema, so a field the format defines is a field this
+//! renderer can state. The hand-rolled model that stood here carried only
+//! what somebody had needed so far, and what it left out was the line
+//! number code-scanning ingestion keys on.
 
 mod conversion;
-mod document;
 
 use std::io::Write;
 
