@@ -332,6 +332,33 @@ so module-scoped answers are silent rather than guessed. That is the
 intended direction — a guessed mounting reads exactly like a derived one
 and is not one.
 
+## 9b. Call identity, measured
+
+A resolution now names the body every call reaches and the name every
+declared body carries, both by the place they are written at, and the call
+graph binds by that pairing before any candidate reading runs. Measured on
+this workspace, 13,829 calls all name what they reach, against 2,690
+declared functions.
+
+What binding by identity changes in the report:
+
+| Counter | Reading alone | With identity |
+|---|---:|---:|
+| unknown receiver | 103 | 0 |
+| named elsewhere | 223 | 30 |
+| resolved in-workspace | 4,941 | 4,722 |
+| external | 10,318 | 10,668 |
+
+The drop in in-workspace resolutions is a correction, not a loss: the
+reading bound calls to same-named bodies that a build never reaches, and
+the resolver says where they actually land.
+
+The candidate machinery underneath — 876 lines in the call tier — exists
+to decide which same-named body a written name meant. Deleting it is the
+next unit, and it is gated on one thing: the candidate loop is keyed by
+written names while identity is keyed by sites, so the two have to be
+brought onto the same key before the guessing can go.
+
 ## 10. Opinion
 
 The engine's premise is sound and the audit does not touch it: a fact
