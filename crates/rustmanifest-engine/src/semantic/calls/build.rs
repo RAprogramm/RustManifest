@@ -14,7 +14,8 @@ use super::{
     overlay::apply_overlay,
     reach::linkable,
     rows::{RefusalRow, refusal_row},
-    tables::name_tables
+    scope::Scopes,
+    tables::{name_tables, named as named_of}
 };
 use crate::semantic::behavior::FunctionFacts;
 
@@ -61,8 +62,24 @@ pub fn call_graph_rows(
     facts: &[FunctionFacts],
     context: &ResolutionContext
 ) -> (CallGraph, Vec<Vec<(String, RefusalRow)>>) {
+    call_graph_rows_with(facts, context, None)
+}
+
+/// Builds the call graph with an optional overlay and reports every
+/// refused candidate's row.
+///
+/// The overlay decides candidates, so a row report taken without it
+/// would describe a different graph than the counters count — the rows
+/// travel with the same overlay for the same reason they travel
+/// through the same decision point.
+#[must_use]
+pub fn call_graph_rows_with(
+    facts: &[FunctionFacts],
+    context: &ResolutionContext,
+    overlay: Option<&[Vec<usize>]>
+) -> (CallGraph, Vec<Vec<(String, RefusalRow)>>) {
     let mut rows: Vec<Vec<(String, RefusalRow)>> = vec![Vec::new(); facts.len()];
-    let graph = built(facts, context, None, Some(&mut rows));
+    let graph = built(facts, context, overlay, Some(&mut rows));
     (graph, rows)
 }
 
@@ -76,7 +93,7 @@ fn built(
     mut rows: Option<&mut Vec<Vec<(String, RefusalRow)>>>
 ) -> CallGraph {
     let module_segments = &context.segments;
-    let (by_qualified, by_bare_free, by_method) = name_tables(facts);
+    let tables = name_tables(facts);
     let workspace_owners: BTreeSet<&str> = facts
         .iter()
         .filter_map(|fact| fact.function.rsplit_once("::"))
@@ -88,22 +105,7 @@ fn built(
     let mut settled: BTreeSet<(usize, usize)> = BTreeSet::new();
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
-            let named = candidate.strip_prefix("?::").map_or_else(
-                || {
-                    candidate.rsplit_once("::").map_or_else(
-                        || by_bare_free.get(candidate.as_str()),
-                        |(qualifier, bare)| {
-                            by_qualified.get(candidate.as_str()).or_else(|| {
-                                module_segments
-                                    .contains(qualifier)
-                                    .then(|| by_bare_free.get(bare))
-                                    .flatten()
-                            })
-                        }
-                    )
-                },
-                |method| by_method.get(method)
-            );
+            let named = named_of(candidate, &tables, module_segments);
             let matches = named
                 .as_ref()
                 .map(|indices| linkable(context, facts, index, indices));
@@ -111,6 +113,15 @@ fn built(
                 tallies.resolved += 1;
                 if !edges[index].contains(only) {
                     edges[index].push(*only);
+                }
+                continue;
+            }
+            if let Some(only) =
+                scoped_home(facts, &context.scopes, index, candidate, matches.as_deref())
+            {
+                tallies.resolved += 1;
+                if !edges[index].contains(&only) {
+                    edges[index].push(only);
                 }
                 continue;
             }
@@ -133,7 +144,7 @@ fn built(
                     context,
                     facts,
                     index,
-                    &dispatch_targets(o, m, context, &by_qualified)
+                    &dispatch_targets(o, m, context, &tables.0)
                 )
             });
             if !targets.is_empty() {
@@ -170,6 +181,49 @@ fn built(
         })
     });
     tallies.graph(edges, indexed, settled, possibilistic)
+}
+
+/// The one definition an unqualified call means by Rust's own scoping,
+/// where several workspace functions carry the name: the language
+/// resolves an unqualified path in the calling scope before looking
+/// wider, so the single definition standing in the caller's own scope
+/// is the meant one and not a pick between siblings.
+///
+/// Two conditions hold it to what the sources prove. The candidate must
+/// be written bare — a qualifier names its own scope, and a receiver's
+/// method is chosen by type, not by module. And the caller's scope must
+/// hold exactly one of the matches, scope meaning the innermost inline
+/// module rather than the file: a file's test module and its top level
+/// are two scopes, and a call in one of them does not reach a namesake
+/// in the other. Nothing here consults the imports, because nothing
+/// needs to: an item declared in the calling scope cannot be shadowed —
+/// a same-named explicit import in that scope does not compile, and a
+/// globbed one loses to the declaration.
+fn scoped_home(
+    facts: &[FunctionFacts],
+    scopes: &Scopes,
+    caller: usize,
+    candidate: &str,
+    matches: Option<&[usize]>
+) -> Option<usize> {
+    if candidate.contains("::") {
+        return None;
+    }
+    let found = matches?;
+    if found.len() < 2 {
+        return None;
+    }
+    let calling = facts.get(caller)?;
+    let mut housed = found.iter().copied().filter(|held| {
+        facts.get(*held).is_some_and(|fact| {
+            fact.source == calling.source
+                && scopes.shared(fact.source, fact.range.start, calling.range.start)
+        })
+    });
+    match (housed.next(), housed.next()) {
+        (Some(only), None) => Some(only),
+        _ => None
+    }
 }
 
 /// The resolution tallies while the graph is under construction.

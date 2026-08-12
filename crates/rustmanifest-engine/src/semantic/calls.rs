@@ -23,11 +23,12 @@ mod graph;
 mod overlay;
 mod reach;
 mod rows;
+mod scope;
 mod tables;
 mod target;
 
 pub use self::{
-    build::{call_graph, call_graph_rows, call_graph_with},
+    build::{call_graph, call_graph_rows, call_graph_rows_with, call_graph_with},
     context::{ResolutionContext, resolution_context, resolution_segments},
     effects::transitive_effects,
     graph::CallGraph,
@@ -288,6 +289,46 @@ mod tests {
         let refused = super::call_graph_with(&all, &context, Some(&both));
         assert_eq!(refused.ambiguous(), 1);
         assert_eq!(refused.scip_settled(), 0);
+    }
+
+    /// An unqualified call means the definition standing in the calling
+    /// scope, even where the workspace carries the name several times:
+    /// Rust resolves an unqualified path in the calling scope first, so
+    /// this is the language's own answer rather than a pick between
+    /// siblings. A namesake one module deeper is a different scope and
+    /// does not answer the call — the file is not the granularity.
+    #[test]
+    fn an_unqualified_call_means_the_definition_in_the_calling_scope() {
+        let home = "pub fn ping() {}\npub fn caller() { ping(); }\n";
+        let away = Source::new(
+            PathBuf::from("crates/two/src/lib.rs"),
+            "pub fn ping() {}\n".to_owned()
+        );
+        let sources = [
+            Source::new(PathBuf::from("crates/one/src/lib.rs"), home.to_owned()),
+            away.clone()
+        ];
+        let all = behavior(&sources);
+        let graph = call_graph(&all, &super::resolution_context(&sources));
+        let caller = index_of(&all, "caller");
+        let local = all
+            .iter()
+            .position(|fact| fact.function == "ping" && fact.source == 0)
+            .expect("the local definition");
+        assert_eq!(graph.callees(caller), &[local]);
+        assert_eq!(graph.ambiguous(), 0);
+        let deeper = concat!(
+            "pub fn caller() { ping(); }\n",
+            "mod inner { pub fn ping() {} }\n"
+        );
+        let guarded = [
+            Source::new(PathBuf::from("crates/one/src/lib.rs"), deeper.to_owned()),
+            away
+        ];
+        let held = behavior(&guarded);
+        let refused = call_graph(&held, &super::resolution_context(&guarded));
+        assert!(refused.callees(index_of(&held, "caller")).is_empty());
+        assert_eq!(refused.ambiguous(), 1);
     }
 
     /// The same settlement reaches the untyped receiver: a `?::` name
@@ -567,10 +608,14 @@ mod tests {
         let sources = [
             Source::new(
                 PathBuf::from("crates/one/src/lib.rs"),
-                "pub struct Wallet;\nimpl Wallet { pub fn credit(&self) {} }\npub fn ping() \
-                 {}\npub fn caller(w: Wallet) {\n    ping();\n    Wallet::missing();\n    \
+                "pub struct Wallet;\nimpl Wallet { pub fn credit(&self) {} }\npub fn \
+                 caller(w: Wallet) {\n    ping();\n    Wallet::missing();\n    \
                  std::fs::read_to_string(\"x\").ok();\n}"
                     .to_owned()
+            ),
+            Source::new(
+                PathBuf::from("crates/one/src/other.rs"),
+                "pub fn ping() {}".to_owned()
             ),
             Source::new(
                 PathBuf::from("crates/two/src/lib.rs"),
@@ -579,7 +624,11 @@ mod tests {
         ];
         let all = crate::semantic::behavior(&sources);
         let graph = call_graph(&all, &super::resolution_context(&sources));
-        assert_eq!(graph.ambiguous(), 1, "two linkable ping definitions");
+        assert_eq!(
+            graph.ambiguous(),
+            1,
+            "two linkable ping definitions, neither in the caller's own file"
+        );
         assert_eq!(graph.owned_unmatched(), 1, "an owner without the member");
         assert!(graph.external() >= 1, "the std call is foreign");
         assert_eq!(

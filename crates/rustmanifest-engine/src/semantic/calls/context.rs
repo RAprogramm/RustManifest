@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::target::Target;
+use super::{scope::Scopes, target::Target};
 use crate::{semantic::expr::impl_type_name, source::Source};
 
 /// Everything call resolution knows about the workspace beyond the
@@ -32,7 +32,11 @@ pub struct ResolutionContext {
     /// a target the caller does not compile with is impossible, so such
     /// candidates are dropped before uniqueness is judged. An empty
     /// vector disables the check, keeping hand-built contexts permissive.
-    pub targets:     Vec<Target>
+    pub targets:     Vec<Target>,
+    /// Written module spans of every source, the granularity an
+    /// unqualified call is resolved at. Empty for a hand-built context,
+    /// which then reads every source as one scope.
+    pub scopes:      Scopes
 }
 
 /// Builds the full resolution context over `sources`.
@@ -103,7 +107,8 @@ pub fn resolution_context(sources: &[Source]) -> ResolutionContext {
         targets: sources
             .iter()
             .map(|source| Target::of_path(&source.path().to_string_lossy()))
-            .collect()
+            .collect(),
+        scopes: Scopes::of(sources)
     }
 }
 

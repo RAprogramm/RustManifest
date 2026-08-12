@@ -82,8 +82,9 @@ pub use self::{
         behavior_with, statement_coverage
     },
     calls::{
-        CallGraph, RefusalRow, ResolutionContext, call_graph, call_graph_rows, call_graph_with,
-        resolution_context, resolution_segments, transitive_effects
+        CallGraph, RefusalRow, ResolutionContext, call_graph, call_graph_rows,
+        call_graph_rows_with, call_graph_with, resolution_context, resolution_segments,
+        transitive_effects
     },
     capability::{
         Capability, Evidence, ModuleCapability, ProvenCapability, Started, capabilities, started

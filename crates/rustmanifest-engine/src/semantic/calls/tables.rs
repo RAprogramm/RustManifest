@@ -16,6 +16,31 @@ pub(super) type NameTables<'facts> = (
     BTreeMap<&'facts str, Vec<usize>>
 );
 
+/// The fact indices one written candidate names, before linkability
+/// judges them: a qualified name by its full spelling, falling back to
+/// a bare free function where the qualifier is a known module segment;
+/// an unknown receiver by method name; anything else as a bare free
+/// function.
+pub(super) fn named<'facts>(
+    candidate: &str,
+    tables: &'facts NameTables<'facts>,
+    module_segments: &std::collections::BTreeSet<String>
+) -> Option<&'facts Vec<usize>> {
+    let (by_qualified, by_bare_free, by_method) = tables;
+    if let Some(method) = candidate.strip_prefix("?::") {
+        return by_method.get(method);
+    }
+    let Some((qualifier, bare)) = candidate.rsplit_once("::") else {
+        return by_bare_free.get(candidate);
+    };
+    by_qualified.get(candidate).or_else(|| {
+        module_segments
+            .contains(qualifier)
+            .then(|| by_bare_free.get(bare))
+            .flatten()
+    })
+}
+
 /// Builds the resolution tables the candidate loop and the overlay
 /// share.
 pub(super) fn name_tables(facts: &[FunctionFacts]) -> NameTables<'_> {
