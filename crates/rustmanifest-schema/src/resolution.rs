@@ -20,6 +20,7 @@
 
 mod call;
 mod function;
+mod layout;
 mod module;
 mod path;
 mod positioned;
@@ -32,6 +33,7 @@ use serde::{Deserialize, Serialize};
 pub use self::{
     call::{ResolvedCall, ResolvedField},
     function::ResolvedFunction,
+    layout::ResolvedLayout,
     module::ResolvedModule,
     path::ResolvedPath,
     property::ResolvedProperty,
@@ -72,7 +74,11 @@ pub struct Resolution {
     /// Every function the workspace declares, in file then position order,
     /// named by the full path that reaches it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub functions:     Vec<ResolvedFunction>
+    pub functions:     Vec<ResolvedFunction>,
+    /// What the compiler says each type the workspace mentions weighs, in
+    /// name order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layouts:       Vec<ResolvedLayout>
 }
 
 impl Resolution {
@@ -105,6 +111,15 @@ impl Resolution {
     #[must_use]
     pub fn path_at(&self, location: &Location) -> Option<&ResolvedPath> {
         positioned::at(&self.paths, location)
+    }
+
+    /// Returns what the compiler says the type rendered as `named` weighs.
+    #[must_use]
+    pub fn weighs(&self, named: &str) -> Option<&ResolvedLayout> {
+        self.layouts
+            .binary_search_by(|row| row.named.as_str().cmp(named))
+            .ok()
+            .and_then(|found| self.layouts.get(found))
     }
 
     /// Returns what the compiler grants the type rendered as `named`.

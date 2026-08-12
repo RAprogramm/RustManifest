@@ -15,12 +15,13 @@
 //! per literal doubles the overlay to say what the text already says.
 
 use ra_ap_syntax::{AstNode, ast};
-use rustmanifest_schema::{ResolvedProperty, ResolvedType};
+use rustmanifest_schema::{ResolvedLayout, ResolvedProperty, ResolvedType};
 
 use super::reading::Reading;
 
 /// Records the type of every expression of `parsed` that the resolver
-/// settles, and what the compiler grants each type so recorded.
+/// settles, what the compiler grants each type so recorded, and what the
+/// compiler says a value of it weighs.
 ///
 /// The grant travels with the type rather than with the position: whether
 /// a value is copied when it is passed by value is fixed by its type, and
@@ -30,7 +31,8 @@ pub(super) fn settled(
     reading: Reading<'_, '_>,
     parsed: &ast::SourceFile,
     into: &mut Vec<ResolvedType>,
-    granted: &mut Vec<ResolvedProperty>
+    granted: &mut Vec<ResolvedProperty>,
+    weighs: &mut Vec<ResolvedLayout>
 ) {
     for expression in parsed.syntax().descendants().filter_map(ast::Expr::cast) {
         if matches!(expression, ast::Expr::Literal(_)) {
@@ -47,6 +49,13 @@ pub(super) fn settled(
             copy:  typed.is_copy(reading.database),
             named: rendered.clone()
         });
+        if let Ok(held) = typed.layout(reading.database) {
+            weighs.push(ResolvedLayout {
+                named: rendered.clone(),
+                size:  held.size(),
+                align: held.align()
+            });
+        }
         into.push(ResolvedType {
             at: reading.located(expression.syntax().text_range()),
             rendered

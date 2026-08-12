@@ -24,8 +24,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::resolution::{
-    Resolution, ResolvedCall, ResolvedField, ResolvedFunction, ResolvedModule, ResolvedPath,
-    ResolvedProperty, ResolvedType
+    Resolution, ResolvedCall, ResolvedField, ResolvedFunction, ResolvedLayout, ResolvedModule,
+    ResolvedPath, ResolvedProperty, ResolvedType
 };
 
 /// A single review rule definition produced by the rules pack.

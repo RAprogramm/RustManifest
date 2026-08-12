@@ -201,6 +201,24 @@ fn a_call_and_the_body_it_reaches_are_named_the_same_way() {
     );
 }
 
+/// The compiler states what a type weighs for the target it was asked
+/// about; a written table of sizes states one target and is silently
+/// wrong on every other.
+#[test]
+fn a_type_carries_the_weight_the_compiler_gives_it() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let resolution = resolve(dir.path()).expect("the fixture workspace loads");
+
+    let counted = resolution
+        .layouts
+        .iter()
+        .find(|held| held.named == "u64")
+        .expect("the fixture mentions a sized primitive");
+    assert_eq!(counted.size, 8);
+    assert_eq!(counted.align, 8);
+}
+
 #[test]
 fn resolving_the_same_workspace_twice_states_the_same_thing() {
     let dir = tempfile::tempdir().unwrap();
