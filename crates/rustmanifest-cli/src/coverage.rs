@@ -8,13 +8,14 @@
 //! of raw counters and rates: parsed files, modules mapped, structures and
 //! fields captured, `use` target resolution, and macro sightings. The
 //! report never overclaims: derive and macro expansions are not analyzed
-//! by default, and the output says so. With `--expand`, every discovered
-//! crate is additionally expanded via nightly `rustc` and the report gains
+//! by default, and the output says so. What a derive generates is listed
+//! by the compiler's own documentation index, which the `document`
+//! subcommand produces; measuring it by parsing a nightly expansion of the
+//! whole crate into one stream answered the same question worse and
 //! a block measuring what the derives actually generate.
 
 mod counters;
 mod dependencies;
-mod expansion;
 mod layout;
 mod measurement;
 mod options;
@@ -25,12 +26,7 @@ use std::{io::Write, process::ExitCode};
 use anyhow::Context;
 
 pub use self::options::CoverageArgs;
-use self::{
-    counters::report_lines,
-    expansion::{drift_line, expand_lines, integration_line},
-    measurement::measure,
-    unresolved::unresolved_lines
-};
+use self::{counters::report_lines, measurement::measure, unresolved::unresolved_lines};
 use crate::EXIT_CLEAN;
 
 /// Runs the `coverage` subcommand: discovers files, reads sources within
@@ -43,12 +39,6 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
             &measured.sources,
             &measured.declared
         )));
-    }
-    if args.overlays.expand {
-        let summary = crate::expand::expand_paths(&args.analyzed.paths);
-        lines.extend(expand_lines(&summary));
-        lines.push(integration_line(&measured.sources, &summary));
-        lines.push(drift_line(&measured.sources, &summary));
     }
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();

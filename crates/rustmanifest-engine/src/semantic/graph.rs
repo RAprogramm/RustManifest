@@ -10,7 +10,6 @@
 //! an associated function of another workspace type), giving semantic
 //! checks the material for relationship-level reasoning.
 
-mod absorb;
 mod build;
 mod nodes;
 
@@ -365,66 +364,6 @@ mod tests {
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].0.type_name, "Game");
         assert_eq!(edges[0].1.name, "Board");
-    }
-
-    const EXPANDED: &str = "#[automatically_derived]\nimpl ::core::fmt::Debug for User { \
-                            }\n#[automatically_derived]\nimpl ::core::clone::Clone for User { \
-                            }\n#[automatically_derived]\nimpl ::core::fmt::Debug for Ghost { }";
-
-    #[test]
-    fn absorbed_expansion_adds_derived_impls_for_known_types() {
-        let mut graph = graph(&["struct User { id: u64 }"]);
-        assert_eq!(graph.absorb_expansion(EXPANDED).impls, 2);
-        assert_eq!(graph.traits_implemented("User"), vec!["Clone", "Debug"]);
-        let derived = graph.impls().iter().find(|node| node.derived).unwrap();
-        assert_eq!(derived.source, graph.type_named("User").unwrap().source);
-    }
-
-    #[test]
-    fn absorbing_the_same_stream_twice_is_a_no_op() {
-        let mut graph = graph(&["struct User { id: u64 }"]);
-        graph.absorb_expansion(EXPANDED);
-        assert_eq!(
-            graph.absorb_expansion(EXPANDED),
-            super::Absorption::default()
-        );
-        assert_eq!(graph.impls().len(), 2);
-    }
-
-    #[test]
-    fn impls_for_unknown_types_and_broken_streams_absorb_nothing() {
-        let mut graph = graph(&["struct Other;"]);
-        assert_eq!(graph.absorb_expansion(EXPANDED).impls, 0);
-        assert_eq!(
-            graph.absorb_expansion("fn broken("),
-            super::Absorption::default()
-        );
-    }
-
-    #[test]
-    fn generated_types_absorb_with_their_derived_impls() {
-        let mut graph = graph(&["struct Surface { id: u64 }"]);
-        let absorbed = graph.absorb_expansion(
-            "struct Surface { id: u64 }\nstruct CreateUser { email: String \
-             }\n#[automatically_derived]\nimpl ::core::fmt::Debug for CreateUser { }"
-        );
-        assert_eq!(absorbed.types, 1);
-        assert_eq!(absorbed.impls, 1);
-        let generated = graph.type_named("CreateUser").unwrap();
-        assert!(generated.generated);
-        assert_eq!(generated.fields[0].name, "email");
-        assert_eq!(graph.traits_implemented("CreateUser"), vec!["Debug"]);
-        assert!(!graph.type_named("Surface").unwrap().generated);
-    }
-
-    #[test]
-    fn surface_and_derived_traits_merge_in_traits_implemented() {
-        let mut graph = graph(&["struct User { id: u64 }\nimpl core::fmt::Display for User { }"]);
-        graph.absorb_expansion(EXPANDED);
-        assert_eq!(
-            graph.traits_implemented("User"),
-            vec!["Clone", "Debug", "Display"]
-        );
     }
 
     #[test]

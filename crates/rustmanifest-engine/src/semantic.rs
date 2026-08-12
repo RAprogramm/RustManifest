@@ -25,7 +25,6 @@ mod doc_truth;
 mod docs;
 mod emitted;
 mod entry;
-mod expansion;
 mod expr;
 mod features;
 mod field_group;
@@ -95,7 +94,6 @@ pub use self::{
     docs::{DocFacts, doc_facts},
     emitted::{Gain, install_impl},
     entry::{Completion, EntryKind, EntryPoint, entry_points},
-    expansion::{ExpansionReport, expansion},
     features::{Feature, features},
     fingerprint::behavior_fingerprint,
     graph::{

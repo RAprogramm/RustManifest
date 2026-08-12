@@ -19,7 +19,6 @@ pub mod ask;
 pub mod check;
 pub mod coverage;
 pub mod document;
-pub mod expand;
 pub mod explain;
 pub mod facts;
 pub mod graph;
