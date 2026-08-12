@@ -2279,6 +2279,7 @@ dependencies = [
  "anstream",
  "anyhow",
  "assert_cmd",
+ "cargo_metadata",
  "clap",
  "globset",
  "predicates",

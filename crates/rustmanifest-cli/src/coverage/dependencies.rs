@@ -15,10 +15,7 @@ use crate::manifests;
 pub(super) fn declared_dependencies(paths: &[PathBuf]) -> BTreeSet<String> {
     let mut names = BTreeSet::new();
     for manifest in manifests::manifest_files(paths) {
-        if let Ok(text) = std::fs::read_to_string(&manifest) {
-            names.extend(manifests::dependency_names(&text));
-            names.extend(manifests::provided_crate_names(&text));
-        }
+        names.extend(manifests::known_crate_names(&manifest));
     }
     names
 }

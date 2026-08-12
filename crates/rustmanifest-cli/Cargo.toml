@@ -26,6 +26,7 @@ path = "src/main.rs"
 [dependencies]
 anstream = { workspace = true }
 anyhow = { workspace = true }
+cargo_metadata = "0.23.1"
 clap = { workspace = true }
 globset = { workspace = true }
 rustmanifest-config = { workspace = true }

@@ -10,7 +10,6 @@
 //! output — are counted as skipped, never guessed at.
 
 use std::{
-    fs,
     path::{Path, PathBuf},
     process::Command
 };
@@ -55,9 +54,7 @@ pub fn expand_paths(paths: &[PathBuf]) -> ExpandSummary {
 fn manifest_dirs(paths: &[PathBuf]) -> Vec<PathBuf> {
     manifests::manifest_files(paths)
         .into_iter()
-        .filter(|manifest| {
-            fs::read_to_string(manifest).is_ok_and(|text| manifests::has_package_section(&text))
-        })
+        .filter(|manifest| manifests::is_package(manifest))
         .filter_map(|manifest| manifest.parent().map(Path::to_path_buf))
         .collect()
 }
@@ -104,7 +101,7 @@ fn expand_target(dir: &Path) -> Option<Vec<String>> {
         return Some(vec!["--lib".to_owned()]);
     }
     if dir.join("src/main.rs").is_file() {
-        let name = manifests::package_name(&fs::read_to_string(dir.join("Cargo.toml")).ok()?)?;
+        let name = manifests::package_name(&dir.join("Cargo.toml"))?;
         return Some(vec!["--bin".to_owned(), name]);
     }
     None
@@ -123,13 +120,26 @@ mod tests {
     #[test]
     fn virtual_manifests_and_hidden_dirs_are_skipped() {
         let root = tempfile::tempdir().unwrap();
-        std::fs::write(root.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+        std::fs::write(
+            root.path().join("Cargo.toml"),
+            "[workspace]\nresolver = \"3\"\nmembers = [\"member\"]\n"
+        )
+        .unwrap();
         let member = root.path().join("member");
         std::fs::create_dir_all(member.join("src")).unwrap();
-        std::fs::write(member.join("Cargo.toml"), "[package]\nname = \"member\"\n").unwrap();
+        std::fs::write(
+            member.join("Cargo.toml"),
+            "[package]\nname = \"member\"\nversion = \"0.0.0\"\nedition = \"2024\"\n"
+        )
+        .unwrap();
+        std::fs::write(member.join("src/lib.rs"), "").unwrap();
         let hidden = root.path().join(".hidden/inner");
         std::fs::create_dir_all(&hidden).unwrap();
-        std::fs::write(hidden.join("Cargo.toml"), "[package]\nname = \"h\"\n").unwrap();
+        std::fs::write(
+            hidden.join("Cargo.toml"),
+            "[package]\nname = \"h\"\nversion = \"0.0.0\"\nedition = \"2024\"\n"
+        )
+        .unwrap();
         let dirs = manifest_dirs(&[root.path().to_path_buf()]);
         assert_eq!(dirs, vec![member]);
     }
