@@ -125,9 +125,9 @@ pub fn deduction(
     trait_name: &str
 ) -> Result<DeductionRecord, EngineError> {
     let sources = sources_for(target)?;
-    let held = rustmanifest_learn::deduce_with_precedent(&sources, type_name, trait_name)
+    let held = rustmanifest_learn::deduce_with_precedent(&sources, None, type_name, trait_name)
         .unwrap_or_else(|| {
-            rustmanifest_engine::semantic::deduce_impl(&sources, 0, type_name, trait_name)
+            rustmanifest_engine::semantic::deduce_impl(&sources, None, 0, type_name, trait_name)
         });
     Ok(DeductionRecord {
         conclusion: held.chain.conclusion,

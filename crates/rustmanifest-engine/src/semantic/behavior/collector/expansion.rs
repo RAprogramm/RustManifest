@@ -9,7 +9,7 @@ use syn::visit::Visit;
 
 use super::{
     FactCollector,
-    catalog::{DIVERGING_MACROS, EXPRESSION_MACROS, OUTPUT_MACROS, WRITER_MACROS}
+    catalog::{EXPRESSION_MACROS, OUTPUT_MACROS, WRITER_MACROS}
 };
 use crate::semantic::{behavior::types::Effect, knowledge};
 
@@ -34,7 +34,7 @@ impl FactCollector {
             if name == "vec" || name == "format" {
                 self.facts.allocations += 1;
             }
-            if DIVERGING_MACROS.contains(&name.as_str()) {
+            if self.leaves_from(invocation) {
                 self.facts.flags = self.facts.flags.with_panic();
             }
             let tokens = invocation.tokens.to_string();
@@ -60,6 +60,22 @@ impl FactCollector {
             }
         }
         syn::visit::visit_macro(self, invocation);
+    }
+
+    /// Whether the compiler typed this macro's own position as one no
+    /// value comes back from, which is what a panic-family macro does to
+    /// the path it stands on.
+    ///
+    /// Four written macro names said this before, and said it for a
+    /// program's own macro spelled the same way just as readily.
+    fn leaves_from(&self, invocation: &syn::Macro) -> bool {
+        use syn::spanned::Spanned;
+
+        let span = invocation.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
+            return false;
+        };
+        self.leaving.contains(&(start, end))
     }
 
     /// Records the site an effect-carrying macro proved its effect at:

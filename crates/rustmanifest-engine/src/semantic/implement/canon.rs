@@ -18,6 +18,11 @@
 
 use super::super::graph::{TypeGraph, TypeKind, TypeNode};
 
+/// The body a canonical impl carries where the facts prove nothing to
+/// write, which is also what makes the skeleton state its obligation by
+/// ending the path it stands on.
+pub(in crate::semantic) const UNPROVEN_BODY: &str = "todo!()";
+
 /// The canonical impl of a well-known std trait for `node`, or nothing
 /// where the trait is outside the canon.
 pub(super) fn canonical_impl(
@@ -27,7 +32,7 @@ pub(super) fn canonical_impl(
 ) -> Option<String> {
     match trait_name {
         "Display" => {
-            let body = display_body(types, node).unwrap_or_else(|| "todo!()".to_owned());
+            let body = display_body(types, node).unwrap_or_else(|| UNPROVEN_BODY.to_owned());
             Some(format!(
                 "impl std::fmt::Display for {} {{\n    fn fmt(&self, out: &mut \
                  std::fmt::Formatter<'_>) -> std::fmt::Result {{\n        {body}\n    }}\n}}",
@@ -35,7 +40,7 @@ pub(super) fn canonical_impl(
             ))
         }
         "Default" => {
-            let body = default_body(types, node).unwrap_or_else(|| "todo!()".to_owned());
+            let body = default_body(types, node).unwrap_or_else(|| UNPROVEN_BODY.to_owned());
             Some(format!(
                 "impl Default for {} {{\n    fn default() -> Self {{\n        {body}\n    \
                  }}\n}}",

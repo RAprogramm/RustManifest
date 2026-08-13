@@ -198,7 +198,7 @@ mod tests {
         }
         text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        let held = super::deduce_with_precedent(&sources, "User", "Display").unwrap();
+        let held = super::deduce_with_precedent(&sources, None, "User", "Display").unwrap();
         let step = held
             .chain
             .steps
@@ -230,7 +230,7 @@ mod tests {
         }
         text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        let held = super::deduce_with_precedent(&sources, "User", "Default").unwrap();
+        let held = super::deduce_with_precedent(&sources, None, "User", "Default").unwrap();
         assert!(held.gain.is_some());
         assert!(
             held.chain
@@ -267,7 +267,7 @@ mod tests {
         }
         text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        let held = super::deduce_with_precedent(&sources, "User", "Default").unwrap();
+        let held = super::deduce_with_precedent(&sources, None, "User", "Default").unwrap();
         assert!(held.gain.is_some());
         let step = held
             .chain
@@ -542,16 +542,20 @@ fn feature_names_of(names: &[&'static str], indices: &[usize]) -> Vec<String> {
 #[must_use]
 pub fn deduce_with_precedent(
     sources: &[rustmanifest_engine::Source],
+    settled: Option<&rustmanifest_schema::Resolution>,
     type_name: &str,
     trait_name: &str
 ) -> Option<rustmanifest_engine::semantic::Deduction> {
-    let workspace = Workspace::new(sources);
+    let workspace = settled.map_or_else(
+        || Workspace::new(sources),
+        |settled| Workspace::resolved(sources, settled)
+    );
     let types = workspace.types();
     let node = types.type_named(type_name)?;
     let file = node.source;
     let instance = forms::type_form_features(node);
     let mut held =
-        rustmanifest_engine::semantic::deduce_impl(sources, file, type_name, trait_name);
+        rustmanifest_engine::semantic::deduce_impl(sources, settled, file, type_name, trait_name);
     let spoken_for = held.catalog.clone().and_then(|choice| {
         forms::precedents_for(&workspace, &choice.form)
             .map(|(precedents, family)| (choice, precedents, family))

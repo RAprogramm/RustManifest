@@ -43,11 +43,13 @@ pub struct Gain {
 #[must_use]
 pub fn install_impl(
     sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>,
     file: usize,
     type_name: &str,
     trait_name: &str
 ) -> Option<Gain> {
-    let types = TypeGraph::from_sources(sources);
+    let mut types = TypeGraph::from_sources(sources);
+    types.granted_by(sources, settled);
     let written = impl_skeleton(sources, &types, type_name, trait_name)?;
     let source = sources.get(file)?;
     let end = u32::try_from(source.text().len()).ok()?;
@@ -68,7 +70,8 @@ pub fn install_impl(
         }
     )?;
     let installed = replaced.get(file)?.text().to_owned();
-    let reread = TypeGraph::from_sources(&replaced);
+    let mut reread = TypeGraph::from_sources(&replaced);
+    reread.granted_by(&replaced, settled);
     let now_implemented = reread.traits_implemented(type_name).contains(&trait_name);
     if !now_implemented {
         return None;
@@ -79,13 +82,12 @@ pub fn install_impl(
         .collect();
     let after = behavior(&replaced);
     let mut effects = Vec::new();
-    let mut panics = false;
+    let panics = written.contains(super::implement::canon::UNPROVEN_BODY);
     for fact in after {
         if before.contains(&fact.function) {
             continue;
         }
         effects.extend(fact.effects.iter().copied());
-        panics |= fact.flags.panics();
     }
     effects.sort();
     effects.dedup();
@@ -120,8 +122,14 @@ mod tests {
     /// function: the re-reading confirms the trait and sees no panic.
     #[test]
     fn a_written_body_installs_and_reads_back_clean() {
-        let sources = one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n");
-        let gain = install_impl(&sources, 0, "User", "Display").unwrap();
+        let text = "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n";
+        let sources = one(text);
+        let settled = crate::semantic::settling::Settling::over("src/lib.rs", text)
+            .declaring("User", &[("name", "String"), ("age", "u8")])
+            .granting("String", "Display")
+            .granting("u8", "Display")
+            .done();
+        let gain = install_impl(&sources, Some(&settled), 0, "User", "Display").unwrap();
         assert_eq!(gain.implemented, "Display");
         assert!(!gain.panics, "{:?}", gain.installed);
         assert!(gain.installed.contains("write!(out, \"name: {}, age: {}\""));
@@ -132,7 +140,7 @@ mod tests {
     #[test]
     fn a_skeleton_installs_but_the_reading_names_the_debt() {
         let sources = one("pub struct Batch {\n    pub held: Vec<String>,\n}\n");
-        let gain = install_impl(&sources, 0, "Batch", "Display").unwrap();
+        let gain = install_impl(&sources, None, 0, "Batch", "Display").unwrap();
         assert!(gain.panics, "{:?}", gain.installed);
     }
 

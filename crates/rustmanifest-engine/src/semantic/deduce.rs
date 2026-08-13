@@ -54,11 +54,13 @@ pub struct CatalogChoice {
 #[must_use]
 pub fn deduce_impl(
     sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>,
     file: usize,
     type_name: &str,
     trait_name: &str
 ) -> Deduction {
-    let types = TypeGraph::from_sources(sources);
+    let mut types = TypeGraph::from_sources(sources);
+    types.granted_by(sources, settled);
     let mut steps = Vec::new();
     let Some(node) = types.type_named(type_name) else {
         return stopped(steps, format!("no type named `{type_name}` is declared"));
@@ -122,7 +124,7 @@ pub fn deduce_impl(
         fact:   spoken,
         reason: "canonical forms are the catalog read forward".to_owned()
     });
-    let Some(gain) = install_impl(sources, file, type_name, trait_name) else {
+    let Some(gain) = install_impl(sources, settled, file, type_name, trait_name) else {
         return Deduction {
             chain:   Answer {
                 refused: false,
@@ -222,6 +224,7 @@ mod tests {
     fn a_chain_reaches_a_confirmed_panic_free_gain() {
         let held = deduce_impl(
             &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
+            None,
             0,
             "User",
             "Display"
@@ -239,6 +242,7 @@ mod tests {
     fn a_default_chain_speaks_the_default_vocabulary() {
         let held = deduce_impl(
             &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
+            None,
             0,
             "User",
             "Default"
@@ -267,6 +271,7 @@ mod tests {
     fn the_catalog_marker_names_its_step_and_its_form() {
         let held = deduce_impl(
             &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
+            None,
             0,
             "User",
             "Display"
@@ -288,6 +293,7 @@ mod tests {
     fn a_chain_stopped_before_the_choice_carries_no_marker() {
         let held = deduce_impl(
             &one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"),
+            None,
             0,
             "Batch",
             "Display"
@@ -302,6 +308,7 @@ mod tests {
     fn an_unproven_field_stops_the_chain_at_itself() {
         let held = deduce_impl(
             &one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"),
+            None,
             0,
             "Batch",
             "Display"

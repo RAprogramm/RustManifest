@@ -109,14 +109,17 @@ pub fn derived_intents_with(
 /// into the file that declares its type, the evidence standing as the
 /// chain's first step.
 #[must_use]
-pub fn fulfill_intents(sources: &[Source]) -> Vec<Deduction> {
+pub fn fulfill_intents(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<Deduction> {
     let types = TypeGraph::from_sources(sources);
     derived_intents(sources)
         .into_iter()
         .filter_map(|intent| {
             let node = types.type_named(&intent.type_name)?;
             let mut held =
-                deduce_impl(sources, node.source, &intent.type_name, &intent.trait_name);
+                deduce_impl(sources, settled, node.source, &intent.type_name, &intent.trait_name);
             held.chain.steps.insert(0, intent.evidence);
             if let Some(choice) = held.catalog.as_mut() {
                 choice.step += 1;
@@ -158,7 +161,7 @@ mod tests {
         assert_eq!(intents.len(), 1, "{intents:?}");
         assert_eq!(intents[0].trait_name, "Default");
         assert!(intents[0].evidence.fact.contains("fn `make`"));
-        let fulfilled = fulfill_intents(&sources);
+        let fulfilled = fulfill_intents(&sources, None);
         assert_eq!(fulfilled.len(), 1);
         let held = &fulfilled[0];
         assert!(held.gain.as_ref().is_some_and(|gain| !gain.panics));
@@ -174,7 +177,7 @@ mod tests {
             "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n\npub fn make() -> \
              User {\n    User::default()\n}\n"
         );
-        let fulfilled = fulfill_intents(&sources);
+        let fulfilled = fulfill_intents(&sources, None);
         let held = &fulfilled[0];
         let marker = held.catalog.as_ref().unwrap();
         assert!(

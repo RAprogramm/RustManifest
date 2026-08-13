@@ -38,7 +38,13 @@ pub(crate) fn run_prescribe(args: &PrescribeArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let rendered = prescriptions(&sources, args.why);
+    let settled = crate::resolution(
+        args.resolution.as_deref(),
+        args.paths
+            .first()
+            .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path)
+    )?;
+    let rendered = prescriptions(&sources, settled.as_ref(), args.why);
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     write!(handle, "{rendered}").context("writing prescription output")?;
@@ -47,9 +53,16 @@ pub(crate) fn run_prescribe(args: &PrescribeArgs) -> anyhow::Result<ExitCode> {
 }
 
 /// Builds every prescription the recorded facts license.
-fn prescriptions(sources: &[Source], why: bool) -> String {
-    let entries =
-        rustmanifest_engine::program_meaning(&rustmanifest_engine::Workspace::new(sources));
+fn prescriptions(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>,
+    why: bool
+) -> String {
+    let workspace = settled.map_or_else(
+        || rustmanifest_engine::Workspace::new(sources),
+        |settled| rustmanifest_engine::Workspace::resolved(sources, settled)
+    );
+    let entries = rustmanifest_engine::program_meaning(&workspace);
     if entries.is_empty() {
         return "- no process entry point\n".to_owned();
     }

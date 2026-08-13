@@ -162,7 +162,7 @@ fn an_installed_canon_impl_survives_the_compiler() {
     let text = "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n";
     let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
     for trait_name in ["Default", "Display"] {
-        let gain = rustmanifest_engine::semantic::install_impl(&sources, 0, "User", trait_name)
+        let gain = rustmanifest_engine::semantic::install_impl(&sources, None, 0, "User", trait_name)
             .expect("a canon install over proven fields");
         if let Some(complaint) = rejected(
             "src/lib.rs",
@@ -183,7 +183,7 @@ fn an_installed_canon_impl_survives_the_compiler() {
 fn an_installed_skeleton_compiles_with_its_panic_debt_open() {
     let text = "pub struct Batch {\n    pub held: Vec<String>,\n}\n";
     let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-    let gain = rustmanifest_engine::semantic::install_impl(&sources, 0, "Batch", "Display")
+    let gain = rustmanifest_engine::semantic::install_impl(&sources, None, 0, "Batch", "Display")
         .expect("a skeleton install");
     assert!(gain.panics, "{}", gain.installed);
     if let Some(complaint) = rejected(
@@ -206,7 +206,7 @@ fn every_fulfilled_intent_survives_the_compiler() {
     let text = "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
                 Job::default()\n}\n";
     let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-    let fulfilled = rustmanifest_engine::semantic::fulfill_intents(&sources);
+    let fulfilled = rustmanifest_engine::semantic::fulfill_intents(&sources, None);
     assert!(!fulfilled.is_empty(), "the written call states an intent");
     for held in fulfilled {
         let gain = held.gain.expect("a confirmed gain");

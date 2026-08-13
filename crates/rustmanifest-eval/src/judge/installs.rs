@@ -41,6 +41,7 @@ pub(super) fn listed(root: &Path, limit: usize) -> Result<Vec<Candidate>, EvalEr
             }
             let Some(gain) = rustmanifest_engine::semantic::install_impl(
                 &sources,
+                None,
                 node.source,
                 &node.name,
                 trait_name

@@ -18,7 +18,8 @@ use std::path::PathBuf;
 
 pub use self::identity::{identity_of, identity_over, settle_identity};
 use rustmanifest_schema::{
-    Location, Range, ResolvedCall, ResolvedField, ResolvedType, Resolution
+    Location, Range, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedGrant, ResolvedType,
+    ResolvedTypeDecl, Resolution
 };
 
 /// A resolution being written down over one or more fixture files.
@@ -195,6 +196,49 @@ impl<'text> Settling<'text> {
             caller_decides: false,
             reaches: Some(reaches.to_owned()),
             takes: None
+        });
+        self
+    }
+
+    /// States that the compiler grants `named` the trait `carried`.
+    ///
+    /// A canonical body rests on what a field's own type carries, and
+    /// that is the compiler's answer even for a library type — so a
+    /// fixture standing in for a resolution has to be able to say it.
+    #[must_use]
+    pub fn granting(mut self, named: &str, carried: &str) -> Self {
+        self.settled.grants.push(ResolvedGrant {
+            at:         Location {
+                file:  self.file.clone(),
+                range: Range {
+                    start: 0, end: 0
+                }
+            },
+            named:      named.to_owned(),
+            trait_name: carried.to_owned()
+        });
+        self
+    }
+
+    /// States the fields the compiler read off the declaration of the
+    /// type whose name is written at `fragment`.
+    ///
+    /// What a field holds is the compiler's answer and nothing else, so
+    /// a fixture standing in for a resolution states it here or the
+    /// graph holds a type with unnamed fields.
+    #[must_use]
+    pub fn declaring(mut self, fragment: &str, fields: &[(&str, &str)]) -> Self {
+        let at = self.located(fragment);
+        self.settled.declared.push(ResolvedTypeDecl {
+            named: fragment.to_owned(),
+            at,
+            fields: fields
+                .iter()
+                .map(|(name, named)| ResolvedFieldDecl {
+                    name:  (*name).to_owned(),
+                    named: (*named).to_owned()
+                })
+                .collect()
         });
         self
     }

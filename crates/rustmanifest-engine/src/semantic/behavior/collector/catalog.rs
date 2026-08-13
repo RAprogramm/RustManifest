@@ -136,5 +136,3 @@ pub(super) const EXPRESSION_MACROS: [&str; 20] = [
     "writeln"
 ];
 
-pub(super) const DIVERGING_MACROS: [&str; 4] = ["panic", "todo", "unimplemented", "unreachable"];
-
