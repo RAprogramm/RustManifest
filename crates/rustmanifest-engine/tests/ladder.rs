@@ -630,7 +630,12 @@ fn database_todo_settled() -> rustmanifest_schema::Resolution {
         .after("|text|")
         .typed("text", "&String")
         .rewound()
-        .call("text.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&String"))
+        .converting(
+            "text.parse::<u64>()",
+            "parse",
+            "Result<u64, ParseIntError>",
+            Some("&String")
+        )
         .reaching(
             "text.parse::<u64>().ok()",
             "core::result::Result::ok",
