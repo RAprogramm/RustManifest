@@ -231,7 +231,7 @@ impl FactCollector {
         }
         let parts: Vec<&syn::Pat> = match pattern {
             syn::Pat::Tuple(tuple) => tuple.elems.iter().collect(),
-            syn::Pat::TupleStruct(variant) if names_the_failure_half(variant) => {
+            syn::Pat::TupleStruct(variant) if self.names_the_failure_half(variant) => {
                 self.type_single_payload(variant);
                 for part in &variant.elems {
                     let Some(name) = super::naming::binding_name(part) else {
@@ -476,19 +476,27 @@ const fn binary_operation(operator: syn::BinOp) -> Option<Operation> {
     })
 }
 
-/// Whether a variant pattern names the failure half of a fallible
-/// answer.
+/// The variant the failure half of a fallible answer is taken apart
+/// through, named by the item it reaches rather than by its spelling.
+const FAILURE_VARIANT: &str = "core::result::Err";
+
+/// Whether a variant pattern is the failure half of a fallible answer,
+/// as the compiler settled the path it is written with.
 ///
 /// The two halves are taken apart the same way and stand for different
 /// values, so the position written for the failure half is one rather
 /// than zero: the composition reads the half from it and never hands a
 /// reader the other one.
-fn names_the_failure_half(variant: &syn::PatTupleStruct) -> bool {
-    variant
-        .path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == "Err")
+impl FactCollector {
+    fn names_the_failure_half(&self, variant: &syn::PatTupleStruct) -> bool {
+        use syn::spanned::Spanned as _;
+
+        let bytes = variant.path.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(bytes.start), u32::try_from(bytes.end)) else {
+            return false;
+        };
+        self.named.get(&(start, end)).map(String::as_str) == Some(FAILURE_VARIANT)
+    }
 }
 
 /// The pattern under the wrappers that change how it is written but not
