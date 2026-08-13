@@ -28,17 +28,6 @@ pub(super) fn expanded_segments(
     segments
 }
 
-/// Table key of a field member: the written name, or the position for
-/// the unnamed fields of a tuple struct — the shape newtype wrappers
-/// carry their payload in. Used by the typing channel only; the
-/// read/write fact channel keeps naming its members as written.
-pub(super) fn member_name(member: &syn::Member) -> String {
-    match member {
-        syn::Member::Named(name) => name.to_string(),
-        syn::Member::Unnamed(index) => index.index.to_string()
-    }
-}
-
 /// Name of a single binding pattern, seen through references and type
 /// ascriptions.
 pub(super) fn binding_name(pattern: &syn::Pat) -> Option<String> {

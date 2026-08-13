@@ -8,6 +8,19 @@
 use super::FactCollector;
 
 impl FactCollector {
+    /// How the call written here takes the value it stands on.
+    pub(super) fn settled_receiver_mode(
+        &self,
+        call: &syn::ExprMethodCall
+    ) -> Option<crate::semantic::behavior::types::ParamMode> {
+        use syn::spanned::Spanned;
+
+        let span = call.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.takes.get(&(start, end)).copied()
+    }
+
     /// The type a resolver settled for the receiver of the call at this
     /// position.
     ///

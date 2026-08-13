@@ -235,13 +235,6 @@ impl FactCollector {
         if self.rebound(name) {
             return Provenance::NotDerived(OriginGap::Rebound);
         }
-        if self
-            .declared
-            .resolve(name, self.src, &self.crates)
-            .is_some()
-        {
-            return Provenance::Constant(name.to_owned());
-        }
         if let Some(path) = self.imports.get(name) {
             return Provenance::Constant(path.clone());
         }

@@ -60,7 +60,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use self::census::name_census;
 use super::{
-    Scoped,
     output::Guard,
     types::FunctionFacts,
     value::{Condition, Provenance}
@@ -72,20 +71,6 @@ pub(super) struct FactCollector {
     pub(super) facts:            FunctionFacts,
     /// Parameter name to type-name mapping from the signature.
     pub(super) param_types:      BTreeMap<String, String>,
-    /// `Type.field` keys to field type names, scoped by source.
-    pub(super) field_types:      Scoped<String>,
-    /// `Type.field` keys of wrapper fields to their wrapped inner type.
-    /// Key and value types of every map-typed field.
-    pub(super) field_pairs:      super::scoped::Scoped<(String, String)>,
-    pub(super) field_wraps:      Scoped<String>,
-    /// Crate identity of every source, for crate-proximity resolution.
-    /// Whether each method the workspace declares takes its receiver
-    /// mutably.
-    pub(super) mutates:          super::scoped::Scoped<bool>,
-    /// Every name the workspace declares as a constant or a static.
-    pub(super) declared:         super::scoped::Scoped<()>,
-    /// The single payload type of every variant that carries one.
-    pub(super) payloads:         super::scoped::Scoped<String>,
     /// What a resolver settled about this source, by byte range: the type
     /// the expression at that position hands back. Empty where no
     /// resolver ran.
@@ -102,12 +87,11 @@ pub(super) struct FactCollector {
     /// The type a resolver settled for the expression at each byte range,
     /// as the compiler renders it in full. Empty where no resolver ran.
     pub(super) rendered:         std::collections::BTreeMap<(u32, u32), String>,
+    /// How the call at each byte range takes the value it is written on.
+    pub(super) takes:            std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
     /// The kind of item a resolver settled the path at each byte range to
     /// reach. Empty where no resolver ran.
     pub(super) items:            std::collections::BTreeMap<(u32, u32), String>,
-    pub(super) crates:           Vec<String>,
-    /// Source index of the function under analysis.
-    pub(super) src:              usize,
     /// Let bindings holding a wrapper value with a known wrapped inner
     /// type, cloned or borrowed off a wrapper field.
     pub(super) local_wraps:      BTreeMap<String, String>,

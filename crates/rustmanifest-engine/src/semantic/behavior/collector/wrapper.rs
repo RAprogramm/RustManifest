@@ -6,7 +6,7 @@
 
 use super::{
     FactCollector,
-    naming::{binding_name, member_name},
+    naming::binding_name,
     unwrapping::strip_ref_deref
 };
 
@@ -22,9 +22,7 @@ impl FactCollector {
                 .and_then(|ident| self.local_wraps.get(&ident.to_string()))
                 .cloned(),
             syn::Expr::Field(field) => {
-                let owner = self.expr_type(&field.base)?;
-                self.wrap(&format!("{owner}.{}", member_name(&field.member)))
-                    .cloned()
+                self.settled_expr_type(&syn::Expr::Field(field.clone()))
             }
             syn::Expr::MethodCall(call) if call.method == "clone" => {
                 self.wrapped_of(&call.receiver)

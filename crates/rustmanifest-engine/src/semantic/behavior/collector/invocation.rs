@@ -17,7 +17,7 @@ use super::{
     FactCollector,
     catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
 };
-use crate::semantic::{expr::MUTATING_METHODS, knowledge};
+use crate::semantic::knowledge;
 
 impl FactCollector {
     /// Records the callee of a call written as a path, qualified by the
@@ -51,10 +51,11 @@ impl FactCollector {
     /// Records everything one method call carries.
     pub(super) fn collect_method_call(&mut self, call: &syn::ExprMethodCall) {
         let method = call.method.to_string();
-        if MUTATING_METHODS.contains(&method.as_str())
-            && let syn::Expr::Field(field) = call.receiver.as_ref()
+        if matches!(
+            self.settled_receiver_mode(call),
+            Some(crate::semantic::behavior::types::ParamMode::BorrowedMut)
+        ) && let syn::Expr::Field(field) = call.receiver.as_ref()
             && let Some(key) = self.field_key(field)
-            && self.receiver_taken_mutably(field, &method)
         {
             self.record_field_write(field, key);
         }
@@ -101,30 +102,6 @@ impl FactCollector {
             self.record_method_operation(call);
         }
         self.carry_outcome(call, &span);
-    }
-
-    /// Whether a method called on a field can change what it is called
-    /// on.
-    ///
-    /// The name table says which spellings usually mutate; where the
-    /// workspace declares the method itself, the declaration outranks
-    /// the table — a method taking `&self` changes nothing however it is
-    /// spelled. A method the workspace does not declare keeps the
-    /// table's answer, which is all there is to go on.
-    fn receiver_taken_mutably(&self, field: &syn::ExprField, method: &str) -> bool {
-        let Some(owner) = self.expr_type(&field.base).and_then(|owner| {
-            self.field(&format!(
-                "{owner}.{}",
-                super::naming::member_name(&field.member)
-            ))
-            .cloned()
-        }) else {
-            return true;
-        };
-        self.mutates
-            .resolve(&format!("{owner}::{method}"), self.src, &self.crates)
-            .copied()
-            .unwrap_or(true)
     }
 
     /// Reserves the record one method call fills, and records the effect

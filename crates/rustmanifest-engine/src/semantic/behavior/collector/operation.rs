@@ -325,22 +325,11 @@ impl FactCollector {
         let [over, ..] = site.operands.as_slice() else {
             return;
         };
-        let Provenance::Field(key) = over else {
+        let Provenance::Field(_) = over else {
             return;
         };
-        let Some(pair) = self
-            .field_pairs
-            .resolve(key, self.src, &self.crates)
-            .cloned()
-        else {
-            return;
-        };
-        if let Some(named) = super::naming::binding_name(first) {
-            self.param_types.insert(named, pair.0);
-        }
-        if let Some(named) = super::naming::binding_name(second) {
-            self.param_types.insert(named, pair.1);
-        }
+        self.bind_pattern(first);
+        self.bind_pattern(second);
     }
 
     /// Types the one name a variant pattern binds, where the enum
@@ -352,36 +341,8 @@ impl FactCollector {
     /// first: a bare variant name two enums both declare answers for
     /// neither.
     fn type_single_payload(&mut self, variant: &syn::PatTupleStruct) {
-        let [only] = variant.elems.iter().collect::<Vec<_>>()[..] else {
-            return;
-        };
-        let Some(bound) = super::naming::binding_name(only) else {
-            return;
-        };
-        let segments: Vec<String> = variant
-            .path
-            .segments
-            .iter()
-            .map(|segment| segment.ident.to_string())
-            .collect();
-        let qualified = match segments.as_slice() {
-            [.., owner, named] => Some(format!("{owner}.{named}")),
-            _ => None
-        };
-        let carried = qualified
-            .as_deref()
-            .and_then(|key| self.payloads.resolve(key, self.src, &self.crates))
-            .or_else(|| {
-                segments
-                    .last()
-                    .and_then(|named| self.payloads.resolve(named, self.src, &self.crates))
-            })
-            .cloned();
-        if let Some(type_name) = carried {
-            self.param_types.insert(bound, type_name);
-        }
+        self.bind_pattern(&syn::Pat::TupleStruct(variant.clone()));
     }
-
     /// Records each field a struct pattern takes out of one value.
     ///
     /// The pattern writes both the type it matches and the field each
