@@ -232,19 +232,14 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
         }
     }
     settle_allocations(resolution, sources);
-    settle_copies(resolution, sources);
+    settle_method_calls(resolution, sources);
     settle_variants(resolution, sources);
     settle_endings(resolution, sources);
     settle_handles(resolution, sources);
-    settle_numeric(resolution, sources);
     settle_casts(resolution, sources);
     settle_signatures(resolution, sources);
     settle_bindings(resolution, sources);
     settle_guards(resolution, sources);
-    settle_container_methods(resolution, sources);
-    settle_positional(resolution, sources);
-    settle_conversions(resolution, sources);
-    settle_outcome_methods(resolution, sources);
     settle_matched(resolution, sources);
     resolution.settle();
 }
@@ -403,134 +398,127 @@ impl<'ast> syn::visit::Visit<'ast> for Matched<'_> {
     }
 }
 
-/// Records which body each outcome method a fixture writes reaches.
-fn settle_outcome_methods(resolution: &mut Resolution, sources: &[Source]) {
+/// One row of what a fixture's method calls settle to: the body it
+/// reaches, the type it hands back, how it takes its receiver, and
+/// whether the caller decides the answer's type.
+struct Settling {
+    /// Method as the fixture writes it.
+    method:  &'static str,
+    /// Body it reaches, where the row names one.
+    reaches: Option<&'static str>,
+    /// Type it hands back, where the row names one.
+    returns: &'static str,
+    /// How it takes its receiver, where the row names it.
+    takes:   Option<ResolvedMode>,
+    /// Whether the caller decides the type of the answer.
+    decides: bool
+}
+
+/// Records every method call a fixture writes that one of the tables
+/// above names, in one walk: the five readings differ in what they
+/// state and not in how the position is found.
+fn settle_method_calls(resolution: &mut Resolution, sources: &[Source]) {
+    let mut rows: Vec<Settling> = Vec::new();
+    for (method, reaches) in OUTCOME_METHODS {
+        rows.push(Settling {
+            method,
+            reaches: Some(reaches),
+            returns: "",
+            takes: None,
+            decides: false
+        });
+    }
+    for method in NUMERIC {
+        rows.push(Settling {
+            method,
+            reaches: None,
+            returns: "",
+            takes: None,
+            decides: false
+        });
+    }
+    for method in CALLER_DECIDED {
+        rows.push(Settling {
+            method,
+            reaches: None,
+            returns: "",
+            takes: None,
+            decides: true
+        });
+    }
+    for method in POSITIONAL {
+        rows.push(Settling {
+            method,
+            reaches: None,
+            returns: OPTIONAL,
+            takes: None,
+            decides: false
+        });
+    }
+    for (method, mode) in CONTAINER_METHODS {
+        rows.push(Settling {
+            method,
+            reaches: None,
+            returns: "",
+            takes: Some(mode),
+            decides: false
+        });
+    }
+    for method in COPYING {
+        rows.push(Settling {
+            method,
+            reaches: Some("core::clone::Clone::clone"),
+            returns: SAME_TYPE,
+            takes: Some(ResolvedMode::Borrowed),
+            decides: false
+        });
+    }
     for source in sources {
-        let text = source.text();
-        for (method, reaches) in OUTCOME_METHODS {
-            let spelled = format!(".{method}(");
-            let mut from = 0usize;
-            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
-                let start = from + at;
-                let opens = start + spelled.len() - 1;
-                from = opens;
-                let Some(whole) = written_call(text, opens) else {
-                    continue;
-                };
+        for row in &rows {
+            for at in method_calls(source.text(), row.method) {
                 resolution.calls.push(ResolvedCall {
                     at:             Location {
                         file:  source.path().to_path_buf(),
-                        range: whole
+                        range: at
                     },
-                    callee:         method.to_owned(),
-                    returns:        String::new(),
-                    receiver:       None,
+                    callee:         row.method.to_owned(),
+                    returns:        row.returns.to_owned(),
+                    receiver:       (row.returns == SAME_TYPE).then(|| SAME_TYPE.to_owned()),
                     receiver_path:  None,
-                    caller_decides: false,
-                    reaches:        Some(reaches.to_owned()),
-                    takes:          None
+                    caller_decides: row.decides,
+                    reaches:        row
+                        .reaches
+                        .map(ToOwned::to_owned)
+                        .or_else(|| numeric_body(row.method)),
+                    takes:          row.takes
                 });
             }
         }
     }
 }
 
-/// Records the calls whose answer the caller decides, which is what
-/// makes a call a conversion rather than an access.
-fn settle_conversions(resolution: &mut Resolution, sources: &[Source]) {
-    for source in sources {
-        let text = source.text();
-        for method in CALLER_DECIDED {
-            let spelled = format!(".{method}(");
-            let mut from = 0usize;
-            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
-                let start = from + at;
-                let opens = start + spelled.len() - 1;
-                from = opens;
-                let Some(whole) = written_call(text, opens) else {
-                    continue;
-                };
-                resolution.calls.push(ResolvedCall {
-                    at:             Location {
-                        file:  source.path().to_path_buf(),
-                        range: whole
-                    },
-                    callee:         method.to_owned(),
-                    returns:        String::new(),
-                    receiver:       None,
-                    receiver_path:  None,
-                    caller_decides: true,
-                    reaches:        None,
-                    takes:          None
-                });
-            }
-        }
-    }
+/// The numeric body a written method reaches, where the numeric module
+/// declares one of that name.
+fn numeric_body(method: &str) -> Option<String> {
+    NUMERIC
+        .contains(&method)
+        .then(|| format!("core::num::{method}"))
 }
 
-/// Records the optional answer a positional call hands back.
-fn settle_positional(resolution: &mut Resolution, sources: &[Source]) {
-    for source in sources {
-        let text = source.text();
-        for method in POSITIONAL {
-            let spelled = format!(".{method}(");
-            let mut from = 0usize;
-            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
-                let start = from + at;
-                let opens = start + spelled.len() - 1;
-                from = opens;
-                let Some(whole) = written_call(text, opens) else {
-                    continue;
-                };
-                resolution.calls.push(ResolvedCall {
-                    at:             Location {
-                        file:  source.path().to_path_buf(),
-                        range: whole
-                    },
-                    callee:         method.to_owned(),
-                    returns:        OPTIONAL.to_owned(),
-                    receiver:       None,
-                    receiver_path:  None,
-                    caller_decides: false,
-                    reaches:        None,
-                    takes:          None
-                });
-            }
+/// Every range a method call written as `.method(` stands at.
+fn method_calls(text: &str, method: &str) -> Vec<Range> {
+    let spelled = format!(".{method}(");
+    let mut found = Vec::new();
+    let mut from = 0usize;
+    while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+        let start = from + at;
+        let opens = start + spelled.len() - 1;
+        from = opens;
+        if let Some(whole) = written_call(text, opens) {
+            found.push(whole);
         }
     }
-}
-
-/// Records how each container method a fixture writes takes the value
-/// it is written on.
-fn settle_container_methods(resolution: &mut Resolution, sources: &[Source]) {
-    for source in sources {
-        let text = source.text();
-        for (method, mode) in CONTAINER_METHODS {
-            let spelled = format!(".{method}(");
-            let mut from = 0usize;
-            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
-                let start = from + at;
-                let opens = start + spelled.len() - 1;
-                from = opens;
-                let Some(whole) = written_call(text, opens) else {
-                    continue;
-                };
-                resolution.calls.push(ResolvedCall {
-                    at:             Location {
-                        file:  source.path().to_path_buf(),
-                        range: whole
-                    },
-                    callee:         method.to_owned(),
-                    returns:        String::new(),
-                    receiver:       None,
-                    receiver_path:  None,
-                    caller_decides: false,
-                    reaches:        None,
-                    takes:          Some(mode)
-                });
-            }
-        }
-    }
+    found
 }
 
 /// The guard each process stream's locking call hands out.
@@ -898,39 +886,6 @@ fn bound_name(text: &str, built: usize) -> Option<Range> {
     })
 }
 
-/// Records the numeric calls a fixture writes, as the bodies of the
-/// numeric module they reach.
-fn settle_numeric(resolution: &mut Resolution, sources: &[Source]) {
-    for source in sources {
-        let text = source.text();
-        for method in NUMERIC {
-            let spelled = format!(".{method}");
-            let mut from = 0usize;
-            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
-                let start = from + at;
-                let opens = start + spelled.len();
-                from = opens;
-                let Some(whole) = written_call(text, opens) else {
-                    continue;
-                };
-                resolution.calls.push(ResolvedCall {
-                    at:             Location {
-                        file:  source.path().to_path_buf(),
-                        range: whole
-                    },
-                    callee:         method.to_owned(),
-                    returns:        String::new(),
-                    receiver:       None,
-                    receiver_path:  None,
-                    caller_decides: false,
-                    reaches:        Some(format!("core::num::{method}")),
-                    takes:          None
-                });
-            }
-        }
-    }
-}
-
 /// Every range a bare written name stands at, where nothing joins it to
 /// a longer one.
 fn name_at(text: &str, written: &str) -> Vec<Range> {
@@ -956,39 +911,6 @@ fn name_at(text: &str, written: &str) -> Vec<Range> {
         }
     }
     found
-}
-
-/// Records the copying calls a fixture writes, as the compiler states
-/// them: taken by shared borrow, answering with the receiver's own type.
-fn settle_copies(resolution: &mut Resolution, sources: &[Source]) {
-    for source in sources {
-        let text = source.text();
-        for method in COPYING {
-            let spelled = format!(".{method}");
-            let mut from = 0usize;
-            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
-                let start = from + at;
-                let opens = start + spelled.len();
-                from = opens;
-                let Some(whole) = written_call(text, opens) else {
-                    continue;
-                };
-                resolution.calls.push(ResolvedCall {
-                    at:             Location {
-                        file:  source.path().to_path_buf(),
-                        range: whole
-                    },
-                    callee:         method.to_owned(),
-                    returns:        SAME_TYPE.to_owned(),
-                    receiver:       Some(SAME_TYPE.to_owned()),
-                    receiver_path:  None,
-                    caller_decides: false,
-                    reaches:        Some(format!("core::clone::Clone::{method}")),
-                    takes:          Some(rustmanifest_schema::ResolvedMode::Borrowed)
-                });
-            }
-        }
-    }
 }
 
 /// The range the whole call written on a receiver stands at: from the
