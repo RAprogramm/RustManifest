@@ -81,17 +81,27 @@ pub(super) fn settled_free_call(
 
 /// Reads one method call, answering `None` where the resolver settled
 /// nothing.
+///
+/// What the call hands back is asked of the call expression itself and
+/// not of the declaration: a method declared to hand back `Self` renders
+/// as those four letters, which name the type only to a reader standing
+/// inside that impl. The expression renders as the type it actually has.
 pub(super) fn settled_call(
     reading: Reading<'_, '_>,
     call: &ast::MethodCallExpr
 ) -> Option<ResolvedCall> {
     let function = reading.semantics.resolve_method_call(call)?;
-    let returns = function.ret_type(reading.database);
     let reaches = super::naming::canonical_function(reading.database, function);
+    let returns = reading
+        .semantics
+        .type_of_expr(&ast::Expr::MethodCallExpr(call.clone()))
+        .map(|typed| typed.original())
+        .and_then(|typed| reading.render(&typed))
+        .or_else(|| reading.render(&function.ret_type(reading.database)))?;
     Some(ResolvedCall {
         at: reading.located(call.syntax().text_range()),
         callee: function.name(reading.database).as_str().to_owned(),
-        returns: reading.render(&returns)?,
+        returns,
         receiver: call
             .receiver()
             .and_then(|expression| reading.semantics.type_of_expr(&expression))

@@ -99,7 +99,16 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     } else {
         read_sources(&files, args.max_file_size)
     };
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let settled = crate::resolution(
+        args.resolution.as_deref(),
+        args.paths
+            .first()
+            .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path)
+    )?;
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
     findings.extend(rustmanifest_engine::semantic_findings(
         &semantic, &workspace
     ));
@@ -110,12 +119,6 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
             .map(rustmanifest_engine::ScipEdges::from_file)
             .transpose()
             .context("loading SCIP index")?;
-        let settled = crate::resolution(
-            args.resolution.as_deref(),
-            args.paths
-                .first()
-                .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path)
-        )?;
         findings.extend(rustmanifest_engine::check_invariants_settled(
             &sources,
             effective.invariants(),
