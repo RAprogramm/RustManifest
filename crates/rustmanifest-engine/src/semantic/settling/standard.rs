@@ -189,6 +189,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_casts(resolution, sources);
     settle_signatures(resolution, sources);
     settle_bindings(resolution, sources);
+    settle_guards(resolution, sources);
     resolution.settle();
 }
 
@@ -264,6 +265,69 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+}
+
+/// The guard each process stream's locking call hands out.
+const GUARDS: [(&str, &str); 3] = [
+    ("std::io::stdio::Stdout", "std::io::stdio::StdoutLock"),
+    ("std::io::stdio::Stderr", "std::io::stdio::StderrLock"),
+    ("std::io::stdio::Stdin", "std::io::stdio::StdinLock")
+];
+
+/// Records the guard a locking call hands out, and the name a `let`
+/// binds it to.
+///
+/// Reads what this settler already stated: a handle is known by the
+/// constructor that built it or by the name it was bound to, and the
+/// guard follows from the handle.
+fn settle_guards(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        let file = source.path().to_path_buf();
+        let mut settled: Vec<(Range, String)> = Vec::new();
+        let mut from = 0usize;
+        while let Some(at) = text.get(from..).and_then(|rest| rest.find(".lock()")) {
+            let start = from + at;
+            from = start + ".lock()".len();
+            let Some(whole) = written_call(text, start + ".lock".len()) else {
+                continue;
+            };
+            let Some(handle) = handle_of(
+                resolution,
+                &file,
+                u32::try_from(start).unwrap_or(u32::MAX)
+            ) else {
+                continue;
+            };
+            let Some((_, guard)) = GUARDS.iter().find(|(named, _)| *named == handle) else {
+                continue;
+            };
+            settled.push((whole, (*guard).to_owned()));
+            if let Some(bound) = bound_name(text, whole.start as usize) {
+                settled.push((bound, (*guard).to_owned()));
+            }
+        }
+        for (at, guard) in settled {
+            resolution.types.push(ResolvedType {
+                at:       Location {
+                    file: file.clone(),
+                    range: at
+                },
+                rendered: guard.rsplit("::").next().unwrap_or(&guard).to_owned(),
+                declared: Some(guard)
+            });
+        }
+    }
+}
+
+/// The handle a locking call is written on, as this settler already
+/// stated it: the receiver is whatever ends where the call begins.
+fn handle_of(resolution: &Resolution, file: &std::path::Path, ends: u32) -> Option<String> {
+    resolution
+        .types
+        .iter()
+        .find(|row| row.at.file == file && row.at.range.end == ends && row.declared.is_some())
+        .and_then(|row| row.declared.clone())
 }
 
 /// Records the type every name a fixture binds with a written type
