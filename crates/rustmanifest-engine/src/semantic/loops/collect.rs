@@ -18,61 +18,20 @@ mod hoist;
 mod mutation;
 mod scan;
 
-use std::collections::BTreeMap;
-
 use syn::visit::Visit;
 
 pub(super) use self::candidate::Candidate;
 use self::scan::LoopFinder;
-use crate::{
-    semantic::{behavior::ParamMode, expr::impl_type_name},
-    source::Source
-};
-
-/// How every settled call of one source takes the value it is written on,
-/// by the byte range of the call.
-///
-/// What a call does to its receiver — leave it, change it, or end its
-/// life — is the mode the function it reaches declares. Empty where no
-/// resolver ran, and an absent call is one nothing here can answer for.
-pub(super) type Taken = BTreeMap<(u32, u32), ParamMode>;
-
-/// The receiver modes a resolver settled for one source.
-fn taken(resolution: Option<&rustmanifest_schema::Resolution>, source: &Source) -> Taken {
-    let mut settled = Taken::new();
-    let Some(resolution) = resolution else {
-        return settled;
-    };
-    for call in &resolution.calls {
-        if call.at.file != source.path() {
-            continue;
-        }
-        if let Some(mode) = call.takes {
-            settled.insert(
-                (call.at.range.start, call.at.range.end),
-                match mode {
-                    rustmanifest_schema::ResolvedMode::Owned => ParamMode::Owned,
-                    rustmanifest_schema::ResolvedMode::Borrowed => ParamMode::Borrowed,
-                    rustmanifest_schema::ResolvedMode::BorrowedMut => ParamMode::BorrowedMut
-                }
-            );
-        }
-    }
-    settled
-}
+use crate::{semantic::expr::impl_type_name, source::Source};
 
 /// Collects loop-local `let` candidates from every function in `sources`.
-pub(super) fn candidates(
-    sources: &[Source],
-    resolution: Option<&rustmanifest_schema::Resolution>
-) -> Vec<Candidate> {
+pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
     let mut found = Vec::new();
     for (index, source) in sources.iter().enumerate() {
         let Some(file) = source.tree() else {
             continue;
         };
         let text = source.text();
-        let takes = taken(resolution, source);
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
         for item in items {
@@ -82,7 +41,6 @@ pub(super) fn candidates(
                         source: index,
                         function: function.sig.ident.to_string(),
                         text,
-                        takes: &takes,
                         candidates: &mut found
                     };
                     finder.visit_block(&function.block);
@@ -99,7 +57,6 @@ pub(super) fn candidates(
                             source: index,
                             function: format!("{type_name}::{}", method.sig.ident),
                             text,
-                            takes: &takes,
                             candidates: &mut found
                         };
                         finder.visit_block(&method.block);

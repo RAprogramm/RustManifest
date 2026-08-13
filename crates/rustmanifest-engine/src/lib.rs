@@ -18,8 +18,7 @@
 //! from — across calls, through the per-function summary. Every one of
 //! those answers is a record with the site that proves it, and every
 //! position the reading could not settle is a named refusal rather than a
-//! silence, counted by [`coverage`] so a reader can tell the share that
-//! was answered from the share that was merely recorded.
+//! silence, so a reader can tell an answer from a record.
 //!
 //! What a resolver settles about a workspace — which function a call
 //! reaches, what it hands back — arrives as a plain-data overlay from the
@@ -56,7 +55,7 @@ pub use orchestrator::{
 pub use pattern::PatternAnalyzer;
 pub use semantic::{
     Absorption, Arguments, CallGraph, Capability, ChoiceClaim, Clause, Command as KeptCommand,
-    Completion, ComputeClaim, Condition, Coverage, Direction as KeptDirection, Disposal, DocFacts,
+    Completion, ComputeClaim, Condition, Direction as KeptDirection, Disposal, DocFacts,
     Effect, EntryKind, EntryMeaning, EntryPoint, Evidence, ExitClaim, ExitRoute, ExitStatus,
     Feature, Feeding, FunctionFacts, FunctionFlags, Grade, Guard, HandbackClaim, Hole, HoleSource,
     ImplNode, Junction, Keeping, Literal, MethodNode, ModuleCapability, ModuleEdge, ModuleInfo,
@@ -67,10 +66,9 @@ pub use semantic::{
     VALUE_ORIGIN_SET, Verb as KeptVerb, Workspace, behavior, behavior_with, call_graph,
     call_graph_rows_with, call_graph_with, capabilities, check_invariants,
     check_invariants_settled, check_invariants_with, commands as kept_commands, completion_rule,
-    coverage, coverage_indexed, coverage_with, doc_facts, entry_points, features, feedings,
-    keeping, module_overview, origin_gaps, outliving, program_meaning, purpose, role,
-    semantic_findings, servings, started, stores as kept_stores, surface, transitive_effects,
-    unresolved_targets
+    doc_facts, entry_points, features, feedings, keeping, module_overview, outliving,
+    program_meaning, purpose, role, semantic_findings, servings, started, stores as kept_stores,
+    surface, transitive_effects
 };
 pub use source::Source;
 

@@ -6,10 +6,10 @@
 //!
 //! The knowledge is spread over five surfaces — what the sources hold,
 //! what the program does for an observer outside the process, the facts
-//! behind that, the judgements against the canonical forms, and how much
-//! of the sources the engine could read at all. Running them one by one
-//! makes the reader assemble the picture; this subcommand assembles it
-//! and prints the honesty section last, so a reader always sees what the
+//! behind that, the judgements against the canonical forms, and how many
+//! of its own statements hold together. Running them one by one makes
+//! the reader assemble the picture; this subcommand assembles it and
+//! prints the statements section last, so a reader always sees what the
 //! rest of the report is worth.
 
 mod behaviour;

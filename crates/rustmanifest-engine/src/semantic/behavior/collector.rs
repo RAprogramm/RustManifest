@@ -13,7 +13,6 @@
 mod assignment;
 mod binding;
 mod block;
-mod bound;
 mod branch;
 mod branch_flow;
 mod call;
@@ -82,8 +81,7 @@ pub(super) struct FactCollector {
     pub(super) fn_returns:       Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) field_types:      Scoped<String>,
-    /// `Type.field` keys of collection fields to element types, read off
-    /// the written type where no resolver typed the binding.
+    /// `Type.field` keys of collection fields to element types.
     pub(super) field_elems:      Scoped<String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
     /// Key and value types of every map-typed field.
@@ -104,10 +102,6 @@ pub(super) struct FactCollector {
     /// The type a resolver settled for the receiver of the call at each
     /// byte range. Empty where no resolver ran.
     pub(super) receivers:        std::collections::BTreeMap<(u32, u32), String>,
-    /// How the call at each byte range takes the value it is written on,
-    /// as the function it reaches declares it. Empty where no resolver
-    /// ran.
-    pub(super) takes:            std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
     /// The type holding the field read at each byte range, and the type
     /// that field itself has. Empty where no resolver ran.
     pub(super) held:             std::collections::BTreeMap<(u32, u32), (String, String)>,

@@ -3,8 +3,8 @@
 
 //! The name tables this tier recognizes: the print and writer macros, the
 //! process stream handles and type names, the macros whose arguments read
-//! as expressions, the adapters whose closure runs over the receiver's
-//! elements, and the macros whose expansion is settled or diverging.
+//! as expressions, the iterator adapters and sources, and the macros whose
+//! expansion is settled or diverging.
 //!
 //! The tables naming what brings a value in from outside the process sit
 //! in a submodule beside this file.
@@ -147,13 +147,26 @@ pub(super) const EXPRESSION_MACROS: [&str; 20] = [
     "writeln"
 ];
 
-/// Adapters whose closure is handed one element of the receiver at a
-/// time, so the names its body reads stand inside a scope of their own
-/// and the elements are recorded before the body is walked.
+/// Iterator and `Option` adapters whose single-parameter closure
+/// receives one element of the adapted collection or option.
+/// Methods whose closure is handed two elements of the receiver at once,
+/// so both of its inputs stand for an element and neither for anything
+/// else.
 ///
-/// This is a question about the order of a walk, not about a type: what
-/// the closure's input holds is settled at the binding, and nothing here
-/// answers it.
+/// A comparator is the ordinary shape: the library hands it two of the
+/// values it is ordering. Reading only the first input left every
+/// comparison written this way standing on an untyped name.
+pub(super) const PAIRWISE_ADAPTERS: [&str; 8] = [
+    "binary_search_by",
+    "dedup_by",
+    "max_by",
+    "min_by",
+    "partition_point",
+    "sort_by",
+    "sort_unstable_by",
+    "windows"
+];
+
 pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
     "all",
     "and_then",
@@ -175,14 +188,11 @@ pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
     "take_while"
 ];
 
+/// Iterator constructors and element accessors that keep the
+/// collection's element type.
 /// Adapters that hand on the same element the receiver hands out, so a
-/// reading of the written text follows the chain through them: they
-/// reorder, shorten, or copy the sequence, and none of them changes what
-/// one step is.
-///
-/// Read only where a resolver settled nothing. The compiler answers what
-/// a call hands back for every library; this names the standard spellings
-/// and no others.
+/// reading follows the chain through them: they reorder, shorten, or
+/// copy the sequence, and none of them changes what one step is.
 pub(super) const ELEMENT_PRESERVING: [&str; 10] = [
     "by_ref",
     "cloned",
@@ -196,8 +206,6 @@ pub(super) const ELEMENT_PRESERVING: [&str; 10] = [
     "take_while"
 ];
 
-/// Iterator constructors and element accessors that keep the collection's
-/// element type, read on the same terms as [`ELEMENT_PRESERVING`].
 pub(super) const ITERATOR_SOURCES: [&str; 7] = [
     "drain",
     "first",

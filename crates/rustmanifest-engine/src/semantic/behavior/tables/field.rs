@@ -28,9 +28,9 @@ pub(super) struct FieldTables {
 }
 
 /// Maps every named field of a uniquely named struct — keyed
-/// `Type.field` — to its type's last segment, every map field to its key
-/// and value types, and every single-generic wrapper field to its
-/// wrapped inner type.
+/// `Type.field` — to its type's last segment, every collection-typed
+/// field to its element type, and every single-generic wrapper field
+/// to its wrapped inner type.
 pub(super) fn field_tables(sources: &[Source]) -> FieldTables {
     let mut plain = Scoped::default();
     let mut elems = Scoped::default();

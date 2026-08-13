@@ -4,8 +4,7 @@
 //! One-report knowledge surface: everything the engine understands about
 //! an analyzed source slice, rendered as deterministic Markdown.
 //!
-//! Sections: size and coverage honesty, the module map with cycle
-//! warnings, the most connected types, the behavioral role distribution,
+//! Sections: the module map with cycle warnings, the most connected types, the behavioral role distribution,
 //! outside-world boundary functions, the most contended state fields, and
 //! learned conventions. Each section owns a submodule; this module only
 //! gathers the analyses once and hands them out in report order.
@@ -23,7 +22,6 @@ mod layers;
 mod memory_shape;
 mod module_map;
 mod roles;
-mod size;
 mod state;
 mod surface;
 
@@ -32,7 +30,7 @@ use self::{
     boundaries::boundary_section, capability::capability_section, central_types::type_section,
     conventions::convention_section, keeping::keeping_section, layers::layer_section,
     memory_shape::shape_section, module_map::module_section, roles::role_section,
-    size::size_section, state::state_section, surface::surface_section
+    state::state_section, surface::surface_section
 };
 use crate::semantic::Workspace;
 
@@ -51,10 +49,8 @@ pub fn overview_markdown(
     let sources = workspace.sources();
     let graph = workspace.types();
     let modules = crate::semantic::module_overview(workspace);
-    let stats = crate::semantic::coverage(workspace);
     let facts = workspace.facts();
     out.push_str("# Project overview\n\n");
-    size_section(&mut out, &stats, facts.len());
     module_section(&mut out, &modules);
     type_section(&mut out, graph, top);
     role_section(&mut out, facts);
@@ -103,7 +99,6 @@ mod tests {
         }];
         let report = overview_markdown(&Workspace::new(&sources()), 10, &conventions);
         for heading in [
-            "## Size and understanding",
             "## Modules",
             "## Central types",
             "## Behavioral roles",

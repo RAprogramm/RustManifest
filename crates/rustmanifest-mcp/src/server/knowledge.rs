@@ -19,8 +19,7 @@ use super::{
 #[tool_router(router = knowledge_router, vis = "pub(super)")]
 impl ReviewServer {
     /// Render everything the engine knows about a path as one Markdown
-    /// report: size and coverage honesty, module map with cycle warnings,
-    /// central types, behavioral roles, outside-world boundaries, most
+    /// report: module map with cycle warnings, central types, behavioral roles, outside-world boundaries, most
     /// contended state, and learned conventions.
     #[tool(annotations(read_only_hint = true))]
     async fn project_overview(

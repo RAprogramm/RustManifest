@@ -90,7 +90,7 @@ jobs:
           echo "findings reported: $(python3 -c 'import json;print(len(json.load(open("findings.json"))))')"
       - name: Every command answers about this workspace
         run: |
-          for command in overview coverage facts graph learn meaning report; do
+          for command in overview facts graph learn meaning report; do
             timeout 300 ./target/release/rustmanifest "$command" crates > /dev/null \
               || { echo "$command failed"; exit 1; }
           done

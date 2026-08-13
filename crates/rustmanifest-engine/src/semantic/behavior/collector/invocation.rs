@@ -15,9 +15,9 @@ mod walk;
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
+    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, PAIRWISE_ADAPTERS, TEXT_WRITE_METHOD}
 };
-use crate::semantic::knowledge;
+use crate::semantic::{expr::MUTATING_METHODS, knowledge};
 
 impl FactCollector {
     /// Records the callee of a call written as a path, qualified by the
@@ -51,9 +51,10 @@ impl FactCollector {
     /// Records everything one method call carries.
     pub(super) fn collect_method_call(&mut self, call: &syn::ExprMethodCall) {
         let method = call.method.to_string();
-        if self.receiver_taken_mutably(call)
+        if MUTATING_METHODS.contains(&method.as_str())
             && let syn::Expr::Field(field) = call.receiver.as_ref()
             && let Some(key) = self.field_key(field)
+            && self.receiver_taken_mutably(field, &method)
         {
             self.record_field_write(field, key);
         }
@@ -63,15 +64,27 @@ impl FactCollector {
         if method == BYTE_WRITE_METHOD || method == TEXT_WRITE_METHOD {
             self.record_byte_output(call);
         }
-        for argument in &call.args {
-            let syn::Expr::Closure(closure) = argument else {
-                continue;
-            };
-            for input in &closure.inputs {
-                self.bind_element(input, &call.receiver);
+        if ITERATOR_ADAPTERS.contains(&method.as_str()) {
+            for argument in &call.args {
+                if let syn::Expr::Closure(closure) = argument
+                    && closure.inputs.len() == 1
+                    && let Some(pattern) = closure.inputs.first()
+                {
+                    self.bind_element(pattern, &call.receiver);
+                }
             }
+        } else if PAIRWISE_ADAPTERS.contains(&method.as_str()) {
+            for argument in &call.args {
+                let syn::Expr::Closure(closure) = argument else {
+                    continue;
+                };
+                for input in &closure.inputs {
+                    self.bind_element(input, &call.receiver);
+                }
+            }
+        } else {
+            self.bind_wrapped_closure(call);
         }
-        self.bind_wrapped_closure(call);
         if method == knowledge::SERVICE_CALL
             && let Some(inner) = self.wrapped_of(&call.receiver)
         {
@@ -102,35 +115,28 @@ impl FactCollector {
         self.carry_outcome(call, &span);
     }
 
-    /// Whether a method call changes the value it is written on.
+    /// Whether a method called on a field can change what it is called
+    /// on.
     ///
-    /// The function reached declares it, and the resolver states that
-    /// declaration per call site — for a method of this workspace and for
-    /// one of a library alike. Where no resolver ran, the workspace's own
-    /// declarations still answer for the methods it wrote itself, and a
-    /// method nothing here declares stays unanswered — which is silence,
-    /// not a guess from how the call was spelled.
-    fn receiver_taken_mutably(&self, call: &syn::ExprMethodCall) -> bool {
-        if let Some(mode) = self.settled_receiver_mode(call) {
-            return mode == crate::semantic::behavior::types::ParamMode::BorrowedMut;
-        }
-        let syn::Expr::Field(field) = call.receiver.as_ref() else {
-            return false;
+    /// The name table says which spellings usually mutate; where the
+    /// workspace declares the method itself, the declaration outranks
+    /// the table — a method taking `&self` changes nothing however it is
+    /// spelled. A method the workspace does not declare keeps the
+    /// table's answer, which is all there is to go on.
+    fn receiver_taken_mutably(&self, field: &syn::ExprField, method: &str) -> bool {
+        let Some(owner) = self.expr_type(&field.base).and_then(|owner| {
+            self.field(&format!(
+                "{owner}.{}",
+                super::naming::member_name(&field.member)
+            ))
+            .cloned()
+        }) else {
+            return true;
         };
-        self.expr_type(&field.base)
-            .and_then(|owner| {
-                self.field(&format!(
-                    "{owner}.{}",
-                    super::naming::member_name(&field.member)
-                ))
-                .cloned()
-            })
-            .and_then(|owner| {
-                self.mutates
-                    .resolve(&format!("{owner}::{}", call.method), self.src, &self.crates)
-                    .copied()
-            })
-            .unwrap_or(false)
+        self.mutates
+            .resolve(&format!("{owner}::{method}"), self.src, &self.crates)
+            .copied()
+            .unwrap_or(true)
     }
 
     /// Reserves the record one method call fills, and records the effect

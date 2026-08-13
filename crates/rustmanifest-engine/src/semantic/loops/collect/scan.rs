@@ -34,9 +34,6 @@ pub(super) struct LoopFinder<'out> {
     pub(super) function:   String,
     /// Full source text, for line expansion and indentation.
     pub(super) text:       &'out str,
-    /// How every settled call of this source takes the value it is
-    /// written on.
-    pub(super) takes:      &'out super::Taken,
     /// Output collection shared across loops of the function.
     pub(super) candidates: &'out mut Vec<Candidate>
 }
@@ -54,8 +51,7 @@ impl LoopFinder<'_> {
         };
         binder.visit_block(body);
         let mut mutated = MutatedCollector {
-            roots: Vec::new(),
-            takes: self.takes
+            roots: Vec::new()
         };
         mutated.visit_block(body);
         for (index, statement) in body.stmts.iter().enumerate() {
@@ -76,7 +72,6 @@ impl LoopFinder<'_> {
             let name = ident.to_string();
             let mut uses = UseCollector {
                 name:    name.clone(),
-                takes:   self.takes,
                 summary: UseSummary::default()
             };
             for later in &body.stmts[index + 1..] {

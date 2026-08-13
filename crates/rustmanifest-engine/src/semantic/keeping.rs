@@ -564,35 +564,10 @@ pub fn run(store: &mut Store, asked: &str) {
         );
     }
 
-    /// What an arm's binding holds is stated at the binding by the
-    /// resolver: the method marks a record only if the name it writes
-    /// through is a record, and reading that from the scrutinee's
-    /// spelling is what a table of accessor names used to do.
     #[test]
     fn each_verb_is_read_from_what_the_method_does_to_the_store() {
         let sources = workspace_of(TASK_STORE);
-        let mut settled = rustmanifest_schema::Resolution {
-            resolver: "test".to_owned(),
-            types: vec![rustmanifest_schema::ResolvedType {
-                at:       rustmanifest_schema::Location {
-                    file:  PathBuf::from("src/lib.rs"),
-                    range: {
-                        let start = u32::try_from(
-                            TASK_STORE.find("Some(task)").expect("the arm is written") + 5
-                        )
-                        .expect("the fixture is small");
-                        rustmanifest_schema::Range {
-                            start,
-                            end: start + 4
-                        }
-                    }
-                },
-                rendered: "Task".to_owned()
-            }],
-            ..rustmanifest_schema::Resolution::default()
-        };
-        settled.settle();
-        let workspace = Workspace::resolved(&sources, &settled);
+        let workspace = Workspace::new(&sources);
         let read = keeping(&workspace);
         let verb = |name: &str| {
             read.iter()

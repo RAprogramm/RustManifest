@@ -5,12 +5,11 @@
 //!
 //! Every check that reasons about `syn` expressions needs the same small
 //! vocabulary: what a place expression is, what its root identifier is,
-//! which operators are compound assignments. Those answers live here once,
-//! so a new check reuses them instead of restating them.
-//!
-//! What a call does to the value it is written on is not among them: that
-//! is the receiver mode the function reached declares, and a resolver
-//! states it per call site.
+//! which operators are compound assignments, which methods are known to
+//! mutate or consume their receiver. Those answers live here once, so a
+//! new check reuses them instead of restating them.
+
+pub(super) use super::std_knowledge::{MUTATING_METHODS, consuming_method};
 
 /// Renders a place expression (`root`, `root.field`, `self.field.inner`)
 /// or returns `None` for anything that is not a plain place.
@@ -111,7 +110,7 @@ pub(super) fn token_words(tokens: &str) -> Vec<String> {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{binding_ident, place_chain, place_root, token_words};
+    use super::{binding_ident, consuming_method, place_chain, place_root, token_words};
 
     fn expr(text: &str) -> syn::Expr {
         syn::parse_str(text).unwrap()
@@ -150,6 +149,13 @@ mod tests {
             binding_ident(&pattern).map(ToString::to_string).as_deref(),
             Some("value")
         );
+    }
+
+    #[test]
+    fn consuming_methods_are_recognized() {
+        assert!(consuming_method("into_bytes"));
+        assert!(consuming_method("leak"));
+        assert!(!consuming_method("len"));
     }
 
     #[test]
