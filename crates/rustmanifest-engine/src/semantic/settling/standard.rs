@@ -165,6 +165,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_endings(resolution, sources);
     settle_handles(resolution, sources);
     settle_numeric(resolution, sources);
+    settle_casts(resolution, sources);
     resolution.settle();
 }
 
@@ -238,6 +239,46 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                     takes:          None
                 });
             }
+        }
+    }
+}
+
+/// Records the type a written cast produces: the source writes it, and
+/// the compiler settles the cast's own position to it.
+fn settle_casts(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        let mut from = 0usize;
+        while let Some(at) = text.get(from..).and_then(|rest| rest.find(" as ")) {
+            let start = from + at;
+            let named = start + " as ".len();
+            from = named;
+            let end = text[named..]
+                .find(|letter: char| !(letter.is_alphanumeric() || letter == '_'))
+                .map_or(text.len(), |held| named + held);
+            let written = &text[named..end];
+            if written.is_empty() {
+                continue;
+            }
+            let opens = text[..start]
+                .char_indices()
+                .rev()
+                .take_while(|(_, letter)| {
+                    letter.is_alphanumeric() || *letter == '_' || *letter == '.'
+                })
+                .last()
+                .map_or(start, |(held, _)| held);
+            resolution.types.push(ResolvedType {
+                at:       Location {
+                    file:  source.path().to_path_buf(),
+                    range: Range {
+                        start: u32::try_from(opens).unwrap_or(u32::MAX),
+                        end:   u32::try_from(end).unwrap_or(u32::MAX)
+                    }
+                },
+                rendered: written.to_owned(),
+                declared: None
+            });
         }
     }
 }
