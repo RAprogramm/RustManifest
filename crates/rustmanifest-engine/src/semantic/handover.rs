@@ -264,7 +264,7 @@ mod tests {
     /// call reaches.
     fn asked_settled(text: &str, at: &str, granted: &[(&str, bool)]) -> Option<Answer> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let types = TypeGraph::from_sources(&sources);
         let offset = u32::try_from(text.find(at).unwrap()).unwrap() + 1;
         let mut resolution = rustmanifest_schema::Resolution {

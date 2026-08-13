@@ -84,7 +84,7 @@ pub fn check_invariants_settled(
     if invariants.is_empty() {
         return Vec::new();
     }
-    let facts = crate::semantic::behavior::behavior_with(sources, settled);
+    let facts = crate::semantic::behavior_with(sources, settled);
     let overlay = scip.map(|edges| edges.candidates(&facts, sources));
     let graph = call_graph_with(
         &facts,
@@ -278,7 +278,7 @@ mod tests {
     fn a_precomputed_snapshot_judges_the_same_violation() {
         let sources = wallet_sources();
         let settled = settled_over(&sources, WALLET_TYPES);
-        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&settled));
+        let facts = crate::semantic::behavior_with(&sources, Some(&settled));
         let graph = crate::semantic::calls::call_graph(
             &facts,
             &crate::semantic::calls::resolution_context_with(&sources, Some(&settled))

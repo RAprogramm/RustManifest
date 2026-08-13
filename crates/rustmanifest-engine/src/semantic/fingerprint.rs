@@ -68,7 +68,11 @@ mod tests {
     use crate::{semantic::behavior, source::Source};
 
     fn prints(text: &str) -> Vec<u64> {
-        behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
+        {
+            let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+            let settled = crate::semantic::settling::standard_macros_over(&sources);
+            crate::semantic::behavior_with(&sources, Some(&settled))
+        }
             .iter()
             .map(behavior_fingerprint)
             .collect()

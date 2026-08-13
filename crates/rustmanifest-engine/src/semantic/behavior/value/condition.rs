@@ -109,7 +109,7 @@ mod tests {
     /// paired with the length of the guard stack beside it.
     fn stacks(text: &str, function: &str) -> Vec<(Vec<Condition>, usize)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        behavior(&sources)
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
             .iter()
             .find(|fact| fact.function == function)
             .map(|fact| {

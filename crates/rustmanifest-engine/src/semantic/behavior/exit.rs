@@ -88,7 +88,7 @@ mod tests {
 
     fn statuses(text: &str) -> Vec<(ExitStatus, ExitRoute)> {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        behavior(&sources)
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
             .iter()
             .flat_map(|fact| fact.exits.clone())
             .map(|exit| (exit.status, exit.route))

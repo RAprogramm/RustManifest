@@ -130,6 +130,9 @@ mod tests {
             .call("a.run()", "run", "()", Some("&A"))
             .reaching("std::fs::read(\"x\")", "std::fs::read")
             .done();
+        let mut resolution = resolution;
+        crate::semantic::settling::settle_declared(&mut resolution, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let all = behavior_with(&sources, Some(&resolution));
         settle_identity(&mut resolution, &sources, &all);
         let (graph, rows) = super::call_graph_rows(
@@ -229,7 +232,7 @@ mod tests {
     #[test]
     fn a_library_call_never_binds_to_a_test_target_definition() {
         let sources = library_and_test_target();
-        let all = behavior(&sources);
+        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let graph = call_graph(&all, &super::resolution_context(&sources));
         let caller = index_of(&all, "Conn::read_head");
         assert!(
@@ -246,6 +249,9 @@ mod tests {
             .and_over("crates/demo/tests/server.rs", sources[1].text())
             .call("client.get()", "get", "()", Some("TestClient"))
             .done();
+        let mut resolution = resolution;
+        crate::semantic::settling::settle_declared(&mut resolution, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let all = behavior_with(&sources, Some(&resolution));
         settle_identity(&mut resolution, &sources, &all);
         let graph = call_graph(
@@ -275,7 +281,7 @@ mod tests {
                 "fn drive(client: Other) { client.get(); }".to_owned()
             )
         ];
-        let all = behavior(&sources);
+        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let graph = call_graph(&all, &super::resolution_context(&sources));
         assert!(graph.callees(index_of(&all, "drive")).is_empty());
     }
@@ -288,7 +294,7 @@ mod tests {
              helper(); }"
                 .to_owned()
         )];
-        let all = behavior(&sources);
+        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let settled = identity_of(&sources, &all);
         let context = super::resolution_context_with(&sources, Some(&settled));
         let caller = index_of(&all, "caller");
@@ -424,7 +430,7 @@ mod tests {
             ("rusty_core", "crates/rusty-core/src/lib.rs"),
             ("rusty_app", "crates/rusty-app/src/lib.rs")
         ]);
-        let all = behavior(&sources);
+        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         settle_identity(&mut settled, &sources, &all);
         let graph = call_graph(
             &all,

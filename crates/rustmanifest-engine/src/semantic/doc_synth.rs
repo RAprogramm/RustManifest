@@ -183,7 +183,7 @@ mod tests {
 
     fn draft(text: &str, name: &str) -> String {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let graph = crate::semantic::TypeGraph::from_sources(&sources);
         doc_draft(
             facts.iter().find(|fact| fact.function == name).unwrap(),
@@ -201,7 +201,7 @@ mod tests {
     ) -> String {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let resolution = settle(Settling::over("src/lib.rs", text)).done();
-        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&resolution));
+        let facts = crate::semantic::behavior_with(&sources, Some(&resolution));
         let graph = crate::semantic::TypeGraph::from_sources(&sources);
         doc_draft(
             facts.iter().find(|fact| fact.function == name).unwrap(),

@@ -95,6 +95,11 @@ mod tests {
             .rewound()
             .all_typed("tasks", "BTreeMap<u64, Task>")
             .done();
+        let mut resolution = resolution;
+        crate::semantic::settling::settle_declared(&mut resolution, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
+        crate::semantic::settling::settle_declared(&mut resolution, sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, sources);
         let facts = behavior_with(sources, Some(&resolution));
         settle_identity(&mut resolution, sources, &facts);
         resolution

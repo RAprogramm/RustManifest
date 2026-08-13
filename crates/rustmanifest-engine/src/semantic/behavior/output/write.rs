@@ -79,7 +79,11 @@ mod tests {
 
     /// Behavioral facts of one written snippet.
     fn facts(text: &str) -> Vec<FunctionFacts> {
-        behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
+        {
+            let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+            let settled = crate::semantic::settling::standard_macros_over(&sources);
+            crate::semantic::behavior_with(&sources, Some(&settled))
+        }
     }
 
     /// A hole is a hole whichever macro wrote it. Reading holes on the
@@ -122,7 +126,7 @@ mod tests {
             PathBuf::from("src/main.rs"),
             "fn main() {\n    println!(\"Hello, world!\");\n}".to_owned()
         )];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -158,7 +162,7 @@ mod tests {
                 PathBuf::from("src/main.rs"),
                 format!("fn main() -> std::io::Result<()> {{\n{body}\n}}")
             )];
-            let facts = behavior(&sources);
+            let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
             let main = facts
                 .iter()
                 .find(|fact| fact.function == "main")
@@ -184,7 +188,7 @@ mod tests {
              out.write_all(b\"hi\")\n}"
                 .to_owned()
         )];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -207,7 +211,7 @@ mod tests {
             "fn main() {\n    println!(\"one\");\n    eprintln!(\"two\");\n    println!(\"one\");\n}"
                 .to_owned()
         )];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -232,7 +236,7 @@ mod tests {
 
         use crate::{semantic::behavior::behavior, source::Source};
         let sources = [Source::new(PathBuf::from("src/main.rs"), source.to_owned())];
-        behavior(&sources)
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
             .into_iter()
             .find(|fact| fact.function == function)
             .map(|fact| fact.output_writes)
@@ -493,6 +497,9 @@ mod tests {
             .after("fn main")
             .typed("dies()", "!")
             .done();
+        let mut leaving = leaving;
+        crate::semantic::settling::settle_declared(&mut leaving, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut leaving, &sources);
         let facts = behavior_with(&sources, Some(&leaving));
         let main = facts
             .iter()
@@ -510,6 +517,9 @@ mod tests {
             .after("fn main")
             .typed("helper()", "u8")
             .done();
+        let mut settled = settled;
+        crate::semantic::settling::settle_declared(&mut settled, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut settled, &sources);
         let plain = behavior_with(&returning, Some(&settled));
         let entry = plain
             .iter()

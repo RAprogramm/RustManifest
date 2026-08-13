@@ -50,7 +50,7 @@ impl Performed {
         resolution: Option<&rustmanifest_schema::Resolution>
     ) -> &[FunctionFacts] {
         self.facts
-            .get_or_init(|| crate::semantic::behavior::behavior_with(sources, resolution))
+            .get_or_init(|| crate::semantic::behavior_with(sources, resolution))
     }
 
     /// Returns the resolution context of `sources`, building it on the

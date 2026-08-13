@@ -230,7 +230,7 @@ mod tests {
     /// What a call to `function` hands back, in the caller's own terms.
     fn result(text: &str, function: &str) -> ComposedOrigin {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let context = resolution_context(&sources);
         let graph = call_graph(&facts, &context);
         summaries(&sources, &facts, &graph)

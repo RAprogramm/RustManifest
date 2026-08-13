@@ -12,11 +12,17 @@
 //! The fragment is found by its first occurrence, so a fixture wanting a
 //! later one says where to look from with [`Settling::after`].
 
+mod declared;
 mod identity;
+mod standard;
 
 use std::path::PathBuf;
 
-pub use self::identity::{identity_of, identity_over, settle_identity};
+pub use self::{
+    declared::{declared_over, settle_declared},
+    identity::{identity_of, identity_over, settle_identity},
+    standard::{settle_standard_macros, standard_macros_over}
+};
 use rustmanifest_schema::{
     Location, Range, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedGrant, ResolvedType,
     ResolvedTypeDecl, Resolution

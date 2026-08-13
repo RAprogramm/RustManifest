@@ -101,7 +101,7 @@ mod tests {
 
     fn first_role(text: &str) -> Role {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        role(&behavior(&sources)[0])
+        role(&crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))[0])
     }
 
     /// The role of the first function of `text`, read with what `settle`
@@ -112,7 +112,7 @@ mod tests {
     ) -> Role {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let resolution = settle(Settling::over("src/lib.rs", text)).done();
-        role(&crate::semantic::behavior::behavior_with(&sources, Some(&resolution))[0])
+        role(&crate::semantic::behavior_with(&sources, Some(&resolution))[0])
     }
 
     #[test]

@@ -51,7 +51,7 @@ mod tests {
     fn computed(body: &str) -> Vec<OperationSite> {
         let text = format!("fn compute(left: u32, right: u32) -> u32 {{\n{body}\n}}");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        behavior(&sources)
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
             .iter()
             .find(|fact| fact.function == "compute")
             .map(|fact| fact.operations.clone())

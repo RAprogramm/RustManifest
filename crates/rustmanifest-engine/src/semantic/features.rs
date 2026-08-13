@@ -176,7 +176,7 @@ mod tests {
 
     fn first_features(text: &str) -> Vec<super::Feature> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        features(&behavior(&sources)[0])
+        features(&crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))[0])
     }
 
     /// The features of the first function of `text`, read with what
@@ -187,7 +187,7 @@ mod tests {
     ) -> Vec<super::Feature> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let resolution = settle(Settling::over("src/lib.rs", text)).done();
-        features(&crate::semantic::behavior::behavior_with(&sources, Some(&resolution))[0])
+        features(&crate::semantic::behavior_with(&sources, Some(&resolution))[0])
     }
 
     fn active(all: &[super::Feature], name: &str) -> bool {

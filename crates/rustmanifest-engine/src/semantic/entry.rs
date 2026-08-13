@@ -193,7 +193,7 @@ mod tests {
 
     fn entries(path: &str, text: &str) -> Vec<(EntryKind, String)> {
         let sources = [Source::new(PathBuf::from(path), text.to_owned())];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         entry_points(&sources, &facts)
             .into_iter()
             .map(|entry| (entry.kind, entry.file))
@@ -205,7 +205,7 @@ mod tests {
     /// wrong item is visible.
     fn bindings(path: &str, text: &str) -> Vec<(Option<String>, bool)> {
         let sources = [Source::new(PathBuf::from(path), text.to_owned())];
-        let facts: Vec<FunctionFacts> = behavior(&sources);
+        let facts: Vec<FunctionFacts> = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         entry_points(&sources, &facts)
             .into_iter()
             .map(|entry| {

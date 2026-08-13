@@ -87,7 +87,11 @@ mod tests {
     use crate::{semantic::settling::Settling, source::Source};
 
     fn facts(text: &str) -> Vec<FunctionFacts> {
-        behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
+        {
+            let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+            let settled = crate::semantic::settling::standard_macros_over(&sources);
+            crate::semantic::behavior_with(&sources, Some(&settled))
+        }
     }
 
     /// The facts of `text` read with a resolver's answer that the
@@ -494,6 +498,9 @@ mod tests {
             Source::new(PathBuf::from("app/src/net.rs"), net_text.to_owned()),
             Source::new(PathBuf::from("app/src/disk.rs"), disk_text.to_owned()),
         ];
+        let mut resolution = resolution;
+        crate::semantic::settling::settle_declared(&mut resolution, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let all = super::behavior_with(&sources, Some(&resolution));
         let net = all
             .iter()

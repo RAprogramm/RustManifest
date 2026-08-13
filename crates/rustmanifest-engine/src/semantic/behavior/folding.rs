@@ -134,7 +134,7 @@ mod tests {
 
     fn written(text: &str) -> Option<String> {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        let facts = behavior(&sources);
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
