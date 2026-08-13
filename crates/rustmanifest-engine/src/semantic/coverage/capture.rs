@@ -10,10 +10,7 @@
 //! the counts, which is exactly the gap the measurement is meant to show.
 
 use super::report::count;
-use crate::{
-    semantic::graph::{TypeGraph, TypeKind},
-    source::Source
-};
+use crate::semantic::graph::{TypeGraph, TypeKind};
 
 /// Counters of the definitions and edges the type graph recorded.
 pub(super) struct Capture {
@@ -36,8 +33,7 @@ pub(super) struct Capture {
 }
 
 /// Counts what the type graph built from `sources` captured.
-pub(super) fn capture(sources: &[Source]) -> Capture {
-    let types = TypeGraph::from_sources(sources);
+pub(super) fn capture(types: &TypeGraph) -> Capture {
     let fields = types
         .types()
         .iter()
