@@ -117,13 +117,11 @@ pub(super) const STREAM_TYPES: [(&str, Stream); 4] = [
     ("StdoutLock", Stream::Stdout)
 ];
 
+
+
+/// Macros that end the current path rather than returning to it.
 /// Macros whose every argument is an expression, so the fact channel can
 /// read the same tokens the reachability fold reads.
-///
-/// Deliberately narrower than [`SETTLED_MACROS`]: `matches!` takes a
-/// pattern and `stringify!` takes arbitrary tokens, and reading either
-/// as an expression would invent call and read facts the source does not
-/// carry.
 pub(super) const EXPRESSION_MACROS: [&str; 20] = [
     "assert",
     "assert_eq",
@@ -147,28 +145,5 @@ pub(super) const EXPRESSION_MACROS: [&str; 20] = [
     "writeln"
 ];
 
-pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
-    "all",
-    "and_then",
-    "any",
-    "filter",
-    "filter_map",
-    "find",
-    "find_map",
-    "flat_map",
-    "for_each",
-    "inspect",
-    "is_some_and",
-    "map",
-    "map_or",
-    "map_or_else",
-    "position",
-    "retain",
-    "skip_while",
-    "take_while"
-];
-
-
-/// Macros that end the current path rather than returning to it.
 pub(super) const DIVERGING_MACROS: [&str; 4] = ["panic", "todo", "unimplemented", "unreachable"];
 

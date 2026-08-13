@@ -15,7 +15,7 @@ mod walk;
 
 use super::{
     FactCollector,
-    catalog::{BYTE_WRITE_METHOD, ITERATOR_ADAPTERS, TEXT_WRITE_METHOD}
+    catalog::{BYTE_WRITE_METHOD, TEXT_WRITE_METHOD}
 };
 use crate::semantic::knowledge;
 
@@ -88,7 +88,7 @@ impl FactCollector {
             crate::semantic::std_knowledge::carried_by(&method),
             Some(crate::semantic::std_knowledge::Carried::ClosureOver(_))
         );
-        if ITERATOR_ADAPTERS.contains(&method.as_str()) && !carried {
+        if !carried && call.args.iter().any(|argument| matches!(argument, syn::Expr::Closure(_))) {
             self.scoped(|collector| {
                 collector.walk_adapter_call(call, &span);
             });
