@@ -258,6 +258,9 @@ fn settled_types(
         if let Some(named) = outermost(&call.returns) {
             settled.produced.insert(at, named);
         }
+        if !call.returns.is_empty() {
+            settled.rendered.insert(at, call.returns.clone());
+        }
         if let Some(named) = call.receiver.as_deref().and_then(outermost) {
             settled.receivers.insert(at, named);
         }

@@ -142,7 +142,11 @@ const NUMERIC: [&str; 20] = [
 /// The outcome methods a fixture writes, each with the body it reaches:
 /// which of the two outcome types a call lands in is the compiler's
 /// answer, and a fixture of a few lines writes the one its receiver has.
-const OUTCOME_METHODS: [(&str, &str); 10] = [
+const OUTCOME_METHODS: [(&str, &str); 14] = [
+    ("is_some", "core::option::Option::is_some"),
+    ("is_none", "core::option::Option::is_none"),
+    ("is_ok", "core::result::Result::is_ok"),
+    ("is_err", "core::result::Result::is_err"),
     ("map_err", "core::result::Result::map_err"),
     ("unwrap_or_default", "core::result::Result::unwrap_or_default"),
     ("unwrap_or", "core::option::Option::unwrap_or"),
