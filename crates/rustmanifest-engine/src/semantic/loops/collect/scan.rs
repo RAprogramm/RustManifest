@@ -34,6 +34,10 @@ pub(super) struct LoopFinder<'out> {
     pub(super) function:   String,
     /// Full source text, for line expansion and indentation.
     pub(super) text:       &'out str,
+    /// File the visited source is written in, as a resolution keys it.
+    pub(super) file:       &'out std::path::Path,
+    /// What a resolver settled about the sources, where one ran.
+    pub(super) settled:    Option<&'out rustmanifest_schema::Resolution>,
     /// Output collection shared across loops of the function.
     pub(super) candidates: &'out mut Vec<Candidate>
 }
@@ -51,7 +55,9 @@ impl LoopFinder<'_> {
         };
         binder.visit_block(body);
         let mut mutated = MutatedCollector {
-            roots: Vec::new()
+            roots:   Vec::new(),
+            settled: self.settled,
+            file:    self.file
         };
         mutated.visit_block(body);
         for (index, statement) in body.stmts.iter().enumerate() {
@@ -72,7 +78,9 @@ impl LoopFinder<'_> {
             let name = ident.to_string();
             let mut uses = UseCollector {
                 name:    name.clone(),
-                summary: UseSummary::default()
+                summary: UseSummary::default(),
+                settled: self.settled,
+                file:    self.file
             };
             for later in &body.stmts[index + 1..] {
                 uses.visit_stmt(later);

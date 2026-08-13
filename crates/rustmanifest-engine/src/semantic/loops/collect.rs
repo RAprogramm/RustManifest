@@ -24,14 +24,19 @@ pub(super) use self::candidate::Candidate;
 use self::scan::LoopFinder;
 use crate::{semantic::expr::impl_type_name, source::Source};
 
-/// Collects loop-local `let` candidates from every function in `sources`.
-pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
+/// Collects loop-local `let` candidates from every function in `sources`,
+/// reading what a resolver settled about them where one ran.
+pub(super) fn candidates(
+    sources: &[Source],
+    settled: Option<&rustmanifest_schema::Resolution>
+) -> Vec<Candidate> {
     let mut found = Vec::new();
     for (index, source) in sources.iter().enumerate() {
         let Some(file) = source.tree() else {
             continue;
         };
         let text = source.text();
+        let path = source.path();
         let mut items = Vec::new();
         crate::ast::flattened(&file.items, &mut items);
         for item in items {
@@ -41,6 +46,8 @@ pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
                         source: index,
                         function: function.sig.ident.to_string(),
                         text,
+                        file: path,
+                        settled,
                         candidates: &mut found
                     };
                     finder.visit_block(&function.block);
@@ -57,6 +64,8 @@ pub(super) fn candidates(sources: &[Source]) -> Vec<Candidate> {
                             source: index,
                             function: format!("{type_name}::{}", method.sig.ident),
                             text,
+                            file: path,
+                            settled,
                             candidates: &mut found
                         };
                         finder.visit_block(&method.block);

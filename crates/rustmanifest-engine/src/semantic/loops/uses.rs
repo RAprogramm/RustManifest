@@ -9,11 +9,10 @@
 //! and macro mentions are counted, never guessed at — the conservative
 //! buckets are what keeps the loop rules free of false positives.
 
-use syn::visit::Visit;
+use rustmanifest_schema::{Location, Range, ResolvedMode, Resolution};
+use syn::{spanned::Spanned, visit::Visit};
 
-use crate::semantic::expr::{
-    MUTATING_METHODS, compound_assignment, consuming_method, place_root, token_words
-};
+use crate::semantic::expr::{compound_assignment, place_root, token_words};
 
 /// Classified uses of one binding within the rest of a loop body.
 #[derive(Default)]
@@ -24,11 +23,12 @@ pub(super) struct UseSummary {
     pub(super) shared_borrows: u32,
     /// Mutable borrows of the binding or one of its fields.
     pub(super) mut_borrows:    u32,
-    /// Assignments to the binding and known mutating method calls.
+    /// Assignments to the binding and calls taking it exclusively.
     pub(super) mutations:      u32,
-    /// Method calls that are neither known-mutating nor consuming.
+    /// Calls the compiler says only borrow the binding.
     pub(super) calls:          u32,
-    /// Consuming method calls (`into_*`, `leak`).
+    /// Calls taking the binding by value, and calls the resolver settled
+    /// nothing about.
     pub(super) moves:          u32,
     /// Bare uses that could move the value (call argument, return, push).
     pub(super) bare:           u32,
@@ -37,14 +37,34 @@ pub(super) struct UseSummary {
 }
 
 /// Visitor classifying every use of one binding.
-pub(super) struct UseCollector {
+pub(super) struct UseCollector<'settled> {
     /// The binding under observation.
     pub(super) name:    String,
     /// Classified counts.
-    pub(super) summary: UseSummary
+    pub(super) summary: UseSummary,
+    /// What a resolver settled about the sources, where one ran.
+    pub(super) settled: Option<&'settled Resolution>,
+    /// File the visited body is written in, as the resolution keys it.
+    pub(super) file:    &'settled std::path::Path
 }
 
-impl UseCollector {
+impl UseCollector<'_> {
+    /// How the call written here takes its receiver, where the resolver
+    /// settled it.
+    fn takes(&self, call: &syn::ExprMethodCall) -> Option<ResolvedMode> {
+        let bytes = call.span().byte_range();
+        let at = Location {
+            file:  self.file.to_path_buf(),
+            range: Range {
+                start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+                end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+            }
+        };
+        self.settled
+            .and_then(|settled| settled.at(&at))
+            .and_then(|settled| settled.takes)
+    }
+
     /// Returns whether `expr` is a bare path naming the binding.
     fn is_binding(&self, expr: &syn::Expr) -> bool {
         matches!(expr, syn::Expr::Path(path) if path.path.is_ident(self.name.as_str()))
@@ -56,16 +76,13 @@ impl UseCollector {
     }
 }
 
-impl<'ast> Visit<'ast> for UseCollector {
+impl<'ast> Visit<'ast> for UseCollector<'_> {
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
         if self.is_binding(&call.receiver) {
-            let method = call.method.to_string();
-            if consuming_method(&method) {
-                self.summary.moves += 1;
-            } else if MUTATING_METHODS.contains(&method.as_str()) {
-                self.summary.mutations += 1;
-            } else {
-                self.summary.calls += 1;
+            match self.takes(call) {
+                Some(ResolvedMode::Borrowed) => self.summary.calls += 1,
+                Some(ResolvedMode::BorrowedMut) => self.summary.mutations += 1,
+                Some(ResolvedMode::Owned) | None => self.summary.moves += 1
             }
             for argument in &call.args {
                 self.visit_expr(argument);

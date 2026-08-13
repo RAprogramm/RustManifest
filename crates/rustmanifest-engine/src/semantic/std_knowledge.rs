@@ -48,60 +48,6 @@ pub(super) fn is_primitive_copy(name: &str) -> bool {
     PRIMITIVE_COPY_TYPES.contains(&name)
 }
 
-/// Methods on std containers, strings, and cells that mutate their
-/// receiver in place.
-pub(super) const MUTATING_METHODS: [&str; 31] = [
-    "append",
-    "borrow_mut",
-    "clear",
-    "dedup",
-    "drain",
-    "extend",
-    "extend_from_slice",
-    "fill",
-    "get_mut",
-    "get_or_insert",
-    "insert",
-    "insert_str",
-    "lock",
-    "make_ascii_lowercase",
-    "make_ascii_uppercase",
-    "pop",
-    "push",
-    "push_str",
-    "remove",
-    "replace",
-    "reserve",
-    "resize",
-    "retain",
-    "set",
-    "sort",
-    "sort_by",
-    "sort_unstable",
-    "store",
-    "take",
-    "truncate",
-    "write"
-];
-
-/// Returns whether `method` consumes its receiver: the `into_*` family,
-/// leaking, and the `Option`/`Result` adapters that take `self`.
-pub(super) fn consuming_method(method: &str) -> bool {
-    method.starts_with("into")
-        || matches!(
-            method,
-            "and_then"
-                | "expect"
-                | "leak"
-                | "map"
-                | "map_err"
-                | "or_else"
-                | "unwrap"
-                | "unwrap_or"
-                | "unwrap_or_default"
-                | "unwrap_or_else"
-        )
-}
 
 #[cfg(test)]
 #[allow(
@@ -111,7 +57,7 @@ pub(super) fn consuming_method(method: &str) -> bool {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{MUTATING_METHODS, consuming_method, is_primitive_copy};
+    use super::is_primitive_copy;
 
     /// The language's own primitives answer here and nothing else does:
     /// a library type that happens to be copied is the compiler's answer,
@@ -123,18 +69,4 @@ mod tests {
         assert!(!is_primitive_copy("String"));
     }
 
-    #[test]
-    fn adapters_and_into_family_consume() {
-        assert!(consuming_method("into_bytes"));
-        assert!(consuming_method("unwrap"));
-        assert!(consuming_method("map_err"));
-        assert!(!consuming_method("len"));
-    }
-
-    #[test]
-    fn mutating_table_is_sorted_for_review() {
-        let mut sorted = MUTATING_METHODS;
-        sorted.sort_unstable();
-        assert_eq!(sorted, MUTATING_METHODS);
-    }
 }

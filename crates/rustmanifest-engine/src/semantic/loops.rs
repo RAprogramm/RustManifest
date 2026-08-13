@@ -42,7 +42,7 @@ use super::{insight::Insight, workspace::Workspace};
 pub(super) fn clone_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let sources = workspace.sources();
     let mut found = Vec::new();
-    for candidate in candidates(sources) {
+    for candidate in candidates(sources, workspace.resolution()) {
         let Origin::Clone {
             ref chain,
             ref method,
@@ -118,7 +118,7 @@ pub(super) fn clone_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
 pub(super) fn allocation_insights(workspace: &Workspace<'_>) -> Vec<Insight> {
     let sources = workspace.sources();
     let mut found = Vec::new();
-    for candidate in candidates(sources) {
+    for candidate in candidates(sources, workspace.resolution()) {
         let Origin::Allocation {
             ref call
         } = candidate.origin
