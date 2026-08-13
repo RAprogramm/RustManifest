@@ -631,6 +631,36 @@ fn database_todo_settled() -> rustmanifest_schema::Resolution {
         .typed("text", "&String")
         .rewound()
         .call("text.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&String"))
+        .reaching(
+            "text.parse::<u64>().ok()",
+            "core::result::Result::ok",
+            "Option<u64>",
+            Some("Result<u64, ParseIntError>")
+        )
+        .reaching(
+            "args.get(2).and_then(|text| text.parse::<u64>().ok())",
+            "core::option::Option::and_then",
+            "Option<u64>",
+            Some("Option<&String>")
+        )
+        .reaching(
+            "args.get(2).and_then(|text| text.parse::<u64>().ok()).unwrap_or(0)",
+            "core::option::Option::unwrap_or",
+            "u64",
+            Some("Option<u64>")
+        )
+        .reaching(
+            "args.get(1).map(String::as_str)",
+            "core::option::Option::map",
+            "Option<&str>",
+            Some("Option<&String>")
+        )
+        .reaching(
+            "args.get(1).map(String::as_str).unwrap_or(\"list\")",
+            "core::option::Option::unwrap_or",
+            "&str",
+            Some("Option<&str>")
+        )
         .call("store.add(title)", "add", "u64", Some("&mut Store"))
         .call("store.complete(id)", "complete", "bool", Some("&mut Store"))
         .done()
@@ -868,8 +898,48 @@ fn todo_settled() -> rustmanifest_schema::Resolution {
         .after("|text|")
         .typed("text", "&String")
         .rewound()
-        .call("text.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&String"))
-        .call("id.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&str"))
+        .converting(
+            "text.parse::<u64>()",
+            "parse",
+            "Result<u64, ParseIntError>",
+            Some("&String")
+        )
+        .converting(
+            "id.parse::<u64>()",
+            "parse",
+            "Result<u64, ParseIntError>",
+            Some("&str")
+        )
+        .reaching(
+            "text.parse::<u64>().ok()",
+            "core::result::Result::ok",
+            "Option<u64>",
+            Some("Result<u64, ParseIntError>")
+        )
+        .reaching(
+            "args.get(2).and_then(|text| text.parse::<u64>().ok())",
+            "core::option::Option::and_then",
+            "Option<u64>",
+            Some("Option<&String>")
+        )
+        .reaching(
+            "args.get(2).and_then(|text| text.parse::<u64>().ok()).unwrap_or(0)",
+            "core::option::Option::unwrap_or",
+            "u64",
+            Some("Option<u64>")
+        )
+        .reaching(
+            "args.get(1).map(String::as_str)",
+            "core::option::Option::map",
+            "Option<&str>",
+            Some("Option<&String>")
+        )
+        .reaching(
+            "args.get(1).map(String::as_str).unwrap_or(\"list\")",
+            "core::option::Option::unwrap_or",
+            "&str",
+            Some("Option<&str>")
+        )
         .call("store.add(title)", "add", "u64", Some("&mut Store"))
         .call("store.complete(id)", "complete", "bool", Some("&mut Store"))
         .call("store.save()", "save", "Result<(), io::Error>", Some("&Store"))
