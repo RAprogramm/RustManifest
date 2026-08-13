@@ -142,6 +142,51 @@ impl Settled {
         self
     }
 
+    /// States that every call written as `fragment` hands back a type
+    /// the caller decides, which is what makes it a conversion.
+    fn converting(mut self, fragment: &str, callee: &str, returns: &str, receiver: Option<&str>) -> Self {
+        for at in self.places(fragment) {
+            self.held.calls.push(rustmanifest_schema::ResolvedCall {
+                at,
+                callee: callee.to_owned(),
+                returns: returns.to_owned(),
+                receiver: receiver.map(ToOwned::to_owned),
+                receiver_path: None,
+                caller_decides: true,
+                reaches: None,
+                takes: None
+            });
+        }
+        self
+    }
+
+    /// States which body every call written as `fragment` reaches,
+    /// beside what it hands back.
+    ///
+    /// Which library body a call lands in is the compiler's answer, and
+    /// every reading of what a call carries is keyed by it.
+    fn reaching(
+        mut self,
+        fragment: &str,
+        reaches: &str,
+        returns: &str,
+        receiver: Option<&str>
+    ) -> Self {
+        for at in self.places(fragment) {
+            self.held.calls.push(rustmanifest_schema::ResolvedCall {
+                at,
+                callee: reaches.rsplit("::").next().unwrap_or(reaches).to_owned(),
+                returns: returns.to_owned(),
+                receiver: receiver.map(ToOwned::to_owned),
+                receiver_path: None,
+                caller_decides: false,
+                reaches: Some(reaches.to_owned()),
+                takes: None
+            });
+        }
+        self
+    }
+
     /// Hands back the resolution, in the order every lookup bisects.
     fn done(mut self) -> rustmanifest_schema::Resolution {
         self.held.settle();
@@ -1025,7 +1070,42 @@ fn tutorial_settled() -> rustmanifest_schema::Resolution {
         .typed("raw", "&String")
         .typed("command", "&str")
         .typed("id", "usize")
-        .call("raw.parse::<usize>()", "parse", "Result<usize, ParseIntError>", Some("&String"))
+        .converting(
+            "raw.parse::<usize>()",
+            "parse",
+            "Result<usize, ParseIntError>",
+            Some("&String")
+        )
+        .reaching(
+            "raw.parse::<usize>().ok()",
+            "core::result::Result::ok",
+            "Option<usize>",
+            Some("Result<usize, ParseIntError>")
+        )
+        .reaching(
+            "args.get(2).and_then(|raw| raw.parse::<usize>().ok())",
+            "core::option::Option::and_then",
+            "Option<usize>",
+            Some("Option<&String>")
+        )
+        .reaching(
+            "args.get(2).and_then(|raw| raw.parse::<usize>().ok()).unwrap_or(0)",
+            "core::option::Option::unwrap_or",
+            "usize",
+            Some("Option<usize>")
+        )
+        .reaching(
+            "args.get(1).map(String::as_str)",
+            "core::option::Option::map",
+            "Option<&str>",
+            Some("Option<&String>")
+        )
+        .reaching(
+            "args.get(1).map(String::as_str).unwrap_or(\"list\")",
+            "core::option::Option::unwrap_or",
+            "&str",
+            Some("Option<&str>")
+        )
         .done()
 }
 

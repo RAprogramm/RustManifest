@@ -15,6 +15,26 @@ use crate::semantic::behavior::{
     value::Provenance
 };
 
+/// The type a conversion produces, read off the rendering the compiler
+/// settled for it: what a fallible or optional answer carries, and the
+/// answer itself otherwise.
+///
+/// A conversion that can decline still produces the type it was asked
+/// for; naming the wrapper instead would state the shape of the answer
+/// where the source asked for its content.
+fn produced_target(rendered: &str) -> Option<String> {
+    let trimmed = rendered.trim();
+    let outermost = crate::semantic::behavior::outermost_name(trimmed)?;
+    if !matches!(outermost.as_str(), "Result" | "Option") {
+        return Some(outermost);
+    }
+    let inside = trimmed
+        .split_once('<')
+        .and_then(|(_, rest)| rest.strip_suffix('>'))?;
+    let carried = inside.split(',').next()?;
+    crate::semantic::behavior::outermost_name(carried)
+}
+
 impl FactCollector {
     /// Records the conversion a library method performs, where a
     /// knowledge row states that the caller decides what it produces.
@@ -39,7 +59,11 @@ impl FactCollector {
         if !self.caller_decided.contains(&at) {
             return false;
         }
-        let target = self.settled_type_over(&span);
+        let target = self
+            .settled_type_over_full(&span)
+            .as_deref()
+            .and_then(produced_target)
+            .or_else(|| self.settled_type_over(&span));
         let guarding = match target
             .as_deref()
             .and_then(crate::semantic::behavior::outermost_name)
