@@ -139,6 +139,27 @@ const NUMERIC: [&str; 20] = [
     "pow"
 ];
 
+/// The outcome methods a fixture writes, each with the body it reaches:
+/// which of the two outcome types a call lands in is the compiler's
+/// answer, and a fixture of a few lines writes the one its receiver has.
+const OUTCOME_METHODS: [(&str, &str); 10] = [
+    ("map_err", "core::result::Result::map_err"),
+    ("unwrap_or_default", "core::result::Result::unwrap_or_default"),
+    ("unwrap_or", "core::option::Option::unwrap_or"),
+    ("unwrap", "core::option::Option::unwrap"),
+    ("expect", "core::option::Option::expect"),
+    ("ok_or", "core::option::Option::ok_or"),
+    ("ok", "core::result::Result::ok"),
+    ("and_then", "core::option::Option::and_then"),
+    ("map", "core::option::Option::map"),
+    ("cloned", "core::option::Option::cloned")
+];
+
+/// The library methods whose declared return is spelled out of the
+/// function's own type parameters, which makes the type the caller's to
+/// decide — the mark of a conversion.
+const CALLER_DECIDED: [&str; 5] = ["parse", "into", "collect", "try_into", "to_owned"];
+
 /// The methods that single out one element by a written position: the
 /// compiler types their answer as an option, whether or not anything
 /// stands under that key.
@@ -218,6 +239,8 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_guards(resolution, sources);
     settle_container_methods(resolution, sources);
     settle_positional(resolution, sources);
+    settle_conversions(resolution, sources);
+    settle_outcome_methods(resolution, sources);
     resolution.settle();
 }
 
@@ -301,6 +324,71 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                     receiver_path:  None,
                     caller_decides: false,
                     reaches:        Some(names.to_owned()),
+                    takes:          None
+                });
+            }
+        }
+    }
+}
+
+/// Records which body each outcome method a fixture writes reaches.
+fn settle_outcome_methods(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for (method, reaches) in OUTCOME_METHODS {
+            let spelled = format!(".{method}(");
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+                let start = from + at;
+                let opens = start + spelled.len() - 1;
+                from = opens;
+                let Some(whole) = written_call(text, opens) else {
+                    continue;
+                };
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: whole
+                    },
+                    callee:         method.to_owned(),
+                    returns:        String::new(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        Some(reaches.to_owned()),
+                    takes:          None
+                });
+            }
+        }
+    }
+}
+
+/// Records the calls whose answer the caller decides, which is what
+/// makes a call a conversion rather than an access.
+fn settle_conversions(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for method in CALLER_DECIDED {
+            let spelled = format!(".{method}(");
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+                let start = from + at;
+                let opens = start + spelled.len() - 1;
+                from = opens;
+                let Some(whole) = written_call(text, opens) else {
+                    continue;
+                };
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: whole
+                    },
+                    callee:         method.to_owned(),
+                    returns:        String::new(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: true,
+                    reaches:        None,
                     takes:          None
                 });
             }
