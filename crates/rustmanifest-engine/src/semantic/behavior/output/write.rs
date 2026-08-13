@@ -518,8 +518,8 @@ mod tests {
             .typed("helper()", "u8")
             .done();
         let mut settled = settled;
-        crate::semantic::settling::settle_declared(&mut settled, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut settled, &sources);
+        crate::semantic::settling::settle_declared(&mut settled, &returning);
+        crate::semantic::settling::settle_standard_macros(&mut settled, &returning);
         let plain = behavior_with(&returning, Some(&settled));
         let entry = plain
             .iter()
