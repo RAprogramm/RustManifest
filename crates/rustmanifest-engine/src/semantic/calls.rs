@@ -95,6 +95,8 @@ mod tests {
     ) -> (Vec<FunctionFacts>, super::CallGraph) {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let mut resolution = settle(Settling::over("src/lib.rs", text)).done();
+        crate::semantic::settling::settle_declared(&mut resolution, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let facts = behavior_with(&sources, Some(&resolution));
         settle_identity(&mut resolution, &sources, &facts);
         let graph = call_graph(
