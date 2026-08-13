@@ -50,7 +50,7 @@ fn settle_beside(root: &std::path::Path) {
             Some(rustmanifest_engine::Source::new(named.to_path_buf(), text))
         })
         .collect();
-    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    let settled = settled_over(&sources);
     std::fs::write(
         root.join("resolution.json"),
         serde_json::to_string(&settled).expect("the overlay serializes")
@@ -156,6 +156,20 @@ fn scripted() -> BTreeMap<i64, Value> {
             "name": "why_kept", "arguments": {"path": "need.rs", "store": "Ghost"}
         }})
     ])
+}
+
+
+/// What a compiler settles about `sources`, asked of the compiler.
+fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
+    let written: Vec<(String, String)> = sources
+        .iter()
+        .map(|held| (held.path().display().to_string(), held.text().to_owned()))
+        .collect();
+    let asked: Vec<(&str, &str)> = written
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    rustmanifest_fixture::settled(&asked)
 }
 
 #[test]

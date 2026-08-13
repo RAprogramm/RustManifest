@@ -87,7 +87,7 @@ mod tests {
     /// The rendered section of one written snippet's first function.
     fn section(text: &str) -> Option<String> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let settled = settled_over(&sources);
         let facts = rustmanifest_engine::behavior_with(&sources, Some(&settled));
         super::output_section(&facts[0].output_writes)
     }

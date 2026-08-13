@@ -200,7 +200,7 @@ mod tests {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
         let held = super::deduce_with_precedent(
             &sources,
-            Some(&rustmanifest_engine::semantic::settling::compiler_over(&sources)),
+            Some(&settled_over(&sources)),
             "User",
             "Display"
         ).unwrap();
@@ -237,7 +237,7 @@ mod tests {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
         let held = super::deduce_with_precedent(
             &sources,
-            Some(&rustmanifest_engine::semantic::settling::compiler_over(&sources)),
+            Some(&settled_over(&sources)),
             "User",
             "Default"
         ).unwrap();
@@ -279,7 +279,7 @@ mod tests {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
         let held = super::deduce_with_precedent(
             &sources,
-            Some(&rustmanifest_engine::semantic::settling::compiler_over(&sources)),
+            Some(&settled_over(&sources)),
             "User",
             "Default"
         ).unwrap();
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn io_clauses_mention_the_console_effect() {
         let sources = corpus();
-        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let settled = settled_over(&sources);
         let learned = learn_roles(
             &Workspace::resolved(&sources, &settled),
             LearnOptions::default()
@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn absent_roles_are_skipped() {
         let sources = corpus();
-        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let settled = settled_over(&sources);
         let learned = learn_roles(
             &Workspace::resolved(&sources, &settled),
             LearnOptions::default()

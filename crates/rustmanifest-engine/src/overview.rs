@@ -158,8 +158,8 @@ mod tests {
     #[test]
     fn report_is_deterministic() {
         assert_eq!(
-            overview_markdown(&Workspace::resolved(&sources(), &crate::semantic::settling::compiler_over(&sources())), 10, &[]),
-            overview_markdown(&Workspace::resolved(&sources(), &crate::semantic::settling::compiler_over(&sources())), 10, &[])
+            overview_markdown(&Workspace::resolved(&sources(), &crate::semantic::settling::settled_over(&sources())), 10, &[]),
+            overview_markdown(&Workspace::resolved(&sources(), &crate::semantic::settling::settled_over(&sources())), 10, &[])
         );
     }
 }

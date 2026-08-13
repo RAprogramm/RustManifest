@@ -212,13 +212,13 @@ mod tests {
         invariants: &[Invariant],
         typed: &[(&str, &str)]
     ) -> Vec<Finding> {
-        let settled = settled_over(sources, typed);
+        let settled = settled_over_text(sources, typed);
         check_invariants_settled(sources, invariants, None, Some(&settled))
     }
 
     /// The module tree of the layout, the types `typed` states, and the
     /// body each written call reaches.
-    fn settled_over(
+    fn settled_over_text(
         sources: &[Source],
         typed: &[(&str, &str)]
     ) -> rustmanifest_schema::Resolution {
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn a_precomputed_snapshot_judges_the_same_violation() {
         let sources = wallet_sources();
-        let settled = settled_over(&sources, WALLET_TYPES);
+        let settled = settled_over_text(&sources, WALLET_TYPES);
         let facts = crate::semantic::behavior_with(&sources, Some(&settled));
         let graph = crate::semantic::calls::call_graph(
             &facts,

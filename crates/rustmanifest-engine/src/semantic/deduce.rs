@@ -224,7 +224,7 @@ mod tests {
     fn a_chain_reaches_a_confirmed_panic_free_gain() {
         let held = deduce_impl(
             &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
-            Some(&crate::semantic::settling::compiler_over(&one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"))),
+            Some(&crate::semantic::settling::settled_over(&one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"))),
             0,
             "User",
             "Display"
@@ -242,7 +242,7 @@ mod tests {
     fn a_default_chain_speaks_the_default_vocabulary() {
         let held = deduce_impl(
             &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
-            Some(&crate::semantic::settling::compiler_over(&one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"))),
+            Some(&crate::semantic::settling::settled_over(&one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"))),
             0,
             "User",
             "Default"
@@ -271,7 +271,7 @@ mod tests {
     fn the_catalog_marker_names_its_step_and_its_form() {
         let held = deduce_impl(
             &one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"),
-            Some(&crate::semantic::settling::compiler_over(&one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"))),
+            Some(&crate::semantic::settling::settled_over(&one("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"))),
             0,
             "User",
             "Display"
@@ -293,7 +293,7 @@ mod tests {
     fn a_chain_stopped_before_the_choice_carries_no_marker() {
         let held = deduce_impl(
             &one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"),
-            Some(&crate::semantic::settling::compiler_over(&one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"))),
+            Some(&crate::semantic::settling::settled_over(&one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"))),
             0,
             "Batch",
             "Display"
@@ -308,7 +308,7 @@ mod tests {
     fn an_unproven_field_stops_the_chain_at_itself() {
         let held = deduce_impl(
             &one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"),
-            Some(&crate::semantic::settling::compiler_over(&one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"))),
+            Some(&crate::semantic::settling::settled_over(&one("pub struct Batch {\n    pub held: Vec<String>,\n}\n"))),
             0,
             "Batch",
             "Display"

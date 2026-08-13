@@ -91,6 +91,20 @@ fn applied(text: &str, finding: &Finding) -> String {
 
 /// Every single-file fix a bundled rule synthesizes on its own `fail`
 /// fixture must compile once applied.
+
+/// What a compiler settles about `sources`, asked of the compiler.
+fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
+    let written: Vec<(String, String)> = sources
+        .iter()
+        .map(|held| (held.path().display().to_string(), held.text().to_owned()))
+        .collect();
+    let asked: Vec<(&str, &str)> = written
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    rustmanifest_fixture::settled(&asked)
+}
+
 #[test]
 fn every_applied_fix_survives_the_compiler() {
     let rules_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -114,7 +128,7 @@ fn every_applied_fix_survives_the_compiler() {
             continue;
         };
         let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.clone())];
-        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let settled = settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let analyzer = SemanticAnalyzer::new(rule.clone()).expect("a bundled rule builds");
         for finding in analyzer.analyze(&workspace) {
@@ -207,7 +221,7 @@ fn every_fulfilled_intent_survives_the_compiler() {
     let text = "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
                 Job::default()\n}\n";
     let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    let settled = settled_over(&sources);
     let fulfilled = rustmanifest_engine::semantic::fulfill_intents(&sources, Some(&settled));
     assert!(!fulfilled.is_empty(), "the written call states an intent");
     for held in fulfilled {

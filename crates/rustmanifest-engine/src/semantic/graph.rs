@@ -311,7 +311,7 @@ mod tests {
         let mut held = TypeGraph::from_sources(&sources);
         held.granted_by(
             &sources,
-            Some(&crate::semantic::settling::compiler_over(&sources))
+            Some(&crate::semantic::settling::settled_over(&sources))
         );
         held
     }

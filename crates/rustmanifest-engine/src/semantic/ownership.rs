@@ -207,7 +207,7 @@ mod tests {
 
     fn found(text: &str) -> usize {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let mut settled = crate::semantic::settling::compiler_over(&sources);
+        let mut settled = crate::semantic::settling::settled_over(&sources);
         settled.layouts = weighed().layouts;
         settled.settle();
         insights(&Workspace::resolved(&sources, &settled)).len()

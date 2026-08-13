@@ -108,7 +108,7 @@ mod tests {
     fn a_module_binding_a_socket_serves_and_says_what_proved_it() {
         let sources =
             sources("pub fn run() { std::net::TcpListener::bind(\"0.0.0.0:80\").ok(); }");
-        let rows = capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)));
+        let rows = capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].proven.capability, Capability::Serves);
         assert_eq!(rows[0].proven.evidence.function, "run");
@@ -122,7 +122,7 @@ mod tests {
             "pub fn run() { std::net::TcpListener::bind(\"0\").ok(); }\npub fn conf() { \
              std::env::var(\"PORT\").ok(); }"
         );
-        let rows = capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)));
+        let rows = capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
         let found: Vec<Capability> = rows.iter().map(|row| row.proven.capability).collect();
         assert_eq!(found, vec![Capability::Serves, Capability::Configures]);
     }
@@ -132,7 +132,7 @@ mod tests {
         let sources = sources(
             "pub fn a() { std::env::var(\"A\").ok(); }\npub fn b() { std::env::var(\"B\").ok(); }"
         );
-        let rows = capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)));
+        let rows = capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].proven.evidence.function, "a");
     }
@@ -140,12 +140,12 @@ mod tests {
     #[test]
     fn a_module_touching_nothing_outside_gets_no_row() {
         let sources = sources("pub fn add(left: u8, right: u8) -> u8 { left + right }");
-        assert!(capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources))).is_empty());
+        assert!(capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))).is_empty());
     }
 
     #[test]
     fn unsafe_alone_proves_no_capability() {
         let sources = sources("pub fn poke() { unsafe { } }");
-        assert!(capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources))).is_empty());
+        assert!(capabilities(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))).is_empty());
     }
 }

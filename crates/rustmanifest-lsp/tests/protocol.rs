@@ -206,7 +206,7 @@ impl Settled {
             std::path::PathBuf::from(file),
             self.text.clone()
         )];
-        let held = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let held = settled_over(&sources);
         self.held.declared.extend(held.declared);
         self.held.grants.extend(held.grants);
         self.held.signatures.extend(held.signatures);
@@ -393,6 +393,20 @@ fn opened_in(
 
 /// A source the bundled rules flag: a hardcoded credential.
 const FLAGGED: &str = "fn main() {\n    let password = \"hunter2\";\n}\n";
+
+
+/// What a compiler settles about `sources`, asked of the compiler.
+fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
+    let written: Vec<(String, String)> = sources
+        .iter()
+        .map(|held| (held.path().display().to_string(), held.text().to_owned()))
+        .collect();
+    let asked: Vec<(&str, &str)> = written
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    rustmanifest_fixture::settled(&asked)
+}
 
 #[test]
 fn an_opened_document_with_a_violation_receives_its_diagnostic() {

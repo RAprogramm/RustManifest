@@ -113,7 +113,7 @@ mod tests {
 
     fn statement(text: &str) -> Narrative {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        let settled = crate::semantic::settling::compiler_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         program_meaning(&Workspace::resolved(&sources, &settled))
             .into_iter()
             .next()

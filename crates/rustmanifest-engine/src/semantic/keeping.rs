@@ -71,7 +71,7 @@ mod tests {
     /// saying it. Which body each written call reaches is settled beside
     /// it, so a command reaching a store's method is an edge and not a
     /// guess.
-    fn settled_over(sources: &[Source]) -> rustmanifest_schema::Resolution {
+    fn settled_over_text(sources: &[Source]) -> rustmanifest_schema::Resolution {
         let resolution = Settling::over("src/lib.rs", sources[0].text())
             .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
             .rewound()
@@ -165,7 +165,7 @@ pub fn run(store: &mut Store, asked: &str) {
 }
 "#;
         let sources = workspace_of(&format!("{TASK_STORE}{asking}"));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
@@ -184,7 +184,7 @@ pub fn run(store: &mut Store, asked: &str) {
     #[test]
     fn a_field_holding_a_collection_of_a_declared_type_is_a_store() {
         let sources = workspace_of(TASK_STORE);
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let held = stores(&workspace);
         assert_eq!(held.len(), 1);
@@ -200,7 +200,7 @@ pub fn run(store: &mut Store, asked: &str) {
              title: String,\n    pub done:  bool\n}\n\npub struct Shared {\n    pub tasks: \
              Arc<Mutex<BTreeMap<u64, Task>>>\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let held = stores(&workspace);
         assert_eq!(held.len(), 1);
@@ -218,7 +218,7 @@ pub fn run(store: &mut Store, asked: &str) {
              State<AppState>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
              tasks.len()\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         let listed = read
@@ -239,7 +239,7 @@ pub fn run(store: &mut Store, asked: &str) {
              tasks.len()\n}\n\npub fn app() -> Router {\n    Router::new().route(\"/tasks\", \
              get(list))\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
@@ -260,7 +260,7 @@ pub fn run(store: &mut Store, asked: &str) {
              tasks.get(&id).is_some()\n}\n\npub fn app() -> Router {\n    \
              Router::new().route(\"/tasks/{id}\", get(read))\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
@@ -283,7 +283,7 @@ pub fn run(store: &mut Store, asked: &str) {
              tasks.get(&1).is_some()\n}\n\npub fn app() -> Router {\n    \
              Router::new().route(\"/tasks/{id}\", get(read))\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
@@ -309,7 +309,7 @@ pub fn run(store: &mut Store, asked: &str) {
 }
 "#;
         let sources = workspace_of(&format!("{TASK_STORE}{asking}"));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let asked = commands(&workspace);
         let named = |written: &str| {
@@ -330,7 +330,7 @@ pub fn run(store: &mut Store, asked: &str) {
              std::collections::BTreeMap::new() }};\n        for (_, task) in &store.tasks {{\n    \
                      let _ = &task.title;\n        }}\n    }}\n}}\n"
         ));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         assert!(
@@ -351,7 +351,7 @@ pub fn run(store: &mut Store, asked: &str) {
              sqlx::query!(\"INSERT INTO tasks (title) VALUES ($1)\", title);\n}\npub async fn \
              list(pool: &sqlx::PgPool) {\n    sqlx::query!(\"SELECT id, title FROM tasks\");\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let held = tables(&workspace);
         assert_eq!(held.len(), 1, "{held:?}");
@@ -380,7 +380,7 @@ pub fn run(store: &mut Store, asked: &str) {
              &sqlx::PgPool) {\n    sqlx::query_as::<_, Task>(\"SELECT id, title FROM \
              tasks\");\n}\n"
         );
-        let settled = settled_over(&one);
+        let settled = crate::semantic::settling::settled_over(&one);
         let workspace = Workspace::resolved(&one, &settled);
         let held = tables(&workspace);
         assert_eq!(held.len(), 1, "{held:?}");
@@ -396,7 +396,7 @@ pub fn run(store: &mut Store, asked: &str) {
              Task>(\"SELECT title FROM tasks\");\n}\npub async fn titles(pool: &sqlx::PgPool) \
              {\n    sqlx::query_as::<_, Row>(\"SELECT title FROM tasks\");\n}\n"
         );
-        let held = settled_over(&two);
+        let held = crate::semantic::settling::settled_over(&two);
         let disagreeing = Workspace::resolved(&two, &held);
         assert_eq!(
             tables(&disagreeing)[0].record,
@@ -416,7 +416,7 @@ pub fn run(store: &mut Store, asked: &str) {
              sqlx::query!(\"DELETE FROM tasks WHERE id = $1\", id);\n}\n\npub fn app() -> Router \
              {\n    Router::new().route(\"/tasks/{id}\", delete(remove))\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1, "{said:?}");
@@ -438,7 +438,7 @@ pub fn run(store: &mut Store, asked: &str) {
              task) in &self.tasks {{\n            sqlx::query!(\"INSERT INTO tasks (title) \
              VALUES ($1)\", task.title);\n        }}\n    }}\n}}\n"
         ));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         assert!(tables(&workspace).is_empty(), "{:?}", tables(&workspace));
         let said = purpose(&workspace);
@@ -453,7 +453,7 @@ pub fn run(store: &mut Store, asked: &str) {
             "pub async fn report(pool: &sqlx::PgPool) {\n    sqlx::query!(\"SELECT t.id FROM \
              tasks t JOIN users u ON TRUE\");\n}\n"
         );
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         assert!(tables(&workspace).is_empty());
         assert!(purpose(&workspace).is_empty());
@@ -467,7 +467,7 @@ pub fn run(store: &mut Store, asked: &str) {
              in &self.tasks {{\n            out.push_str(&task.title);\n        }}\n        \
              std::fs::write(path, out)\n    }}\n}}\n"
         ));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let carried = outliving(&workspace);
         assert_eq!(carried.len(), 1);
@@ -482,7 +482,7 @@ pub fn run(store: &mut Store, asked: &str) {
              task) in &self.tasks {{\n            sqlx::query!(\"INSERT INTO tasks (title) \
              VALUES ($1)\", task.title);\n        }}\n    }}\n}}\n"
         ));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let carried = outliving(&workspace);
         let persisted = carried
@@ -500,7 +500,7 @@ pub fn run(store: &mut Store, asked: &str) {
              task) in &self.tasks {{\n            sqlx::query(\"INSERT INTO tasks (title) VALUES \
              ($1)\").bind(&task.title);\n        }}\n    }}\n}}\n"
         ));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let carried = outliving(&workspace);
         let persisted = carried
@@ -522,7 +522,7 @@ pub fn run(store: &mut Store, asked: &str) {
              BTreeMap::new();\n    }}\n    pub fn absorb(&mut self, other: BTreeMap<u64, Task>) \
              {{\n        self.tasks = other;\n    }}\n}}\n"
         ));
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         for silenced in ["wipe", "absorb"] {
@@ -541,7 +541,7 @@ pub fn run(store: &mut Store, asked: &str) {
     #[test]
     fn each_verb_is_read_from_what_the_method_does_to_the_store() {
         let sources = workspace_of(TASK_STORE);
-        let settled = settled_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         let verb = |name: &str| {

@@ -54,7 +54,7 @@ fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
             Some(rustmanifest_engine::Source::new(named.to_path_buf(), text))
         })
         .collect();
-    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    let settled = settled_over(&sources);
     let at = tree.path().join("resolution.json");
     fs::write(
         &at,

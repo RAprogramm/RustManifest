@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn an_effect_the_facts_do_not_prove_is_refused_with_what_was_derived() {
         let sources = workspace_of(LAYERED);
-        let settled = crate::semantic::settling::compiler_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let answer = why_effect(&workspace, "run", "net");
         assert!(answer.steps.is_empty());
@@ -269,7 +269,7 @@ mod tests {
         let sources = workspace_of(
             "struct A;\nimpl A { fn go(&self) {} }\nstruct B;\nimpl B { fn go(&self) {} }\n"
         );
-        let settled = crate::semantic::settling::compiler_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let missing = why_effect(&workspace, "vanish", "fs");
         assert!(missing.conclusion.contains("no analyzed function is named"));
@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn a_direct_effect_cites_its_own_written_call() {
         let sources = workspace_of(LAYERED);
-        let settled = crate::semantic::settling::compiler_over(&sources);
+        let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let answer = why_effect(&workspace, "save", "fs");
         assert!(answer.conclusion.contains("in its own body"), "{answer:?}");

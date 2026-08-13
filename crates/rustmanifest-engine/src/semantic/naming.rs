@@ -128,7 +128,7 @@ mod tests {
 
     fn found(text: &str) -> usize {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        insights(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources))).len()
+        insights(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))).len()
     }
 
     /// The findings over `text`, read with what `settle` states a

@@ -128,7 +128,7 @@ mod tests {
     /// about it: the standard macros it writes and the types it
     /// declares, without which the readings above answer nothing.
     fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
-        let settled = crate::semantic::settling::compiler_over(sources);
+        let settled = crate::semantic::settling::settled_over(sources);
         literal_format_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
     }
 

@@ -104,7 +104,7 @@ mod tests {
         let mut types = TypeGraph::from_sources(&sources);
         types.granted_by(
             &sources,
-            Some(&crate::semantic::settling::compiler_over(&sources))
+            Some(&crate::semantic::settling::settled_over(&sources))
         );
         impl_skeleton(&sources, &types, type_name, trait_name)
     }

@@ -34,24 +34,32 @@ pub(super) fn written_rendering(written: &syn::Type) -> String {
     declared::written_type(written).unwrap_or_default()
 }
 
-/// Everything a compiler settles about a fixture that no reader can
-/// derive for itself: the standard macros it writes, the types it
-/// declares, and the abilities the library grants those types.
+/// Everything a compiler settles about a fixture, asked of the compiler
+/// itself.
 ///
-/// One call, because a fixture asking about behaviour needs all three
-/// and stating them apart buried the subject under bookkeeping.
+/// The snippets are handed to the resolver as a package and the answer
+/// comes back keyed by the paths they were written under. Writing that
+/// answer down by hand is what the engine stopped doing everywhere
+/// else: a table knows the names somebody added and is silently wrong
+/// for the rest, and a fixture built on one proves the table rather
+/// than the reading.
+#[cfg(test)]
 #[must_use]
-pub fn compiler_over(sources: &[crate::source::Source]) -> Resolution {
-    let mut resolution = Resolution {
-        resolver: "test".to_owned(),
-        ..Resolution::default()
-    };
-    settle_declared(&mut resolution, sources);
-    settle_mentions_of_declared(&mut resolution, sources);
-    settle_standard_macros(&mut resolution, sources);
-    let facts = crate::semantic::behavior_with(sources, Some(&resolution));
-    settle_identity(&mut resolution, sources, &facts);
-    resolution
+pub fn settled_over(sources: &[crate::source::Source]) -> Resolution {
+    let written: Vec<(String, String)> = sources
+        .iter()
+        .map(|held| {
+            (
+                held.path().display().to_string(),
+                held.text().to_owned()
+            )
+        })
+        .collect();
+    let asked: Vec<(&str, &str)> = written
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    rustmanifest_fixture::settled(&asked)
 }
 
 /// A resolution being written down over one or more fixture files.

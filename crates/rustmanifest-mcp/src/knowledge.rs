@@ -418,7 +418,7 @@ mod tests {
     /// a reading that answers from the compiler has an answer to read.
     fn settle_beside(dir: &TempDir) {
         let sources = super::sources_for(dir.path()).expect("the tree is readable");
-        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let settled = settled_over(&sources);
         fs::write(
             dir.path().join("resolution.json"),
             serde_json::to_string(&settled).expect("the overlay serializes")
