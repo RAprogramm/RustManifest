@@ -26,6 +26,31 @@ use crate::semantic::{
     }
 };
 
+/// The item a macro written as the whole of an expression reaches, as
+/// the compiler settled the path it is written with.
+fn macro_path(
+    settled: Option<&rustmanifest_schema::Resolution>,
+    file: &std::path::Path,
+    expression: &syn::Expr
+) -> Option<String> {
+    let syn::Expr::Macro(invocation) = expression else {
+        return None;
+    };
+    let span = invocation.mac.path.span().byte_range();
+    Some(
+        settled?
+            .path_at(&rustmanifest_schema::Location {
+                file:  file.to_path_buf(),
+                range: rustmanifest_schema::Range {
+                    start: u32::try_from(span.start).unwrap_or(u32::MAX),
+                    end:   u32::try_from(span.end).unwrap_or(u32::MAX)
+                }
+            })?
+            .names
+            .clone()
+    )
+}
+
 /// Visitor locating loops and analyzing their direct `let` statements.
 pub(super) struct LoopFinder<'out> {
     /// Index of the source under analysis.
@@ -71,8 +96,17 @@ impl LoopFinder<'_> {
                 continue;
             };
             let initialized = settled_call(self.settled, self.file, init.expr.span());
-            let origin = clone_origin(&init.expr, initialized, &bound, &mutated.roots)
-                .or_else(|| allocation_origin(&init.expr, initialized, &bound));
+            let reached_macro = macro_path(self.settled, self.file, &init.expr);
+            let origin = clone_origin(&init.expr, initialized, &bound, &mutated.roots).or_else(
+                || {
+                    allocation_origin(
+                        &init.expr,
+                        initialized,
+                        reached_macro.as_deref(),
+                        &bound
+                    )
+                }
+            );
             let Some(origin) = origin else {
                 continue;
             };

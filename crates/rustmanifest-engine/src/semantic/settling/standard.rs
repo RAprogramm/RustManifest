@@ -139,6 +139,24 @@ const NUMERIC: [&str; 20] = [
     "pow"
 ];
 
+/// The container methods a fixture writes, with how each takes the
+/// value it is written on: the compiler reads this off the receiver's
+/// declared mode, and a fixture states it here.
+const CONTAINER_METHODS: [(&str, ResolvedMode); 12] = [
+    ("push", ResolvedMode::BorrowedMut),
+    ("push_str", ResolvedMode::BorrowedMut),
+    ("insert", ResolvedMode::BorrowedMut),
+    ("extend", ResolvedMode::BorrowedMut),
+    ("clear", ResolvedMode::BorrowedMut),
+    ("pop", ResolvedMode::BorrowedMut),
+    ("truncate", ResolvedMode::BorrowedMut),
+    ("len", ResolvedMode::Borrowed),
+    ("is_empty", ResolvedMode::Borrowed),
+    ("iter", ResolvedMode::Borrowed),
+    ("contains", ResolvedMode::Borrowed),
+    ("capacity", ResolvedMode::Borrowed)
+];
+
 /// The methods that hand back a copy of what they are written on, which
 /// the compiler states as a shared borrow answering with the receiver's
 /// own type.
@@ -190,6 +208,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_signatures(resolution, sources);
     settle_bindings(resolution, sources);
     settle_guards(resolution, sources);
+    settle_container_methods(resolution, sources);
     resolution.settle();
 }
 
@@ -261,6 +280,39 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                     caller_decides: false,
                     reaches:        Some(names.to_owned()),
                     takes:          None
+                });
+            }
+        }
+    }
+}
+
+/// Records how each container method a fixture writes takes the value
+/// it is written on.
+fn settle_container_methods(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for (method, mode) in CONTAINER_METHODS {
+            let spelled = format!(".{method}(");
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+                let start = from + at;
+                let opens = start + spelled.len() - 1;
+                from = opens;
+                let Some(whole) = written_call(text, opens) else {
+                    continue;
+                };
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: whole
+                    },
+                    callee:         method.to_owned(),
+                    returns:        String::new(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        None,
+                    takes:          Some(mode)
                 });
             }
         }

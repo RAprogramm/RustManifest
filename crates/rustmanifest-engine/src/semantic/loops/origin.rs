@@ -87,6 +87,7 @@ pub(super) fn clone_origin(
 pub(super) fn allocation_origin(
     expr: &syn::Expr,
     settled: Option<&ResolvedCall>,
+    reached_macro: Option<&str>,
     bound: &[String]
 ) -> Option<Origin> {
     match expr {
@@ -104,10 +105,13 @@ pub(super) fn allocation_origin(
             })
         }
         syn::Expr::Macro(invocation)
-            if invocation.mac.path.is_ident("vec") && invocation.mac.tokens.is_empty() =>
+            if invocation.mac.tokens.is_empty()
+                && reached_macro
+                    .and_then(|named| named.split("::").next())
+                    == Some(ALLOCATING_CRATE) =>
         {
             Some(Origin::Allocation {
-                call: "vec![]".to_owned()
+                call: reached_macro.unwrap_or_default().to_owned()
             })
         }
         _ => None
