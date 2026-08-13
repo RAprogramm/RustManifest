@@ -175,7 +175,7 @@ mod tests {
     fn found(text: &str) -> Vec<Insight> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let _graph = TypeGraph::from_sources(&sources);
-        insights(&Workspace::new(&sources))
+        insights(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)))
     }
 
     #[test]

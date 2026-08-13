@@ -104,7 +104,7 @@ mod tests {
         for side in ["pass", "fail"] {
             let (sources, recorded) = fixture_sources("RM-IO-003", side);
             assert!(recorded > 0, "RM-IO-003/{side}.rs records no write at all");
-            let found = loop_write_insights(&Workspace::new(&sources));
+            let found = loop_write_insights(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)));
             if side == "pass" {
                 assert!(found.is_empty(), "RM-IO-003/pass.rs must stay silent");
             } else {
@@ -117,7 +117,7 @@ mod tests {
 
             let (sources, recorded) = fixture_sources("RM-IO-002", side);
             assert!(recorded > 0, "RM-IO-002/{side}.rs records no write at all");
-            let found = lock_run_insights(&Workspace::new(&sources));
+            let found = lock_run_insights(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)));
             if side == "pass" {
                 assert!(
                     found.is_empty(),

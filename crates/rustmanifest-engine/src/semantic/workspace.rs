@@ -144,22 +144,24 @@ mod tests {
     #[test]
     fn nothing_is_derived_before_the_first_read() {
         let sources = sources();
-        let workspace = Workspace::new(&sources);
+        let settled = crate::semantic::settling::compiler_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         assert_eq!(
             format!("{workspace:?}"),
-            format!("{:?}", Workspace::new(&sources))
+            format!("{:?}", Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)))
         );
         assert_eq!(workspace.types().types().len(), 1);
         assert_ne!(
             format!("{workspace:?}"),
-            format!("{:?}", Workspace::new(&sources))
+            format!("{:?}", Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)))
         );
     }
 
     #[test]
     fn repeated_reads_share_one_type_graph() {
         let sources = sources();
-        let workspace = Workspace::new(&sources);
+        let settled = crate::semantic::settling::compiler_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let first = std::ptr::from_ref(workspace.types());
         let second = std::ptr::from_ref(workspace.types());
         assert_eq!(first, second);
@@ -169,7 +171,8 @@ mod tests {
     #[test]
     fn repeated_reads_share_one_fact_set() {
         let sources = sources();
-        let workspace = Workspace::new(&sources);
+        let settled = crate::semantic::settling::compiler_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         assert_eq!(workspace.facts().as_ptr(), workspace.facts().as_ptr());
         assert_eq!(workspace.facts().len(), 1);
     }
@@ -177,15 +180,17 @@ mod tests {
     #[test]
     fn the_analyzed_sources_are_handed_back() {
         let sources = sources();
-        assert_eq!(Workspace::new(&sources).sources().len(), 1);
+        assert_eq!(Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources)).sources().len(), 1);
     }
 
     #[test]
     fn reading_one_derivation_leaves_the_others_underived() {
         let sources = sources();
-        let types_only = Workspace::new(&sources);
+        let settled_types_only = crate::semantic::settling::compiler_over(&sources);
+        let types_only = Workspace::resolved(&sources, &settled_types_only);
         assert_eq!(types_only.types().types().len(), 1);
-        let both = Workspace::new(&sources);
+        let settled_both = crate::semantic::settling::compiler_over(&sources);
+        let both = Workspace::resolved(&sources, &settled_both);
         assert_eq!(both.types().types().len(), 1);
         assert_eq!(both.facts().len(), 1);
         assert_ne!(format!("{types_only:?}"), format!("{both:?}"));
