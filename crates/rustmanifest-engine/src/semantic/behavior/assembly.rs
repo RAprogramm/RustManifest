@@ -135,6 +135,9 @@ pub(super) struct Settled {
     /// Parameters of the function whose name is written at a position, as
     /// the compiler read its signature.
     pub(super) params:    std::collections::BTreeMap<(u32, u32), Vec<super::types::ParamFacts>>,
+    /// Type the function whose name is written at a position hands back,
+    /// as the compiler renders it in full.
+    pub(super) returns:   std::collections::BTreeMap<(u32, u32), String>,
     /// Type of the expression at a position, as the compiler renders it
     /// in full.
     ///
@@ -280,6 +283,10 @@ fn settled_types(
         if held.at.file != source.path() {
             continue;
         }
+        settled.returns.insert(
+            (held.at.range.start, held.at.range.end),
+            held.returns.clone()
+        );
         settled.params.insert(
             (held.at.range.start, held.at.range.end),
             held.params

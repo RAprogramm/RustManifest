@@ -61,6 +61,16 @@ fn taken(
     known.settled.params.get(&at).cloned().unwrap_or_default()
 }
 
+/// What the function hands back, as the compiler rendered its
+/// signature.
+fn handed_back(known: &Known<'_>, bytes: &std::ops::Range<usize>) -> Option<String> {
+    let at = (
+        u32::try_from(bytes.start).unwrap_or(u32::MAX),
+        u32::try_from(bytes.end).unwrap_or(u32::MAX)
+    );
+    known.settled.returns.get(&at).cloned()
+}
+
 pub(super) fn function_facts(
     source: usize,
     function: String,
@@ -138,7 +148,7 @@ pub(super) fn function_facts(
         conditions:       Vec::new()
     };
     mark_unsafe(&mut collector, signature);
-    collector.facts.error_types = error_types(signature);
+    collector.facts.error_types = error_types(handed_back(known, &bytes).as_deref());
     collector.visit_block(block);
     collector.collect_tail(block);
     collector.facts.reads.sort();
