@@ -169,11 +169,25 @@ mod tests {
     use std::path::PathBuf;
 
     use super::features;
-    use crate::{semantic::behavior, source::Source};
+    use crate::{
+        semantic::{behavior, settling::Settling},
+        source::Source
+    };
 
     fn first_features(text: &str) -> Vec<super::Feature> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         features(&behavior(&sources)[0])
+    }
+
+    /// The features of the first function of `text`, read with what
+    /// `settle` states a resolver settled about it.
+    fn first_features_settled<'text>(
+        text: &'text str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> Vec<super::Feature> {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
+        features(&crate::semantic::behavior::behavior_with(&sources, Some(&resolution))[0])
     }
 
     fn active(all: &[super::Feature], name: &str) -> bool {
@@ -195,9 +209,10 @@ mod tests {
 
     #[test]
     fn boolean_predicates_reflect_the_facts() {
-        let all = first_features(
+        let all = first_features_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet { fn credit(&mut self, amount: i64) -> \
-             Result<(), String> { self.balance += amount; println!(\"done\"); Ok(()) } }"
+             Result<(), String> { self.balance += amount; println!(\"done\"); Ok(()) } }",
+            |settling| settling.field("self.balance", "Wallet", "i64")
         );
         assert!(active(&all, "is-method"));
         assert!(active(&all, "returns-result"));
@@ -210,9 +225,10 @@ mod tests {
 
     #[test]
     fn foreign_field_writes_are_distinguished_from_own() {
-        let all = first_features(
+        let all = first_features_settled(
             "struct Wallet { balance: i64 }\nfn drain(wallet: &mut Wallet) { wallet.balance = 0; \
-             }"
+             }",
+            |settling| settling.field("wallet.balance", "Wallet", "i64")
         );
         assert!(!active(&all, "is-method"));
         assert!(!active(&all, "writes-own-field"));

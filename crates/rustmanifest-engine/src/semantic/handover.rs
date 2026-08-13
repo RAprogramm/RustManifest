@@ -250,8 +250,9 @@ mod tests {
     use crate::{
         semantic::{
             behavior::behavior,
-            calls::{call_graph, resolution_context},
+            calls::{call_graph, resolution_context_with},
             graph::TypeGraph,
+            settling::settle_identity,
             why::Answer
         },
         source::Source
@@ -263,11 +264,11 @@ mod tests {
 
     /// The same question with what a resolver settled about the types
     /// named in `granted` — each a type name and whether the compiler
-    /// says values of it are copied.
+    /// says values of it are copied — and about which body each written
+    /// call reaches.
     fn asked_settled(text: &str, at: &str, granted: &[(&str, bool)]) -> Option<Answer> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let facts = behavior(&sources);
-        let graph = call_graph(&facts, &resolution_context(&sources));
         let types = TypeGraph::from_sources(&sources);
         let offset = u32::try_from(text.find(at).unwrap()).unwrap() + 1;
         let mut resolution = rustmanifest_schema::Resolution {
@@ -281,7 +282,8 @@ mod tests {
                 .collect(),
             ..rustmanifest_schema::Resolution::default()
         };
-        resolution.settle();
+        settle_identity(&mut resolution, &sources, &facts);
+        let graph = call_graph(&facts, &resolution_context_with(&sources, Some(&resolution)));
         handover_at(&facts, &graph, &types, Some(&resolution), 0, offset)
     }
 

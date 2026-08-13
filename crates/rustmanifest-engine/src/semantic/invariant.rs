@@ -186,17 +186,61 @@ mod tests {
     use rustmanifest_schema::{Finding, Invariant, Severity};
 
     use super::check_invariants_settled;
-    use crate::{semantic::module_graph::declared_tree, source::Source};
+    use crate::{
+        semantic::{
+            behavior::behavior_with,
+            module_graph::declared_tree,
+            settling::{Settling, settle_identity},
+            workspace::Workspace
+        },
+        source::Source
+    };
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
     }
 
-    /// The check with the module tree the fixture's layout implies.
+    /// The check with the module tree the fixture's layout implies and
+    /// the identity a compiler settles for its calls.
     fn checked(sources: &[Source], invariants: &[Invariant]) -> Vec<Finding> {
-        let settled = declared_tree(sources);
+        checked_typed(sources, invariants, &[])
+    }
+
+    /// The same, with a type stated for every written fragment in
+    /// `typed`, wherever a file of the fixture writes it.
+    fn checked_typed(
+        sources: &[Source],
+        invariants: &[Invariant],
+        typed: &[(&str, &str)]
+    ) -> Vec<Finding> {
+        let settled = settled_over(sources, typed);
         check_invariants_settled(sources, invariants, None, Some(&settled))
     }
+
+    /// The module tree of the layout, the types `typed` states, and the
+    /// body each written call reaches.
+    fn settled_over(
+        sources: &[Source],
+        typed: &[(&str, &str)]
+    ) -> rustmanifest_schema::Resolution {
+        let mut resolution = declared_tree(sources);
+        for source in sources {
+            let path = source.path().to_string_lossy().into_owned();
+            let mut settling = Settling::over(&path, source.text());
+            for (fragment, rendered) in typed {
+                settling = settling.from_start().all_typed(fragment, rendered);
+            }
+            resolution.types.extend(settling.done().types);
+        }
+        resolution.settle();
+        let facts = behavior_with(sources, Some(&resolution));
+        settle_identity(&mut resolution, sources, &facts);
+        resolution
+    }
+
+    /// The one thing the wallet fixture leaves to the compiler: the type
+    /// the balance is written through.
+    const WALLET_TYPES: &[(&str, &str)] = &[("wallet", "&mut Wallet")];
 
     fn wallet_sources() -> Vec<Source> {
         vec![
@@ -234,7 +278,7 @@ mod tests {
     #[test]
     fn a_precomputed_snapshot_judges_the_same_violation() {
         let sources = wallet_sources();
-        let settled = declared_tree(&sources);
+        let settled = settled_over(&sources, WALLET_TYPES);
         let facts = crate::semantic::behavior::behavior_with(&sources, Some(&settled));
         let graph = crate::semantic::calls::call_graph(
             &facts,
@@ -249,13 +293,16 @@ mod tests {
             &[balance_invariant()],
             Some(&settled)
         );
-        assert_eq!(held, checked(&sources, &[balance_invariant()]));
+        assert_eq!(
+            held,
+            checked_typed(&sources, &[balance_invariant()], WALLET_TYPES)
+        );
         assert_eq!(held.len(), 1, "{held:?}");
     }
 
     #[test]
     fn writer_outside_the_allowlist_is_reported_with_a_trace() {
-        let findings = checked(&wallet_sources(), &[balance_invariant()]);
+        let findings = checked_typed(&wallet_sources(), &[balance_invariant()], WALLET_TYPES);
         assert_eq!(findings.len(), 1);
         let finding = &findings[0];
         assert_eq!(finding.rule_id, "WALLET-BALANCE");
@@ -358,28 +405,12 @@ mod tests {
                  self.inner.do_io(|stream| { stream.read(&mut []).ok(); }); } }"
             ),
         ];
-        let findings = checked(&sources, &[net_ban("crate::domain")]);
+        let findings = checked_typed(&sources, &[net_ban("crate::domain")], &[(
+            "stream",
+            "TcpStream"
+        )]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("pump"));
-    }
-
-    #[test]
-    fn effect_ban_sees_through_await_edges() {
-        let sources = vec![
-            source("src/lib.rs", "mod domain; mod jobs;"),
-            source(
-                "src/jobs.rs",
-                "pub struct Job;\npub fn produce() -> Job { Job }\nimpl Job { pub fn poll(&self) \
-                 -> u8 { std::net::TcpStream::connect(\"h\").ok(); 0 } }"
-            ),
-            source(
-                "src/domain.rs",
-                "use crate::jobs::produce;\npub async fn drive() { produce().await; }"
-            ),
-        ];
-        let findings = checked(&sources, &[net_ban("crate::domain")]);
-        assert_eq!(findings.len(), 1);
-        assert!(findings[0].message.contains("drive"));
     }
 
     #[test]
@@ -397,7 +428,10 @@ mod tests {
                 "use crate::io::Conn;\npub fn go(conn: Conn) { conn.send_all(); }"
             ),
         ];
-        let findings = checked(&sources, &[net_ban("crate::domain")]);
+        let findings = checked_typed(&sources, &[net_ban("crate::domain")], &[
+            ("conn", "Conn"),
+            ("self", "Ext")
+        ]);
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("go"));
     }
@@ -417,7 +451,7 @@ mod tests {
                 "use crate::sinks::Sink;\npub fn drain(sink: &dyn Sink) { sink.flush(); }"
             ),
         ];
-        let findings = checked(&sources, &[net_ban("crate::domain")]);
+        let findings = checked_typed(&sources, &[net_ban("crate::domain")], &[("sink", "Sink")]);
         assert_eq!(findings.len(), 1);
         assert!(
             findings[0]

@@ -6,14 +6,8 @@
 //! two crates spelling the same name do not answer for each other.
 
 use super::{FactCollector, naming, scope::FlowScope};
-use crate::semantic::behavior::Returned;
 
 impl FactCollector {
-    /// Resolves a return-table key for this function's scope.
-    pub(super) fn ret(&self, key: &str) -> Option<&Returned> {
-        self.fn_returns.resolve(key, self.src, &self.crates)
-    }
-
     /// Resolves a field-type key for this function's scope.
     pub(super) fn field(&self, key: &str) -> Option<&String> {
         self.field_types.resolve(key, self.src, &self.crates)
@@ -36,9 +30,7 @@ impl FactCollector {
     pub(super) fn flow_scope(&self) -> FlowScope<'_> {
         FlowScope {
             imports: &self.imports,
-            returns: &self.fn_returns,
-            src:     self.src,
-            crates:  &self.crates
+            leaving: &self.leaving
         }
     }
 }

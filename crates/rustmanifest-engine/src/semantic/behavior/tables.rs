@@ -15,13 +15,11 @@ mod field;
 mod function_return;
 mod variant;
 
-use super::{returned::Returned, scoped::Scoped};
+use super::scoped::Scoped;
 use crate::source::Source;
 
 /// Workspace typing tables shared by every function's fact extraction.
 pub(super) struct TypeTables {
-    /// Function names to their return types, scoped by source.
-    pub(super) returns:     Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) fields:      Scoped<String>,
     /// `Type.field` keys of single-generic wrapper fields to the
@@ -49,7 +47,6 @@ impl TypeTables {
     pub(super) fn of(sources: &[Source]) -> Self {
         let fields = field::field_tables(sources);
         Self {
-            returns:     function_return::return_types(sources),
             mutates:     function_return::receiver_mutability(sources),
             fields:      fields.plain,
             field_wraps: fields.wraps,

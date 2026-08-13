@@ -187,9 +187,23 @@ mod tests {
 
     use super::program_meaning;
     use crate::{
-        semantic::{module_graph::declared_tree, workspace::Workspace},
+        semantic::{
+            module_graph::declared_tree, settling::settle_identity, workspace::Workspace
+        },
         source::Source
     };
+
+    /// The module tree and the call identity a compiler settles for
+    /// `sources`.
+    fn settled(sources: &[Source]) -> rustmanifest_schema::Resolution {
+        let mut resolution = declared_tree(sources);
+        settle_identity(
+            &mut resolution,
+            sources,
+            &crate::semantic::behavior::behavior(sources)
+        );
+        resolution
+    }
 
     fn sentences(body: &str) -> Vec<String> {
         sentences_of(&[("src/main.rs", body)])
@@ -203,7 +217,7 @@ mod tests {
             .iter()
             .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
             .collect();
-        program_meaning(&Workspace::resolved(&sources, &declared_tree(&sources)))
+        program_meaning(&Workspace::resolved(&sources, &settled(&sources)))
             .first()
             .map(super::EntryMeaning::sentences)
             .unwrap_or_default()
@@ -298,15 +312,15 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_receiver_never_certifies_the_only_method_of_that_name() {
+    fn an_unsettled_receiver_certifies_nothing_about_the_method_it_might_reach() {
         let said = sentences(
             "struct Lazy;\nimpl Lazy {\n    fn go(&self) { println!(\"lazy\"); }\n}\nfn main() \
              {\n    let value = elsewhere();\n    value.go();\n}"
         );
         let lazy = about(&said, "lazy");
         assert!(
-            lazy.contains("may write"),
-            "the receiver's type is unknown, so the callee is not proven: {lazy}"
+            lazy.contains("no path from the entry point reaches"),
+            "no resolver said which body the call reaches, so the entry reaches none: {lazy}"
         );
     }
 

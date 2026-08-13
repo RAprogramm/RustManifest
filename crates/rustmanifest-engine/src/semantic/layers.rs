@@ -136,9 +136,24 @@ mod tests {
 
     use super::layers;
     use crate::{
-        semantic::{module_graph::declared_tree, workspace::Workspace},
+        semantic::{
+            module_graph::declared_tree, settling::settle_identity, workspace::Workspace
+        },
         source::Source
     };
+
+    /// The module tree and the call identity a compiler settles for
+    /// `sources`: which file holds which module, and which body each
+    /// written call reaches.
+    fn settled(sources: &[Source]) -> rustmanifest_schema::Resolution {
+        let mut resolution = declared_tree(sources);
+        settle_identity(
+            &mut resolution,
+            sources,
+            &crate::semantic::behavior::behavior(sources)
+        );
+        resolution
+    }
 
     fn source(path: &str, text: &str) -> Source {
         Source::new(PathBuf::from(path), text.to_owned())
@@ -162,7 +177,7 @@ mod tests {
             ),
             source("src/storage.rs", "pub fn save() {}")
         ];
-        let all = layers(&Workspace::resolved(&sources, &declared_tree(&sources)));
+        let all = layers(&Workspace::resolved(&sources, &settled(&sources)));
         assert_eq!(depth_of(&all, "crate::storage"), Some(0));
         assert_eq!(depth_of(&all, "crate::domain"), Some(1));
         assert_eq!(depth_of(&all, "crate::api"), Some(2));
@@ -175,7 +190,7 @@ mod tests {
             source("src/a.rs", "pub fn ping() { crate::b::pong(); }"),
             source("src/b.rs", "pub fn pong() { crate::a::ping(); }")
         ];
-        let all = layers(&Workspace::resolved(&sources, &declared_tree(&sources)));
+        let all = layers(&Workspace::resolved(&sources, &settled(&sources)));
         assert_eq!(depth_of(&all, "crate::a"), None);
         assert_eq!(depth_of(&all, "crate::b"), None);
     }
@@ -188,8 +203,8 @@ mod tests {
             source("src/storage.rs", "pub fn save() {}")
         ];
         assert_eq!(
-            layers(&Workspace::resolved(&sources, &declared_tree(&sources))),
-            layers(&Workspace::resolved(&sources, &declared_tree(&sources)))
+            layers(&Workspace::resolved(&sources, &settled(&sources))),
+            layers(&Workspace::resolved(&sources, &settled(&sources)))
         );
     }
 }

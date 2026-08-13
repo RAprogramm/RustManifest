@@ -205,7 +205,7 @@ mod tests {
 
     use super::insights;
     use crate::{
-        semantic::{TypeGraph, workspace::Workspace},
+        semantic::{TypeGraph, settling::Settling, workspace::Workspace},
         source::Source
     };
 
@@ -331,12 +331,12 @@ mod tests {
 
     #[test]
     fn reading_a_non_copy_field_may_be_a_move_and_is_not_flagged() {
-        assert_eq!(
-            found(
-                "struct User { name: String }\nfn take_name(user: User) -> String { user.name }"
-            ),
-            0
-        );
+        let text = "struct User { name: String }\nfn take_name(user: User) -> String { user.name }";
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let settled = Settling::over("src/lib.rs", text)
+            .field("user.name", "User", "String")
+            .done();
+        assert_eq!(insights(&Workspace::resolved(&sources, &settled)).len(), 0);
     }
 
     #[test]

@@ -77,14 +77,21 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::{
-        semantic::behavior::{Conversion, Guarding, Operation, behavior},
+        semantic::{
+            behavior::{Conversion, Guarding, Operation, behavior_with},
+            settling::Settling
+        },
         source::Source
     };
 
     fn conversion(body: &str) -> Option<(Conversion, Guarding)> {
-        let text = format!("fn read(text: &str) -> u32 {{\n{body}\n}}");
-        let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        behavior(&sources)
+        let text = format!("fn read(held: &str) -> u32 {{\n{body}\n}}");
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.clone())];
+        let settled = Settling::over("src/lib.rs", &text)
+            .after("-> u32 {")
+            .typed("held", "&str")
+            .done();
+        behavior_with(&sources, Some(&settled))
             .iter()
             .find(|fact| fact.function == "read")
             .and_then(|fact| {
@@ -105,7 +112,7 @@ mod tests {
     #[test]
     fn a_written_target_is_named_and_the_failure_is_carried() {
         let (conversion, guarding) =
-            conversion("    text.parse::<u32>().unwrap_or(0)").expect("a conversion is recorded");
+            conversion("    held.parse::<u32>().unwrap_or(0)").expect("a conversion is recorded");
         assert_eq!(conversion.target.as_deref(), Some("u32"));
         assert_eq!(guarding, Guarding::Reported);
     }
@@ -116,7 +123,7 @@ mod tests {
     #[test]
     fn a_target_written_nowhere_stays_unidentified() {
         let (conversion, _) =
-            conversion("    text.parse().unwrap_or(0)").expect("a conversion is recorded");
+            conversion("    held.parse().unwrap_or(0)").expect("a conversion is recorded");
         assert!(conversion.target.is_none());
     }
 
@@ -126,7 +133,7 @@ mod tests {
     #[test]
     fn a_call_the_caller_decides_nothing_about_is_not_a_conversion() {
         assert!(
-            conversion("    text.trim().len() as u32")
+            conversion("    held.trim().len() as u32")
                 .is_some_and(|(conversion, _)| conversion.target.as_deref() == Some("u32"))
         );
     }

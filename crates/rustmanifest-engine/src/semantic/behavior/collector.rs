@@ -60,7 +60,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use self::census::name_census;
 use super::{
-    Returned, Scoped,
+    Scoped,
     output::Guard,
     types::FunctionFacts,
     value::{Condition, Provenance}
@@ -72,8 +72,6 @@ pub(super) struct FactCollector {
     pub(super) facts:            FunctionFacts,
     /// Parameter name to type-name mapping from the signature.
     pub(super) param_types:      BTreeMap<String, String>,
-    /// Workspace functions to their return types, scoped by source.
-    pub(super) fn_returns:       Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) field_types:      Scoped<String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
@@ -101,6 +99,9 @@ pub(super) struct FactCollector {
     /// The type a resolver settled for the expression at each byte range,
     /// whatever shape it was written in. Empty where no resolver ran.
     pub(super) typed:            std::collections::BTreeMap<(u32, u32), String>,
+    /// The type a resolver settled for the expression at each byte range,
+    /// as the compiler renders it in full. Empty where no resolver ran.
+    pub(super) rendered:         std::collections::BTreeMap<(u32, u32), String>,
     /// The kind of item a resolver settled the path at each byte range to
     /// reach. Empty where no resolver ran.
     pub(super) items:            std::collections::BTreeMap<(u32, u32), String>,
@@ -127,6 +128,8 @@ pub(super) struct FactCollector {
     pub(super) slots:            Vec<Option<String>>,
     /// Where each name this body gave a value to got it.
     pub(super) origins:          BTreeMap<String, Provenance>,
+    /// Byte ranges whose settled type is the never type.
+    pub(super) leaving:          BTreeSet<(u32, u32)>,
     /// Names this body writes at all, by binding or by assignment.
     pub(super) written:          BTreeSet<String>,
     /// Names this body writes exactly once, so a reading of one resolves

@@ -135,6 +135,12 @@ pub(super) struct Settled {
     /// Parameters of the function whose name is written at a position, as
     /// the compiler read its signature.
     pub(super) params:    std::collections::BTreeMap<(u32, u32), Vec<super::types::ParamFacts>>,
+    /// Type of the expression at a position, as the compiler renders it
+    /// in full.
+    ///
+    /// The outermost name answers most questions; the halves of a
+    /// fallible answer are written inside the rendering and nowhere else.
+    pub(super) rendered:  std::collections::BTreeMap<(u32, u32), String>,
     /// Kind of item the path written at a position reaches.
     ///
     /// A path is either a name this body bound or an item declared
@@ -243,6 +249,10 @@ fn settled_types(
                 .types
                 .insert((typed.at.range.start, typed.at.range.end), named);
         }
+        settled.rendered.insert(
+            (typed.at.range.start, typed.at.range.end),
+            typed.rendered.clone()
+        );
     }
     for held in &resolution.signatures {
         if held.at.file != source.path() {

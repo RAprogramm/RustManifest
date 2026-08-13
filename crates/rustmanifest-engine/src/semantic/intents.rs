@@ -136,8 +136,11 @@ pub fn fulfill_intents(sources: &[Source]) -> Vec<Deduction> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{derived_intents, fulfill_intents};
-    use crate::source::Source;
+    use super::{derived_intents, derived_intents_with, fulfill_intents};
+    use crate::{
+        semantic::{TypeGraph, behavior::behavior_with, settling::Settling},
+        source::Source
+    };
 
     fn one(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]
@@ -201,11 +204,17 @@ mod tests {
     /// standard blanket.
     #[test]
     fn a_written_to_string_call_asks_for_display() {
-        let sources = one(
-            "pub struct Tag {\n    pub name: String,\n}\n\npub fn label(tag: &Tag) -> String \
-             {\n    tag.to_string()\n}\n"
+        let text = "pub struct Tag {\n    pub name: String,\n}\n\npub fn label(tag: &Tag) -> \
+                    String {\n    tag.to_string()\n}\n";
+        let sources = one(text);
+        let settled = Settling::over("src/lib.rs", text)
+            .after("String {")
+            .typed("tag", "&Tag")
+            .done();
+        let intents = derived_intents_with(
+            &behavior_with(&sources, Some(&settled)),
+            &TypeGraph::from_sources(&sources)
         );
-        let intents = derived_intents(&sources);
         assert_eq!(intents.len(), 1, "{intents:?}");
         assert_eq!(intents[0].trait_name, "Display");
     }

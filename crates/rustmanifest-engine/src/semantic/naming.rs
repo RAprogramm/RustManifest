@@ -121,11 +121,26 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{settling::Settling, workspace::Workspace},
+        source::Source
+    };
 
     fn found(text: &str) -> usize {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         insights(&Workspace::new(&sources)).len()
+    }
+
+    /// The findings over `text`, read with what `settle` states a
+    /// resolver settled about it — a write is judged only where the
+    /// resolver named the type it lands on.
+    fn found_settled<'text>(
+        text: &'text str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> usize {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
+        insights(&Workspace::resolved(&sources, &resolution)).len()
     }
 
     #[test]
@@ -143,9 +158,10 @@ mod tests {
     #[test]
     fn getter_that_writes_is_a_lie() {
         assert_eq!(
-            found(
+            found_settled(
                 "struct Counter { hits: u64 }\nimpl Counter { fn get_hits(&mut self) -> u64 { \
-                 self.hits += 1; self.hits } }"
+                 self.hits += 1; self.hits } }",
+                |settling| settling.field("self.hits", "Counter", "u64")
             ),
             1
         );
@@ -202,13 +218,13 @@ mod tests {
 
     #[test]
     fn trace_carries_the_derivation() {
-        let sources = [Source::new(
-            PathBuf::from("src/lib.rs"),
-            "struct Counter { hits: u64 }\nimpl Counter { fn get_hits(&mut self) -> u64 { \
-             self.hits += 1; self.hits } }"
-                .to_owned()
-        )];
-        let insights = insights(&Workspace::new(&sources));
+        let text = "struct Counter { hits: u64 }\nimpl Counter { fn get_hits(&mut self) -> u64 { \
+                    self.hits += 1; self.hits } }";
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = Settling::over("src/lib.rs", text)
+            .field("self.hits", "Counter", "u64")
+            .done();
+        let insights = insights(&Workspace::resolved(&sources, &resolution));
         assert_eq!(insights[0].trace.len(), 3);
         assert!(insights[0].trace[0].fact.contains("read-verb `get`"));
         assert!(insights[0].trace[1].fact.contains("writes [Counter.hits]"));

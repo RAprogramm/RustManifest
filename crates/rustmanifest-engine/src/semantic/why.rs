@@ -217,7 +217,10 @@ mod tests {
     use std::path::PathBuf;
 
     use super::why_effect;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{settling::identity_over, workspace::Workspace},
+        source::Source
+    };
 
     const LAYERED: &str = "fn save(path: &str) { std::fs::write(path, \"x\").ok(); }\nfn \
                            persist() { save(\"data\"); }\nfn run() { persist(); }\n";
@@ -229,7 +232,8 @@ mod tests {
     #[test]
     fn a_transitive_effect_is_answered_step_by_step_down_to_the_proof() {
         let sources = workspace_of(LAYERED);
-        let workspace = Workspace::new(&sources);
+        let settled = identity_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let answer = why_effect(&workspace, "run", "fs");
         assert!(
             answer.conclusion.contains("reaches `fs` through `save`"),

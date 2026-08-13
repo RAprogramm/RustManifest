@@ -21,10 +21,6 @@
 
 use super::FactCollector;
 
-/// The two variants of the library's result, with the side of the
-/// signature each one carries.
-const RESULT_VARIANTS: [(&str, bool); 2] = [("Ok", true), ("Err", false)];
-
 impl FactCollector {
     /// Records the type each arm of a match over a result binds.
     pub(super) fn record_present_bindings(&mut self, matched: &syn::ExprMatch) {
@@ -35,34 +31,17 @@ impl FactCollector {
 
     /// Records the type each arm of a match over a result binds.
     pub(super) fn record_outcome_bindings(&mut self, matched: &syn::ExprMatch) {
-        let Some(key) = self.call_key(&matched.expr) else {
-            return;
-        };
-        let Some(returned) = self.ret(&key) else {
-            return;
-        };
-        let (success, error) = (returned.success.clone(), returned.error.clone());
-        if success.is_none() && error.is_none() {
-            return;
-        }
         for arm in &matched.arms {
-            let Some((variant, bound)) = variant_binding(&arm.pat) else {
-                continue;
-            };
-            let carried = RESULT_VARIANTS
-                .iter()
-                .find(|(named, _)| *named == variant)
-                .and_then(|(_, ok)| if *ok { success.clone() } else { error.clone() });
-            if variant == "Ok" {
+            self.bind_pattern(&arm.pat);
+            if let Some(("Ok", bound)) = variant_binding(&arm.pat)
+                .as_ref()
+                .map(|(variant, bound)| (variant.as_str(), bound.clone()))
+            {
                 let produced = self.origin_of(&matched.expr);
-                self.origins.insert(bound.clone(), produced);
-            }
-            if let Some(type_name) = carried {
-                self.param_types.insert(bound, type_name);
+                self.origins.insert(bound, produced);
             }
         }
-    }
-}
+    }}
 
 impl FactCollector {
     /// Records what a `let` written in a condition binds, on the same
@@ -95,34 +74,14 @@ impl FactCollector {
         };
         let taken = self.origin_of(&written.expr);
         self.record_tuple_parts(&written.pat, &taken, &written.pat.span().byte_range());
-        let Some((variant, bound)) = variant_binding(&written.pat) else {
-            return;
-        };
-        let Some(key) = self.call_key(&written.expr) else {
-            return;
-        };
-        let Some(returned) = self.ret(&key) else {
-            return;
-        };
-        if let Some(type_name) = RESULT_VARIANTS
-            .iter()
-            .find(|(named, _)| *named == variant)
-            .and_then(|(_, ok)| {
-                if *ok {
-                    returned.success.clone()
-                } else {
-                    returned.error.clone()
-                }
-            })
+        self.bind_pattern(&written.pat);
+        if let Some((variant, bound)) = variant_binding(&written.pat)
+            && variant == "Ok"
         {
-            self.param_types.insert(bound.clone(), type_name);
-        }
-        if variant == "Ok" {
             let produced = self.origin_of(&written.expr);
             self.origins.insert(bound, produced);
         }
-    }
-}
+    }}
 
 /// The variant an arm matches and the single plain name it binds.
 fn variant_binding(pattern: &syn::Pat) -> Option<(String, String)> {

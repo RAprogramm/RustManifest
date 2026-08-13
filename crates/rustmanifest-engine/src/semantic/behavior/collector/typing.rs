@@ -19,6 +19,17 @@ impl FactCollector {
         self.settled_expr_type(expression)
     }
 
+    /// The type a resolver settled here, as the compiler renders it in
+    /// full.
+    pub(super) fn settled_expr_type_full(&self, expression: &syn::Expr) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = expression.span().byte_range();
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.rendered.get(&(start, end)).cloned()
+    }
+
     /// The type a resolver settled for the expression at this position.
     ///
     /// Asked first, and for every shape of expression, because it is the

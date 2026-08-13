@@ -5,7 +5,6 @@
 
 use std::collections::BTreeMap;
 
-use crate::semantic::behavior::{Returned, Scoped};
 
 /// The context the reachability fold reads beyond the syntax it walks.
 ///
@@ -17,12 +16,7 @@ use crate::semantic::behavior::{Returned, Scoped};
 pub(super) struct FlowScope<'a> {
     /// Imported names of the enclosing file to their full `use` paths.
     pub(super) imports: &'a BTreeMap<String, String>,
-    /// Workspace functions to their return types, so a call to a
-    /// function whose signature declares the never type is read as the
-    /// divergence it is.
-    pub(super) returns: &'a Scoped<Returned>,
-    /// Source index of the function under analysis, for scoped lookup.
-    pub(super) src:     usize,
-    /// Crate identity of every source, for scoped lookup.
-    pub(super) crates:  &'a [String]
+    /// Byte ranges whose settled type is the never type, so a call
+    /// written there does not come back.
+    pub(super) leaving: &'a std::collections::BTreeSet<(u32, u32)>
 }

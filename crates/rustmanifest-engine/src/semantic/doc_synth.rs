@@ -176,11 +176,32 @@ mod tests {
     use std::path::PathBuf;
 
     use super::doc_draft;
-    use crate::{semantic::behavior, source::Source};
+    use crate::{
+        semantic::{behavior, settling::Settling},
+        source::Source
+    };
 
     fn draft(text: &str, name: &str) -> String {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let facts = behavior(&sources);
+        let graph = crate::semantic::TypeGraph::from_sources(&sources);
+        doc_draft(
+            facts.iter().find(|fact| fact.function == name).unwrap(),
+            &graph
+        )
+    }
+
+    /// The draft for `name`, read with what `settle` states a resolver
+    /// settled about the fixture — a field is spoken of by the type
+    /// holding it, which only the resolver names.
+    fn draft_settled<'text>(
+        text: &'text str,
+        name: &str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> String {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
+        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&resolution));
         let graph = crate::semantic::TypeGraph::from_sources(&sources);
         doc_draft(
             facts.iter().find(|fact| fact.function == name).unwrap(),
@@ -193,7 +214,11 @@ mod tests {
         let text = "struct Wallet { balance: i64 }\nimpl Wallet { fn get_balance(&self) -> i64 \
                     { self.balance } }";
         assert_eq!(
-            draft(text, "Wallet::get_balance"),
+            draft_settled(text, "Wallet::get_balance", |settling| settling.field(
+                "self.balance",
+                "Wallet",
+                "i64"
+            )),
             "/// Returns the current value of [`Wallet::balance`]."
         );
     }
@@ -203,7 +228,11 @@ mod tests {
         let text = "struct Counter { hits: u64 }\nimpl Counter { fn get_hits(&mut self) -> u64 \
                     { self.hits += 1; self.hits } }";
         assert_eq!(
-            draft(text, "Counter::get_hits"),
+            draft_settled(text, "Counter::get_hits", |settling| settling.field(
+                "self.hits",
+                "Counter",
+                "u64"
+            )),
             "/// Updates [`Counter::hits`]."
         );
     }
@@ -213,7 +242,14 @@ mod tests {
         let text = "struct Order { items: u32 }\nimpl Order { fn empty() -> Self { Self { items: \
                     0 } } }\nstruct Repo;\nimpl Repo { fn fetch(&self) -> Order { let mut order \
                     = Order::empty(); order.items = 3; order } }";
-        assert_eq!(draft(text, "Repo::fetch"), "/// Creates a new [`Order`].");
+        assert_eq!(
+            draft_settled(text, "Repo::fetch", |settling| settling.field(
+                "order.items",
+                "Order",
+                "u32"
+            )),
+            "/// Creates a new [`Order`]."
+        );
     }
 
     #[test]

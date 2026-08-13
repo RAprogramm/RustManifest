@@ -173,8 +173,9 @@ mod tests {
     use crate::{
         semantic::{
             behavior::behavior,
-            calls::{call_graph, resolution_context},
-            graph::TypeGraph
+            calls::{call_graph, resolution_context_with},
+            graph::TypeGraph,
+            settling::settle_identity
         },
         source::Source
     };
@@ -182,7 +183,6 @@ mod tests {
     fn marked(text: &str) -> Vec<(String, &'static str)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let facts = behavior(&sources);
-        let graph = call_graph(&facts, &resolution_context(&sources));
         let types = TypeGraph::from_sources(&sources);
         let mut resolution = rustmanifest_schema::Resolution {
             resolver: "test".to_owned(),
@@ -192,7 +192,8 @@ mod tests {
             }],
             ..rustmanifest_schema::Resolution::default()
         };
-        resolution.settle();
+        settle_identity(&mut resolution, &sources, &facts);
+        let graph = call_graph(&facts, &resolution_context_with(&sources, Some(&resolution)));
         handover_marks(&sources, &facts, &graph, &types, Some(&resolution), 0)
             .into_iter()
             .map(|mark| {

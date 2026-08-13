@@ -11,30 +11,16 @@ use super::{FactCollector, typing::initializer_type};
 use crate::semantic::behavior::signature::type_last_segment;
 
 impl FactCollector {
-    /// Types every name a destructuring `let` binds from a call that
-    /// hands back a tuple, position by position — which name stands at
-    /// which position is written, and the return's own type list
-    /// answers the rest.
+    /// Types every name a destructuring `let` binds from what a resolver
+    /// settled at each binding.
+    ///
+    /// Which type stands at which position is the compiler's answer at
+    /// the name itself; reading it off the callee's declared tuple was
+    /// the same answer taken the long way round, and only for a callee
+    /// this workspace declares.
     fn record_tuple_binding(&mut self, local: &syn::Local) {
-        let syn::Pat::Tuple(pattern) = &local.pat else {
-            return;
-        };
-        let Some(positions) = local
-            .init
-            .as_ref()
-            .and_then(|init| self.call_key(&init.expr))
-            .and_then(|key| self.ret(&key))
-            .map(|returned| returned.tuple.clone())
-        else {
-            return;
-        };
-        if positions.len() != pattern.elems.len() {
-            return;
-        }
-        for (held, type_name) in pattern.elems.iter().zip(positions) {
-            if let Some(name) = super::naming::binding_name(held) {
-                self.param_types.insert(name, type_name);
-            }
+        if matches!(local.pat, syn::Pat::Tuple(_)) {
+            self.bind_pattern(&local.pat);
         }
     }
 

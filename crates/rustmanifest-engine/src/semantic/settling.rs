@@ -12,8 +12,11 @@
 //! The fragment is found by its first occurrence, so a fixture wanting a
 //! later one says where to look from with [`Settling::after`].
 
+mod identity;
+
 use std::path::PathBuf;
 
+pub(in crate::semantic) use self::identity::{identity_of, identity_over, settle_identity};
 use rustmanifest_schema::{
     Location, Range, ResolvedCall, ResolvedField, ResolvedType, Resolution
 };
@@ -52,6 +55,13 @@ impl<'text> Settling<'text> {
         self
     }
 
+    /// Searches the fragments named next from the start of the file
+    /// again.
+    pub(in crate::semantic) const fn from_start(mut self) -> Self {
+        self.from = 0;
+        self
+    }
+
     /// Searches the fragments named next from after `written`.
     pub(in crate::semantic) fn after(mut self, written: &str) -> Self {
         self.from = self.located(written).range.end as usize;
@@ -83,6 +93,54 @@ impl<'text> Settling<'text> {
             produced: produced.to_owned()
         });
         self
+    }
+
+    /// States the same about every occurrence of `fragment` from the
+    /// cursor on, and says nothing where the fixture writes none.
+    ///
+    /// A field of one name is read in as many bodies as a fixture has;
+    /// naming each occurrence apart would say the same thing four times.
+    pub(in crate::semantic) fn fields(
+        mut self,
+        fragment: &str,
+        owner: &str,
+        produced: &str
+    ) -> Self {
+        while let Some(at) = self.next_at(fragment) {
+            self.from = at.range.end as usize;
+            self.settled.fields.push(ResolvedField {
+                at,
+                owner: owner.to_owned(),
+                produced: produced.to_owned()
+            });
+        }
+        self
+    }
+
+    /// States the type of every occurrence of `fragment` from the cursor
+    /// on, and says nothing where the fixture writes none.
+    pub(in crate::semantic) fn all_typed(mut self, fragment: &str, rendered: &str) -> Self {
+        while let Some(at) = self.next_at(fragment) {
+            self.from = at.range.end as usize;
+            self.settled.types.push(ResolvedType {
+                at,
+                rendered: rendered.to_owned()
+            });
+        }
+        self
+    }
+
+    /// Where the next occurrence of `fragment` stands, or nothing where
+    /// the rest of the file writes none.
+    fn next_at(&self, fragment: &str) -> Option<Location> {
+        let start = self.text.get(self.from..)?.find(fragment)? + self.from;
+        Some(Location {
+            file:  self.file.clone(),
+            range: Range {
+                start: u32::try_from(start).unwrap_or(u32::MAX),
+                end:   u32::try_from(start + fragment.len()).unwrap_or(u32::MAX)
+            }
+        })
     }
 
     /// States the call the compiler settled at `fragment`: the function

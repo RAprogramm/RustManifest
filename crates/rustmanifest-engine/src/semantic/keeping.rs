@@ -53,7 +53,53 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Direction, Verb, commands, keeping, outliving, purpose, stores, tables};
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{
+            behavior::behavior_with,
+            settling::{Settling, settle_identity},
+            workspace::Workspace
+        },
+        source::Source
+    };
+
+    /// What a compiler settles about these fixtures.
+    ///
+    /// Every question the module asks starts from a field: which type
+    /// holds `tasks`, and what that field carries. The written text names
+    /// neither — `self` is spelled `self` and a handler's state arrives
+    /// through a pattern — so the whole reading rests on the resolver
+    /// saying it. Which body each written call reaches is settled beside
+    /// it, so a command reaching a store's method is an edge and not a
+    /// guess.
+    fn settled_over(sources: &[Source]) -> rustmanifest_schema::Resolution {
+        let mut resolution = Settling::over("src/lib.rs", sources[0].text())
+            .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
+            .from_start()
+            .fields("state.tasks", "AppState", "Mutex<BTreeMap<u64, Task>>")
+            .from_start()
+            .fields("store.tasks", "Store", "BTreeMap<u64, Task>")
+            .from_start()
+            .fields("task.done", "Task", "bool")
+            .from_start()
+            .fields("task.title", "Task", "String")
+            .from_start()
+            .all_typed("self.tasks", "BTreeMap<u64, Task>")
+            .from_start()
+            .all_typed("state.tasks", "Mutex<BTreeMap<u64, Task>>")
+            .from_start()
+            .all_typed("store.tasks", "BTreeMap<u64, Task>")
+            .from_start()
+            .all_typed("store", "&mut Store")
+            .from_start()
+            .all_typed("state", "AppState")
+            .from_start()
+            .all_typed("tasks", "BTreeMap<u64, Task>")
+            .done();
+        let facts = behavior_with(sources, Some(&resolution));
+        settle_identity(&mut resolution, sources, &facts);
+        resolution
+    }
+
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
 
@@ -114,7 +160,8 @@ pub fn run(store: &mut Store, asked: &str) {
 }
 "#;
         let sources = workspace_of(&format!("{TASK_STORE}{asking}"));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -132,7 +179,8 @@ pub fn run(store: &mut Store, asked: &str) {
     #[test]
     fn a_field_holding_a_collection_of_a_declared_type_is_a_store() {
         let sources = workspace_of(TASK_STORE);
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let held = stores(&workspace);
         assert_eq!(held.len(), 1);
         assert_eq!(held[0].owner, "Store");
@@ -147,7 +195,8 @@ pub fn run(store: &mut Store, asked: &str) {
              title: String,\n    pub done:  bool\n}\n\npub struct Shared {\n    pub tasks: \
              Arc<Mutex<BTreeMap<u64, Task>>>\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let held = stores(&workspace);
         assert_eq!(held.len(), 1);
         assert_eq!(held[0].owner, "Shared");
@@ -161,10 +210,11 @@ pub fn run(store: &mut Store, asked: &str) {
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
              title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
              tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn list(State(state): \
-             State<Arc<AppState>>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
+             State<AppState>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
              tasks.len()\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         let listed = read
             .iter()
@@ -180,11 +230,12 @@ pub fn run(store: &mut Store, asked: &str) {
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
              title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
              tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn create(State(state): \
-             State<Arc<AppState>>) {\n    state.tasks.lock().unwrap().insert(1, Task { title: \
-             String::new() });\n}\n\npub fn remove(State(state): State<Arc<AppState>>) {\n    let \
+             State<AppState>) {\n    state.tasks.lock().unwrap().insert(1, Task { title: \
+             String::new() });\n}\n\npub fn remove(State(state): State<AppState>) {\n    let \
              mut tasks = state.tasks.lock().unwrap();\n    tasks.remove(&1);\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         let verb = |name: &str| {
             read.iter()
@@ -201,11 +252,12 @@ pub fn run(store: &mut Store, asked: &str) {
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
              title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
              tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn list(State(state): \
-             State<Arc<AppState>>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
+             State<AppState>) -> usize {\n    let tasks = state.tasks.lock().unwrap();\n    \
              tasks.len()\n}\n\npub fn app() -> Router {\n    Router::new().route(\"/tasks\", \
              get(list))\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -220,12 +272,13 @@ pub fn run(store: &mut Store, asked: &str) {
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
              title: String\n}\n\npub struct State<T>(pub T);\n\npub struct Path<T>(pub \
              T);\n\npub struct AppState {\n    pub tasks: Mutex<BTreeMap<u64, \
-             Task>>\n}\n\npub fn read(State(state): State<Arc<AppState>>, Path(id): Path<u64>) \
+             Task>>\n}\n\npub fn read(State(state): State<AppState>, Path(id): Path<u64>) \
              -> bool {\n    let tasks = state.tasks.lock().unwrap();\n    \
              tasks.get(&id).is_some()\n}\n\npub fn app() -> Router {\n    \
              Router::new().route(\"/tasks/{id}\", get(read))\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -242,12 +295,13 @@ pub fn run(store: &mut Store, asked: &str) {
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
              title: String\n}\n\npub struct State<T>(pub T);\n\npub struct Path<T>(pub \
              T);\n\npub struct AppState {\n    pub tasks: Mutex<BTreeMap<u64, \
-             Task>>\n}\n\npub fn read(State(state): State<Arc<AppState>>, Path(id): Path<u64>) \
+             Task>>\n}\n\npub fn read(State(state): State<AppState>, Path(id): Path<u64>) \
              -> bool {\n    let tasks = state.tasks.lock().unwrap();\n    \
              tasks.get(&1).is_some()\n}\n\npub fn app() -> Router {\n    \
              Router::new().route(\"/tasks/{id}\", get(read))\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -272,7 +326,8 @@ pub fn run(store: &mut Store, asked: &str) {
 }
 "#;
         let sources = workspace_of(&format!("{TASK_STORE}{asking}"));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let asked = commands(&workspace);
         let named = |written: &str| {
             asked
@@ -292,7 +347,8 @@ pub fn run(store: &mut Store, asked: &str) {
              std::collections::BTreeMap::new() }};\n        for (_, task) in &store.tasks {{\n    \
                      let _ = &task.title;\n        }}\n    }}\n}}\n"
         ));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         assert!(
             !read
@@ -308,7 +364,8 @@ pub fn run(store: &mut Store, asked: &str) {
             "pub struct Item {\n    pub name: String\n}\n\n#[derive(Serialize)]\npub struct \
              Envelope {\n    pub items: Vec<Item>\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -329,7 +386,8 @@ pub fn run(store: &mut Store, asked: &str) {
              Json<CreateRequest>) -> String {\n    String::new()\n}\n\npub fn app() -> Router \
              {\n    Router::new().route(\"/items\", post(create))\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -345,10 +403,11 @@ pub fn run(store: &mut Store, asked: &str) {
              title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
              tasks: Mutex<BTreeMap<u64, Task>>\n}\n\n#[derive(Serialize)]\npub struct Envelope \
              {\n    pub items: Vec<Task>\n}\n\npub fn titles(tasks: &BTreeMap<u64, Task>) -> \
-             Vec<Task> {\n    Vec::new()\n}\n\npub fn list(State(state): State<Arc<AppState>>) \
+             Vec<Task> {\n    Vec::new()\n}\n\npub fn list(State(state): State<AppState>) \
              -> Envelope {\n    Envelope { items: titles(&state.tasks.lock().unwrap()) }\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         let wire = said
             .iter()
@@ -368,7 +427,8 @@ pub fn run(store: &mut Store, asked: &str) {
              {\n    Json(Envelope { items: Vec::new() })\n}\n\npub fn app() -> Router {\n    \
              Router::new().route(\"/items\", get(list))\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1);
         assert!(
@@ -387,7 +447,8 @@ pub fn run(store: &mut Store, asked: &str) {
              sqlx::query!(\"INSERT INTO tasks (title) VALUES ($1)\", title);\n}\npub async fn \
              list(pool: &sqlx::PgPool) {\n    sqlx::query!(\"SELECT id, title FROM tasks\");\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let held = tables(&workspace);
         assert_eq!(held.len(), 1, "{held:?}");
         assert_eq!(held[0].table, "tasks");
@@ -415,7 +476,8 @@ pub fn run(store: &mut Store, asked: &str) {
              &sqlx::PgPool) {\n    sqlx::query_as::<_, Task>(\"SELECT id, title FROM \
              tasks\");\n}\n"
         );
-        let workspace = Workspace::new(&one);
+        let settled = settled_over(&one);
+        let workspace = Workspace::resolved(&one, &settled);
         let held = tables(&workspace);
         assert_eq!(held.len(), 1, "{held:?}");
         assert_eq!(held[0].record.as_deref(), Some("Task"));
@@ -430,7 +492,8 @@ pub fn run(store: &mut Store, asked: &str) {
              Task>(\"SELECT title FROM tasks\");\n}\npub async fn titles(pool: &sqlx::PgPool) \
              {\n    sqlx::query_as::<_, Row>(\"SELECT title FROM tasks\");\n}\n"
         );
-        let disagreeing = Workspace::new(&two);
+        let held = settled_over(&two);
+        let disagreeing = Workspace::resolved(&two, &held);
         assert_eq!(
             tables(&disagreeing)[0].record,
             None,
@@ -449,7 +512,8 @@ pub fn run(store: &mut Store, asked: &str) {
              sqlx::query!(\"DELETE FROM tasks WHERE id = $1\", id);\n}\n\npub fn app() -> Router \
              {\n    Router::new().route(\"/tasks/{id}\", delete(remove))\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1, "{said:?}");
         assert!(
@@ -470,7 +534,8 @@ pub fn run(store: &mut Store, asked: &str) {
              task) in &self.tasks {{\n            sqlx::query!(\"INSERT INTO tasks (title) \
              VALUES ($1)\", task.title);\n        }}\n    }}\n}}\n"
         ));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         assert!(tables(&workspace).is_empty(), "{:?}", tables(&workspace));
         let said = purpose(&workspace);
         assert_eq!(said.len(), 1, "one store, one sentence: {said:?}");
@@ -484,7 +549,8 @@ pub fn run(store: &mut Store, asked: &str) {
             "pub async fn report(pool: &sqlx::PgPool) {\n    sqlx::query!(\"SELECT t.id FROM \
              tasks t JOIN users u ON TRUE\");\n}\n"
         );
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         assert!(tables(&workspace).is_empty());
         assert!(purpose(&workspace).is_empty());
     }
@@ -497,7 +563,8 @@ pub fn run(store: &mut Store, asked: &str) {
              in &self.tasks {{\n            out.push_str(&task.title);\n        }}\n        \
              std::fs::write(path, out)\n    }}\n}}\n"
         ));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let carried = outliving(&workspace);
         assert_eq!(carried.len(), 1);
         assert_eq!(carried[0].direction, Direction::Saves);
@@ -511,7 +578,8 @@ pub fn run(store: &mut Store, asked: &str) {
              task) in &self.tasks {{\n            sqlx::query!(\"INSERT INTO tasks (title) \
              VALUES ($1)\", task.title);\n        }}\n    }}\n}}\n"
         ));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let carried = outliving(&workspace);
         let persisted = carried
             .iter()
@@ -528,7 +596,8 @@ pub fn run(store: &mut Store, asked: &str) {
              task) in &self.tasks {{\n            sqlx::query(\"INSERT INTO tasks (title) VALUES \
              ($1)\").bind(&task.title);\n        }}\n    }}\n}}\n"
         ));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let carried = outliving(&workspace);
         let persisted = carried
             .iter()
@@ -549,7 +618,8 @@ pub fn run(store: &mut Store, asked: &str) {
              BTreeMap::new();\n    }}\n    pub fn absorb(&mut self, other: BTreeMap<u64, Task>) \
              {{\n        self.tasks = other;\n    }}\n}}\n"
         ));
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         for silenced in ["wipe", "absorb"] {
             assert!(
@@ -567,7 +637,8 @@ pub fn run(store: &mut Store, asked: &str) {
     #[test]
     fn each_verb_is_read_from_what_the_method_does_to_the_store() {
         let sources = workspace_of(TASK_STORE);
-        let workspace = Workspace::new(&sources);
+        let settled = settled_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let read = keeping(&workspace);
         let verb = |name: &str| {
             read.iter()

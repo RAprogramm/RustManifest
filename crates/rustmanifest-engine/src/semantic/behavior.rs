@@ -73,7 +73,7 @@ pub use self::{
         VALUE_ORIGIN_SET
     }
 };
-use self::{returned::Returned, scoped::Scoped};
+use self::scoped::Scoped;
 
 #[cfg(test)]
 #[allow(

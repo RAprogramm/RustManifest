@@ -186,7 +186,26 @@ mod tests {
     use std::path::PathBuf;
 
     use super::why_kept;
-    use crate::semantic::workspace::Workspace;
+    use crate::semantic::{
+        behavior::behavior_with,
+        settling::{Settling, settle_identity},
+        workspace::Workspace
+    };
+
+    /// What a compiler settles about the fixture: the type holding
+    /// `tasks`, what it carries, and which body each call reaches.
+    fn settled_over(sources: &[crate::source::Source]) -> rustmanifest_schema::Resolution {
+        let mut resolution = Settling::over("src/lib.rs", sources[0].text())
+            .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
+            .from_start()
+            .all_typed("self.tasks", "BTreeMap<u64, Task>")
+            .from_start()
+            .fields("task.title", "Task", "String")
+            .done();
+        let facts = behavior_with(sources, Some(&resolution));
+        settle_identity(&mut resolution, sources, &facts);
+        resolution
+    }
 
     fn one(text: &str) -> Vec<crate::source::Source> {
         vec![crate::source::Source::new(
@@ -208,7 +227,7 @@ mod tests {
     #[test]
     fn a_kept_store_answers_with_its_declaration_and_verbs() {
         let sources = one(KEPT);
-        let held = why_kept(&Workspace::new(&sources), "Store.tasks");
+        let held = why_kept(&Workspace::resolved(&sources, &settled_over(&sources)), "Store.tasks");
         assert!(held.conclusion.contains("`Task` records"), "{held:?}");
         assert!(
             held.steps[0].fact.contains("`BTreeMap` of `Task` records"),
@@ -234,7 +253,7 @@ mod tests {
     #[test]
     fn the_record_type_finds_its_store() {
         let sources = one(KEPT);
-        let held = why_kept(&Workspace::new(&sources), "Task");
+        let held = why_kept(&Workspace::resolved(&sources, &settled_over(&sources)), "Task");
         assert!(held.conclusion.contains("`Store.tasks`"), "{held:?}");
     }
 
@@ -242,7 +261,7 @@ mod tests {
     #[test]
     fn an_unknown_store_is_refused() {
         let sources = one(KEPT);
-        let held = why_kept(&Workspace::new(&sources), "Ghost");
+        let held = why_kept(&Workspace::resolved(&sources, &settled_over(&sources)), "Ghost");
         assert!(held.conclusion.contains("no store named"), "{held:?}");
     }
 
@@ -253,7 +272,7 @@ mod tests {
                     String,\n}\n\npub struct Live {\n    pub tasks: BTreeMap<u64, \
                     Task>,\n}\n\npub struct Done {\n    pub tasks: BTreeMap<u64, Task>,\n}\n";
         let sources = one(text);
-        let held = why_kept(&Workspace::new(&sources), "tasks");
+        let held = why_kept(&Workspace::resolved(&sources, &settled_over(&sources)), "tasks");
         assert!(held.conclusion.contains("ambiguous"), "{held:?}");
         assert!(held.conclusion.contains("`Live.tasks`"), "{held:?}");
         assert!(held.conclusion.contains("`Done.tasks`"), "{held:?}");

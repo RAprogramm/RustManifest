@@ -27,19 +27,3 @@ pub(super) fn strip_ref_deref(expression: &syn::Expr) -> &syn::Expr {
     }
 }
 
-/// Inner expression of a `Pin::new(&mut *value)` call: `Pin` is a
-/// transparent pointer for receiver typing, so the pinned value's type
-/// is the wrapped expression's type, references and derefs stripped.
-pub(super) fn pinned_inner(call: &syn::ExprCall) -> Option<&syn::Expr> {
-    let syn::Expr::Path(path) = call.func.as_ref() else {
-        return None;
-    };
-    let segments = &path.path.segments;
-    if segments.len() < 2
-        || segments[segments.len() - 1].ident != "new"
-        || segments[segments.len() - 2].ident != "Pin"
-    {
-        return None;
-    }
-    call.args.first().map(strip_ref_deref)
-}

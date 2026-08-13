@@ -97,7 +97,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{super::kind::Capability, *};
-    use crate::source::Source;
+    use crate::{semantic::settling::identity_over, source::Source};
 
     fn binary(text: &str) -> Vec<Source> {
         vec![Source::new(
@@ -111,7 +111,7 @@ mod tests {
         let sources = binary(
             "fn serve() { std::net::TcpListener::bind(\"0\").ok(); }\nfn main() { serve(); }"
         );
-        let rows = started(&Workspace::new(&sources));
+        let rows = started(&Workspace::resolved(&sources, &identity_over(&sources)));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].proven.capability, Capability::Serves);
         assert!(rows[0].reached);
@@ -122,7 +122,7 @@ mod tests {
     fn a_capability_no_entry_calls_is_kept_and_marked_unreached() {
         let sources =
             binary("fn serve() { std::net::TcpListener::bind(\"0\").ok(); }\nfn main() { }");
-        let rows = started(&Workspace::new(&sources));
+        let rows = started(&Workspace::resolved(&sources, &identity_over(&sources)));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].proven.capability, Capability::Serves);
         assert!(!rows[0].reached);
@@ -134,7 +134,7 @@ mod tests {
             "fn cold() { std::env::var(\"A\").ok(); }\nfn warm() { std::env::var(\"B\").ok(); \
              }\nfn main() { warm(); }"
         );
-        let rows = started(&Workspace::new(&sources));
+        let rows = started(&Workspace::resolved(&sources, &identity_over(&sources)));
         assert_eq!(rows.len(), 1);
         assert!(rows[0].reached);
         assert_eq!(rows[0].proven.evidence.function, "warm");
@@ -146,7 +146,7 @@ mod tests {
             PathBuf::from("app/src/lib.rs"),
             "pub fn serve() { std::net::TcpListener::bind(\"0\").ok(); }".to_owned()
         )];
-        let rows = started(&Workspace::new(&sources));
+        let rows = started(&Workspace::resolved(&sources, &identity_over(&sources)));
         assert_eq!(rows.len(), 1);
         assert!(!rows[0].reached);
     }

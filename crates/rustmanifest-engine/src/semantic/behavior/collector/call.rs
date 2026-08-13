@@ -109,11 +109,36 @@ impl FactCollector {
         syn::visit::visit_expr_try(self, tried);
         self.record_try_handback(tried);
         if let [enclosing] = self.facts.error_types.clone().as_slice()
-            && let Some(key) = self.call_key(&tried.expr)
-            && let Some(callee_error) = self.ret(&key).and_then(|r| r.error.clone())
+            && let Some(callee_error) = self
+                .settled_expr_type_full(&tried.expr)
+                .and_then(|rendered| failure_half(&rendered))
             && callee_error != *enclosing
         {
             self.record_call(Some(enclosing), "from");
         }
     }
+}
+
+/// The failure half of a rendered fallible type.
+///
+/// The compiler renders the whole answer, `Result<T, E>`; a `?` converts
+/// the second half, and taking it out of that rendering is reading the
+/// compiler's own spelling rather than the source's.
+fn failure_half(rendered: &str) -> Option<String> {
+    let inside = rendered
+        .trim()
+        .strip_prefix("Result<")?
+        .strip_suffix('>')?;
+    let mut depth = 0usize;
+    for (at, letter) in inside.char_indices() {
+        match letter {
+            '<' | '(' | '[' => depth += 1,
+            '>' | ')' | ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                return crate::semantic::behavior::assembly::outermost(&inside[at + 1..]);
+            }
+            _ => {}
+        }
+    }
+    None
 }

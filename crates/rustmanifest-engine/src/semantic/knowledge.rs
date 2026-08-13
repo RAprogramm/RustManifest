@@ -58,17 +58,6 @@ pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
         .map(|(_, _, effect)| *effect)
 }
 
-/// Projection methods of the pin-project family: the returned view's
-/// named fields mirror the receiver's own fields, so for field typing
-/// the projection is the receiver. Every expansion names its view the
-/// same, which collapses the unique-name field table — the reason this
-/// is knowledge and not inference.
-pub(super) const PROJECTION_METHODS: [&str; 2] = ["project", "project_ref"];
-
-/// View type names the pin-project family generates, fixed by the
-/// macro itself for every expansion.
-pub(super) const PROJECTION_VIEWS: [&str; 2] = ["Projection", "ProjectionRef"];
-
 /// The `tower` service entry point: layering wrappers preserve it, so
 /// `call` on a wrapper whose wrapped service type is known dispatches
 /// to that service's own `call`.

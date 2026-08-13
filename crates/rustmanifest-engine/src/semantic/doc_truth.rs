@@ -104,19 +104,35 @@ mod tests {
     use std::path::PathBuf;
 
     use super::insights;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::{
+        semantic::{settling::Settling, workspace::Workspace},
+        source::Source
+    };
 
     fn found(text: &str) -> usize {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         insights(&Workspace::new(&sources)).len()
     }
 
+    /// The findings over `text`, read with what `settle` states a
+    /// resolver settled about it: a write is weighed against a doc only
+    /// where the type it lands on is named.
+    fn found_settled<'text>(
+        text: &'text str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> usize {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
+        insights(&Workspace::resolved(&sources, &resolution)).len()
+    }
+
     #[test]
     fn doc_claiming_a_read_over_a_writing_body_is_a_lie() {
         assert_eq!(
-            found(
+            found_settled(
                 "struct Counter { hits: u64 }\nimpl Counter {\n    /// Returns the hit \
-                 count.\n    fn hits(&mut self) -> u64 { self.hits += 1; self.hits }\n}"
+                 count.\n    fn hits(&mut self) -> u64 { self.hits += 1; self.hits }\n}",
+                |settling| settling.field("self.hits", "Counter", "u64")
             ),
             1
         );

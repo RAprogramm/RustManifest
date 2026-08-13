@@ -112,7 +112,6 @@ pub(super) fn function_facts(
             queries: Vec::new()
         },
         param_types:      parameter_types(signature, context.impl_type),
-        fn_returns:       known.tables.returns.clone(),
         mutates:          known.tables.mutates.clone(),
         field_types:      known.tables.fields.clone(),
         field_wraps:      known.tables.field_wraps.clone(),
@@ -124,6 +123,14 @@ pub(super) fn function_facts(
         receivers:        known.settled.receivers.clone(),
         held:             known.settled.fields.clone(),
         typed:            known.settled.types.clone(),
+        rendered:         known.settled.rendered.clone(),
+        leaving:          known
+            .settled
+            .rendered
+            .iter()
+            .filter(|(_, rendered)| rendered.trim() == "!")
+            .map(|(at, _)| *at)
+            .collect(),
         items:            known.settled.items.clone(),
         src:              source,
         local_wraps:      std::collections::BTreeMap::new(),

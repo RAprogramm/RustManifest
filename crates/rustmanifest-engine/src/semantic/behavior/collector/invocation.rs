@@ -153,9 +153,7 @@ impl FactCollector {
     /// Records the poll an awaited future stands for, where the future's
     /// own type declares one.
     pub(super) fn collect_await(&mut self, awaited: &syn::ExprAwait) {
-        if let Some(future_type) = self.called_return(&awaited.base)
-            && self.ret(&format!("{future_type}::poll")).is_some()
-        {
+        if let Some(future_type) = self.called_return(&awaited.base) {
             self.record_call(Some(&future_type), "poll");
         }
         syn::visit::visit_expr_await(self, awaited);

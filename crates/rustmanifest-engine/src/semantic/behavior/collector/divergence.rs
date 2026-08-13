@@ -20,24 +20,19 @@ impl FlowScope<'_> {
             && segments.iter().any(|segment| segment == "process")
     }
 
-    /// Whether a called path names a workspace function whose signature
-    /// declares the never type, so the call does not return.
+    /// Whether the call written here does not come back.
+    ///
+    /// The never type is what says so, and the compiler states it at the
+    /// call. Looking the callee up by written name answered only for the
+    /// functions this workspace declares, and for those only when the
+    /// name was unique.
     pub(super) fn never_returns(&self, callee: &syn::Expr) -> bool {
-        let syn::Expr::Path(path) = callee else {
+        use syn::spanned::Spanned;
+
+        let span = callee.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
             return false;
         };
-        let segments = expanded_segments(self.imports, &path.path);
-        let Some(bare) = segments.last() else {
-            return false;
-        };
-        let qualified = if segments.len() >= 2 {
-            format!("{}::{bare}", segments[segments.len() - 2])
-        } else {
-            bare.clone()
-        };
-        [qualified.as_str(), bare.as_str()]
-            .iter()
-            .filter_map(|key| self.returns.resolve(key, self.src, self.crates))
-            .any(|returned| returned.never)
+        self.leaving.contains(&(start, end))
     }
 }
