@@ -424,10 +424,13 @@ impl FactCollector {
     pub(super) fn record_method_operation(&mut self, call: &syn::ExprMethodCall) -> bool {
         use syn::spanned::Spanned;
 
-        let method = call.method.to_string();
         let mut operands = vec![self.origin_of(&call.receiver)];
         operands.extend(call.args.iter().map(|argument| self.origin_of(argument)));
-        if let Some((operation, guarding)) = operation_method(&method) {
+        if let Some((operation, guarding)) = self
+            .reached_by(&call.span().byte_range())
+            .as_deref()
+            .and_then(operation_method)
+        {
             self.push_operation(&call.span().byte_range(), operation, operands, guarding);
             return true;
         }
