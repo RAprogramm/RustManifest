@@ -503,9 +503,41 @@ fn settle_handles(resolution: &mut Resolution, sources: &[Source]) {
                     rendered: declared.rsplit("::").next().unwrap_or(declared).to_owned(),
                     declared: Some(declared.to_owned())
                 });
+                if let Some(bound) = bound_name(text, at.start as usize) {
+                    resolution.types.push(ResolvedType {
+                        at:       Location {
+                            file:  source.path().to_path_buf(),
+                            range: bound
+                        },
+                        rendered: declared.rsplit("::").next().unwrap_or(declared).to_owned(),
+                        declared: Some(declared.to_owned())
+                    });
+                }
             }
         }
     }
+}
+
+/// The name a `let` binds the value built at `built` to, where the
+/// statement writes one.
+fn bound_name(text: &str, built: usize) -> Option<Range> {
+    let head = text.get(..built)?.trim_end();
+    let head = head.strip_suffix('=')?.trim_end();
+    let start = head
+        .char_indices()
+        .rev()
+        .take_while(|(_, letter)| letter.is_alphanumeric() || *letter == '_')
+        .last()
+        .map(|(at, _)| at)?;
+    let name = &head[start..];
+    let before = head[..start].trim_end();
+    if !before.ends_with("let") && !before.ends_with("mut") {
+        return None;
+    }
+    (!name.is_empty()).then(|| Range {
+        start: u32::try_from(start).unwrap_or(u32::MAX),
+        end:   u32::try_from(start + name.len()).unwrap_or(u32::MAX)
+    })
 }
 
 /// Records the numeric calls a fixture writes, as the bodies of the
