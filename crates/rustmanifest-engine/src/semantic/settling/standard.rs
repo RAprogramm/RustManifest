@@ -12,7 +12,7 @@
 //! Stated here rather than in the readers: the readers must keep asking
 //! the compiler, and a fixture must keep being able to answer for one.
 
-use rustmanifest_schema::{Location, Range, Resolution, ResolvedPath, ResolvedType};
+use rustmanifest_schema::{Location, Range, Resolution, ResolvedCall, ResolvedPath, ResolvedType};
 
 use crate::source::Source;
 
@@ -53,6 +53,19 @@ const LEAVING_MACROS: [&str; 4] = [
 /// The rendering the compiler gives a position no value comes back from.
 const NEVER: &str = "!";
 
+/// The library containers a fixture allocates, with the crate that
+/// declares each — the crate is what makes a call into it an allocation.
+const ALLOCATED: [(&str, &str); 5] = [
+    ("String", "alloc::string::String"),
+    ("Vec", "alloc::vec::Vec"),
+    ("VecDeque", "alloc::collections::VecDeque"),
+    ("Box", "alloc::boxed::Box"),
+    ("Rc", "alloc::rc::Rc")
+];
+
+/// The constructors a fixture writes such a container with.
+const CONSTRUCTORS: [&str; 3] = ["new", "with_capacity", "from"];
+
 /// Adds to `resolution` what a compiler settles about the standard
 /// macros `sources` write.
 pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
@@ -84,7 +97,75 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+    settle_allocations(resolution, sources);
     resolution.settle();
+}
+
+/// Records the constructor calls a fixture writes into the allocating
+/// crate, so a reading asking which crate a call reaches is answered.
+fn settle_allocations(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for (written, declared) in ALLOCATED {
+            for constructor in CONSTRUCTORS {
+                let spelled = format!("{written}::{constructor}");
+                for at in call_at(text, &spelled) {
+                    resolution.calls.push(ResolvedCall {
+                        at:             Location {
+                            file:  source.path().to_path_buf(),
+                            range: at
+                        },
+                        callee:         constructor.to_owned(),
+                        returns:        written.to_owned(),
+                        receiver:       None,
+                        receiver_path:  None,
+                        caller_decides: false,
+                        reaches:        Some(format!("{declared}::{constructor}")),
+                        takes:          None
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Every range a written call stands at, its argument list closed.
+fn call_at(text: &str, spelled: &str) -> Vec<Range> {
+    let mut found = Vec::new();
+    let mut from = 0usize;
+    while let Some(at) = text.get(from..).and_then(|rest| rest.find(spelled)) {
+        let start = from + at;
+        let opens = start + spelled.len();
+        from = opens;
+        let Some(range) = closed_at(text, start, opens) else {
+            continue;
+        };
+        found.push(range);
+    }
+    found
+}
+
+/// The range a call starting at `start` stands at, where its argument
+/// list opens at `opens` and closes further on.
+fn closed_at(text: &str, start: usize, opens: usize) -> Option<Range> {
+    if !text.get(opens..)?.starts_with('(') {
+        return None;
+    }
+    let mut depth = 0usize;
+    for (at, letter) in text.get(opens..)?.char_indices() {
+        if letter == '(' {
+            depth += 1;
+        } else if letter == ')' {
+            depth -= 1;
+            if depth == 0 {
+                return Some(Range {
+                    start: u32::try_from(start).unwrap_or(u32::MAX),
+                    end:   u32::try_from(opens + at + 1).unwrap_or(u32::MAX)
+                });
+            }
+        }
+    }
+    None
 }
 
 /// What a compiler settles about the standard macros `sources` write,

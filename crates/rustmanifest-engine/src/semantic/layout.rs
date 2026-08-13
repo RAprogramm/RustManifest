@@ -71,7 +71,8 @@ pub fn shapes_with(
     sources: &[Source],
     settled: Option<&rustmanifest_schema::Resolution>
 ) -> Vec<TypeShape> {
-    let graph = TypeGraph::from_sources(sources);
+    let mut graph = TypeGraph::from_sources(sources);
+    graph.granted_by(sources, settled);
     let mut payloads: BTreeMap<&str, Option<u64>> = BTreeMap::new();
     for node in graph.types() {
         if node.kind == TypeKind::Struct {
@@ -190,10 +191,9 @@ mod tests {
             ..rustmanifest_schema::Resolution::default()
         };
         settled.settle();
-        shapes_with(
-            &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
-            Some(&settled)
-        )
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        crate::semantic::settling::settle_declared(&mut settled, &sources);
+        shapes_with(&sources, Some(&settled))
     }
 
     fn named<'a>(all: &'a [super::TypeShape], name: &str) -> &'a super::TypeShape {
