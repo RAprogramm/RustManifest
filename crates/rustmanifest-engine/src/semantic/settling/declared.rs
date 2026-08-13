@@ -52,7 +52,9 @@ pub fn settle_declared(resolution: &mut Resolution, sources: &[Source]) {
             match item {
                 syn::Item::Struct(declared) => {
                     let fields = named_fields(&declared.fields);
-                    record(resolution, source, &declared.ident.to_string(), fields);
+                    let named = declared.ident.to_string();
+                    record_derives(resolution, source, &named, &declared.attrs);
+                    record(resolution, source, &named, fields);
                 }
                 syn::Item::Enum(declared) => {
                     let mut fields = Vec::new();
@@ -73,7 +75,9 @@ pub fn settle_declared(resolution: &mut Resolution, sources: &[Source]) {
                             }
                         }
                     }
-                    record(resolution, source, &declared.ident.to_string(), fields);
+                    let named = declared.ident.to_string();
+                    record_derives(resolution, source, &named, &declared.attrs);
+                    record(resolution, source, &named, fields);
                 }
                 _ => {}
             }
@@ -92,6 +96,37 @@ pub fn declared_over(sources: &[Source]) -> Resolution {
     };
     settle_declared(&mut resolution, sources);
     resolution
+}
+
+/// Records every trait a written derive grants the type: the compiler
+/// reads a derive and a written impl as one answer, and a fixture
+/// states it the same way.
+fn record_derives(
+    resolution: &mut Resolution,
+    source: &Source,
+    named: &str,
+    attributes: &[syn::Attribute]
+) {
+    for attribute in attributes {
+        if !attribute.path().is_ident("derive") {
+            continue;
+        }
+        drop(attribute.parse_nested_meta(|held| {
+            if let Some(segment) = held.path.segments.last() {
+                resolution.grants.push(ResolvedGrant {
+                    at:         Location {
+                        file:  source.path().to_path_buf(),
+                        range: Range {
+                            start: 0, end: 0
+                        }
+                    },
+                    named:      named.to_owned(),
+                    trait_name: segment.ident.to_string()
+                });
+            }
+            Ok(())
+        }));
+    }
 }
 
 /// Records one declared type, its fields, and the abilities the library
