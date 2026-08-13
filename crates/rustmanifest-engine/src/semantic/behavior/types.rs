@@ -202,6 +202,14 @@ pub struct CallSite {
     pub arguments:  super::value::Arguments,
     /// What the source does with a failure the call can hand back.
     pub disposal:   super::value::Disposal,
+    /// Type the call hands back, as the compiler settled it, absent
+    /// where it settled none.
+    ///
+    /// The candidate names which body is reached; this names what comes
+    /// out of it. A reading deciding the second from the first has to
+    /// know every library method by name, and knows none of the ones
+    /// nobody wrote down.
+    pub produced:   Option<String>,
     /// What each construct standing over the site tests, outermost first,
     /// one entry per guard frame.
     pub conditions: Vec<super::value::Condition>

@@ -107,9 +107,13 @@ pub(super) fn servings_of(
     served
 }
 
-/// Methods a run asks for one record with: a keyed read, a keyed write
-/// access, a removal.
-const ASKING: [&str; 3] = ["get", "get_mut", "remove"];
+/// What a call asking a collection for one record hands back: the one
+/// record, or nothing where the collection holds none under that key.
+///
+/// Three method names answered this before — a keyed read, a keyed
+/// write access, a removal — and answered for a workspace collection
+/// spelling any of them differently not at all.
+const ASKED_ANSWER: &str = "Option";
 
 /// Whether the handler's own lookup into the store is written with the
 /// very name its path-extractor pattern binds.
@@ -148,9 +152,15 @@ fn asked_with_the_path(
         return false;
     };
     fact.call_sites.iter().any(|site| {
-        ASKING
-            .iter()
-            .any(|method| site.candidate == format!("{shape}::{method}"))
+        site.candidate
+            .split_once("::")
+            .is_some_and(|(owner, _)| owner == shape)
+            && site
+                .produced
+                .as_deref()
+                .and_then(crate::semantic::behavior::outermost_name)
+                .as_deref()
+                == Some(ASKED_ANSWER)
             && site
                 .arguments
                 .written()

@@ -92,12 +92,14 @@ impl FactCollector {
                 end:   u32::try_from(written.end).unwrap_or(u32::MAX)
             }
         );
+        let produced = self.settled_type_over(&(site.start as usize..site.end as usize));
         self.facts.call_sites.push(CallSite {
             candidate: candidate.clone(),
             guard: self.site_guard(),
             site,
             arguments,
             disposal: Disposal::NotIdentified,
+            produced,
             conditions: self.site_conditions()
         });
         self.facts.calls.push(candidate);
