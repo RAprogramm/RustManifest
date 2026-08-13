@@ -788,7 +788,12 @@ fn written_call(text: &str, opens: usize) -> Option<Range> {
         .char_indices()
         .rev()
         .take_while(|(_, letter)| {
-            letter.is_alphanumeric() || *letter == '_' || *letter == '.' || *letter == ')'
+            letter.is_alphanumeric()
+                || *letter == '_'
+                || *letter == '.'
+                || *letter == ')'
+                || *letter == '('
+                || *letter == ':'
         })
         .last()
         .map_or(opens, |(at, _)| at);
