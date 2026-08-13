@@ -14,16 +14,21 @@
 use super::kind::Capability;
 use crate::semantic::behavior::{Effect, EffectSite};
 
-/// Path segments that stand for binding a local socket rather than dialling
-/// a remote one.
-const LISTENING_TYPES: [&str; 2] = ["TcpListener", "UdpSocket"];
+/// The library types whose values are a local socket, each named by the
+/// item that declares it — two written type names named them before, and
+/// named any library's namesake as readily.
+const LISTENING_TYPES: [&str; 2] = ["std::net::tcp::TcpListener", "std::net::udp::UdpSocket"];
 
 /// Final segments that name the act of taking a local socket.
 const LISTENING_CALLS: [&str; 2] = ["bind", "listen"];
 
-/// Path segments of `std::process` that end *this* process rather than
-/// start another one.
-const OWN_EXIT: [&str; 3] = ["ExitCode", "exit", "abort"];
+/// The library items that end *this* process rather than start another
+/// one, each named by the item itself.
+const OWN_EXIT: [&str; 3] = [
+    "std::process::ExitCode",
+    "std::process::abort",
+    "std::process::exit"
+];
 
 /// Returns the capability `site` proves, or `None` when it proves none.
 ///
@@ -58,19 +63,21 @@ pub(super) fn of(site: &EffectSite) -> Option<Capability> {
 /// left as it is — narrowing it is a change to shared vocabulary, not to
 /// this classification.
 fn ends_this_process(proof: &str) -> bool {
-    proof.split("::").any(|segment| OWN_EXIT.contains(&segment))
+    OWN_EXIT
+        .iter()
+        .any(|named| proof == *named || proof.starts_with(&format!("{named}::")))
 }
 
 /// Returns whether `path` takes a local socket, by naming a listening
 /// socket type or ending in the call that binds one.
 fn takes_a_local_socket(path: &str) -> bool {
-    let segments: Vec<&str> = path.split("::").collect();
-    segments
+    LISTENING_TYPES
         .iter()
-        .any(|segment| LISTENING_TYPES.contains(segment))
-        || segments
-            .last()
-            .is_some_and(|last| LISTENING_CALLS.contains(last))
+        .any(|named| path == *named || path.starts_with(&format!("{named}::")))
+        || path
+            .rsplit("::")
+            .next()
+            .is_some_and(|last| LISTENING_CALLS.contains(&last))
 }
 
 #[cfg(test)]
@@ -98,15 +105,15 @@ mod tests {
     #[test]
     fn binding_a_socket_serves_and_dialling_one_fetches() {
         assert_eq!(
-            of(&site(Effect::Network, "std::net::TcpListener::bind")),
+            of(&site(Effect::Network, "std::net::tcp::TcpListener::bind")),
             Some(Capability::Serves)
         );
         assert_eq!(
-            of(&site(Effect::Network, "std::net::UdpSocket::bind")),
+            of(&site(Effect::Network, "std::net::udp::UdpSocket::bind")),
             Some(Capability::Serves)
         );
         assert_eq!(
-            of(&site(Effect::Network, "std::net::TcpStream::connect")),
+            of(&site(Effect::Network, "std::net::tcp::TcpStream::connect")),
             Some(Capability::Fetches)
         );
     }
