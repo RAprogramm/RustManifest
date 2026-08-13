@@ -431,7 +431,7 @@ impl FactCollector {
             self.push_operation(&call.span().byte_range(), operation, operands, guarding);
             return true;
         }
-        if crate::semantic::std_knowledge::selects_an_element(&method) {
+        if self.selects_an_element(call) {
             self.push_operation(
                 &call.span().byte_range(),
                 Operation::Selection,

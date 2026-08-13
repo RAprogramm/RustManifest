@@ -48,6 +48,7 @@ mod pattern;
 mod process_exit;
 mod repetition;
 mod resolution;
+mod selecting;
 mod scope;
 mod site;
 mod statement_flow;

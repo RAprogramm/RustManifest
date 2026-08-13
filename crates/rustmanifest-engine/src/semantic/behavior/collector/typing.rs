@@ -45,6 +45,14 @@ impl FactCollector {
         self.typed.get(&(start, end)).cloned()
     }
 
+    /// The type a resolver settled over this byte range, as the compiler
+    /// renders it in full.
+    pub(super) fn settled_type_over_full(&self, span: &std::ops::Range<usize>) -> Option<String> {
+        let start = u32::try_from(span.start).ok()?;
+        let end = u32::try_from(span.end).ok()?;
+        self.rendered.get(&(start, end)).cloned()
+    }
+
     /// The type a resolver settled over this byte range.
     pub(super) fn settled_type_over(&self, span: &std::ops::Range<usize>) -> Option<String> {
         let start = u32::try_from(span.start).ok()?;
