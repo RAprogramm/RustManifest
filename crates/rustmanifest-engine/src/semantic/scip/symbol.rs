@@ -50,19 +50,13 @@ pub(super) fn callee(symbol: &str) -> Callee {
             if desc.name.is_empty() {
                 return None;
             }
-            let mut name = if desc.name.contains('<') {
-                desc.name.split('<').next().unwrap_or("").to_owned()
+            let name_before_generics = if desc.name.contains('<') {
+                desc.name.split('<').next().unwrap_or("")
             } else {
-                desc.name.clone()
+                &desc.name
             };
-            if name.contains('`') {
-                name = name.trim_matches('`').to_owned();
-            }
-            if !name.is_empty() {
-                Some(name)
-            } else {
-                None
-            }
+            let name = name_before_generics.trim_matches('`');
+            (!name.is_empty()).then(|| name.to_owned())
         })
         .collect();
     let short = if segments.len() >= 2 {
