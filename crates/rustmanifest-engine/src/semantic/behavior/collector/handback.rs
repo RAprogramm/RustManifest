@@ -9,10 +9,12 @@ use crate::semantic::behavior::{
     value::Provenance
 };
 
-/// The two variants a fallible return is written as, with the half each
-/// one carries.
-const OUTCOME_VARIANTS: [(&str, Outcome); 2] =
-    [("Ok", Outcome::Success), ("Err", Outcome::Failure)];
+/// The two variants a fallible return hands its halves back through,
+/// named by the item each one reaches rather than by its spelling.
+const OUTCOME_VARIANTS: [(&str, Outcome); 2] = [
+    ("core::result::Ok", Outcome::Success),
+    ("core::result::Err", Outcome::Failure)
+];
 
 impl FactCollector {
     /// Records one position handing a value back, in body order.
@@ -44,7 +46,7 @@ impl FactCollector {
         match &returned.expr {
             Some(written) => {
                 let value = self.origin_of(written);
-                let outcome = outcome_of(written);
+                let outcome = self.outcome_of(written);
                 self.push_handback(&span, value, outcome);
             }
             None => self.push_handback(
@@ -92,26 +94,36 @@ impl FactCollector {
         }
         let span = written.span().byte_range();
         let value = self.origin_of(written);
-        let outcome = outcome_of(written);
+        let outcome = self.outcome_of(written);
         self.push_handback(&span, value, outcome);
     }
 }
 
-/// Which half of a fallible return a written expression hands back, where
-/// the source writes the variant outright.
-fn outcome_of(expression: &syn::Expr) -> Outcome {
-    let syn::Expr::Call(call) = expression else {
-        return Outcome::Plain;
-    };
-    let syn::Expr::Path(path) = call.func.as_ref() else {
-        return Outcome::Plain;
-    };
-    let Some(named) = path.path.segments.last() else {
-        return Outcome::Plain;
-    };
-    let named = named.ident.to_string();
-    OUTCOME_VARIANTS
-        .iter()
-        .find(|(variant, _)| *variant == named.as_str())
-        .map_or(Outcome::Plain, |(_, outcome)| *outcome)
+impl FactCollector {
+    /// Which half of a fallible return a written expression hands back,
+    /// by the item the compiler settled its path to.
+    ///
+    /// The two spellings named the half before, and named it for a
+    /// workspace variant spelled the same way just as readily.
+    fn outcome_of(&self, expression: &syn::Expr) -> Outcome {
+        use syn::spanned::Spanned as _;
+
+        let syn::Expr::Call(call) = expression else {
+            return Outcome::Plain;
+        };
+        let syn::Expr::Path(path) = call.func.as_ref() else {
+            return Outcome::Plain;
+        };
+        let bytes = path.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(bytes.start), u32::try_from(bytes.end)) else {
+            return Outcome::Plain;
+        };
+        let Some(reached) = self.named.get(&(start, end)) else {
+            return Outcome::Plain;
+        };
+        OUTCOME_VARIANTS
+            .iter()
+            .find(|(variant, _)| *variant == reached.as_str())
+            .map_or(Outcome::Plain, |(_, outcome)| *outcome)
+    }
 }
