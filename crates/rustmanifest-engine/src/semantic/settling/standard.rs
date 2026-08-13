@@ -482,13 +482,18 @@ fn settle_positional(resolution: &mut Resolution, sources: &[Source]) {
                 let Some(whole) = written_call(text, opens) else {
                     continue;
                 };
-                resolution.types.push(ResolvedType {
-                    at:       Location {
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
                         file:  source.path().to_path_buf(),
                         range: whole
                     },
-                    rendered: OPTIONAL.to_owned(),
-                    declared: None
+                    callee:         method.to_owned(),
+                    returns:        OPTIONAL.to_owned(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        None,
+                    takes:          None
                 });
             }
         }

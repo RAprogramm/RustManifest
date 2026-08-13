@@ -259,7 +259,10 @@ fn settled_types(
             settled.produced.insert(at, named);
         }
         if !call.returns.is_empty() {
-            settled.rendered.insert(at, call.returns.clone());
+            settled
+                .rendered
+                .entry(at)
+                .or_insert_with(|| call.returns.clone());
         }
         if let Some(named) = call.receiver.as_deref().and_then(outermost) {
             settled.receivers.insert(at, named);

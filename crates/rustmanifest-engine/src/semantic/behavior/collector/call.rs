@@ -93,7 +93,9 @@ impl FactCollector {
             }
         );
         let at = (site.start, site.end);
-        let produced = self.settled_type_over(&(site.start as usize..site.end as usize));
+        let produced = self
+            .settled_type_over(&(site.start as usize..site.end as usize))
+            .or_else(|| self.settled.get(&at).cloned());
         let reaches = self.reached.get(&at).cloned();
         self.facts.call_sites.push(CallSite {
             candidate: candidate.clone(),

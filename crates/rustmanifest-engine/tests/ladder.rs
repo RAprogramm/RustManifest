@@ -1061,3 +1061,4 @@ fn the_tutorial_reads_through_the_closure_written_beside_a_combinator() {
         "the chain through the closure is broken: {said}"
     );
 }
+
