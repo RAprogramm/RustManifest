@@ -9,7 +9,26 @@
 //! once, so a new check reuses them instead of restating them.
 //!
 //! What a call does to its receiver is not among them: that is the
-//! receiver's declared mode, which a resolution carries per call site.
+//! receiver's declared mode, which a resolution carries per call site —
+//! reached through [`settled_call`], the one place that turns a written
+//! span into the position a resolution is keyed by.
+
+/// Returns what a resolver settled about the call written over `span`,
+/// where one ran and settled that position.
+pub(super) fn settled_call<'settled>(
+    settled: Option<&'settled rustmanifest_schema::Resolution>,
+    file: &std::path::Path,
+    span: proc_macro2::Span
+) -> Option<&'settled rustmanifest_schema::ResolvedCall> {
+    let bytes = span.byte_range();
+    settled?.at(&rustmanifest_schema::Location {
+        file:  file.to_path_buf(),
+        range: rustmanifest_schema::Range {
+            start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+            end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+        }
+    })
+}
 
 /// Renders a place expression (`root`, `root.field`, `self.field.inner`)
 /// or returns `None` for anything that is not a plain place.

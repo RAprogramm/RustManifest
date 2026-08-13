@@ -9,10 +9,10 @@
 //! and macro mentions are counted, never guessed at — the conservative
 //! buckets are what keeps the loop rules free of false positives.
 
-use rustmanifest_schema::{Location, Range, ResolvedMode, Resolution};
+use rustmanifest_schema::{ResolvedMode, Resolution};
 use syn::{spanned::Spanned, visit::Visit};
 
-use crate::semantic::expr::{compound_assignment, place_root, token_words};
+use crate::semantic::expr::{compound_assignment, place_root, settled_call, token_words};
 
 /// Classified uses of one binding within the rest of a loop body.
 #[derive(Default)]
@@ -52,17 +52,7 @@ impl UseCollector<'_> {
     /// How the call written here takes its receiver, where the resolver
     /// settled it.
     fn takes(&self, call: &syn::ExprMethodCall) -> Option<ResolvedMode> {
-        let bytes = call.span().byte_range();
-        let at = Location {
-            file:  self.file.to_path_buf(),
-            range: Range {
-                start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-                end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
-            }
-        };
-        self.settled
-            .and_then(|settled| settled.at(&at))
-            .and_then(|settled| settled.takes)
+        settled_call(self.settled, self.file, call.span()).and_then(|settled| settled.takes)
     }
 
     /// Returns whether `expr` is a bare path naming the binding.

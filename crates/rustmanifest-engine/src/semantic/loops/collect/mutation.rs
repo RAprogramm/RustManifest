@@ -13,10 +13,10 @@
 //! is missing the receiver is treated as changed rather than guessed from
 //! the method's spelling.
 
-use rustmanifest_schema::{Location, Range, ResolvedMode, Resolution};
+use rustmanifest_schema::{ResolvedMode, Resolution};
 use syn::{spanned::Spanned, visit::Visit};
 
-use crate::semantic::expr::{compound_assignment, place_root, token_words};
+use crate::semantic::expr::{compound_assignment, place_root, settled_call, token_words};
 
 /// Visitor collecting root identifiers that a loop body may mutate.
 pub(super) struct MutatedCollector<'settled> {
@@ -41,16 +41,7 @@ impl MutatedCollector<'_> {
     /// taken exclusively or by value, or the resolver settled nothing
     /// about the call at all.
     fn may_change_receiver(&self, call: &syn::ExprMethodCall) -> bool {
-        let bytes = call.span().byte_range();
-        let at = Location {
-            file:  self.file.to_path_buf(),
-            range: Range {
-                start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-                end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
-            }
-        };
-        self.settled
-            .and_then(|settled| settled.at(&at))
+        settled_call(self.settled, self.file, call.span())
             .and_then(|settled| settled.takes)
             .is_none_or(|takes| matches!(takes, ResolvedMode::BorrowedMut | ResolvedMode::Owned))
     }

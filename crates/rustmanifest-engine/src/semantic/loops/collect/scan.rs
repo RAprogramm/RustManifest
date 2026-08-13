@@ -19,7 +19,7 @@ use super::{
     mutation::MutatedCollector
 };
 use crate::semantic::{
-    expr::binding_ident,
+    expr::{binding_ident, settled_call},
     loops::{
         origin::{allocation_origin, clone_origin},
         uses::{UseCollector, UseSummary}
@@ -70,8 +70,9 @@ impl LoopFinder<'_> {
             let Some(init) = &local.init else {
                 continue;
             };
-            let origin = clone_origin(&init.expr, &bound, &mutated.roots)
-                .or_else(|| allocation_origin(&init.expr, &bound));
+            let initialized = settled_call(self.settled, self.file, init.expr.span());
+            let origin = clone_origin(&init.expr, initialized, &bound, &mutated.roots)
+                .or_else(|| allocation_origin(&init.expr, initialized, &bound));
             let Some(origin) = origin else {
                 continue;
             };
