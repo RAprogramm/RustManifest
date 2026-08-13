@@ -106,11 +106,11 @@ mod tests {
         text: &'text str,
         settle: impl FnOnce(Settling<'text>) -> Settling<'text>
     ) -> Vec<FunctionFacts> {
-        let resolution = settle(Settling::over("src/lib.rs", text)).done();
-        super::behavior_with(
-            &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
-            Some(&resolution)
-        )
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let mut resolution = settle(Settling::over("src/lib.rs", text)).done();
+        crate::semantic::settling::settle_declared(&mut resolution, &sources);
+        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
+        super::behavior_with(&sources, Some(&resolution))
     }
 
     /// The compiler reads a receiver's type from the impl it is written
