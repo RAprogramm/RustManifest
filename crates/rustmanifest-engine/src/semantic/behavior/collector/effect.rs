@@ -13,7 +13,21 @@ use crate::semantic::{
     knowledge
 };
 
+/// Crate the language declares its heap containers in, so a call the
+/// compiler settles into it allocates.
+const ALLOCATING_CRATE: &str = "alloc";
+
 impl FactCollector {
+    /// Whether the written path reaches the crate that allocates, as the
+    /// compiler settled it.
+    ///
+    /// Five container names paired with three constructor names decided
+    /// this before: a boxed value counted, a map or a deque did not, and
+    /// a workspace type spelled `Vec` counted all the same.
+    fn reaches_the_allocating_crate(&self, path: &syn::Path) -> bool {
+        self.expanded_segments(path).first().map(String::as_str) == Some(ALLOCATING_CRATE)
+    }
+
     /// Classifies a call path against the effect sink patterns, seen
     /// through the file's imports.
     pub(super) fn record_path_effect(&mut self, path: &syn::Path) {
@@ -54,15 +68,7 @@ impl FactCollector {
     pub(super) fn collect_path(&mut self, path: &syn::ExprPath) {
         if path.path.segments.len() >= 2 {
             self.record_path_effect(&path.path);
-            let first = path.path.segments[0].ident.to_string();
-            let last = path.path.segments.last().map(|s| s.ident.to_string());
-            if matches!(
-                (first.as_str(), last.as_deref()),
-                (
-                    "Box" | "Vec" | "String" | "Rc" | "Arc",
-                    Some("new" | "from" | "with_capacity")
-                )
-            ) {
+            if self.reaches_the_allocating_crate(&path.path) {
                 self.facts.allocations += 1;
             }
         } else if let Some(ident) = path.path.get_ident() {
