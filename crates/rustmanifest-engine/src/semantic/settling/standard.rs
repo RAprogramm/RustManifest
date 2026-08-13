@@ -567,7 +567,12 @@ fn settle_handles(resolution: &mut Resolution, sources: &[Source]) {
                     rendered: declared.rsplit("::").next().unwrap_or(declared).to_owned(),
                     declared: Some(declared.to_owned())
                 });
-                if let Some(bound) = bound_name(text, at.start as usize) {
+                let whole_value = text
+                    .get(at.end as usize..)
+                    .is_some_and(|rest| rest.trim_start().starts_with(';'));
+                if whole_value
+                    && let Some(bound) = bound_name(text, at.start as usize)
+                {
                     resolution.types.push(ResolvedType {
                         at:       Location {
                             file:  source.path().to_path_buf(),
