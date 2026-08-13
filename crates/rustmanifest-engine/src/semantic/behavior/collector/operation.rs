@@ -440,7 +440,11 @@ impl FactCollector {
             );
             return true;
         }
-        if let Some(question) = crate::semantic::std_knowledge::presence_method(&method) {
+        if let Some(question) = self
+            .reached_by(&call.span().byte_range())
+            .as_deref()
+            .and_then(crate::semantic::std_knowledge::presence_method)
+        {
             self.push_operation(
                 &call.span().byte_range(),
                 Operation::Presence(question),

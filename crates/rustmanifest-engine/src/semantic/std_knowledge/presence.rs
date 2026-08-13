@@ -19,9 +19,10 @@
 //! it, and not with the tier that consumes it — a recognizer reading the
 //! library must not have to reach back into what reads the recognizer.
 //!
-//! Rows, not branches. A method absent from the list is not read as a
-//! presence check, and a namesake of the program's own is not credited with
-//! the library's behaviour.
+//! Rows, not branches, and each row names the item the call reaches
+//! rather than the letters somebody typed. A call the compiler settles
+//! elsewhere is not read as a presence check, so a program's own
+//! `is_some` on its own type is not credited with the library's answer.
 
 /// What a presence check asks of its receiver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -47,20 +48,21 @@ impl std::fmt::Display for Presence {
     }
 }
 
-/// Library methods asking one question about their receiver.
+/// The bodies asking one question about their receiver, each named by
+/// the item the call reaches.
 const PRESENCE_METHODS: [(&str, Presence); 4] = [
-    ("is_some", Presence::Held),
-    ("is_none", Presence::Absent),
-    ("is_ok", Presence::Succeeded),
-    ("is_err", Presence::Failed)
+    ("core::option::Option::is_some", Presence::Held),
+    ("core::option::Option::is_none", Presence::Absent),
+    ("core::result::Result::is_ok", Presence::Succeeded),
+    ("core::result::Result::is_err", Presence::Failed)
 ];
 
-/// The question a library method asks of its receiver, where a row names
-/// one.
-pub(in crate::semantic) fn presence_method(method: &str) -> Option<Presence> {
+/// The question the body a call reaches asks of its receiver, where it
+/// is one of the four.
+pub(in crate::semantic) fn presence_method(reached: &str) -> Option<Presence> {
     PRESENCE_METHODS
         .iter()
-        .find(|(named, _)| *named == method)
+        .find(|(named, _)| *named == reached)
         .map(|(_, question)| *question)
 }
 
