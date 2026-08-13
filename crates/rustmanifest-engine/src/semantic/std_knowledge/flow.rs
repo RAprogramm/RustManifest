@@ -54,7 +54,7 @@ pub(in crate::semantic) enum Carried {
 /// method spelled the same way just as readily: the compiler settles
 /// which body a call reaches, and only that body carries the library's
 /// guarantee.
-const FLOW_METHODS: [(&str, Carried); 25] = [
+const FLOW_METHODS: [(&str, Carried); 28] = [
     ("core::result::Result::unwrap_or_default", Carried::HeldOrDefault),
     ("core::option::Option::unwrap_or_default", Carried::HeldOrDefault),
     ("core::result::Result::map_err", Carried::Receiver),
@@ -79,7 +79,10 @@ const FLOW_METHODS: [(&str, Carried); 25] = [
     ("core::result::Result::expect", Carried::Held),
     ("core::option::Option::unwrap_or", Carried::HeldOrArgument(0)),
     ("core::result::Result::unwrap_or", Carried::HeldOrArgument(0)),
-    ("core::option::Option::and_then", Carried::ClosureOver(0))
+    ("core::option::Option::and_then", Carried::ClosureOver(0)),
+    ("core::result::Result::and_then", Carried::ClosureOver(0)),
+    ("core::option::Option::map", Carried::ClosureOver(0)),
+    ("core::result::Result::map", Carried::ClosureOver(0))
 ];
 
 /// What the body a call reaches hands back, where a row names it.
@@ -102,19 +105,19 @@ mod tests {
 
     #[test]
     fn an_adapter_answers_with_what_it_was_given() {
-        assert_eq!(carried_by("map_err"), Some(Carried::Receiver));
-        assert_eq!(carried_by("cloned"), Some(Carried::Receiver));
+        assert_eq!(carried_by("core::result::Result::map_err"), Some(Carried::Receiver));
+        assert_eq!(carried_by("core::option::Option::cloned"), Some(Carried::Receiver));
     }
 
     #[test]
     fn taking_a_value_out_answers_with_what_was_held() {
-        assert_eq!(carried_by("unwrap"), Some(Carried::Held));
-        assert_eq!(carried_by("expect"), Some(Carried::Held));
+        assert_eq!(carried_by("core::option::Option::unwrap"), Some(Carried::Held));
+        assert_eq!(carried_by("core::option::Option::expect"), Some(Carried::Held));
     }
 
     #[test]
     fn a_fallback_answers_with_one_or_the_other() {
-        assert_eq!(carried_by("unwrap_or"), Some(Carried::HeldOrArgument(0)));
+        assert_eq!(carried_by("core::option::Option::unwrap_or"), Some(Carried::HeldOrArgument(0)));
     }
 
     /// A method whose answer is computed from an input rather than carried
@@ -122,8 +125,8 @@ mod tests {
     /// with a value it never handed on.
     #[test]
     fn a_combinator_answers_with_what_its_closure_hands_back() {
-        assert_eq!(carried_by("and_then"), Some(Carried::ClosureOver(0)));
-        assert_eq!(carried_by("map"), Some(Carried::ClosureOver(0)));
+        assert_eq!(carried_by("core::option::Option::and_then"), Some(Carried::ClosureOver(0)));
+        assert_eq!(carried_by("core::option::Option::map"), Some(Carried::ClosureOver(0)));
     }
 
     #[test]
@@ -138,7 +141,7 @@ mod tests {
     #[test]
     fn a_fallback_to_the_declared_default_names_the_declaration() {
         assert_eq!(
-            carried_by("unwrap_or_default"),
+            carried_by("core::result::Result::unwrap_or_default"),
             Some(Carried::HeldOrDefault)
         );
     }

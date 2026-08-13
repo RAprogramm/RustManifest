@@ -101,10 +101,10 @@ mod tests {
 
     #[test]
     fn each_written_spelling_names_its_own_question() {
-        assert_eq!(presence_method("is_some"), Some(Presence::Held));
-        assert_eq!(presence_method("is_none"), Some(Presence::Absent));
-        assert_eq!(presence_method("is_ok"), Some(Presence::Succeeded));
-        assert_eq!(presence_method("is_err"), Some(Presence::Failed));
+        assert_eq!(presence_method("core::option::Option::is_some"), Some(Presence::Held));
+        assert_eq!(presence_method("core::option::Option::is_none"), Some(Presence::Absent));
+        assert_eq!(presence_method("core::result::Result::is_ok"), Some(Presence::Succeeded));
+        assert_eq!(presence_method("core::result::Result::is_err"), Some(Presence::Failed));
     }
 
     #[test]
