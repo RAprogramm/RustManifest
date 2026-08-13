@@ -45,15 +45,12 @@ impl FactCollector {
                     .map(|(_, _, _, guard)| *guard)
             }
             syn::Expr::Call(call) => {
-                let syn::Expr::Path(path) = call.func.as_ref() else {
-                    return None;
-                };
-                let segments = self.expanded_segments(&path.path);
+                use syn::spanned::Spanned;
+
+                let reached = self.reached_by(&call.span().byte_range())?;
                 INTAKE_HANDLE_PATHS
                     .iter()
-                    .find(|(named, _, _, _)| {
-                        named.len() == segments.len() && matched(named, &segments)
-                    })
+                    .find(|(named, _, _, _)| *named == reached.as_str())
                     .map(|(_, _, named, _)| *named)
             }
             syn::Expr::Path(_) => {
@@ -96,15 +93,12 @@ impl FactCollector {
             syn::Expr::Group(inner) => self.constructed_intake(&inner.expr),
             syn::Expr::MethodCall(call) => self.constructed_intake(&call.receiver),
             syn::Expr::Call(call) => {
-                let syn::Expr::Path(path) = call.func.as_ref() else {
-                    return None;
-                };
-                let segments = self.expanded_segments(&path.path);
+                use syn::spanned::Spanned;
+
+                let reached = self.reached_by(&call.span().byte_range())?;
                 INTAKE_HANDLE_PATHS
                     .iter()
-                    .find(|(named, _, _, _)| {
-                        named.len() == segments.len() && matched(named, &segments)
-                    })
+                    .find(|(named, _, _, _)| *named == reached.as_str())
                     .map(|(_, channel, _, _)| *channel)
             }
             _ => None

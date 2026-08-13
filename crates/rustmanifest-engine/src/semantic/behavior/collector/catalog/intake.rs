@@ -68,15 +68,15 @@ pub(in crate::semantic::behavior::collector) const INPUT_SOURCE_PATHS: [(
 /// own input stream: the whole path, the channel it leads to, the handle
 /// type it returns, and the guard type its locking call hands out.
 pub(in crate::semantic::behavior::collector) const INTAKE_HANDLE_PATHS: [(
-    &[&str],
+    &str,
     Channel,
     &str,
     &str
 ); 1] = [(
-    &["std", "io", "stdin"],
+    "std::io::stdio::stdin",
     Channel::StandardInput,
-    "Stdin",
-    "StdinLock"
+    "std::io::stdio::Stdin",
+    "std::io::stdio::StdinLock"
 )];
 
 /// Written type names that name the process's own input stream.

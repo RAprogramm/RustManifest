@@ -12,20 +12,13 @@
 use super::super::catalog::{STREAM_HANDLE_PATHS, STREAM_TYPES};
 use crate::semantic::behavior::output::Stream;
 
-/// The stream a fully expanded constructor path leads to, with the handle
-/// type it returns.
-pub(super) fn standard_handle(segments: &[String]) -> Option<(&'static str, Stream)> {
+/// The stream the body a call reaches leads to, with the handle type it
+/// hands back.
+pub(super) fn standard_handle(reached: &str) -> Option<(&'static str, Stream)> {
     STREAM_HANDLE_PATHS
         .iter()
-        .find(|(path, _, _, _)| path.len() == segments.len() && matched(path, segments))
+        .find(|(path, _, _, _)| *path == reached)
         .map(|(_, stream, handle, _)| (*handle, *stream))
-}
-
-/// Whether an expanded path is the catalogued one, segment by segment.
-fn matched(path: &[&str], segments: &[String]) -> bool {
-    path.iter()
-        .zip(segments)
-        .all(|(named, segment)| *named == segment.as_str())
 }
 
 /// The guard type the locking call over `handle` hands out.

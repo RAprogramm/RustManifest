@@ -64,18 +64,18 @@ pub(super) const TEXT_WRITE_METHOD: &str = "write_str";
 /// a captured one, a test double — to the process stream, and every cost
 /// this engine derives from the standard library's buffering would then
 /// be claimed of an object that does not buffer that way.
-pub(super) const STREAM_HANDLE_PATHS: [(&[&str], Stream, &str, &str); 2] = [
+pub(super) const STREAM_HANDLE_PATHS: [(&str, Stream, &str, &str); 2] = [
     (
-        &["std", "io", "stderr"],
+        "std::io::stdio::stderr",
         Stream::Stderr,
-        "Stderr",
-        "StderrLock"
+        "std::io::stdio::Stderr",
+        "std::io::stdio::StderrLock"
     ),
     (
-        &["std", "io", "stdout"],
+        "std::io::stdio::stdout",
         Stream::Stdout,
-        "Stdout",
-        "StdoutLock"
+        "std::io::stdio::Stdout",
+        "std::io::stdio::StdoutLock"
     )
 ];
 
@@ -83,9 +83,9 @@ pub(super) const STREAM_HANDLE_PATHS: [(&[&str], Stream, &str, &str); 2] = [
 /// guard is dropped.
 pub(super) const STREAM_LOCK_METHOD: &str = "lock";
 
-/// The standard-library call that ends the process, taking the number it
-/// hands back.
-pub(super) const PROCESS_EXIT_PATH: [&str; 3] = ["std", "process", "exit"];
+/// The standard-library body that ends the process, taking the number
+/// it hands back, named by the item a call reaches.
+pub(super) const PROCESS_EXIT_PATH: &str = "std::process::exit";
 
 /// The standard-library type whose values are process statuses.
 pub(super) const EXIT_CODE_TYPE: &str = "ExitCode";

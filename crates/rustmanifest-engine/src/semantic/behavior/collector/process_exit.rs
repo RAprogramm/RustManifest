@@ -40,7 +40,7 @@ impl FactCollector {
         };
         let segments = self.expanded_segments(&path.path);
         let span = call.span().byte_range();
-        if segments == PROCESS_EXIT_PATH {
+        if self.reached_by(&span).as_deref() == Some(PROCESS_EXIT_PATH) {
             let status = call.args.first().map_or(ExitStatus::Computed, code_of);
             self.push_exit(span, status, ExitRoute::Called);
             return;

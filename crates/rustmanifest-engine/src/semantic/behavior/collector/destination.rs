@@ -192,9 +192,8 @@ impl FactCollector {
     /// leads to, decided on the path the call expands to through this
     /// file's imports rather than on the name it is spelled with.
     fn constructed_handle(&self, call: &syn::ExprCall) -> Option<(&'static str, Stream)> {
-        let syn::Expr::Path(path) = call.func.as_ref() else {
-            return None;
-        };
-        standard_handle(&self.expanded_segments(&path.path))
+        use syn::spanned::Spanned;
+
+        standard_handle(&self.reached_by(&call.span().byte_range())?)
     }
 }
