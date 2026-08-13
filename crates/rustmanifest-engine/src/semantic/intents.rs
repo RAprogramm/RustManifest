@@ -47,6 +47,14 @@ pub struct DerivedIntent {
 
 /// The method names whose written call states an intent, with the
 /// ability each one asks for.
+///
+/// The one reading here the compiler cannot answer: a call to an ability
+/// the type does not carry reaches no body at all, so the resolver
+/// settles neither the call nor its path. The written name is the only
+/// evidence such a program leaves, and it is read as the author's
+/// stated intent rather than as a fact about what runs. What the
+/// compiler *does* answer is which type the call was written on, and a
+/// type it never declared states nothing here.
 const ASKING_CALLS: [(&str, &str); 2] = [("default", "Default"), ("to_string", "Display")];
 
 /// Reads the workspace and derives every intent its written calls
