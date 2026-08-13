@@ -28,6 +28,25 @@ use rustmanifest_schema::{
     ResolvedTypeDecl, Resolution
 };
 
+/// Everything a compiler settles about a fixture that no reader can
+/// derive for itself: the standard macros it writes, the types it
+/// declares, and the abilities the library grants those types.
+///
+/// One call, because a fixture asking about behaviour needs all three
+/// and stating them apart buried the subject under bookkeeping.
+#[must_use]
+pub fn compiler_over(sources: &[crate::source::Source]) -> Resolution {
+    let mut resolution = Resolution {
+        resolver: "test".to_owned(),
+        ..Resolution::default()
+    };
+    settle_declared(&mut resolution, sources);
+    settle_standard_macros(&mut resolution, sources);
+    let facts = crate::semantic::behavior_with(sources, Some(&resolution));
+    settle_identity(&mut resolution, sources, &facts);
+    resolution
+}
+
 /// A resolution being written down over one or more fixture files.
 pub struct Settling<'text> {
     /// File the fragments named next are written in.
