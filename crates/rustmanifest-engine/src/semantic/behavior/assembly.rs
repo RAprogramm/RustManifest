@@ -136,6 +136,9 @@ pub(super) struct Settled {
     /// Type the function whose name is written at a position hands back,
     /// as the compiler renders it in full.
     pub(super) returns:   std::collections::BTreeMap<(u32, u32), String>,
+    /// Full path of the receiver's own type at a position, so the module
+    /// it is declared in answers what a call on it touches.
+    pub(super) receiver_paths: std::collections::BTreeMap<(u32, u32), String>,
     /// Full path of the body the call at a position reaches.
     ///
     /// The written name says which method was spelled; this says which
@@ -257,6 +260,9 @@ fn settled_types(
         }
         if let Some(reached) = call.reaches.clone() {
             settled.reached.insert(at, reached);
+        }
+        if let Some(held) = call.receiver_path.clone() {
+            settled.receiver_paths.insert(at, held);
         }
     }
     for field in &resolution.fields {

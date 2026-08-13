@@ -60,6 +60,13 @@ fn settled_path(reading: Reading<'_, '_>, path: &ast::Path) -> Option<ResolvedPa
     })
 }
 
+/// Spells one declared type from its crate root, crate name first.
+pub(super) fn canonical_type(database: &RootDatabase, declared: Adt) -> Option<String> {
+    let definition = ModuleDef::Adt(declared);
+    let krate = definition.module(database)?.krate(database);
+    canonical(database, definition, krate.edition(database))
+}
+
 /// Spells one function from its crate root, crate name first, with the
 /// type or trait it is written under kept in the path.
 ///

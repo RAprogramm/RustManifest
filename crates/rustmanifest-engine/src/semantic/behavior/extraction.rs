@@ -120,6 +120,7 @@ pub(super) fn function_facts(
             .collect(),
         settled:          known.settled.produced.clone(),
         reached:          known.settled.reached.clone(),
+        receiver_paths:   known.settled.receiver_paths.clone(),
         receivers:        known.settled.receivers.clone(),
         takes:            known.settled.takes.clone(),
         held:             known.settled.fields.clone(),

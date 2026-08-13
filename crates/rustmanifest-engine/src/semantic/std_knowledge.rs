@@ -14,7 +14,6 @@
 mod arithmetic;
 mod flow;
 mod macro_value;
-mod method_effect;
 mod presence;
 mod result;
 mod selection;
@@ -23,7 +22,6 @@ pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
     macro_value::macro_leaves,
-    method_effect::method_effect,
     presence::{Presence, presence_method},
     result::method_result,
     selection::selects_an_element

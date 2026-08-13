@@ -75,6 +75,8 @@ pub(super) struct FactCollector {
     /// the expression at that position hands back. Empty where no
     /// resolver ran.
     pub(super) settled:          std::collections::BTreeMap<(u32, u32), String>,
+    /// The full path of the receiver's own type at each byte range.
+    pub(super) receiver_paths:   std::collections::BTreeMap<(u32, u32), String>,
     /// The full path of the body the call at each byte range reaches,
     /// as the compiler settled it.
     pub(super) reached:          std::collections::BTreeMap<(u32, u32), String>,

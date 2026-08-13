@@ -58,6 +58,7 @@ pub fn settle_identity(
                 callee:   reached.rsplit("::").next().unwrap_or(reached).to_owned(),
                 returns:  String::new(),
                 receiver: None,
+                receiver_path: None,
                 reaches:  Some(reached.to_owned()),
                 takes:    None
             });

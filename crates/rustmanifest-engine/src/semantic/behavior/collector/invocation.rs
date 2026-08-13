@@ -119,10 +119,34 @@ impl FactCollector {
         else {
             return self.reserve_written_call(Some("?"), method, span);
         };
+        let at = (
+            u32::try_from(span.start).unwrap_or(u32::MAX),
+            u32::try_from(span.end).unwrap_or(u32::MAX)
+        );
+        let reached = self.reached.get(&at).cloned();
+        let held = self.receiver_paths.get(&at).cloned();
+        let mut segments: Vec<String> = reached
+            .iter()
+            .chain(held.iter())
+            .flat_map(|path| path.split("::").map(ToOwned::to_owned))
+            .collect();
+        segments.dedup();
         if let Some(effect) = knowledge::method_effect(&owner, method)
-            .or_else(|| crate::semantic::std_knowledge::method_effect(&owner, method))
+            .or_else(|| super::effect::reached_effect(&segments))
         {
             self.facts.effects.push(effect);
+            if let Some(proof) = reached.or(held) {
+                self.facts
+                    .effect_sites
+                    .push(crate::semantic::behavior::types::EffectSite {
+                        effect,
+                        proof,
+                        range: rustmanifest_schema::Range {
+                            start: at.0,
+                            end:   at.1
+                        }
+                    });
+            }
         }
         self.reserve_written_call(Some(&owner), method, span)
     }

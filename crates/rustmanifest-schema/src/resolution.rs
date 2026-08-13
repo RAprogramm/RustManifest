@@ -255,6 +255,7 @@ mod tests {
             callee:   callee.to_owned(),
             returns:  "bool".to_owned(),
             receiver: None,
+            receiver_path: None,
             reaches:  None,
             takes:    None
         }

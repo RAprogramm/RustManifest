@@ -22,6 +22,14 @@ pub struct ResolvedCall {
     /// Type of the receiver, where the call has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receiver: Option<String>,
+    /// Full path of the receiver's own type, spelled from the crate that
+    /// declares it.
+    ///
+    /// The rendered name says what the type is called; this says where it
+    /// lives, which is what tells a file handle from a socket without a
+    /// list of type names to look either up in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receiver_path: Option<String>,
     /// Full path of the function the call reaches, where the resolver
     /// settled one.
     ///

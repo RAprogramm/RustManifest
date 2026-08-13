@@ -132,6 +132,7 @@ impl Settled {
                 callee: callee.to_owned(),
                 returns: returns.to_owned(),
                 receiver: receiver.map(ToOwned::to_owned),
+                receiver_path: None,
                 reaches: None,
                 takes: None
             });

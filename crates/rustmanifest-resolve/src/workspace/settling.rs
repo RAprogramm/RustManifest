@@ -8,6 +8,18 @@ use rustmanifest_schema::{ResolvedCall, ResolvedField, ResolvedMode};
 
 use super::reading::Reading;
 
+/// The full path of a receiver's own type, where it has one an item
+/// declares.
+///
+/// A borrowed handle, a boxed one and a plain one are the same type to
+/// the question being asked, so the rendering is peeled to the type
+/// itself before its declaration is named.
+fn receiver_path(reading: Reading<'_, '_>, typed: &ra_ap_hir::Type<'_>) -> Option<String> {
+    let held = typed.strip_references();
+    let declared = held.as_adt()?;
+    super::naming::canonical_type(reading.database, declared)
+}
+
 /// How the function a call reaches takes its receiver, where it has one.
 ///
 /// A free function has none, and the row stays absent rather than
@@ -74,6 +86,7 @@ pub(super) fn settled_free_call(
         callee:   function.name(reading.database).as_str().to_owned(),
         returns:  reading.render(&returns)?,
         receiver: None,
+        receiver_path: None,
         reaches:  super::naming::canonical_function(reading.database, function),
         takes:    receiver_mode(reading.database, function)
     })
@@ -98,14 +111,18 @@ pub(super) fn settled_call(
         .map(|typed| typed.original())
         .and_then(|typed| reading.render(&typed))
         .or_else(|| reading.render(&function.ret_type(reading.database)))?;
+    let received = call
+        .receiver()
+        .and_then(|expression| reading.semantics.type_of_expr(&expression))
+        .map(|typed| typed.original());
     Some(ResolvedCall {
         at: reading.located(call.syntax().text_range()),
         callee: function.name(reading.database).as_str().to_owned(),
         returns,
-        receiver: call
-            .receiver()
-            .and_then(|expression| reading.semantics.type_of_expr(&expression))
-            .and_then(|typed| reading.render(&typed.original())),
+        receiver_path: received
+            .as_ref()
+            .and_then(|typed| receiver_path(reading, typed)),
+        receiver: received.as_ref().and_then(|typed| reading.render(typed)),
         reaches,
         takes: receiver_mode(reading.database, function)
     })

@@ -186,6 +186,7 @@ impl Settled {
                 callee: reaches.rsplit("::").next().unwrap_or(reaches).to_owned(),
                 returns: returns.to_owned(),
                 receiver: None,
+                receiver_path: None,
                 reaches: Some(reaches.to_owned()),
                 takes
             });

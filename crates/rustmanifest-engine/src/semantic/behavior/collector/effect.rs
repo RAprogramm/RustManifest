@@ -13,6 +13,44 @@ use crate::semantic::{
     knowledge
 };
 
+/// The module of the standard library a path runs through, and the
+/// effect every call reaching that module performs.
+///
+/// A module, not a method: `write_all` on a file and `set_len` on the
+/// same file are one boundary crossed, and which methods a library
+/// declares there is the library's business. Forty-seven rows naming a
+/// type and a method answered this for the instance calls, and answered
+/// only for the forty-seven somebody wrote down.
+const BOUNDARY_MODULES: [(&str, Effect); 4] = [
+    ("fs", Effect::FileSystem),
+    ("net", Effect::Network),
+    ("process", Effect::Process),
+    ("env", Effect::Environment)
+];
+
+/// The handles of the process's own console, whose module is the same
+/// one every other reader and writer lives in.
+const CONSOLE_HANDLES: [&str; 3] = ["Stdout", "Stderr", "Stdin"];
+
+/// The effect a path performs, by the module of the library it runs
+/// through and the handle it names.
+pub(in crate::semantic::behavior::collector) fn reached_effect(
+    segments: &[String]
+) -> Option<Effect> {
+    if segments.iter().any(|held| CONSOLE_HANDLES.contains(&held.as_str())) {
+        return Some(Effect::ConsoleIo);
+    }
+    if let Some((_, effect)) = BOUNDARY_MODULES
+        .iter()
+        .find(|(module, _)| segments.iter().any(|held| held == module))
+    {
+        return Some(*effect);
+    }
+    (segments.len() == 2)
+        .then(|| segments.first().and_then(|first| knowledge::crate_effect(first)))
+        .flatten()
+}
+
 /// Crate the language declares its heap containers in, so a call the
 /// compiler settles into it allocates.
 const ALLOCATING_CRATE: &str = "alloc";
@@ -32,32 +70,12 @@ impl FactCollector {
     /// through the file's imports.
     pub(super) fn record_path_effect(&mut self, path: &syn::Path) {
         let segments = self.expanded_segments(path);
-        let joined = segments.join("::");
-        let effect = if joined.contains("fs::") || segments.first().is_some_and(|s| s == "File") {
-            Some(Effect::FileSystem)
-        } else if joined.contains("net::")
-            || segments
-                .iter()
-                .any(|s| s == "TcpStream" || s == "TcpListener" || s == "UdpSocket")
-        {
-            Some(Effect::Network)
-        } else if joined.contains("process::") || segments.first().is_some_and(|s| s == "Command")
-        {
-            Some(Effect::Process)
-        } else if joined.contains("env::") {
-            Some(Effect::Environment)
-        } else if segments.len() == 2 {
-            segments
-                .first()
-                .and_then(|first| knowledge::crate_effect(first))
-        } else {
-            None
-        };
+        let effect = reached_effect(&segments);
         if let Some(effect) = effect {
             self.facts.effects.push(effect);
             self.facts.effect_sites.push(EffectSite {
                 effect,
-                proof: joined,
+                proof: segments.join("::"),
                 range: span_range(path.span())
             });
         }
