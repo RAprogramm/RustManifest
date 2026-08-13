@@ -202,6 +202,9 @@ pub struct CallSite {
     pub arguments:  super::value::Arguments,
     /// What the source does with a failure the call can hand back.
     pub disposal:   super::value::Disposal,
+    /// Full path of the body the call reaches, as the compiler settled
+    /// it, absent where it settled none.
+    pub reaches:    Option<String>,
     /// Type the call hands back, as the compiler settled it, absent
     /// where it settled none.
     ///

@@ -136,6 +136,12 @@ pub(super) struct Settled {
     /// Type the function whose name is written at a position hands back,
     /// as the compiler renders it in full.
     pub(super) returns:   std::collections::BTreeMap<(u32, u32), String>,
+    /// Full path of the body the call at a position reaches.
+    ///
+    /// The written name says which method was spelled; this says which
+    /// one it is. Two types with a `default` share the spelling and
+    /// never the path.
+    pub(super) reached:   std::collections::BTreeMap<(u32, u32), String>,
     /// Type of the expression at a position, as the compiler renders it
     /// in full.
     ///
@@ -248,6 +254,9 @@ fn settled_types(
         }
         if let Some(mode) = call.takes {
             settled.takes.insert(at, declared_mode(mode));
+        }
+        if let Some(reached) = call.reaches.clone() {
+            settled.reached.insert(at, reached);
         }
     }
     for field in &resolution.fields {

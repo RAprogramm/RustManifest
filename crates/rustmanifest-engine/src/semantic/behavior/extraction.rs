@@ -119,6 +119,7 @@ pub(super) fn function_facts(
             .map(|param| (param.name.clone(), param.type_name.clone()))
             .collect(),
         settled:          known.settled.produced.clone(),
+        reached:          known.settled.reached.clone(),
         receivers:        known.settled.receivers.clone(),
         takes:            known.settled.takes.clone(),
         held:             known.settled.fields.clone(),
