@@ -665,6 +665,7 @@ fn handed_bed() -> tempfile::TempDir {
         .declares("foo", "demo::foo")
         .declares("main", "demo::main")
         .call("foo(s)", "demo::foo", "()", None)
+        .signing("foo", &[("value", "String")], "()")
         .beside(&[("src/lib.rs", HANDED)])
 }
 

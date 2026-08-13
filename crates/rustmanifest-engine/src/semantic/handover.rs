@@ -217,7 +217,12 @@ pub fn copyness(
     if let Some(granted) = granted_copy(settled, type_name) {
         return Some(granted);
     }
-    Some(types.ability_given(type_name, "Copy"))
+    if types.ability_given(type_name, "Copy") {
+        return Some(true);
+    }
+    types
+        .type_named(type_name)
+        .map(|_| false)
 }
 
 /// What a resolver settled about values of the type named `named`, where
