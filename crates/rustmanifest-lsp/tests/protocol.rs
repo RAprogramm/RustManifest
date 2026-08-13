@@ -1172,6 +1172,7 @@ fn the_kept_command_answers_why_a_store_is_kept() {
         .mounting(&[("demo", "src/lib.rs")])
         .field("self.tasks", "Store", "BTreeMap<u64, Task>")
         .typed("self.tasks", "BTreeMap<u64, Task>")
+        .compiling("src/lib.rs")
         .beside(&[("src/lib.rs", text)]);
     let (client, handle, _uri) = opened_in(&bed, "src/lib.rs", text);
     client
@@ -1487,8 +1488,12 @@ fn a_hover_tells_where_the_function_writes_and_through_what() {
 /// way "why effect" already does.
 #[test]
 fn the_deduce_command_carries_the_chain_to_the_client() {
-    let (client, handle) =
-        opened("pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n");
+    const DEDUCED: &str = "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n";
+
+    let bed = Settled::over("src/lib.rs", DEDUCED)
+        .compiling("src/lib.rs")
+        .beside(&[("src/lib.rs", DEDUCED)]);
+    let (client, handle, _uri) = opened_in(&bed, "src/lib.rs", DEDUCED);
     client
         .sender
         .send(Message::Request(Request::new(
