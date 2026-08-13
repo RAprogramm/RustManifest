@@ -122,6 +122,7 @@ pub(super) fn function_facts(
             .map(|(at, _)| *at)
             .collect(),
         items:            known.settled.items.clone(),
+        named:            known.settled.named.clone(),
         local_wraps:      std::collections::BTreeMap::new(),
         imports:          known.imports.clone(),
         fresh:            std::collections::BTreeSet::new(),

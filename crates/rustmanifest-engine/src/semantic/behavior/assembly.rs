@@ -143,6 +143,8 @@ pub(super) struct Settled {
     pub(super) rendered:  std::collections::BTreeMap<(u32, u32), String>,
     /// How the call at a position takes the value it is written on.
     pub(super) takes:     std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
+    /// Full path the written path at a position reaches.
+    pub(super) named:     std::collections::BTreeMap<(u32, u32), String>,
     /// Kind of item the path written at a position reaches.
     ///
     /// A path is either a name this body bound or an item declared
@@ -311,6 +313,9 @@ fn settled_types(
         settled
             .items
             .insert((path.at.range.start, path.at.range.end), path.kind.clone());
+        settled
+            .named
+            .insert((path.at.range.start, path.at.range.end), path.names.clone());
     }
     settled
 }

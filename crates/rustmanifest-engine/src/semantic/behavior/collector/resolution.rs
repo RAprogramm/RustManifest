@@ -8,11 +8,20 @@
 use super::{FactCollector, naming, scope::FlowScope};
 
 impl FactCollector {
-    /// Renders a path as segment names, the first segment substituted
-    /// with its full `use` path when the file imported it — so a bare
-    /// `remove_dir_all` imported from `std::fs` classifies as a
-    /// filesystem sink.
+    /// The full path a written path reaches, as the compiler settled it.
+    ///
+    /// Where nothing was settled the file's own imports are applied to
+    /// the written head, which is the same answer for the spellings a
+    /// reading can follow and no answer at all for the rest.
     pub(super) fn expanded_segments(&self, path: &syn::Path) -> Vec<String> {
+        use syn::spanned::Spanned as _;
+
+        let span = path.span().byte_range();
+        if let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end))
+            && let Some(settled) = self.named.get(&(start, end))
+        {
+            return settled.split("::").map(ToOwned::to_owned).collect();
+        }
         naming::expanded_segments(&self.imports, path)
     }
 

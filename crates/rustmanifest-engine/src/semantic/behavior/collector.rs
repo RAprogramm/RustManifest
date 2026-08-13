@@ -89,6 +89,9 @@ pub(super) struct FactCollector {
     pub(super) rendered:         std::collections::BTreeMap<(u32, u32), String>,
     /// How the call at each byte range takes the value it is written on.
     pub(super) takes:            std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
+    /// The full path a resolver settled the path at each byte range to
+    /// reach. Empty where no resolver ran.
+    pub(super) named:            std::collections::BTreeMap<(u32, u32), String>,
     /// The kind of item a resolver settled the path at each byte range to
     /// reach. Empty where no resolver ran.
     pub(super) items:            std::collections::BTreeMap<(u32, u32), String>,
