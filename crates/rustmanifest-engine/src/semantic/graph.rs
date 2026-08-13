@@ -158,6 +158,7 @@ impl TypeGraph {
                             *named != field.type_name
                         });
                     field.element = held(&opened);
+                    field.key = looked_up_by(&opened);
                 }
             }
         }
@@ -440,4 +441,15 @@ fn arguments(inside: &str) -> Vec<String> {
     }
     written.push(inside[start..].trim().to_owned());
     written
+}
+
+/// What a rendered map is looked into with: its first type argument,
+/// where it carries two.
+fn looked_up_by(rendered: &str) -> Option<String> {
+    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
+    let written = arguments(inside);
+    let [key, _] = written.as_slice() else {
+        return None;
+    };
+    crate::semantic::behavior::outermost_name(key)
 }
