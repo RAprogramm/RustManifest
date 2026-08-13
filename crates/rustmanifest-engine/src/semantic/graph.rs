@@ -140,11 +140,12 @@ impl TypeGraph {
             return;
         };
         for declared in &resolution.declared {
-            let Some(node) = self
-                .types
-                .iter_mut()
-                .find(|node| node.name == declared.named)
-            else {
+            let Some(node) = self.types.iter_mut().find(|node| {
+                node.name == declared.named
+                    && sources
+                        .get(node.source)
+                        .is_some_and(|source| source.path() == declared.at.file)
+            }) else {
                 continue;
             };
             for settled in &declared.fields {
