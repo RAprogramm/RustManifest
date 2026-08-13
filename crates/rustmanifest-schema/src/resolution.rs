@@ -211,7 +211,8 @@ impl Resolution {
         self.declared
             .sort_by(|left, right| left.at.file.cmp(&right.at.file).then(left.at.range.start.cmp(&right.at.range.start)));
         self.declared.dedup();
-        self.grants.sort();
+        self.grants
+            .sort_by(|left, right| left.named.cmp(&right.named).then(left.trait_name.cmp(&right.trait_name)));
         self.grants.dedup();
         self.types_granted
             .sort_by(|left, right| left.named.cmp(&right.named));

@@ -45,9 +45,18 @@ pub(in crate::semantic::graph) fn impl_node(
             })
         })
         .collect();
+    let whole = {
+        use syn::spanned::Spanned as _;
+
+        definition.span().byte_range()
+    };
     Some(ImplNode {
         type_name,
         trait_name,
+        header: rustmanifest_schema::Range {
+            start: u32::try_from(whole.start).unwrap_or(u32::MAX),
+            end:   u32::try_from(whole.end).unwrap_or(u32::MAX)
+        },
         source,
         derived: false,
         methods

@@ -12,10 +12,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::Location;
+
 /// One trait one type carries.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedGrant {
+    /// File and byte range of the `impl` header that carries it, so a
+    /// reader holding an impl block can name what it implements without
+    /// re-reading the header.
+    pub at:         Location,
     /// Type the row speaks about, as the resolver renders it.
     pub named:      String,
     /// Trait that type carries, by the name it is declared under.

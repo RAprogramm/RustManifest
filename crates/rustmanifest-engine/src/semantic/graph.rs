@@ -168,6 +168,17 @@ impl TypeGraph {
             }
         }
         for block in &mut self.impls {
+            if let Some(file) = sources.get(block.source).map(crate::source::Source::path)
+                && let Some(row) = resolution.grants.iter().find(|row| {
+                    row.at.file == file
+                        && row.at.range.start >= block.header.start
+                        && row.at.range.end <= block.header.end
+                })
+                && let Some(named) = crate::semantic::behavior::outermost_name(&row.named)
+            {
+                block.type_name = named;
+                block.trait_name = Some(row.trait_name.clone());
+            }
             let Some(file) = sources.get(block.source).map(crate::source::Source::path) else {
                 continue;
             };

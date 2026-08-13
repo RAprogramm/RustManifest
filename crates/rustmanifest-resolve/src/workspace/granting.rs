@@ -30,6 +30,7 @@ pub(super) fn settled(
             continue;
         };
         into.push(ResolvedGrant {
+            at: reading.located(written.syntax().text_range()),
             named,
             trait_name: carried.name(reading.database).as_str().to_owned()
         });

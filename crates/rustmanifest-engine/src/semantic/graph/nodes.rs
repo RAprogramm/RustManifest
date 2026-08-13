@@ -104,7 +104,10 @@ pub struct ImplNode {
     /// syntax.
     pub derived:    bool,
     /// Methods and associated functions in declaration order.
-    pub methods:    Vec<MethodNode>
+    pub methods:    Vec<MethodNode>,
+    /// Byte range of the whole `impl` block, so what the compiler settled
+    /// for it is found by position.
+    pub header:     Range
 }
 
 /// One trait definition found in the workspace.
