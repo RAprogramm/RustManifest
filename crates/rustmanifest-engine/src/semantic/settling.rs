@@ -79,7 +79,8 @@ impl<'text> Settling<'text> {
         let at = self.located(fragment);
         self.settled.types.push(ResolvedType {
             at,
-            rendered: rendered.to_owned()
+            rendered: rendered.to_owned(),
+            declared: None
         });
         self
     }
@@ -133,7 +134,8 @@ impl<'text> Settling<'text> {
             self.from = at.range.end as usize;
             self.settled.types.push(ResolvedType {
                 at,
-                rendered: rendered.to_owned()
+                rendered: rendered.to_owned(),
+                declared: None
             });
         }
         self

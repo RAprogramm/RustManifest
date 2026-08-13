@@ -45,6 +45,30 @@ impl FactCollector {
         self.typed.get(&(start, end)).cloned()
     }
 
+    /// The full path of the type the expression written here has, where
+    /// an item declares that type.
+    ///
+    /// Asked at the position first, and by the name the expression is
+    /// written as where the position carries no answer: a name written
+    /// inside a macro argument stands at a position the resolver typed
+    /// nothing at, while the binding it names was typed where it was
+    /// bound.
+    pub(super) fn declared_path(&self, expression: &syn::Expr) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = expression.span().byte_range();
+        if let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end))
+            && let Some(declared) = self.type_paths.get(&(start, end))
+        {
+            return Some(declared.clone());
+        }
+        let syn::Expr::Path(path) = expression else {
+            return None;
+        };
+        let name = path.path.get_ident()?.to_string();
+        self.param_paths.get(&name).cloned()
+    }
+
     /// The body the call written over this byte range reaches, as the
     /// compiler settled it.
     pub(super) fn reached_by(&self, span: &std::ops::Range<usize>) -> Option<String> {

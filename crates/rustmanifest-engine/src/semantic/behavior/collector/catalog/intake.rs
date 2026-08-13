@@ -80,9 +80,9 @@ pub(in crate::semantic::behavior::collector) const INTAKE_HANDLE_PATHS: [(
 )];
 
 /// Written type names that name the process's own input stream.
-pub(in crate::semantic::behavior::collector) const INTAKE_TYPES: [(&str, Channel); 2] = [
-    ("Stdin", Channel::StandardInput),
-    ("StdinLock", Channel::StandardInput)
+pub(in crate::semantic::behavior::collector) const INTAKE_TYPES: [(&str, Channel, bool); 2] = [
+    ("std::io::stdio::Stdin", Channel::StandardInput, false),
+    ("std::io::stdio::StdinLock", Channel::StandardInput, true)
 ];
 
 /// Read-trait methods drawing from a reader, with whether the library

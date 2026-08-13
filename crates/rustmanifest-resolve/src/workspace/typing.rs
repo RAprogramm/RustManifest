@@ -61,14 +61,11 @@ pub(super) fn settled(
         let Some(typed) = reading.semantics.type_of_binding_in_pat(&bound) else {
             continue;
         };
-        record(
-            reading,
-            &typed,
-            bound.syntax().text_range(),
-            into,
-            granted,
-            weighs
+        let at = ast::HasName::name(&bound).map_or_else(
+            || bound.syntax().text_range(),
+            |written| written.syntax().text_range()
         );
+        record(reading, &typed, at, into, granted, weighs);
     }
 }
 
@@ -98,6 +95,10 @@ fn record(
     }
     into.push(ResolvedType {
         at: reading.located(at),
-        rendered
+        rendered,
+        declared: typed
+            .strip_references()
+            .as_adt()
+            .and_then(|held| super::naming::canonical_type(reading.database, held))
     });
 }

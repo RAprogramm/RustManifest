@@ -317,11 +317,13 @@ mod tests {
             types: vec![
                 ResolvedType {
                     at:       located("src/lib.rs", 40),
-                    rendered: "u32".to_owned()
+                    rendered: "u32".to_owned(),
+                    declared: None
                 },
                 ResolvedType {
                     at:       located("src/lib.rs", 10),
-                    rendered: "String".to_owned()
+                    rendered: "String".to_owned(),
+                    declared: None
                 },
             ],
             ..Resolution::default()

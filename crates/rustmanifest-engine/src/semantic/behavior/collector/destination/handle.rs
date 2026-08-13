@@ -48,12 +48,13 @@ pub(super) fn stream_type(recorded: &str) -> Option<&'static str> {
         })
 }
 
-/// The process stream a written type name stands for.
-pub(super) fn named_stream(type_name: &str) -> Option<Stream> {
+/// The process stream the type at a path stands for, and whether a
+/// value of it already holds the lock.
+pub(super) fn named_stream(declared: &str) -> Option<(Stream, bool)> {
     STREAM_TYPES
         .iter()
-        .find(|(named, _)| *named == type_name)
-        .map(|(_, stream)| *stream)
+        .find(|(named, _, _)| *named == declared)
+        .map(|(_, stream, held)| (*stream, *held))
 }
 
 /// The expression a write destination is ultimately reached from,

@@ -34,6 +34,9 @@ impl FactCollector {
             let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
                 continue;
             };
+            if let Some(declared) = self.type_paths.get(&(start, end)).cloned() {
+                self.param_paths.insert(ident.to_string(), declared);
+            }
             if let Some(named) = self.typed.get(&(start, end)).cloned() {
                 self.param_types.insert(ident.to_string(), named);
                 settled = true;

@@ -22,7 +22,16 @@ pub struct ResolvedType {
     /// File and byte range of the expression.
     pub at:       Location,
     /// Type the expression has, rendered the way the resolver displays it.
-    pub rendered: String
+    pub rendered: String,
+    /// Full path of the type an item declares it as, spelled from the
+    /// crate that declares it.
+    ///
+    /// The rendering names the type; this says which one it is. Two
+    /// crates each declaring a `Stdout` render the same and never share
+    /// a path, and a reading keyed by the rendering credits one with the
+    /// other's guarantees.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared: Option<String>
 }
 
 impl Positioned for ResolvedType {

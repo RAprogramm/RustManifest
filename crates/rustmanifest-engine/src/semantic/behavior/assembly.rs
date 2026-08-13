@@ -136,6 +136,9 @@ pub(super) struct Settled {
     /// Type the function whose name is written at a position hands back,
     /// as the compiler renders it in full.
     pub(super) returns:   std::collections::BTreeMap<(u32, u32), String>,
+    /// Full path of the type the expression at a position has, where an
+    /// item declares that type.
+    pub(super) type_paths: std::collections::BTreeMap<(u32, u32), String>,
     /// Positions whose call hands back a type the caller decides, which
     /// is what makes the call a conversion.
     pub(super) caller_decided: std::collections::BTreeSet<(u32, u32)>,
@@ -297,6 +300,11 @@ fn settled_types(
             (typed.at.range.start, typed.at.range.end),
             typed.rendered.clone()
         );
+        if let Some(declared) = typed.declared.clone() {
+            settled
+                .type_paths
+                .insert((typed.at.range.start, typed.at.range.end), declared);
+        }
     }
     for held in &resolution.signatures {
         if held.at.file != source.path() {

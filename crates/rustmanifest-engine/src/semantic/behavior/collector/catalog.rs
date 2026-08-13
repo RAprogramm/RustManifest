@@ -99,17 +99,18 @@ pub(super) const EXIT_FAILURE: &str = "FAILURE";
 /// The conversion turning a written number into an exit status.
 pub(super) const EXIT_FROM: &str = "from";
 
-/// Suffix of the library type names standing for a held stream guard, so
-/// a write through one is known to have taken no lock of its own.
-pub(super) const STREAM_GUARD_SUFFIX: &str = "Lock";
-
-/// Written type names that name one of the process's own streams, so a
-/// binding declared as one is a write to that stream.
-pub(super) const STREAM_TYPES: [(&str, Stream); 4] = [
-    ("Stderr", Stream::Stderr),
-    ("StderrLock", Stream::Stderr),
-    ("Stdout", Stream::Stdout),
-    ("StdoutLock", Stream::Stdout)
+/// The process's own stream types, each named by the item that declares
+/// it, with the stream it stands for and whether a value of it already
+/// holds the lock.
+///
+/// Four written type names answered this before, and answered for any
+/// library's own `Stdout` — an asynchronous one, a captured one, a test
+/// double — exactly as loudly.
+pub(super) const STREAM_TYPES: [(&str, Stream, bool); 4] = [
+    ("std::io::stdio::Stderr", Stream::Stderr, false),
+    ("std::io::stdio::StderrLock", Stream::Stderr, true),
+    ("std::io::stdio::Stdout", Stream::Stdout, false),
+    ("std::io::stdio::StdoutLock", Stream::Stdout, true)
 ];
 
 

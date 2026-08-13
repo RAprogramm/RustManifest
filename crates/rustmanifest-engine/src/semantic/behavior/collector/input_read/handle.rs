@@ -13,7 +13,7 @@ use super::{
     super::{
         super::input::Channel,
         catalog::{
-            STREAM_GUARD_SUFFIX, STREAM_LOCK_METHOD,
+            STREAM_LOCK_METHOD,
             intake::{INTAKE_HANDLE_PATHS, INTAKE_TYPES}
         }
     },
@@ -56,13 +56,12 @@ impl FactCollector {
                     })
                     .map(|(_, _, named, _)| *named)
             }
-            syn::Expr::Path(path) => {
-                let name = path.path.get_ident()?.to_string();
-                let written = self.param_types.get(&name)?;
+            syn::Expr::Path(_) => {
+                let declared = self.declared_path(expression)?;
                 INTAKE_TYPES
                     .iter()
-                    .find(|(named, _)| *named == written.as_str())
-                    .map(|(named, _)| *named)
+                    .find(|(named, _, _)| *named == declared.as_str())
+                    .map(|(named, _, _)| *named)
             }
             _ => None
         }
@@ -73,16 +72,11 @@ impl FactCollector {
         if let Some(channel) = self.constructed_intake(receiver) {
             return Some((channel, Acquisition::AtSite));
         }
-        let syn::Expr::Path(path) = receiver else {
-            return None;
-        };
-        let name = path.path.get_ident()?.to_string();
-        let written = self.param_types.get(&name)?;
-        let channel = INTAKE_TYPES
+        let declared = self.declared_path(receiver)?;
+        let (channel, held) = INTAKE_TYPES
             .iter()
-            .find(|(named, _)| *named == written.as_str())
-            .map(|(_, channel)| *channel)?;
-        let held = written.ends_with(STREAM_GUARD_SUFFIX);
+            .find(|(named, _, _)| *named == declared.as_str())
+            .map(|(_, channel, held)| (*channel, *held))?;
         Some((
             channel,
             if held {

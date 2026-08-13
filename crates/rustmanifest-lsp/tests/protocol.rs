@@ -152,7 +152,8 @@ impl Settled {
         for at in self.places(fragment) {
             self.held.types.push(rustmanifest_schema::ResolvedType {
                 at,
-                rendered: rendered.to_owned()
+                rendered: rendered.to_owned(),
+                declared: None
             });
         }
         self

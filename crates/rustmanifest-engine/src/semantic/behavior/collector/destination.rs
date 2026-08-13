@@ -14,7 +14,7 @@ mod handle;
 use self::handle::{destination_root, guard_of, named_stream, standard_handle, stream_type};
 use super::{
     FactCollector,
-    catalog::{STREAM_GUARD_SUFFIX, STREAM_LOCK_METHOD}
+    catalog::STREAM_LOCK_METHOD
 };
 use crate::semantic::behavior::output::{Acquisition, Buffering, Stream};
 
@@ -86,12 +86,14 @@ impl FactCollector {
                 buffering:   Buffering::Block
             };
         }
-        if let Some(type_name) = self.param_types.get(&name)
-            && let Some(stream) = named_stream(type_name)
+        if let Some((stream, held)) = self
+            .declared_path(destination_root(destination))
+            .as_deref()
+            .and_then(named_stream)
         {
             return Destination {
                 stream,
-                acquisition: if type_name.ends_with(STREAM_GUARD_SUFFIX) {
+                acquisition: if held {
                     Acquisition::Held
                 } else {
                     Acquisition::AtSite
