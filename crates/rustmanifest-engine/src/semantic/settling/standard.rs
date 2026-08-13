@@ -139,6 +139,14 @@ const NUMERIC: [&str; 20] = [
     "pow"
 ];
 
+/// The methods that single out one element by a written position: the
+/// compiler types their answer as an option, whether or not anything
+/// stands under that key.
+const POSITIONAL: [&str; 2] = ["nth", "get"];
+
+/// The rendering the compiler gives such an answer.
+const OPTIONAL: &str = "Option";
+
 /// The container methods a fixture writes, with how each takes the
 /// value it is written on: the compiler reads this off the receiver's
 /// declared mode, and a fixture states it here.
@@ -209,6 +217,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_bindings(resolution, sources);
     settle_guards(resolution, sources);
     settle_container_methods(resolution, sources);
+    settle_positional(resolution, sources);
     resolution.settle();
 }
 
@@ -280,6 +289,33 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                     caller_decides: false,
                     reaches:        Some(names.to_owned()),
                     takes:          None
+                });
+            }
+        }
+    }
+}
+
+/// Records the optional answer a positional call hands back.
+fn settle_positional(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for method in POSITIONAL {
+            let spelled = format!(".{method}(");
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+                let start = from + at;
+                let opens = start + spelled.len() - 1;
+                from = opens;
+                let Some(whole) = written_call(text, opens) else {
+                    continue;
+                };
+                resolution.types.push(ResolvedType {
+                    at:       Location {
+                        file:  source.path().to_path_buf(),
+                        range: whole
+                    },
+                    rendered: OPTIONAL.to_owned(),
+                    declared: None
                 });
             }
         }
