@@ -187,7 +187,7 @@ fn named_fields(fields: &syn::Fields) -> Vec<(String, String)> {
 
 /// A written type as one rendering, arguments kept, so a container
 /// answers what it holds.
-fn written_type(written: &syn::Type) -> Option<String> {
+pub(super) fn written_type(written: &syn::Type) -> Option<String> {
     let rendered = quote::ToTokens::to_token_stream(written).to_string();
     Some(lifetimeless(&rendered).replace(' ', ""))
 }

@@ -28,6 +28,12 @@ use rustmanifest_schema::{
     ResolvedTypeDecl, Resolution
 };
 
+/// A written type as the compiler renders it: arguments kept, the
+/// lifetimes a source wrote dropped.
+pub(super) fn written_rendering(written: &syn::Type) -> String {
+    declared::written_type(written).unwrap_or_default()
+}
+
 /// Everything a compiler settles about a fixture that no reader can
 /// derive for itself: the standard macros it writes, the types it
 /// declares, and the abilities the library grants those types.

@@ -12,7 +12,10 @@
 //! Stated here rather than in the readers: the readers must keep asking
 //! the compiler, and a fixture must keep being able to answer for one.
 
-use rustmanifest_schema::{Location, Range, Resolution, ResolvedCall, ResolvedPath, ResolvedType};
+use rustmanifest_schema::{
+    Location, Range, Resolution, ResolvedCall, ResolvedMode, ResolvedParam, ResolvedPath,
+    ResolvedSignature, ResolvedType
+};
 
 use crate::source::Source;
 
@@ -166,6 +169,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_handles(resolution, sources);
     settle_numeric(resolution, sources);
     settle_casts(resolution, sources);
+    settle_signatures(resolution, sources);
     resolution.settle();
 }
 
@@ -241,6 +245,102 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+}
+
+/// Records the signature of every function a fixture declares: what it
+/// takes, how, and what it hands back.
+///
+/// The written signature is the settled one for a fixture of a few
+/// lines — no alias stands between them — and every reading above asks
+/// the compiler for it.
+fn settle_signatures(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let Some(parsed) = source.tree() else {
+            continue;
+        };
+        let mut items = Vec::new();
+        crate::ast::flattened(&parsed.items, &mut items);
+        for item in items {
+            match item {
+                syn::Item::Fn(declared) => {
+                    record_signature(resolution, source, &declared.sig, None);
+                }
+                syn::Item::Impl(block) => {
+                    let owner = crate::semantic::expr::impl_type_name(block);
+                    for held in &block.items {
+                        if let syn::ImplItem::Fn(method) = held {
+                            record_signature(resolution, source, &method.sig, owner.as_deref());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// Records one signature, the receiver named by the type it stands in.
+fn record_signature(
+    resolution: &mut Resolution,
+    source: &Source,
+    signature: &syn::Signature,
+    owner: Option<&str>
+) {
+    use syn::spanned::Spanned as _;
+
+    let bytes = signature.ident.span().byte_range();
+    let mut params = Vec::new();
+    for taken in &signature.inputs {
+        match taken {
+            syn::FnArg::Receiver(held) => params.push(ResolvedParam {
+                name:  "self".to_owned(),
+                named: owner.unwrap_or("Self").to_owned(),
+                mode:  match &held.kind {
+                    syn::ReceiverKind::Reference(_, _, Some(_)) => ResolvedMode::BorrowedMut,
+                    syn::ReceiverKind::Reference(_, _, None) => ResolvedMode::Borrowed,
+                    _ => ResolvedMode::Owned
+                }
+            }),
+            syn::FnArg::Typed(held) => {
+                let syn::Pat::Ident(named) = held.pat.as_ref() else {
+                    continue;
+                };
+                let written = written_rendering(&held.ty);
+                params.push(ResolvedParam {
+                    name:  named.ident.to_string(),
+                    mode:  if written.starts_with("&mut") {
+                        ResolvedMode::BorrowedMut
+                    } else if written.starts_with('&') {
+                        ResolvedMode::Borrowed
+                    } else {
+                        ResolvedMode::Owned
+                    },
+                    named: written
+                });
+            }
+        }
+    }
+    let returns = match &signature.output {
+        syn::ReturnType::Default => "()".to_owned(),
+        syn::ReturnType::Type(_, written) => written_rendering(written)
+    };
+    resolution.signatures.push(ResolvedSignature {
+        at: Location {
+            file:  source.path().to_path_buf(),
+            range: Range {
+                start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+                end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+            }
+        },
+        params,
+        returns
+    });
+}
+
+/// A written type as one rendering, its lifetimes dropped, the way the
+/// compiler renders it.
+fn written_rendering(written: &syn::Type) -> String {
+    crate::semantic::settling::written_rendering(written)
 }
 
 /// Records the type a written cast produces: the source writes it, and
