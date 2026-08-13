@@ -198,6 +198,55 @@ impl Settled {
 
     /// States the full path of the body whose name is written as `fn
     /// <named>`.
+    /// Adds what a compiler settles about the standard macros and
+    /// container constructors this fixture writes.
+    fn standard(mut self, file: &str) -> Self {
+        let sources = [rustmanifest_engine::Source::new(
+            std::path::PathBuf::from(file),
+            self.text.clone()
+        )];
+        rustmanifest_engine::semantic::settling::settle_standard_macros(
+            &mut self.held,
+            &sources
+        );
+        self
+    }
+
+    /// States the signature the compiler read for the function whose
+    /// name is written as `named`.
+    fn signing(mut self, named: &str, params: &[(&str, &str)], returns: &str) -> Self {
+        let at = self
+            .text
+            .find(&format!("fn {named}"))
+            .map(|held| held + "fn ".len())
+            .expect("the fixture declares the function");
+        self.held.signatures.push(rustmanifest_schema::ResolvedSignature {
+            at:      rustmanifest_schema::Location {
+                file:  std::path::PathBuf::from("src/lib.rs"),
+                range: rustmanifest_schema::Range {
+                    start: u32::try_from(at).unwrap(),
+                    end:   u32::try_from(at + named.len()).unwrap()
+                }
+            },
+            params:  params
+                .iter()
+                .map(|(name, held)| rustmanifest_schema::ResolvedParam {
+                    name:  (*name).to_owned(),
+                    named: (*held).to_owned(),
+                    mode:  if held.starts_with("&mut") {
+                        rustmanifest_schema::ResolvedMode::BorrowedMut
+                    } else if held.starts_with('&') {
+                        rustmanifest_schema::ResolvedMode::Borrowed
+                    } else {
+                        rustmanifest_schema::ResolvedMode::Owned
+                    }
+                })
+                .collect(),
+            returns: returns.to_owned()
+        });
+        self
+    }
+
     /// States that the compiler grants `named` the trait `carried`,
     /// whether a derive or a written impl put it there.
     fn granting(mut self, named: &str, carried: &str) -> Self {
@@ -424,6 +473,9 @@ fn hungry_bed() -> tempfile::TempDir {
         .declares("persist", "demo::persist")
         .declares("hoard", "demo::hoard")
         .call("persist(input)", "demo::persist", "()", None)
+        .signing("hoard", &[("input", "&str")], "Vec<String>")
+        .signing("persist", &[("entry", "&str")], "()")
+        .standard("src/lib.rs")
         .beside(&[("src/lib.rs", HUNGRY)])
 }
 
