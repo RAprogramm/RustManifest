@@ -148,9 +148,16 @@ impl TypeGraph {
                     .fields
                     .iter_mut()
                     .find(|held| held.name == settled.name)
-                    && let Some(named) = crate::semantic::behavior::outermost_name(&settled.named)
                 {
-                    field.type_name = named;
+                    let opened = opened(&settled.named);
+                    if let Some(named) = crate::semantic::behavior::outermost_name(&settled.named) {
+                        field.type_name = named;
+                    }
+                    field.holds =
+                        crate::semantic::behavior::outermost_name(&opened).filter(|named| {
+                            *named != field.type_name
+                        });
+                    field.element = held(&opened);
                 }
             }
         }
@@ -381,4 +388,56 @@ mod tests {
         ]);
         assert!(graph.interaction_edges().is_empty());
     }
+}
+
+/// The type standing under every single-argument wrapper of a rendered
+/// type.
+///
+/// A value behind a lock, a box or a reference-counted handle is that
+/// value: the wrapper says how it is held, not what it is. Peeling by
+/// shape rather than by a list of wrapper names answers for a wrapper
+/// this workspace wrote itself.
+fn opened(rendered: &str) -> String {
+    let mut standing = rendered.trim().trim_start_matches('&').trim().to_owned();
+    loop {
+        let Some(inside) = single_argument(&standing) else {
+            return standing;
+        };
+        standing = inside;
+    }
+}
+
+/// What a rendered collection holds: its last type argument, so a map
+/// answers with its values and a sequence with its elements.
+fn held(rendered: &str) -> Option<String> {
+    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
+    let last = arguments(inside).pop()?;
+    crate::semantic::behavior::outermost_name(&last)
+}
+
+/// The single type argument of a rendered type, where it has exactly one.
+fn single_argument(rendered: &str) -> Option<String> {
+    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
+    let mut written = arguments(inside);
+    (written.len() == 1).then(|| written.pop()).flatten()
+}
+
+/// The top-level arguments of a rendered argument list.
+fn arguments(inside: &str) -> Vec<String> {
+    let mut written = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (at, letter) in inside.char_indices() {
+        match letter {
+            '<' | '(' | '[' => depth += 1,
+            '>' | ')' | ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                written.push(inside[start..at].trim().to_owned());
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    written.push(inside[start..].trim().to_owned());
+    written
 }
