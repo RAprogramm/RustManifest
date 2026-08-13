@@ -25,7 +25,11 @@ use rustmanifest_learn::{LearnOptions, learn_roles};
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
     let sources = sources_for(target)?;
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let settled = settled_for(target);
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
     let conventions: Vec<Convention> = learn_roles(&workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {
@@ -70,10 +74,12 @@ pub struct ConventionClause {
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn conventions(target: &Path) -> Result<Vec<ConventionClause>, EngineError> {
     let sources = sources_for(target)?;
-    Ok(learn_roles(
-        &rustmanifest_engine::Workspace::new(&sources),
-        LearnOptions::default()
-    )
+    let settled = settled_for(target);
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
+    Ok(learn_roles(&workspace, LearnOptions::default())
     .into_iter()
     .map(|clause| ConventionClause {
         role:   clause.role,
@@ -125,10 +131,22 @@ pub fn deduction(
     trait_name: &str
 ) -> Result<DeductionRecord, EngineError> {
     let sources = sources_for(target)?;
-    let held = rustmanifest_learn::deduce_with_precedent(&sources, None, type_name, trait_name)
-        .unwrap_or_else(|| {
-            rustmanifest_engine::semantic::deduce_impl(&sources, None, 0, type_name, trait_name)
-        });
+    let settled = settled_for(target);
+    let held = rustmanifest_learn::deduce_with_precedent(
+        &sources,
+        settled.as_ref(),
+        type_name,
+        trait_name
+    )
+    .unwrap_or_else(|| {
+        rustmanifest_engine::semantic::deduce_impl(
+            &sources,
+            settled.as_ref(),
+            0,
+            type_name,
+            trait_name
+        )
+    });
     Ok(DeductionRecord {
         conclusion: held.chain.conclusion,
         steps:      held
@@ -184,7 +202,11 @@ impl From<rustmanifest_engine::semantic::Answer> for AnswerRecord {
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn whence(target: &Path, function: &str) -> Result<AnswerRecord, EngineError> {
     let sources = sources_for(target)?;
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let settled = settled_for(target);
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
     Ok(rustmanifest_engine::semantic::whence_value(&workspace, function).into())
 }
 
@@ -196,7 +218,11 @@ pub fn whence(target: &Path, function: &str) -> Result<AnswerRecord, EngineError
 /// Returns an [`EngineError`] when file discovery fails.
 pub fn kept(target: &Path, asked: &str) -> Result<AnswerRecord, EngineError> {
     let sources = sources_for(target)?;
-    let workspace = rustmanifest_engine::Workspace::new(&sources);
+    let settled = settled_for(target);
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
     Ok(rustmanifest_engine::semantic::why_kept(&workspace, asked).into())
 }
 
@@ -252,6 +278,24 @@ pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, EngineError> {
 }
 
 /// Expands `target` into readable Rust sources within the memory budget.
+/// What a resolver settled about the workspace `target` stands in,
+/// where a run left its overlay beside the manifest.
+///
+/// Every reading below answers from the compiler and from nothing else,
+/// so a tool run without the overlay states refusals where the same run
+/// on the command line states facts.
+pub(crate) fn settled_for(target: &Path) -> Option<rustmanifest_schema::Resolution> {
+    let root = if target.is_dir() {
+        target.to_path_buf()
+    } else {
+        target.parent()?.to_path_buf()
+    };
+    let text = std::fs::read_to_string(root.join("resolution.json")).ok()?;
+    let mut held: rustmanifest_schema::Resolution = serde_json::from_str(&text).ok()?;
+    held.rebase(&root);
+    Some(held)
+}
+
 fn sources_for(target: &Path) -> Result<Vec<Source>, EngineError> {
     let files: Vec<PathBuf> = if target.is_dir() {
         walker::discover(&[target])?
@@ -370,6 +414,18 @@ mod tests {
 
     use tempfile::TempDir;
 
+    /// Writes beside `dir` what a compiler settles about its sources, so
+    /// a reading that answers from the compiler has an answer to read.
+    fn settle_beside(dir: &TempDir) {
+        let sources = super::sources_for(dir.path()).expect("the tree is readable");
+        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        fs::write(
+            dir.path().join("resolution.json"),
+            serde_json::to_string(&settled).expect("the overlay serializes")
+        )
+        .expect("the overlay is written");
+    }
+
     use super::{conventions, facts, overview};
 
     fn tree() -> TempDir {
@@ -423,6 +479,7 @@ mod tests {
             "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n"
         )
         .unwrap();
+        settle_beside(&dir);
         let held = super::deduction(dir.path(), "User", "Display").unwrap();
         assert!(held.gained, "{held:?}");
         assert_eq!(held.panics, Some(false), "{held:?}");
@@ -466,7 +523,9 @@ mod tests {
 
     #[test]
     fn conventions_learn_io_clauses() {
-        let clauses = conventions(tree().path()).unwrap();
+        let dir = tree();
+        settle_beside(&dir);
+        let clauses = conventions(dir.path()).unwrap();
         assert!(clauses.iter().any(|clause| clause.role == "io"));
     }
 }

@@ -34,6 +34,7 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 
 [dev-dependencies]
+rustmanifest-engine = { workspace = true, features = ["fixtures"] }
 tempfile = { workspace = true }
 
 [lints]

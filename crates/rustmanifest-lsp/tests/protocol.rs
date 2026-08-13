@@ -1021,18 +1021,16 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
             })
         )))
         .unwrap();
-    let diagnostics = loop {
-        let Message::Notification(published) = client.receiver.recv().unwrap() else {
-            panic!("a diagnostics notification must follow an open");
-        };
-        let held = published.params["diagnostics"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        if held.iter().any(|entry| entry["code"] == "RM-MEM-001") {
-            break held;
-        }
+    let Message::Notification(published) = client.receiver.recv().unwrap() else {
+        panic!("the first message after an open must be the diagnostics");
     };
+    let diagnostics = published.params["diagnostics"].as_array().unwrap().clone();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|entry| entry["code"] == "RM-MEM-001"),
+        "{diagnostics:?}"
+    );
     client
         .sender
         .send(Message::Request(Request::new(
