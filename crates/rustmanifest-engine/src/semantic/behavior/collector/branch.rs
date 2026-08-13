@@ -68,7 +68,7 @@ impl FactCollector {
             );
         }
         if let Some(choice) = record {
-            self.settle_choice(choice, &span);
+            self.settle_choice(choice, &span, None);
         }
     }
 
@@ -119,6 +119,6 @@ impl FactCollector {
                 );
             }
         }
-        self.settle_choice(record, &span);
+        self.settle_choice(record, &span, Some(&matched.expr));
     }
 }

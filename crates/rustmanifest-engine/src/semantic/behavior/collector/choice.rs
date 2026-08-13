@@ -128,7 +128,13 @@ impl FactCollector {
     /// and outranks this: it proves the set closed whatever the type is.
     /// Only where none was written does the written variant set get a
     /// chance to prove it.
-    pub(super) fn settle_choice(&mut self, choice: usize, span: &std::ops::Range<usize>) {
+    pub(super) fn settle_choice(
+        &mut self,
+        choice: usize,
+        span: &std::ops::Range<usize>,
+        decided: Option<&syn::Expr>
+    ) {
+        let over = decided.and_then(|expression| self.settled_expr_type(expression));
         if let Some(record) = self.facts.choices.get_mut(choice)
             && record.closure == Closure::Unproven
         {
@@ -139,7 +145,7 @@ impl FactCollector {
                 .filter_map(|alternative| alternative.pattern.as_deref())
                 .collect();
             if patterns.len() == record.alternatives.len()
-                && super::super::choice::cover_a_standard_type(&patterns)
+                && super::super::choice::cover_a_standard_type(over.as_deref(), &patterns)
             {
                 record.closure = Closure::StandardVariants;
             }
