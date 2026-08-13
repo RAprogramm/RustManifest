@@ -241,6 +241,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_positional(resolution, sources);
     settle_conversions(resolution, sources);
     settle_outcome_methods(resolution, sources);
+    settle_matched(resolution, sources);
     resolution.settle();
 }
 
@@ -328,6 +329,73 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                 });
             }
         }
+    }
+}
+
+/// Records the type of every value a `match` decides over, where its
+/// arms name the variants of one outcome type.
+///
+/// Which type a choice is closed over is the compiler's answer, and a
+/// fixture writing `Ok`/`Err` arms is deciding over a fallible value.
+fn settle_matched(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let Some(parsed) = source.tree() else {
+            continue;
+        };
+        let mut matched = Matched {
+            resolution,
+            source
+        };
+        syn::visit::Visit::visit_file(&mut matched, &parsed);
+    }
+}
+
+/// A walk recording the type each written choice decides over.
+struct Matched<'a> {
+    /// What is being settled.
+    resolution: &'a mut Resolution,
+    /// File the choice is written in.
+    source:     &'a Source
+}
+
+impl<'ast> syn::visit::Visit<'ast> for Matched<'_> {
+    fn visit_expr_match(&mut self, matched: &'ast syn::ExprMatch) {
+        use syn::spanned::Spanned as _;
+
+        let written: Vec<String> = matched
+            .arms
+            .iter()
+            .filter_map(|arm| match &arm.pat {
+                syn::Pat::TupleStruct(held) => {
+                    Some(held.path.segments.last()?.ident.to_string())
+                }
+                syn::Pat::Path(held) => Some(held.path.segments.last()?.ident.to_string()),
+                syn::Pat::Ident(held) => Some(held.ident.to_string()),
+                _ => None
+            })
+            .collect();
+        let decided = if written.iter().any(|name| name == "Ok") {
+            Some("Result")
+        } else if written.iter().any(|name| name == "Some") {
+            Some("Option")
+        } else {
+            None
+        };
+        if let Some(decided) = decided {
+            let span = matched.expr.span().byte_range();
+            self.resolution.types.push(ResolvedType {
+                at:       Location {
+                    file:  self.source.path().to_path_buf(),
+                    range: Range {
+                        start: u32::try_from(span.start).unwrap_or(u32::MAX),
+                        end:   u32::try_from(span.end).unwrap_or(u32::MAX)
+                    }
+                },
+                rendered: decided.to_owned(),
+                declared: None
+            });
+        }
+        syn::visit::visit_expr_match(self, matched);
     }
 }
 
