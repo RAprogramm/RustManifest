@@ -201,7 +201,7 @@ mod tests {
 
     use super::insights;
     use crate::{
-        semantic::{TypeGraph, settling::Settling, workspace::Workspace},
+        semantic::{settling::Settling, workspace::Workspace},
         source::Source
     };
 
