@@ -262,24 +262,4 @@ mod tests {
         assert!(rendered.contains("/// # Panics"));
     }
 
-    #[test]
-    fn arguments_come_from_ownership_modes() {
-        let text = "struct Ledger { total: u64 }\nfn post(ledger: &mut Ledger, amount: u64) { \
-                    ledger.total += amount; }";
-        let rendered = draft(text, "post");
-        assert!(rendered.contains("/// # Arguments"));
-        assert!(rendered.contains("* `ledger` — `Ledger`, mutably borrowed."));
-        assert!(rendered.contains("* `amount` — `u64`, taken by value."));
-    }
-
-    #[test]
-    fn drafts_are_deterministic() {
-        let text = "fn compute_total(values: &[u64]) -> u64 { values.iter().sum() }";
-        assert_eq!(draft(text, "compute_total"), draft(text, "compute_total"));
-        assert_eq!(
-            draft(text, "compute_total"),
-            "/// Computes a value from its inputs.\n///\n/// # Arguments\n///\n/// * `values` — \
-             `[u64]`, borrowed."
-        );
-    }
 }

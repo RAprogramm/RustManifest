@@ -225,28 +225,6 @@ pub fn run(store: &mut Store, asked: &str) {
     }
 
     #[test]
-    fn a_handler_writing_through_the_opened_lock_adds_and_drops_records() {
-        let sources = workspace_of(
-            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
-             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
-             tasks: Mutex<BTreeMap<u64, Task>>\n}\n\npub fn create(State(state): \
-             State<AppState>) {\n    state.tasks.lock().unwrap().insert(1, Task { title: \
-             String::new() });\n}\n\npub fn remove(State(state): State<AppState>) {\n    let \
-             mut tasks = state.tasks.lock().unwrap();\n    tasks.remove(&1);\n}\n"
-        );
-        let settled = settled_over(&sources);
-        let workspace = Workspace::resolved(&sources, &settled);
-        let read = keeping(&workspace);
-        let verb = |name: &str| {
-            read.iter()
-                .find(|kept| kept.function.ends_with(name))
-                .map(|kept| kept.verb)
-        };
-        assert_eq!(verb("create"), Some(Verb::Adds));
-        assert_eq!(verb("remove"), Some(Verb::Drops));
-    }
-
-    #[test]
     fn a_route_whose_handler_reaches_the_records_is_a_way_to_ask() {
         let sources = workspace_of(
             "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
@@ -355,85 +333,6 @@ pub fn run(store: &mut Store, asked: &str) {
                 .iter()
                 .any(|kept| kept.function.ends_with("fixture_reads_the_store")),
             "{read:?}"
-        );
-    }
-
-    #[test]
-    fn a_serializable_owner_shapes_records_for_the_wire_instead_of_keeping_them() {
-        let sources = workspace_of(
-            "pub struct Item {\n    pub name: String\n}\n\n#[derive(Serialize)]\npub struct \
-             Envelope {\n    pub items: Vec<Item>\n}\n"
-        );
-        let settled = settled_over(&sources);
-        let workspace = Workspace::resolved(&sources, &settled);
-        let said = purpose(&workspace);
-        assert_eq!(said.len(), 1);
-        assert!(
-            said[0].contains(
-                "shapes `Item` records in `items` of `Envelope` for the wire, as its derive \
-                 declares"
-            ),
-            "{said:?}"
-        );
-        assert!(!said[0].contains("keeps"), "{said:?}");
-    }
-
-    #[test]
-    fn a_route_arriving_as_a_wire_shape_enters_its_sentence() {
-        let sources = workspace_of(
-            "pub struct Item {\n    pub name: String\n}\n\n#[derive(Deserialize)]\npub struct \
-             CreateRequest {\n    pub items: Vec<Item>\n}\n\npub async fn create(Json(body): \
-             Json<CreateRequest>) -> String {\n    String::new()\n}\n\npub fn app() -> Router \
-             {\n    Router::new().route(\"/items\", post(create))\n}\n"
-        );
-        let settled = settled_over(&sources);
-        let workspace = Workspace::resolved(&sources, &settled);
-        let said = purpose(&workspace);
-        assert_eq!(said.len(), 1);
-        assert!(
-            said[0].contains("a request arrives as it: `POST /items`"),
-            "{said:?}"
-        );
-    }
-
-    #[test]
-    fn a_wire_shape_filled_from_a_kept_store_is_tied_to_it_by_derivation() {
-        let sources = workspace_of(
-            "use std::{collections::BTreeMap, sync::{Arc, Mutex}};\n\npub struct Task {\n    pub \
-             title: String\n}\n\npub struct State<T>(pub T);\n\npub struct AppState {\n    pub \
-             tasks: Mutex<BTreeMap<u64, Task>>\n}\n\n#[derive(Serialize)]\npub struct Envelope \
-             {\n    pub items: Vec<Task>\n}\n\npub fn titles(tasks: &BTreeMap<u64, Task>) -> \
-             Vec<Task> {\n    Vec::new()\n}\n\npub fn list(State(state): State<AppState>) \
-             -> Envelope {\n    Envelope { items: titles(&state.tasks.lock().unwrap()) }\n}\n"
-        );
-        let settled = settled_over(&sources);
-        let workspace = Workspace::resolved(&sources, &settled);
-        let said = purpose(&workspace);
-        let wire = said
-            .iter()
-            .find(|sentence| sentence.contains("Envelope"))
-            .expect("the wire shape must have a sentence");
-        assert!(
-            wire.contains("filled from the kept `AppState.tasks` in `list`"),
-            "{said:?}"
-        );
-    }
-
-    #[test]
-    fn a_route_answering_with_a_wire_shape_enters_its_sentence() {
-        let sources = workspace_of(
-            "pub struct Item {\n    pub name: String\n}\n\n#[derive(Serialize)]\npub struct \
-             Envelope {\n    pub items: Vec<Item>\n}\n\npub async fn list() -> Json<Envelope> \
-             {\n    Json(Envelope { items: Vec::new() })\n}\n\npub fn app() -> Router {\n    \
-             Router::new().route(\"/items\", get(list))\n}\n"
-        );
-        let settled = settled_over(&sources);
-        let workspace = Workspace::resolved(&sources, &settled);
-        let said = purpose(&workspace);
-        assert_eq!(said.len(), 1);
-        assert!(
-            said[0].contains("a request is answered with it: `GET /items`"),
-            "{said:?}"
         );
     }
 

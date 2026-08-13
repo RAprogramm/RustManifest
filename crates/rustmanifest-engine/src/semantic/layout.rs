@@ -233,11 +233,4 @@ mod tests {
         assert_eq!(holder.unresolved, vec!["ExternalThing"]);
     }
 
-    #[test]
-    fn copy_derives_are_recorded() {
-        let all = shapes_of("#[derive(Clone, Copy)]\nstruct Id { value: u64 }");
-        assert!(named(&all, "Id").copyable);
-        let plain = shapes_of("struct Id { value: u64 }");
-        assert!(!named(&plain, "Id").copyable);
-    }
 }

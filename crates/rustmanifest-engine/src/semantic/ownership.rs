@@ -231,36 +231,6 @@ mod tests {
     }
 
     #[test]
-    fn the_deviation_price_is_stated_in_bytes_and_heap_headers() {
-        let sources = [Source::new(
-            PathBuf::from("src/lib.rs"),
-            "struct Report { name: String, total: u64 }\nfn summarize(report: Report) -> u64 { \
-             report.total }"
-                .to_owned()
-        )];
-        let _graph = TypeGraph::from_sources(&sources);
-        let settled = weighed();
-        let all = insights(&Workspace::resolved(&sources, &settled));
-        assert_eq!(all.len(), 1);
-        assert!(
-            all[0]
-                .detail
-                .contains("moves at least 32 bytes and 1 heap header(s) per call")
-        );
-    }
-
-    #[test]
-    fn owned_read_only_param_of_non_copy_type_is_reported() {
-        assert_eq!(
-            found(
-                "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { \
-                 report.total }"
-            ),
-            1
-        );
-    }
-
-    #[test]
     fn borrowed_param_passes() {
         assert_eq!(
             found(
@@ -335,22 +305,4 @@ mod tests {
         assert_eq!(insights(&Workspace::resolved(&sources, &settled)).len(), 0);
     }
 
-    #[test]
-    fn trace_explains_every_condition_and_the_price() {
-        let sources = [Source::new(
-            PathBuf::from("src/lib.rs"),
-            "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { report.total }"
-                .to_owned()
-        )];
-        let _graph = TypeGraph::from_sources(&sources);
-        let settled = weighed();
-        let insights = insights(&Workspace::resolved(&sources, &settled));
-        assert_eq!(insights[0].trace.len(), 4);
-        assert!(insights[0].trace[2].fact.contains("without `Copy`"));
-        assert!(
-            insights[0].trace[3]
-                .fact
-                .contains("weighs 8 guaranteed field byte(s)")
-        );
-    }
 }

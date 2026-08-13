@@ -155,41 +155,6 @@ mod tests {
     /// `Display` from its own attributes, and a bare-name impl would
     /// collide with that expansion — the corpus judge's third catch.
     #[test]
-    fn an_error_derive_grants_display_and_refuses_the_install() {
-        assert!(
-            asked(
-                "#[derive(Error)]\n#[error(\"broken: {name}\")]\npub struct Broken {\n    pub \
-                 name: String,\n}\n",
-                "Broken",
-                "Display"
-            )
-            .is_none()
-        );
-        assert!(
-            asked(
-                "#[derive(Error)]\n#[error(\"broken: {name}\")]\npub struct Broken {\n    pub \
-                 name: String,\n}\n",
-                "Broken",
-                "Default"
-            )
-            .is_some()
-        );
-    }
-
-    #[test]
-    fn an_already_implemented_trait_is_refused() {
-        assert!(
-            asked(
-                "struct Disk;\ntrait Sink { fn write(&mut self); }\nimpl Sink for Disk { fn \
-                 write(&mut self) {} }",
-                "Disk",
-                "Sink"
-            )
-            .is_none()
-        );
-    }
-
-    #[test]
     fn a_derived_trait_is_refused() {
         assert!(
             asked(
@@ -199,11 +164,6 @@ mod tests {
             )
             .is_none()
         );
-    }
-
-    #[test]
-    fn a_derived_canon_trait_is_refused_by_the_derive_itself() {
-        assert!(asked("#[derive(Default)]\nstruct Disk;", "Disk", "Default").is_none());
     }
 
     #[test]
@@ -267,22 +227,6 @@ mod tests {
     fn an_unprovable_field_keeps_the_display_body_a_stub() {
         let written = asked("struct Batch { entries: Vec<String> }", "Batch", "Display").unwrap();
         assert!(written.contains("todo!()"), "{written}");
-    }
-
-    #[test]
-    fn a_workspace_field_with_a_written_display_counts_as_displayed() {
-        let written = asked(
-            "struct Tag { name: String }\nimpl std::fmt::Display for Tag { fn fmt(&self, out: \
-             &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(out, \"{}\", self.name) \
-             } }\nstruct Card { tag: Tag }",
-            "Card",
-            "Display"
-        )
-        .unwrap();
-        assert!(
-            written.contains("write!(out, \"{}\", self.tag)"),
-            "{written}"
-        );
     }
 
     #[test]

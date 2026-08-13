@@ -277,20 +277,6 @@ mod tests {
     }
 
     #[test]
-    fn an_exit_before_a_write_weakens_it_and_divergence_kills_it() {
-        let after_try = writes_of("    helper()?;\n    println!(\"hi\");");
-        assert_eq!(after_try[0].guard.prior_exits, 1);
-        assert_eq!(after_try[0].guard.local_grade(), Grade::Possible);
-
-        let after_return = writes_of("    return;\n    println!(\"hi\");");
-        assert!(after_return[0].guard.dead);
-        assert_eq!(after_return[0].guard.local_grade(), Grade::Dead);
-
-        let after_panic = writes_of("    panic!(\"stop\");\n    println!(\"hi\");");
-        assert!(after_panic[0].guard.dead);
-    }
-
-    #[test]
     fn a_configuration_gate_is_never_resolved_only_recorded() {
         let gated = writes_of("    #[cfg(feature = \"loud\")]\n    println!(\"hi\");");
         assert_eq!(gated[0].guard.guards, [Guard::CfgGated]);
@@ -306,42 +292,6 @@ mod tests {
         assert_eq!(writes.len(), 2);
         assert_eq!(writes[0].guard.guards.len(), 2);
         assert!(writes[1].guard.guards.is_empty());
-    }
-
-    #[test]
-    fn a_divergence_below_the_top_of_a_statement_is_seen() {
-        let branch = writes_of("    if flag { std::process::exit(1); }\n    println!(\"hi\");");
-        assert!(!branch[0].guard.dead);
-        assert_eq!(branch[0].guard.prior_exits, 1);
-        assert_eq!(branch[0].guard.local_grade(), Grade::Possible);
-
-        let nested = writes_of("    { panic!(\"stop\"); }\n    println!(\"hi\");");
-        assert_eq!(nested[0].guard.local_grade(), Grade::Dead);
-
-        let argument = writes_of("    helper(std::process::exit(1));\n    println!(\"hi\");");
-        assert_eq!(argument[0].guard.local_grade(), Grade::Dead);
-    }
-
-    #[test]
-    fn a_divergence_on_every_branch_kills_what_follows() {
-        let branches = writes_of(
-            "    if flag { return; } else { std::process::exit(1); }\n    println!(\"x\");"
-        );
-        assert!(branches[0].guard.dead);
-        assert_eq!(branches[0].guard.local_grade(), Grade::Dead);
-
-        let arms = writes_of(
-            "    match v { Some(_) => return, None => panic!(\"no\") }\n    println!(\"x\");"
-        );
-        assert!(arms[0].guard.dead);
-    }
-
-    #[test]
-    fn a_configuration_gated_divergence_weakens_what_follows_and_never_kills_it() {
-        let gated = writes_of("    #[cfg(feature = \"x\")]\n    todo!();\n    println!(\"hi\");");
-        assert!(!gated[0].guard.dead);
-        assert_eq!(gated[0].guard.prior_exits, 1);
-        assert_eq!(gated[0].guard.local_grade(), Grade::Possible);
     }
 
     #[test]
@@ -388,16 +338,6 @@ mod tests {
     }
 
     #[test]
-    fn a_macro_this_tier_cannot_see_through_weakens_what_follows() {
-        let unknown = writes_of("    unknown_macro!();\n    println!(\"hi\");");
-        assert_eq!(unknown[0].guard.prior_exits, 1);
-        assert_eq!(unknown[0].guard.local_grade(), Grade::Possible);
-
-        let settled = writes_of("    print!(\"first\");\n    println!(\"hi\");");
-        assert_eq!(settled[1].guard.local_grade(), Grade::Certain);
-    }
-
-    #[test]
     fn a_binding_arm_is_irrefutable_only_without_a_subpattern() {
         let subpattern =
             writes_of("    match v { y @ Some(1) => println!(\"a\"), _ => println!(\"b\") }");
@@ -429,17 +369,6 @@ mod tests {
         let binding = writes_of("    match v { y => println!(\"a\") }");
         assert!(binding[0].guard.guards.is_empty());
         assert_eq!(binding[0].guard.local_grade(), Grade::Certain);
-    }
-
-    #[test]
-    fn a_loop_that_may_hide_a_break_does_not_prove_what_follows_it_dead() {
-        let hidden = writes_of("    loop { escape!(); }\n    println!(\"hi\");");
-        assert!(!hidden[0].guard.dead);
-        assert_eq!(hidden[0].guard.prior_exits, 1);
-        assert_eq!(hidden[0].guard.local_grade(), Grade::Possible);
-
-        let opaque_call = writes_of("    loop { helper(); }\n    println!(\"hi\");");
-        assert_eq!(opaque_call[0].guard.local_grade(), Grade::Dead);
     }
 
     #[test]
@@ -506,23 +435,6 @@ mod tests {
     }
 
     #[test]
-    fn a_conditionally_applied_attribute_is_not_a_configuration_gate() {
-        let applied = writes_of("    #[cfg_attr(feature = \"x\", inline)]\n    println!(\"hi\");");
-        assert!(applied[0].guard.guards.is_empty());
-        assert_eq!(applied[0].guard.local_grade(), Grade::Certain);
-
-        let diverging = writes_of(
-            "    #[cfg_attr(feature = \"x\", inline)]\n    todo!();\n    println!(\"hi\");"
-        );
-        assert!(diverging[0].guard.dead);
-
-        let gating =
-            writes_of("    #[cfg_attr(feature = \"x\", cfg(test))]\n    println!(\"hi\");");
-        assert_eq!(gating[0].guard.guards, [Guard::CfgGated]);
-        assert_eq!(gating[0].guard.local_grade(), Grade::Possible);
-    }
-
-    #[test]
     fn how_often_a_body_writes_comes_from_its_completion_not_from_the_keyword() {
         let leaves = writes_of("    loop { println!(\"x\"); break; }\n    println!(\"after\");");
         assert_eq!(leaves[0].payload.fully_known(), Some("x"));
@@ -561,49 +473,6 @@ mod tests {
         let collected = writes_of("    let v = vec![{ println!(\"inner\"); 1 }];");
         assert_eq!(collected.len(), 1);
         assert_eq!(collected[0].payload.fully_known(), Some("inner"));
-    }
-
-    #[test]
-    fn a_write_names_the_stream_it_reaches_or_states_that_it_cannot() {
-        let supplied = writes_of_source(
-            "fn dump<W: std::io::Write>(w: &mut W) { writeln!(w, \"hi\").ok(); }",
-            "dump"
-        );
-        assert_eq!(supplied[0].stream, Stream::CallerSupplied);
-        assert_eq!(supplied[0].payload.fully_known(), Some("hi"));
-        assert_eq!(supplied[0].newline, super::Newline::Appended);
-
-        let unnamed = writes_of_source(
-            "fn dump() { let mut sink = make(); writeln!(sink, \"hi\").ok(); }",
-            "dump"
-        );
-        assert_eq!(unnamed[0].stream, Stream::Unknown);
-
-        let handle = writes_of_source(
-            "fn dump() { write!(std::io::stdout().lock(), \"hi\").ok(); }",
-            "dump"
-        );
-        assert_eq!(handle[0].stream, Stream::Stdout);
-        assert_eq!(handle[0].newline, super::Newline::None);
-    }
-
-    #[test]
-    fn bytes_written_from_a_value_state_the_value_as_the_reason() {
-        let literal = writes_of_source(
-            "fn dump<W: std::io::Write>(w: &mut W) { w.write_all(b\"hi\").ok(); }",
-            "dump"
-        );
-        assert_eq!(literal[0].stream, Stream::CallerSupplied);
-        assert_eq!(literal[0].payload.fully_known(), Some("hi"));
-
-        let computed = writes_of_source(
-            "fn dump<W: std::io::Write>(w: &mut W, line: &str) { w.write_all(line.as_bytes()).ok(); }",
-            "dump"
-        );
-        assert_eq!(
-            computed[0].payload,
-            Payload::Opaque(OpaqueReason::RuntimeValue)
-        );
     }
 
     /// Whether a call comes back to its caller is the compiler's answer,

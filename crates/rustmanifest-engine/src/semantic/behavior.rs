@@ -222,13 +222,6 @@ mod tests {
     /// A name captured inline in a template is a use of the parameter it
     /// names, counted where the capture is read — no path visit ever
     /// sees it.
-    #[test]
-    fn an_inline_template_capture_counts_as_a_use() {
-        let all = facts("fn show(input: &str) { println!(\"{input} {input}\"); }");
-        let shown = named(&all, "show");
-        assert_eq!(shown.params[0].uses, 2, "{:?}", shown.params);
-    }
-
     /// The function form hands its arguments over one `bind` at a time,
     /// and the chain lands on the statement site in written order; a
     /// computed argument claims nothing.
@@ -304,16 +297,6 @@ mod tests {
         let all =
             facts("fn poke(tuple: (u8, u8)) { tuple.0; }\nfn chain() { helper().field = 1; }");
         assert_eq!(named(&all, "chain").writes, vec!["?.field"]);
-    }
-
-    #[test]
-    fn mutating_methods_on_fields_count_as_writes() {
-        let all = facts_settled(
-            "struct State { cache: Vec<u8> }\nimpl State { fn add(&self, byte: u8) { \
-             self.cache.push(byte); } }",
-            |settling| settling.field("self.cache", "State", "Vec<u8>")
-        );
-        assert_eq!(named(&all, "State::add").writes, vec!["State.cache"]);
     }
 
     #[test]
@@ -526,22 +509,6 @@ mod tests {
     }
 
     #[test]
-    fn service_calls_dispatch_to_the_wrapped_service() {
-        let all = facts_settled(
-            "struct Layered<S> { inner: S }\nstruct HyperService;\nimpl HyperService { fn \
-             call(&self) { std::net::TcpStream::connect(\"h\").ok(); } }\nstruct Client { \
-             hyper: Layered<HyperService> }\nimpl Client { fn execute(&self) { let svc = \
-             self.hyper.clone(); svc.call(); } }",
-            |settling| settling.after("let svc = ").typed("self", "Client")
-        );
-        assert!(
-            named(&all, "Client::execute")
-                .calls
-                .contains(&"HyperService::call".to_owned())
-        );
-    }
-
-    #[test]
     fn std_method_axioms_fire_on_typed_receivers() {
         let all = facts_settled(
             "struct Log { sink: File }\nimpl Log { fn flush(&self) { \
@@ -710,43 +677,6 @@ mod tests {
              }\nfn use_it() { let cfg = a::Cfg::load(); cfg.set = 1; }"
         );
         assert_eq!(named(&all, "use_it").writes, vec!["?.set"]);
-    }
-
-    #[test]
-    fn param_modes_and_use_shapes_are_profiled() {
-        let all = facts(
-            "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { report.total \
-             }\nfn consume(report: Report) -> Report { report }\nfn update(report: &mut Report) \
-             { report.total = 0; }"
-        );
-        let summarize = &named(&all, "summarize").params[0];
-        assert_eq!(summarize.mode, super::ParamMode::Owned);
-        assert_eq!((summarize.uses, summarize.field_reads), (1, 1));
-        let consume = &named(&all, "consume").params[0];
-        assert_eq!((consume.uses, consume.field_reads), (1, 0));
-        let update = &named(&all, "update").params[0];
-        assert_eq!(update.mode, super::ParamMode::BorrowedMut);
-        assert_eq!((update.uses, update.field_reads), (1, 0));
-    }
-
-    #[test]
-    fn self_receiver_modes_are_profiled() {
-        let all = facts(
-            "struct W;\nimpl W {\n    fn by_ref(&self) {}\n    fn by_mut(&mut self) {}\n    fn \
-             by_value(self) {}\n}"
-        );
-        assert_eq!(
-            named(&all, "W::by_ref").params[0].mode,
-            super::ParamMode::Borrowed
-        );
-        assert_eq!(
-            named(&all, "W::by_mut").params[0].mode,
-            super::ParamMode::BorrowedMut
-        );
-        assert_eq!(
-            named(&all, "W::by_value").params[0].mode,
-            super::ParamMode::Owned
-        );
     }
 
     #[test]

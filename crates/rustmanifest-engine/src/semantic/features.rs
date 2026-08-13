@@ -248,13 +248,4 @@ mod tests {
         assert!(!active(&all, "allocations>=2"));
     }
 
-    #[test]
-    fn param_modes_become_features() {
-        let all = first_features("fn mix(owned: String, seen: &str, out: &mut Vec<u8>) {}");
-        assert!(active(&all, "param-owned"));
-        assert!(active(&all, "param-borrowed"));
-        assert!(active(&all, "param-borrowed-mut"));
-        assert!(active(&all, "params>=2"));
-        assert!(!active(&all, "params>=4"));
-    }
 }

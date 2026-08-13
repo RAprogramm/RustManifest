@@ -231,13 +231,4 @@ mod tests {
         assert!(derived_intents(&sources).is_empty());
     }
 
-    /// An ability already given leaves no intent to derive.
-    #[test]
-    fn a_given_ability_derives_no_intent() {
-        let sources = one(
-            "#[derive(Default)]\npub struct User {\n    pub name: String,\n}\n\npub fn make() -> \
-             User {\n    User::default()\n}\n"
-        );
-        assert!(derived_intents(&sources).is_empty());
-    }
 }

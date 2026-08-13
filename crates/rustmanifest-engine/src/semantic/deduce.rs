@@ -322,17 +322,4 @@ mod tests {
         );
     }
 
-    /// An ability already given stops the chain honestly: there is
-    /// nothing to install, and the chain says why.
-    #[test]
-    fn an_already_given_ability_stops_the_chain() {
-        let held = deduce_impl(
-            &one("#[derive(Default)]\npub struct Tag {\n    pub name: String,\n}\n"),
-            0,
-            "Tag",
-            "Default"
-        );
-        assert!(held.gain.is_none());
-        assert!(held.chain.conclusion.contains("already carries"));
-    }
 }

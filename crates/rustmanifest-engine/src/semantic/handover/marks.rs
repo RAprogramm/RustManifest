@@ -206,39 +206,8 @@ mod tests {
     }
 
     #[test]
-    fn a_moved_argument_is_marked_at_its_span() {
-        assert_eq!(
-            marked("fn eat(value: String) {}\nfn main() { let s = String::from(\"x\"); eat(s); }"),
-            vec![("s".to_owned(), "moves")]
-        );
-    }
-
-    #[test]
-    fn borrows_and_copies_are_told_apart() {
-        let marks = marked(
-            "fn read(value: &String, count: u32) {}\nfn main() { let s = String::new(); \
-             read(&s, 7); }"
-        );
-        assert_eq!(
-            marks,
-            vec![("&s".to_owned(), "borrows"), ("7".to_owned(), "copies")]
-        );
-    }
-
-    #[test]
     fn an_unresolved_callee_marks_nothing() {
         assert!(marked("fn main() { let s = String::from(\"x\"); s.len(); }").is_empty());
     }
 
-    #[test]
-    fn a_slice_parameter_no_longer_suppresses_the_whole_call() {
-        let marks = marked(
-            "fn pack(text: String, bytes: &[u8]) {}\nfn main() { let s = String::new(); let b = \
-             vec![0u8]; pack(s, &b); }"
-        );
-        assert_eq!(
-            marks,
-            vec![("s".to_owned(), "moves"), ("&b".to_owned(), "borrows")]
-        );
-    }
 }

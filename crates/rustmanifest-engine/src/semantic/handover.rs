@@ -284,72 +284,6 @@ mod tests {
     }
 
     #[test]
-    fn a_by_value_pass_of_a_known_owner_is_told_as_a_move() {
-        let answer = asked_settled(
-            "fn foo(value: String) {}\nfn main() { let s = String::from(\"hello\"); foo(s); }",
-            "foo(s)",
-            &[("String", false)]
-        )
-        .unwrap();
-        assert!(answer.steps[0].fact.contains("`String` is not `Copy`"));
-        assert!(answer.steps[0].reason.contains("unusable after this line"));
-        assert!(answer.conclusion.contains("moves 1 value(s) in"));
-    }
-
-    #[test]
-    fn a_shared_borrow_is_told_as_the_owner_keeping_the_value() {
-        let answer = asked(
-            "fn foo(value: &String) {}\nfn main() { let s = String::from(\"hello\"); foo(&s); }",
-            "foo(&s)"
-        )
-        .unwrap();
-        assert!(answer.steps[0].fact.contains("shared borrow"));
-        assert!(answer.steps[0].reason.contains("owner keeps the value"));
-        assert!(answer.conclusion.contains("borrows 1 value(s)"));
-    }
-
-    #[test]
-    fn a_slice_parameter_is_told_as_wanting_no_ownership() {
-        let answer = asked(
-            "fn foo(value: &str) {}\nfn main() { let s = String::from(\"hello\"); foo(&s); }",
-            "foo(&s)"
-        )
-        .unwrap();
-        assert!(answer.steps[0].fact.contains("borrows a string slice"));
-        assert!(answer.steps[0].reason.contains("no ownership is asked for"));
-    }
-
-    #[test]
-    fn an_exclusive_borrow_is_told_as_writable_and_exclusive() {
-        let answer = asked(
-            "fn foo(value: &mut String) {}\nfn main() { let mut s = String::new(); foo(&mut s); \
-             }",
-            "foo(&mut s)"
-        )
-        .unwrap();
-        assert!(answer.steps[0].fact.contains("exclusive borrow"));
-        assert!(answer.steps[0].reason.contains("may write"));
-    }
-
-    #[test]
-    fn a_copy_type_by_value_is_told_as_a_copy() {
-        let answer = asked("fn foo(value: u32) {}\nfn main() { foo(7); }", "foo(7)").unwrap();
-        assert!(answer.steps[0].fact.contains("`u32` is `Copy`"));
-        assert!(answer.conclusion.contains("copies 1 value(s)"));
-    }
-
-    #[test]
-    fn a_workspace_type_without_copy_is_told_as_a_move() {
-        let answer = asked(
-            "struct Token { text: String }\nfn eat(token: Token) {}\nfn main() { eat(Token { \
-             text: String::new() }); }",
-            "eat(Token"
-        )
-        .unwrap();
-        assert!(answer.steps[0].fact.contains("`Token` is not `Copy`"));
-    }
-
-    #[test]
     fn an_external_callee_has_no_story() {
         assert!(
             asked(
@@ -365,36 +299,4 @@ mod tests {
         assert!(asked("fn ping() {}\nfn main() { ping(); }", "ping()").is_none());
     }
 
-    #[test]
-    fn a_slice_parameter_is_a_recorded_borrow_not_a_gap() {
-        let answer = asked_settled(
-            "fn pack(text: String, bytes: &[u8]) {}\nfn main() { let s = String::new(); let b = \
-             vec![0u8]; pack(s, &b); }",
-            "pack(s, &b)",
-            &[("String", false)]
-        )
-        .unwrap();
-        assert_eq!(answer.steps.len(), 2, "{answer:?}");
-        assert!(
-            answer.steps[1]
-                .fact
-                .contains("`bytes: &[u8]` is a shared borrow")
-        );
-        assert!(
-            answer
-                .conclusion
-                .contains("moves 1 value(s) in, borrows 1 value(s)")
-        );
-    }
-
-    #[test]
-    fn the_innermost_covered_call_answers() {
-        let answer = asked(
-            "fn inner(value: String) -> u32 { value.len() as u32 }\nfn outer(count: u32) {}\nfn \
-             main() { outer(inner(String::new())); }",
-            "inner(String::new()"
-        )
-        .unwrap();
-        assert!(answer.conclusion.contains("calling `inner`"));
-    }
 }

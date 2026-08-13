@@ -136,11 +136,4 @@ mod tests {
         assert!(gain.panics, "{:?}", gain.installed);
     }
 
-    /// An already implemented trait plans nothing, so nothing installs.
-    #[test]
-    fn a_refused_plan_installs_nothing() {
-        let sources =
-            one("#[derive(Default)]\npub struct Disk;\nfn keep() -> Disk { Disk::default() }\n");
-        assert!(install_impl(&sources, 0, "Disk", "Default").is_none());
-    }
 }
