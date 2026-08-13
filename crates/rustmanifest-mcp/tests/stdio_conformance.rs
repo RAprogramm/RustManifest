@@ -34,6 +34,30 @@ const SESSION_TIMEOUT: Duration = Duration::from_secs(30);
 const NEED: &str = "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    Job::default()\n}\n";
 
 /// Runs one scripted stdio session and returns responses keyed by id.
+/// Writes beside `root` what a compiler settles about its sources.
+///
+/// Every reading the server performs answers from the compiler and from
+/// nothing else, so a session over a bare directory states refusals
+/// where a resolved one states facts.
+fn settle_beside(root: &std::path::Path) {
+    let files = rustmanifest_engine::walker::discover(&[root.to_path_buf()])
+        .expect("the tree is walkable");
+    let sources: Vec<rustmanifest_engine::Source> = files
+        .iter()
+        .filter_map(|path| {
+            let text = std::fs::read_to_string(path).ok()?;
+            let named = path.strip_prefix(root).unwrap_or(path);
+            Some(rustmanifest_engine::Source::new(named.to_path_buf(), text))
+        })
+        .collect();
+    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    std::fs::write(
+        root.join("resolution.json"),
+        serde_json::to_string(&settled).expect("the overlay serializes")
+    )
+    .expect("the overlay is written");
+}
+
 fn session(requests: &[Value]) -> BTreeMap<i64, Value> {
     let workspace = tempfile::tempdir().expect("workspace dir");
     std::fs::write(
@@ -47,6 +71,7 @@ fn session(requests: &[Value]) -> BTreeMap<i64, Value> {
     )
     .expect("logic file");
     std::fs::write(workspace.path().join("need.rs"), NEED).expect("need file");
+    settle_beside(workspace.path());
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_rustmanifest-mcp"))
         .current_dir(workspace.path())
