@@ -15,7 +15,7 @@
 //! absence is what the shape means by "not answered", here as anywhere.
 
 use rustmanifest_schema::{
-    Location, Range, Resolution, ResolvedFieldDecl, ResolvedGrant, ResolvedTypeDecl
+    Location, Range, Resolution, ResolvedFieldDecl, ResolvedGrant, ResolvedPath, ResolvedTypeDecl
 };
 
 use crate::source::Source;
@@ -83,7 +83,72 @@ pub fn settle_declared(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+    settle_mentions(resolution, sources);
     resolution.settle();
+}
+
+/// Records what every mention of a declared type names: a reading
+/// asking which types a body touches answers from the item each written
+/// name reaches, and a fixture writes bare names.
+fn settle_mentions(resolution: &mut Resolution, sources: &[Source]) {
+    let declared: Vec<(String, String)> = resolution
+        .declared
+        .iter()
+        .map(|held| (held.named.clone(), kind_of(sources, &held.named)))
+        .collect();
+    for source in sources {
+        let text = source.text();
+        for (named, kind) in &declared {
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(named.as_str())) {
+                let start = from + at;
+                let end = start + named.len();
+                from = end;
+                let joined = text[..start]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|letter| letter.is_alphanumeric() || letter == '_')
+                    || text[end..]
+                        .chars()
+                        .next()
+                        .is_some_and(|letter| letter.is_alphanumeric() || letter == '_');
+                if joined {
+                    continue;
+                }
+                resolution.paths.push(ResolvedPath {
+                    at:        Location {
+                        file:  source.path().to_path_buf(),
+                        range: Range {
+                            start: u32::try_from(start).unwrap_or(u32::MAX),
+                            end:   u32::try_from(end).unwrap_or(u32::MAX)
+                        }
+                    },
+                    names:     format!("crate::{named}"),
+                    kind:      kind.clone(),
+                    declaring: "crate".to_owned()
+                });
+            }
+        }
+    }
+}
+
+/// Which kind of item a declared name is, as the sources write it.
+fn kind_of(sources: &[Source], named: &str) -> String {
+    for source in sources {
+        let Some(parsed) = source.tree() else {
+            continue;
+        };
+        let mut items = Vec::new();
+        crate::ast::flattened(&parsed.items, &mut items);
+        for item in items {
+            match item {
+                syn::Item::Struct(held) if held.ident == named => return "struct".to_owned(),
+                syn::Item::Enum(held) if held.ident == named => return "enum".to_owned(),
+                _ => {}
+            }
+        }
+    }
+    "struct".to_owned()
 }
 
 /// What a compiler settles about what `sources` declare, and nothing
