@@ -38,24 +38,16 @@ pub struct Store {
     pub source: usize
 }
 
-/// The shapes the standard library declares as collections of many
-/// values.
+/// The trait a shape carries exactly when it takes many values in.
 ///
 /// A field of any other shape — an `Option`, a `Result`, a domain
 /// wrapper — holds one value or none, and one value is not a set of
 /// records however its type is spelled. The first corpus run made the
 /// case: an optional error inside a response envelope read as "keeps
 /// error records" until the shape was required to be a collection.
-const COLLECTIONS: [&str; 8] = [
-    "Vec",
-    "VecDeque",
-    "BTreeMap",
-    "HashMap",
-    "BTreeSet",
-    "HashSet",
-    "LinkedList",
-    "BinaryHeap"
-];
+/// Eight written container names stood for the answer before, and stood
+/// for it only for the eight somebody listed.
+const TAKES_MANY: &str = "Extend";
 
 /// The collections of workspace records every workspace type holds.
 ///
@@ -77,7 +69,7 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
                 .holds
                 .clone()
                 .unwrap_or_else(|| field.type_name.clone());
-            if !COLLECTIONS.contains(&shape.as_str()) {
+            if !graph.ability_given(&shape, TAKES_MANY) {
                 continue;
             }
             let declared = graph
