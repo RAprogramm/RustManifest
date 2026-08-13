@@ -88,6 +88,24 @@ const ENDING: [(&str, &str); 4] = [
     ("process::abort", "std::process::abort")
 ];
 
+/// The library types a fixture names outright, with the item that
+/// declares each: a reading asking where a type lives gets the answer
+/// only from a path, and a fixture writes the bare name.
+const DECLARED_TYPES: [(&str, &str); 12] = [
+    ("File", "std::fs::File"),
+    ("TcpStream", "std::net::tcp::TcpStream"),
+    ("TcpListener", "std::net::tcp::TcpListener"),
+    ("UdpSocket", "std::net::udp::UdpSocket"),
+    ("Command", "std::process::Command"),
+    ("Stdout", "std::io::stdio::Stdout"),
+    ("StdoutLock", "std::io::stdio::StdoutLock"),
+    ("Stderr", "std::io::stdio::Stderr"),
+    ("StderrLock", "std::io::stdio::StderrLock"),
+    ("Stdin", "std::io::stdio::Stdin"),
+    ("StdinLock", "std::io::stdio::StdinLock"),
+    ("String", "alloc::string::String")
+];
+
 /// The process's own handle constructors a fixture writes, with the
 /// body each reaches and the type it hands back.
 const HANDLES: [(&str, &str, &str); 3] = [
@@ -170,6 +188,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_numeric(resolution, sources);
     settle_casts(resolution, sources);
     settle_signatures(resolution, sources);
+    settle_bindings(resolution, sources);
     resolution.settle();
 }
 
@@ -244,6 +263,79 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                 });
             }
         }
+    }
+}
+
+/// Records the type every name a fixture binds with a written type
+/// holds, and where an item declares that type.
+fn settle_bindings(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let Some(parsed) = source.tree() else {
+            continue;
+        };
+        let mut held = Vec::new();
+        crate::ast::flattened(&parsed.items, &mut held);
+        for item in held {
+            let mut named = Named {
+                resolution,
+                source
+            };
+            syn::visit::Visit::visit_item(&mut named, item);
+        }
+    }
+}
+
+/// A walk recording every written binding of a fixture.
+struct Named<'a> {
+    /// What is being settled.
+    resolution: &'a mut Resolution,
+    /// File the binding is written in.
+    source:     &'a Source
+}
+
+impl Named<'_> {
+    /// Records one name as holding the type written beside it.
+    fn record(&mut self, name: &syn::Ident, written: &syn::Type) {
+        use syn::spanned::Spanned as _;
+
+        let bytes = name.span().byte_range();
+        let rendered = written_rendering(written);
+        let bare = rendered.trim_start_matches('&').trim_start_matches("mut");
+        let declared = DECLARED_TYPES
+            .iter()
+            .find(|(spelled, _)| *spelled == bare)
+            .map(|(_, path)| (*path).to_owned());
+        self.resolution.types.push(ResolvedType {
+            at:       Location {
+                file:  self.source.path().to_path_buf(),
+                range: Range {
+                    start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
+                    end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+                }
+            },
+            rendered: rendered.clone(),
+            declared
+        });
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for Named<'_> {
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        if let syn::Pat::Type(typed) = &local.pat
+            && let syn::Pat::Ident(name) = typed.pat.as_ref()
+        {
+            self.record(&name.ident, &typed.ty);
+        }
+        syn::visit::visit_local(self, local);
+    }
+
+    fn visit_fn_arg(&mut self, taken: &'ast syn::FnArg) {
+        if let syn::FnArg::Typed(held) = taken
+            && let syn::Pat::Ident(name) = held.pat.as_ref()
+        {
+            self.record(&name.ident, &held.ty);
+        }
+        syn::visit::visit_fn_arg(self, taken);
     }
 }
 
