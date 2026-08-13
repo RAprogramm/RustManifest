@@ -133,6 +133,7 @@ impl Settled {
                 returns: returns.to_owned(),
                 receiver: receiver.map(ToOwned::to_owned),
                 receiver_path: None,
+                caller_decides: false,
                 reaches: None,
                 takes: None
             });

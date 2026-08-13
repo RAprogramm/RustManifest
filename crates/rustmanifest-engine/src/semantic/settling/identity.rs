@@ -59,6 +59,7 @@ pub fn settle_identity(
                 returns:  String::new(),
                 receiver: None,
                 receiver_path: None,
+                caller_decides: false,
                 reaches:  Some(reached.to_owned()),
                 takes:    None
             });

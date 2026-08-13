@@ -107,6 +107,7 @@ mod tests {
                 returns:  "bool".to_owned(),
                 receiver: None,
                 receiver_path: None,
+                caller_decides: false,
                 reaches:  None,
                 takes:    None
             }],

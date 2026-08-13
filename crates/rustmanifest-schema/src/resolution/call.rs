@@ -38,6 +38,15 @@ pub struct ResolvedCall {
     /// and never a path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reaches:  Option<String>,
+    /// Whether the type the call hands back is decided by the caller
+    /// rather than by the body it reaches.
+    ///
+    /// A conversion is exactly that: the caller writes the target and the
+    /// library produces it. The declaration says which of the two it is —
+    /// a return spelled out of the function's own type parameters is the
+    /// caller's to choose — and no reading of the written name does.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub caller_decides: bool,
     /// How the function the call reaches takes its receiver, where it has
     /// one.
     ///

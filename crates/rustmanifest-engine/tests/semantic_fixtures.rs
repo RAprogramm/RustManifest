@@ -106,6 +106,7 @@ fn settle_receivers(rule: &str, sources: &[Source], into: &mut rustmanifest_sche
                 returns:  "()".to_owned(),
                 receiver: None,
                 receiver_path: None,
+                caller_decides: false,
                 reaches:  None,
                 takes:    Some(*mode)
             });

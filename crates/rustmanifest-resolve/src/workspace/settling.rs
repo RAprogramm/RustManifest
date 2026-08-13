@@ -20,6 +20,19 @@ fn receiver_path(reading: Reading<'_, '_>, typed: &ra_ap_hir::Type<'_>) -> Optio
     super::naming::canonical_type(reading.database, declared)
 }
 
+/// Whether the declared return of `function` is spelled out of its own
+/// type parameters, which makes the type the caller's to decide.
+fn caller_decides(database: &dyn ra_ap_hir::db::HirDatabase, function: ra_ap_hir::Function) -> bool {
+    let declared = function.ret_type(database);
+    let mut generic = declared.as_type_param(database).is_some();
+    declared.walk(database, |held| {
+        if held.as_type_param(database).is_some() {
+            generic = true;
+        }
+    });
+    generic
+}
+
 /// How the function a call reaches takes its receiver, where it has one.
 ///
 /// A free function has none, and the row stays absent rather than
@@ -87,6 +100,7 @@ pub(super) fn settled_free_call(
         returns:  reading.render(&returns)?,
         receiver: None,
         receiver_path: None,
+        caller_decides: caller_decides(reading.database, function),
         reaches:  super::naming::canonical_function(reading.database, function),
         takes:    receiver_mode(reading.database, function)
     })
@@ -123,6 +137,7 @@ pub(super) fn settled_call(
             .as_ref()
             .and_then(|typed| receiver_path(reading, typed)),
         receiver: received.as_ref().and_then(|typed| reading.render(typed)),
+        caller_decides: caller_decides(reading.database, function),
         reaches,
         takes: receiver_mode(reading.database, function)
     })

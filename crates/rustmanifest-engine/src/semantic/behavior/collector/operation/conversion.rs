@@ -10,13 +10,9 @@
 //! a type in the claim that the source never asked for.
 
 use super::super::FactCollector;
-use crate::semantic::{
-    behavior::{
-        operation::{Conversion, Guarding, Operation},
-        value::Provenance
-    },
-    knowledge::{Outcome, converts},
-    std_knowledge::method_result
+use crate::semantic::behavior::{
+    operation::{Conversion, Guarding, Operation},
+    value::Provenance
 };
 
 impl FactCollector {
@@ -35,22 +31,23 @@ impl FactCollector {
     ) -> bool {
         use syn::spanned::Spanned;
 
-        let method = call.method.to_string();
-        let owner = self.expr_type(&call.receiver);
-        let Some(row) = owner
-            .as_deref()
-            .and_then(|owner| method_result(owner, &method))
-        else {
-            return false;
-        };
-        if !converts(&row) {
+        let span = call.span().byte_range();
+        let at = (
+            u32::try_from(span.start).unwrap_or(u32::MAX),
+            u32::try_from(span.end).unwrap_or(u32::MAX)
+        );
+        if !self.caller_decided.contains(&at) {
             return false;
         }
-        let target = self.settled_type_over(&call.span().byte_range());
-        let guarding = match row.outcome {
-            Outcome::Total => Guarding::Unchecked,
-            Outcome::Fallible => Guarding::Reported,
-            Outcome::Optional => Guarding::Checked
+        let target = self.settled_type_over(&span);
+        let guarding = match target
+            .as_deref()
+            .and_then(crate::semantic::behavior::outermost_name)
+            .as_deref()
+        {
+            Some("Result") => Guarding::Reported,
+            Some("Option") => Guarding::Checked,
+            _ => Guarding::Unchecked
         };
         let index = self.push_operation(
             &call.span().byte_range(),

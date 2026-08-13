@@ -15,14 +15,12 @@ mod arithmetic;
 mod flow;
 mod macro_value;
 mod presence;
-mod result;
 
 pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
     macro_value::macro_leaves,
-    presence::{Presence, presence_method},
-    result::method_result
+    presence::{Presence, presence_method}
 };
 
 /// The language's own primitive types, which are copied rather than

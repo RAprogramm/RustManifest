@@ -187,6 +187,7 @@ impl Settled {
                 returns: returns.to_owned(),
                 receiver: None,
                 receiver_path: None,
+                caller_decides: false,
                 reaches: Some(reaches.to_owned()),
                 takes
             });

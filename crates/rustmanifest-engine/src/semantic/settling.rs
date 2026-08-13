@@ -169,6 +169,7 @@ impl<'text> Settling<'text> {
             returns: returns.to_owned(),
             receiver: receiver.map(ToOwned::to_owned),
             receiver_path: None,
+            caller_decides: false,
             reaches: None,
             takes: None
         });
@@ -191,6 +192,7 @@ impl<'text> Settling<'text> {
             returns: String::new(),
             receiver: None,
             receiver_path: None,
+            caller_decides: false,
             reaches: Some(reaches.to_owned()),
             takes: None
         });

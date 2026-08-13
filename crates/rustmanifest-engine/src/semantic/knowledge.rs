@@ -14,14 +14,12 @@
 
 mod ignore;
 mod reqwest;
-mod result;
 mod statement;
 mod syn;
 mod tempfile;
 mod tokio;
 
 pub(super) use self::{
-    result::{MethodResult, Outcome, ReturnForm, converts},
     statement::{statement_of, table_of}
 };
 use super::behavior::Effect;
