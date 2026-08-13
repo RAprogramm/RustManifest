@@ -66,6 +66,25 @@ const ALLOCATED: [(&str, &str); 5] = [
 /// The constructors a fixture writes such a container with.
 const CONSTRUCTORS: [&str; 3] = ["new", "with_capacity", "from"];
 
+/// The outcome variants a fixture writes, each with the item it
+/// reaches: which one a written name means is the compiler's answer,
+/// and a fixture writes no namesake of its own.
+const OUTCOME_VARIANTS: [(&str, &str); 4] = [
+    ("Ok", "core::result::Ok"),
+    ("Err", "core::result::Err"),
+    ("Some", "core::option::Some"),
+    ("None", "core::option::None")
+];
+
+/// The bodies that end the process, by the path a fixture writes them
+/// with.
+const ENDING: [(&str, &str); 4] = [
+    ("std::process::exit", "std::process::exit"),
+    ("process::exit", "std::process::exit"),
+    ("std::process::abort", "std::process::abort"),
+    ("process::abort", "std::process::abort")
+];
+
 /// The methods that hand back a copy of what they are written on, which
 /// the compiler states as a shared borrow answering with the receiver's
 /// own type.
@@ -109,6 +128,8 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     }
     settle_allocations(resolution, sources);
     settle_copies(resolution, sources);
+    settle_variants(resolution, sources);
+    settle_endings(resolution, sources);
     resolution.settle();
 }
 
@@ -138,6 +159,79 @@ fn settle_allocations(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+}
+
+/// Records the outcome variants a fixture writes, as the items they
+/// reach.
+fn settle_variants(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for (written, names) in OUTCOME_VARIANTS {
+            for at in name_at(text, written) {
+                resolution.paths.push(ResolvedPath {
+                    at:        Location {
+                        file:  source.path().to_path_buf(),
+                        range: at
+                    },
+                    names:     names.to_owned(),
+                    kind:      "variant".to_owned(),
+                    declaring: "core".to_owned()
+                });
+            }
+        }
+    }
+}
+
+/// Records the process-ending calls a fixture writes, as the bodies
+/// they reach.
+fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for (written, names) in ENDING {
+            for at in call_at(text, written) {
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: at
+                    },
+                    callee:         names.rsplit("::").next().unwrap_or(names).to_owned(),
+                    returns:        NEVER.to_owned(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        Some(names.to_owned()),
+                    takes:          None
+                });
+            }
+        }
+    }
+}
+
+/// Every range a bare written name stands at, where nothing joins it to
+/// a longer one.
+fn name_at(text: &str, written: &str) -> Vec<Range> {
+    let mut found = Vec::new();
+    let mut from = 0usize;
+    while let Some(at) = text.get(from..).and_then(|rest| rest.find(written)) {
+        let start = from + at;
+        let end = start + written.len();
+        from = end;
+        let joined_before = text[..start]
+            .chars()
+            .next_back()
+            .is_some_and(|letter| letter.is_alphanumeric() || letter == '_');
+        let joined_after = text[end..]
+            .chars()
+            .next()
+            .is_some_and(|letter| letter.is_alphanumeric() || letter == '_');
+        if !joined_before && !joined_after {
+            found.push(Range {
+                start: u32::try_from(start).unwrap_or(u32::MAX),
+                end:   u32::try_from(end).unwrap_or(u32::MAX)
+            });
+        }
+    }
+    found
 }
 
 /// Records the copying calls a fixture writes, as the compiler states
