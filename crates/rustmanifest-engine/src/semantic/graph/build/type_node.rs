@@ -38,30 +38,8 @@ pub(in crate::semantic::graph) fn node(
         generated: false,
         nested,
         generic: !definition.generics.params.is_empty(),
-        derives: derive_names(&definition.attrs),
         fields
     }
-}
-
-/// Lists the trait names of every `#[derive(...)]` attribute.
-fn derive_names(attrs: &[syn::Attribute]) -> Vec<String> {
-    let mut names = Vec::new();
-    for attribute in attrs {
-        if !attribute.path().is_ident("derive") {
-            continue;
-        }
-        let parsed = attribute.parse_args_with(
-            syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated
-        );
-        if let Ok(paths) = parsed {
-            for path in paths {
-                if let Some(segment) = path.segments.last() {
-                    names.push(segment.ident.to_string());
-                }
-            }
-        }
-    }
-    names
 }
 
 /// Converts a span byte range into the schema [`Range`].
@@ -104,7 +82,6 @@ pub(in crate::semantic::graph) fn enum_node(
         generated: false,
         nested,
         generic: !definition.generics.params.is_empty(),
-        derives: derive_names(&definition.attrs),
         fields
     }
 }

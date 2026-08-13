@@ -161,11 +161,7 @@ pub(in crate::semantic) fn field_carries(
 
 /// Whether `type_name` provably carries `trait_name`: the std table
 /// answers for well-known types, the type graph for workspace types by
-/// written impls and, for derivable traits, derives.
+/// what the compiler says the type carries.
 fn proves(types: &TypeGraph, type_name: &str, trait_name: &str, table: &[&str]) -> bool {
-    table.contains(&type_name)
-        || types.traits_implemented(type_name).contains(&trait_name)
-        || types
-            .type_named(type_name)
-            .is_some_and(|node| node.derives.iter().any(|derive| derive == trait_name))
+    table.contains(&type_name) || types.ability_given(type_name, trait_name)
 }

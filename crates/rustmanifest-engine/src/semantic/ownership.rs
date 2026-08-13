@@ -136,11 +136,7 @@ fn consuming_by_convention(function: &str) -> bool {
 /// Returns whether `type_name` is defined in the workspace and provably
 /// not `Copy` there.
 fn is_non_copy_workspace_type(graph: &TypeGraph, type_name: &str) -> bool {
-    let Some(node) = graph.type_named(type_name) else {
-        return false;
-    };
-    !node.derives.iter().any(|name| name == "Copy")
-        && !graph.traits_implemented(type_name).contains(&"Copy")
+    graph.type_named(type_name).is_some() && !graph.ability_given(type_name, "Copy")
 }
 
 /// Returns whether every field of `owner` read in `reads` has a provably
@@ -171,7 +167,7 @@ fn read_fields_are_copy(
                     granted_copy(settled, &field.type_name)
                         || graph
                             .type_named(&field.type_name)
-                            .is_some_and(|target| target.derives.iter().any(|name| name == "Copy"))
+                            .is_some_and(|target| graph.ability_given(&target.name, "Copy"))
                 })
         })
 }

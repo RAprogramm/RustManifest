@@ -19,6 +19,7 @@
 
 mod declaring;
 mod expansion;
+mod granting;
 mod load;
 mod naming;
 mod reading;
@@ -96,6 +97,7 @@ fn settle_file(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: &mut Re
         &mut into.layouts
     );
     naming::settled(reading, parsed, &mut into.paths);
+    granting::settled(reading, parsed, &mut into.grants);
     declaring::settled(reading, parsed, &mut into.functions, &mut into.signatures);
     for call in parsed
         .syntax()

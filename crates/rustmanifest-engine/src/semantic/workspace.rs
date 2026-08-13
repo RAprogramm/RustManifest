@@ -93,7 +93,8 @@ impl<'source> Workspace<'source> {
     /// Returns the workspace type graph, deriving it on the first call.
     #[must_use]
     pub fn types(&self) -> &TypeGraph {
-        self.declared.types(self.settled.sources())
+        self.declared
+            .types(self.settled.sources(), self.settled.resolution())
     }
 
     /// Returns the behavioral facts of every function, deriving them on the

@@ -24,9 +24,11 @@ use crate::source::Source;
 /// All type, trait, and impl definitions of the analyzed workspace slice.
 #[derive(Debug, Default)]
 pub struct TypeGraph {
-    types:  Vec<TypeNode>,
-    impls:  Vec<ImplNode>,
-    traits: Vec<TraitNode>
+    types:   Vec<TypeNode>,
+    impls:   Vec<ImplNode>,
+    traits:  Vec<TraitNode>,
+    /// What the compiler says each type carries, by type and trait name.
+    granted: std::collections::BTreeSet<(String, String)>
 }
 
 impl TypeGraph {
@@ -114,49 +116,35 @@ impl TypeGraph {
         traits
     }
 
-    /// Whether `name` provably carries `trait_name` with no new impl: a
-    /// written impl, a matching derive, or a derive whose contract
-    /// writes the ability itself — the error-deriving crate's `Error`
-    /// derive generates the `Display` impl from its own attributes, so
-    /// a bare-name install would collide with the expansion the graph
-    /// cannot see. The corpus judge's third catch.
+    /// Whether `name` already carries `trait_name`.
+    ///
+    /// The compiler's answer, which covers a written `impl` and a derive
+    /// alike: a reading of the source has to know what every derive
+    /// expands to, and the one that generates an ability from its own
+    /// attributes is the case a bare-name install used to collide with.
     #[must_use]
     pub fn ability_given(&self, name: &str, trait_name: &str) -> bool {
-        const DERIVE_GRANTS: [(&str, &str); 1] = [("Error", "Display")];
-        if self.traits_implemented(name).contains(&trait_name) {
-            return true;
-        }
-        let Some(node) = self.type_named(name) else {
-            return false;
-        };
-        node.derives.iter().any(|derive| {
-            derive == trait_name
-                || DERIVE_GRANTS
-                    .iter()
-                    .any(|(granting, granted)| derive == granting && *granted == trait_name)
-        })
+        self.granted
+            .iter()
+            .any(|(held, carried)| held == name && carried == trait_name)
     }
 
-    /// The trait a derive grants the named associated call through,
-    /// where the catalog records the grant: the argument-parsing
-    /// derive grants its own trait's constructor, and the `Default`
-    /// derive grants the prelude's — the empty name stands for a
-    /// prelude trait that needs no import. The corpus judge caught
-    /// the missing entry as a refused move.
-    #[must_use]
-    pub fn granting_trait(&self, owner: &str, method: &str) -> Option<&'static str> {
-        const GRANTED_CALLS: [(&str, &str, &str); 3] = [
-            ("Parser", "parse", "Parser"),
-            ("Default", "default", ""),
-            ("Clone", "clone", "")
-        ];
-        let node = self.type_named(owner)?;
-        GRANTED_CALLS
+    /// States what the compiler settled about which traits each type
+    /// carries.
+    pub fn granted_by(&mut self, settled: Option<&rustmanifest_schema::Resolution>) {
+        let Some(resolution) = settled else {
+            return;
+        };
+        self.granted = resolution
+            .grants
             .iter()
-            .find(|(derive, granted, _)| {
-                *granted == method && node.derives.iter().any(|held| held == derive)
+            .filter_map(|row| {
+                Some((
+                    crate::semantic::behavior::outermost_name(&row.named)?,
+                    row.trait_name.clone()
+                ))
             })
-            .map(|(_, _, imported)| *imported)
+            .collect();
     }
 
     /// Returns every structure that aggregates `name` through a field whose

@@ -129,7 +129,7 @@ pub fn shapes_with(
                         .count()
                 )
                 .unwrap_or(u32::MAX),
-                copyable: node.derives.iter().any(|derive| derive == "Copy"),
+                copyable: graph.ability_given(&node.name, "Copy"),
                 unresolved
             }
         })

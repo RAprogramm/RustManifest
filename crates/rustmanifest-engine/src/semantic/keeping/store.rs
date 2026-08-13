@@ -93,10 +93,8 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
                 shape,
                 record: element.to_owned(),
                 key: field.key.clone(),
-                wire: node
-                    .derives
-                    .iter()
-                    .any(|derive| derive == "Serialize" || derive == "Deserialize"),
+                wire: graph.ability_given(&node.name, "Serialize")
+                    || graph.ability_given(&node.name, "Deserialize"),
                 site: node.range,
                 source: node.source
             });

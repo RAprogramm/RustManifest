@@ -20,6 +20,7 @@
 
 mod call;
 mod function;
+mod granted_trait;
 mod layout;
 mod module;
 mod path;
@@ -34,6 +35,7 @@ use serde::{Deserialize, Serialize};
 pub use self::{
     call::{ResolvedCall, ResolvedField},
     function::ResolvedFunction,
+    granted_trait::ResolvedGrant,
     layout::ResolvedLayout,
     module::ResolvedModule,
     path::ResolvedPath,
@@ -81,6 +83,9 @@ pub struct Resolution {
     /// name order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub layouts:       Vec<ResolvedLayout>,
+    /// Every trait every type carries, in type then trait order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grants:        Vec<ResolvedGrant>,
     /// The signature of every declared function, in file then position
     /// order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -144,6 +149,46 @@ impl Resolution {
             .and_then(|found| self.types_granted.get(found))
     }
 
+    /// Whether the type rendered as `named` carries `trait_name`.
+    #[must_use]
+    pub fn carries(&self, named: &str, trait_name: &str) -> bool {
+        self.grants
+            .iter()
+            .any(|row| row.named == named && row.trait_name == trait_name)
+    }
+
+    /// Puts every row on the path a reader names its file by.
+    ///
+    /// The shape states a file relative to the workspace root it was read
+    /// from; a reader holds the same file however it walked to it. The two
+    /// spellings are one file, and a row keyed by the other answers for
+    /// nothing — so a reader rooted anywhere but that root says so once,
+    /// here, instead of every lookup guessing.
+    pub fn rebase(&mut self, root: &std::path::Path) {
+        for row in &mut self.calls {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.fields {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.types {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.paths {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.functions {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.signatures {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.modules {
+            row.file = root.join(&row.file);
+        }
+        self.settle();
+    }
+
     /// Sorts every kind of row into the order the shape promises and drops
     /// exact repeats, so two runs over the same workspace produce the same
     /// bytes.
@@ -157,6 +202,8 @@ impl Resolution {
         positioned::settle(&mut self.paths);
         positioned::settle(&mut self.functions);
         positioned::settle(&mut self.signatures);
+        self.grants.sort();
+        self.grants.dedup();
         self.types_granted
             .sort_by(|left, right| left.named.cmp(&right.named));
         self.types_granted.dedup();

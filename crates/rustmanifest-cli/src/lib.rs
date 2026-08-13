@@ -163,49 +163,10 @@ fn resolution(
         .with_context(|| format!("reading the resolution overlay at {}", path.display()))?;
     let mut settled: rustmanifest_schema::Resolution = serde_json::from_str(&text)
         .with_context(|| format!("parsing the resolution overlay at {}", path.display()))?;
-    rebased(&mut settled, analyzed);
+    if analyzed != std::path::Path::new(".") {
+        settled.rebase(analyzed);
+    }
     Ok(Some(settled))
-}
-
-/// Puts every row of a resolution on the path the walk names its file by.
-///
-/// A resolver states a file relative to the workspace root it read, and a
-/// run names the same file however its own argument was written. The two
-/// spellings are one file, and a row keyed by the other one answers for
-/// nothing. A run rooted at the current directory already names its files
-/// the way the resolver does, so nothing is joined there.
-fn rebased(settled: &mut rustmanifest_schema::Resolution, analyzed: &std::path::Path) {
-    if analyzed == std::path::Path::new(".") {
-        settled.settle();
-        return;
-    }
-    let onto = |file: &mut PathBuf| {
-        if file.is_relative() {
-            *file = analyzed.join(&*file);
-        }
-    };
-    for row in &mut settled.calls {
-        onto(&mut row.at.file);
-    }
-    for row in &mut settled.fields {
-        onto(&mut row.at.file);
-    }
-    for row in &mut settled.types {
-        onto(&mut row.at.file);
-    }
-    for row in &mut settled.paths {
-        onto(&mut row.at.file);
-    }
-    for row in &mut settled.functions {
-        onto(&mut row.at.file);
-    }
-    for row in &mut settled.signatures {
-        onto(&mut row.at.file);
-    }
-    for row in &mut settled.modules {
-        onto(&mut row.file);
-    }
-    settled.settle();
 }
 
 fn read_sources(files: &[PathBuf], max_file_bytes: u64) -> Vec<rustmanifest_engine::Source> {

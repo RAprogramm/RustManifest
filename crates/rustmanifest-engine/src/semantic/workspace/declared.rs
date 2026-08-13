@@ -34,8 +34,16 @@ impl Declared {
     }
 
     /// Returns the type graph of `sources`, building it on the first call.
-    pub(super) fn types(&self, sources: &[Source]) -> &TypeGraph {
-        self.types.get_or_init(|| TypeGraph::from_sources(sources))
+    pub(super) fn types(
+        &self,
+        sources: &[Source],
+        settled: Option<&rustmanifest_schema::Resolution>
+    ) -> &TypeGraph {
+        self.types.get_or_init(|| {
+            let mut graph = TypeGraph::from_sources(sources);
+            graph.granted_by(settled);
+            graph
+        })
     }
 
     /// Returns the module graph of `sources`, building it on the first
@@ -77,7 +85,7 @@ mod tests {
         let sources = sources();
         let declared = Declared::new();
         assert_eq!(format!("{declared:?}"), format!("{:?}", Declared::new()));
-        assert_eq!(declared.types(&sources).types().len(), 1);
+        assert_eq!(declared.types(&sources, None).types().len(), 1);
         assert_ne!(format!("{declared:?}"), format!("{:?}", Declared::new()));
     }
 
@@ -85,10 +93,10 @@ mod tests {
     fn a_type_graph_is_built_once_and_reused() {
         let sources = sources();
         let declared = Declared::new();
-        let first = std::ptr::from_ref(declared.types(&sources));
-        let second = std::ptr::from_ref(declared.types(&sources));
+        let first = std::ptr::from_ref(declared.types(&sources, None));
+        let second = std::ptr::from_ref(declared.types(&sources, None));
         assert_eq!(first, second);
-        assert_eq!(declared.types(&sources).types().len(), 1);
+        assert_eq!(declared.types(&sources, None).types().len(), 1);
     }
 
     #[test]
@@ -104,9 +112,9 @@ mod tests {
     fn reading_one_graph_leaves_the_other_unbuilt() {
         let sources = sources();
         let types_only = Declared::new();
-        assert_eq!(types_only.types(&sources).types().len(), 1);
+        assert_eq!(types_only.types(&sources, None).types().len(), 1);
         let both = Declared::new();
-        assert_eq!(both.types(&sources).types().len(), 1);
+        assert_eq!(both.types(&sources, None).types().len(), 1);
         let _ = both.modules(&sources, None);
         assert_ne!(format!("{types_only:?}"), format!("{both:?}"));
     }

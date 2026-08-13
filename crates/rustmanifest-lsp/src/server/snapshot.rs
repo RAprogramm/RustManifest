@@ -148,33 +148,8 @@ fn settled_overlay(root: Option<&std::path::Path>) -> Option<rustmanifest_schema
     let root = root?;
     let text = std::fs::read_to_string(root.join("resolution.json")).ok()?;
     let mut settled: rustmanifest_schema::Resolution = serde_json::from_str(&text).ok()?;
-    rebase(root, &mut settled);
+    settled.rebase(root);
     Some(settled)
-}
-
-/// Rewrites every path the overlay states onto `root`.
-///
-/// The overlay names files from the workspace root, as its shape promises;
-/// the server holds the same files by the absolute path it read them from.
-/// A lookup is by equality, so without this the overlay matches nothing
-/// and reads exactly like a resolver that settled nothing.
-fn rebase(root: &std::path::Path, settled: &mut rustmanifest_schema::Resolution) {
-    for call in &mut settled.calls {
-        call.at.file = root.join(&call.at.file);
-    }
-    for field in &mut settled.fields {
-        field.at.file = root.join(&field.at.file);
-    }
-    for typed in &mut settled.types {
-        typed.at.file = root.join(&typed.at.file);
-    }
-    for path in &mut settled.paths {
-        path.at.file = root.join(&path.at.file);
-    }
-    for module in &mut settled.modules {
-        module.file = root.join(&module.file);
-    }
-    settled.settle();
 }
 
 /// Every rustdoc JSON emission under the root's `target/doc`, merged

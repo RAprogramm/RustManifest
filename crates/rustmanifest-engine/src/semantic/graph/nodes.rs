@@ -63,9 +63,6 @@ pub struct TypeNode {
     /// Whether the declaration carries generic parameters — an `impl`
     /// header written from the bare name cannot satisfy it.
     pub generic:   bool,
-    /// Trait names listed in `#[derive(...)]` attributes on the
-    /// definition.
-    pub derives:   Vec<String>,
     /// Named fields (or enum variant payloads) in declaration order; empty
     /// for tuple and unit structs.
     pub fields:    Vec<FieldNode>

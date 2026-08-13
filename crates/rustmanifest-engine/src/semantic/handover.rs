@@ -217,11 +217,7 @@ pub fn copyness(
     if let Some(granted) = granted_copy(settled, type_name) {
         return Some(granted);
     }
-    let node = types.type_named(type_name)?;
-    Some(
-        node.derives.iter().any(|derive| derive == "Copy")
-            || types.traits_implemented(type_name).contains(&"Copy")
-    )
+    Some(types.ability_given(type_name, "Copy"))
 }
 
 /// What a resolver settled about values of the type named `named`, where
