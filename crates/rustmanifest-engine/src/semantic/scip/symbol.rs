@@ -1,20 +1,21 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! SCIP symbol binding into the engine's callee shape.
+//! SCIP symbol grammar: which symbols name a callable, and how one is
+//! read into the engine's callee shape.
 //!
-//! Parses SCIP symbols through [`scip::symbol::parse_symbol`], extracting
-//! the short qualified name, owning crate, and full descriptor path.
-
-use scip::symbol::parse_symbol;
-use scip::types::descriptor;
+//! A SCIP symbol is a space-separated header followed by a descriptor
+//! path. This module owns every rule for taking that text apart —
+//! function suffix, crate header token, descriptor segments, `impl`
+//! disambiguators, backtick-escaped generic owners — so the rest of the
+//! layer works with a decoded [`Callee`] instead of raw symbol strings.
 
 /// One name-resolved callee read from the index.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Callee {
     /// Short qualified name in the engine's shape.
     pub(super) short:      String,
-    /// Crate the symbol belongs to, from the symbol package name.
+    /// Crate the symbol belongs to, from the symbol header.
     pub(super) crate_name: String,
     /// Full descriptor path: modules, owner type, method.
     pub(super) segments:   Vec<String>
@@ -22,49 +23,38 @@ pub(super) struct Callee {
 
 /// Returns whether a symbol names a function or method.
 pub(super) fn function_symbol(symbol: &str) -> bool {
-    parse_symbol(symbol)
-        .ok()
-        .and_then(|parsed| {
-            parsed.descriptors.last().and_then(|desc| {
-                desc.suffix.enum_value().ok().map(|suffix| {
-                    matches!(suffix, descriptor::Suffix::Method | descriptor::Suffix::Macro)
-                })
-            })
-        })
-        .unwrap_or(false)
+    symbol.ends_with("().")
 }
 
 /// Parses a SCIP function symbol into the engine's callee shape: the
-/// short qualified name, the owning crate, and the full descriptor path.
+/// short qualified name, the owning crate from the symbol header, and
+/// the full descriptor path for collision settling.
+///
+/// Descriptors start after the fourth space-separated header token;
+/// `impl` owners resolve through the `[Type]` disambiguator, and
+/// backtick-escaped generic owners drop their arguments.
 pub(super) fn callee(symbol: &str) -> Callee {
-    let parsed = parse_symbol(symbol).unwrap_or_default();
-    let crate_name = parsed
-        .package
-        .as_ref()
-        .map(|pkg| pkg.name.clone())
-        .unwrap_or_default();
-    let segments: Vec<String> = parsed
-        .descriptors
-        .iter()
-        .filter_map(|desc| {
-            if desc.name.is_empty() {
-                return None;
-            }
-            let name_before_generics = if desc.name.contains('<') {
-                desc.name.split('<').next().unwrap_or("")
-            } else {
-                &desc.name
-            };
-            let name = name_before_generics.trim_matches('`');
-            (!name.is_empty()).then(|| name.to_owned())
-        })
+    let crate_name = symbol.split(' ').nth(2).unwrap_or_default().to_owned();
+    let descriptor = symbol
+        .splitn(5, ' ')
+        .nth(4)
+        .unwrap_or(symbol)
+        .trim_end_matches("().");
+    let mut raw: Vec<&str> = descriptor
+        .split('/')
+        .filter(|part| !part.is_empty())
         .collect();
-    let short = if segments.len() >= 2 {
-        format!("{}::{}", segments[segments.len() - 2], segments[segments.len() - 1])
-    } else if let Some(last) = segments.last() {
-        last.clone()
+    let last = raw.pop().unwrap_or_default();
+    let mut segments: Vec<String> = raw.into_iter().map(strip_generics).collect();
+    let (owner, method) = owner_method(last);
+    if !owner.is_empty() {
+        segments.push(owner.clone());
+    }
+    segments.push(method.clone());
+    let short = if owner.is_empty() {
+        method
     } else {
-        String::new()
+        format!("{owner}::{method}")
     };
     Callee {
         short,
@@ -73,9 +63,53 @@ pub(super) fn callee(symbol: &str) -> Callee {
     }
 }
 
+/// Splits one descriptor segment into `(owner type, method name)`, the
+/// owner empty for free functions.
+fn owner_method(segment: &str) -> (String, String) {
+    let Some((owner, method)) = segment.split_once('#') else {
+        let (_, bare) = split_brackets(segment);
+        return (String::new(), strip_generics(&bare));
+    };
+    let (bracketed, bare) = split_brackets(method);
+    let owner = strip_generics(owner);
+    let owner = if owner == "impl" || owner.is_empty() {
+        bracketed
+            .map(|inner| strip_generics(&inner))
+            .unwrap_or_default()
+    } else {
+        owner
+    };
+    (owner, bare)
+}
+
 /// Renders a SCIP function symbol as the engine's qualified name shape.
 pub(super) fn qualified_name(symbol: &str) -> String {
     callee(symbol).short
+}
+
+/// Splits leading `[..]` disambiguators off a descriptor name, keeping
+/// the first one — the self type of an `impl` block.
+fn split_brackets(name: &str) -> (Option<String>, String) {
+    let mut rest = name;
+    let mut first = None;
+    while rest.starts_with('[') {
+        let Some(close) = rest.find(']') else {
+            break;
+        };
+        if first.is_none() {
+            first = Some(rest[1..close].to_string());
+        }
+        rest = &rest[close + 1..];
+    }
+    (first, rest.to_string())
+}
+
+/// Drops backtick escaping and generic arguments from a type name.
+fn strip_generics(name: &str) -> String {
+    let trimmed = name.trim_matches('`');
+    trimmed
+        .find('<')
+        .map_or_else(|| trimmed.to_string(), |open| trimmed[..open].to_string())
 }
 
 #[cfg(test)]

@@ -14,15 +14,16 @@
               zerocopy-derive are still on syn 2 — not deduplicable from this crate"
 )]
 
-mod manifests;
 pub mod analyzed;
 pub mod ask;
 pub mod check;
+pub mod coverage;
 pub mod document;
 pub mod explain;
 pub mod facts;
 pub mod graph;
 pub mod learn;
+pub mod manifests;
 pub mod meaning;
 pub mod overlays;
 pub mod overview;
@@ -37,6 +38,7 @@ use clap::{Parser, Subcommand};
 use self::{check::run_check, explain::run_explain};
 pub use crate::{
     check::{CheckArgs, OutputFormat, SeverityFilter},
+    coverage::CoverageArgs,
     explain::ExplainArgs,
     graph::{DiagramFormat, GraphArgs, GraphKind}
 };
@@ -77,6 +79,8 @@ pub enum Command {
     Ask(ask::AskArgs),
     /// Run the analysis engine across one or more paths.
     Check(CheckArgs),
+    /// Report how much of the analyzed sources the engine understands.
+    Coverage(CoverageArgs),
     /// Print the rationale and methodology excerpt for a rule.
     Explain(ExplainArgs),
     /// Ask the compiler for its documentation index of this workspace.
@@ -110,6 +114,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     match cli.command {
         Command::Ask(args) => ask::run_ask(&args),
         Command::Check(args) => run_check(&args),
+        Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Explain(args) => run_explain(&args),
         Command::Document(args) => document::run_document(&args),
         Command::Facts(args) => facts::run_facts(&args),

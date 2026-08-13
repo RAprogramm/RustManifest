@@ -24,8 +24,8 @@ name = "rustmanifest"
 path = "src/main.rs"
 
 [dependencies]
+cargo_metadata = "0.23.1"
 anyhow = { workspace = true }
-cargo_metadata = { workspace = true }
 clap = { workspace = true }
 globset = { workspace = true }
 rustmanifest-config = { workspace = true }

@@ -32,19 +32,42 @@ pub(in crate::semantic) fn cycles(graph: &ModuleGraph, edges: &[Vec<UseEdge>]) -
 
     tarjan_scc(&g)
         .into_iter()
-        .filter_map(|scc| {
-            if scc.len() <= 1 {
+        .filter_map(|component| {
+            if component.len() <= 1 {
                 return None;
             }
-            let cycle: Vec<usize> = scc.iter().map(|node| g[*node]).collect();
-            let canonical = canonical_cycle(graph, &cycle);
-            if ancestry_pair(graph, &canonical) {
-                None
-            } else {
-                Some(canonical)
-            }
+            let members: Vec<usize> = component.iter().map(|node| g[*node]).collect();
+            let ordered = walked(graph, edges, &members)?;
+            (!ancestry_pair(graph, &ordered)).then_some(ordered)
         })
         .collect()
+}
+
+/// Walks one strongly connected component back into the cycle it stands
+/// for, starting at the module with the smallest path.
+///
+/// A component is a set of modules that all reach each other; the cycle a
+/// reader is shown is a path through them, and which module follows which
+/// is written in the edges, not in the set.
+fn walked(graph: &ModuleGraph, edges: &[Vec<UseEdge>], members: &[usize]) -> Option<Vec<usize>> {
+    let start = *members
+        .iter()
+        .min_by_key(|module| &graph.modules()[**module].path)?;
+    let mut ordered = vec![start];
+    loop {
+        let standing = *ordered.last()?;
+        let next = edges
+            .get(standing)?
+            .iter()
+            .map(|edge| edge.to)
+            .filter(|reached| members.contains(reached))
+            .find(|reached| !ordered.contains(reached));
+        match next {
+            Some(reached) => ordered.push(reached),
+            None => break
+        }
+    }
+    (ordered.len() == members.len()).then_some(ordered)
 }
 
 /// Returns true when `cycle` is a two-module cycle between a module and one
@@ -63,15 +86,4 @@ fn descends_from(child: &str, ancestor: &str) -> bool {
     child
         .strip_prefix(ancestor)
         .is_some_and(|rest| rest.starts_with("::"))
-}
-
-/// Rotates `cycle` to start at the module with the smallest path.
-fn canonical_cycle(graph: &ModuleGraph, cycle: &[usize]) -> Vec<usize> {
-    let pivot = (0..cycle.len())
-        .min_by_key(|&offset| &graph.modules()[cycle[offset]].path)
-        .unwrap_or(0);
-    let mut rotated = Vec::with_capacity(cycle.len());
-    rotated.extend_from_slice(&cycle[pivot..]);
-    rotated.extend_from_slice(&cycle[..pivot]);
-    rotated
 }

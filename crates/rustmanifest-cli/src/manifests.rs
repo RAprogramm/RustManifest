@@ -23,7 +23,7 @@ use cargo_metadata::MetadataCommand;
 /// Every workspace root reachable from `paths`, deepest first, so a
 /// nested workspace is asked about before the tree that contains it.
 #[must_use]
-fn manifest_files(paths: &[PathBuf]) -> Vec<PathBuf> {
+pub fn manifest_files(paths: &[PathBuf]) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for path in paths {
         walk(path, &mut files);
@@ -64,7 +64,7 @@ fn skipped_dir(path: &Path) -> bool {
 /// Nothing where cargo refuses to answer — a manifest it cannot resolve
 /// is one this tool has nothing true to say about.
 #[must_use]
-fn known_crate_names(manifest: &Path) -> BTreeSet<String> {
+pub fn known_crate_names(manifest: &Path) -> BTreeSet<String> {
     let Ok(metadata) = MetadataCommand::new()
         .manifest_path(manifest)
         .no_deps()
@@ -95,7 +95,7 @@ fn known_crate_names(manifest: &Path) -> BTreeSet<String> {
 /// member of a workspace is a package while the root above it may declare
 /// none — and both answer the same metadata query.
 #[must_use]
-fn package_name(manifest: &Path) -> Option<String> {
+pub fn package_name(manifest: &Path) -> Option<String> {
     let metadata = MetadataCommand::new()
         .manifest_path(manifest)
         .no_deps()

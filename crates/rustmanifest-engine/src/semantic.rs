@@ -18,6 +18,7 @@ mod calls;
 mod capability;
 mod check;
 mod composition;
+mod coverage;
 mod deduce;
 mod doc_synth;
 mod doc_truth;
@@ -82,6 +83,10 @@ pub use self::{
     },
     capability::{
         Capability, Evidence, ModuleCapability, ProvenCapability, Started, capabilities, started
+    },
+    coverage::{
+        Coverage, coverage, coverage_indexed, coverage_with, origin_gaps, percent,
+        unresolved_targets
     },
     deduce::{CatalogChoice, Deduction, deduce_impl},
     doc_synth::doc_draft,
