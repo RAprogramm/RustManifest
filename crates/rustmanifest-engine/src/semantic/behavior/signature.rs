@@ -12,7 +12,6 @@
 //! the bounds renders a written type as a single name through the
 //! shared type vocabulary in `type_name`.
 
-mod element;
 mod error_type;
 mod parameter;
 mod slot;
@@ -20,7 +19,6 @@ mod type_name;
 mod wrapper;
 
 pub(super) use self::{
-    element::element_type,
     error_type::error_types,
 
     slot::param_slots,

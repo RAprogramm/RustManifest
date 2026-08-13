@@ -32,8 +32,7 @@ pub(super) fn trait_default_facts(
             index,
             format!("{trait_name}::{}", method.sig.ident),
             &ItemContext {
-                impl_type: Some(&trait_name),
-                flags:     item_flags(true, &method.attrs, public, false)
+                flags: item_flags(true, &method.attrs, public, false)
             },
             &method.sig,
             block,

@@ -7,12 +7,10 @@
 
 use super::types::FunctionFlags;
 
-/// Declaration context of one item: where it sits and what it declares.
-pub(super) struct ItemContext<'name> {
-    /// Impl self type for methods, `None` for free functions.
-    pub(super) impl_type: Option<&'name str>,
+/// Declaration context of one item: what it declares.
+pub(super) struct ItemContext {
     /// Declaration flags of the item.
-    pub(super) flags:     FunctionFlags,
+    pub(super) flags: FunctionFlags
 }
 
 /// Packs declaration flags from the trait context, attributes, and

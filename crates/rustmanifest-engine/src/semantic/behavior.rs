@@ -40,7 +40,6 @@ mod operation;
 mod output;
 mod query;
 mod rendering;
-mod returned;
 mod scoped;
 mod signature;
 mod tables;

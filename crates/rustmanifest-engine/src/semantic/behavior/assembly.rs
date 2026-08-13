@@ -59,8 +59,7 @@ pub fn behavior_with(
                         index,
                         function.sig.ident.to_string(),
                         &ItemContext {
-                            impl_type: None,
-                            flags:     item_flags(
+                            flags: item_flags(
                                 false,
                                 &function.attrs,
                                 matches!(function.vis, syn::Visibility::Public(_)),
@@ -86,8 +85,7 @@ pub fn behavior_with(
                             index,
                             format!("{type_name}::{}", method.sig.ident),
                             &ItemContext {
-                                impl_type: Some(&type_name),
-                                flags:     item_flags(
+                                flags: item_flags(
                                     trait_impl,
                                     &method.attrs,
                                     matches!(method.vis, syn::Visibility::Public(_)),

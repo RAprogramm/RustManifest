@@ -74,7 +74,7 @@ fn handed_back(known: &Known<'_>, bytes: &std::ops::Range<usize>) -> Option<Stri
 pub(super) fn function_facts(
     source: usize,
     function: String,
-    context: &ItemContext<'_>,
+    context: &ItemContext,
     signature: &syn::Signature,
     block: &syn::Block,
     known: &Known<'_>
@@ -168,7 +168,7 @@ pub(super) fn function_facts(
     collector.facts.effect_sites.dedup();
     collector.facts.calls.sort();
     collector.facts.calls.dedup();
-    name_targets(&mut collector.facts, signature, context.impl_type);
+    name_targets(&mut collector.facts, handed_back(known, &bytes).as_deref());
     fold_constants(
         &mut collector.facts,
         block,

@@ -20,20 +20,31 @@
 //! passes through anything the reading cannot see leaves the target
 //! unidentified, and the claim says so.
 
-use super::{returned::returned_of, types::FunctionFacts, value::Provenance};
+use super::{types::FunctionFacts, value::Provenance};
 use crate::semantic::behavior::operation::{Conversion, Operation};
 
+/// The type a rendered return hands back to a caller that unwraps it:
+/// what a fallible or optional return carries, and the return itself
+/// otherwise.
+fn handed_back(rendered: &str) -> Option<String> {
+    let trimmed = rendered.trim();
+    let outermost = crate::semantic::behavior::outermost_name(trimmed)?;
+    if !matches!(outermost.as_str(), "Result" | "Option") {
+        return Some(outermost);
+    }
+    let inside = trimmed
+        .split_once('<')
+        .and_then(|(_, rest)| rest.strip_suffix('>'))?;
+    let carried = inside.split(',').next()?;
+    crate::semantic::behavior::outermost_name(carried)
+}
+
 /// Names the target of every conversion whose value this function hands
-/// back, from the type its own signature declares.
-pub(super) fn name_targets(
-    facts: &mut FunctionFacts,
-    signature: &syn::Signature,
-    owner: Option<&str>
-) {
-    let Some(returned) = returned_of(signature, owner) else {
+/// back, from the return the compiler rendered for it.
+pub(super) fn name_targets(facts: &mut FunctionFacts, rendered: Option<&str>) {
+    let Some(declared) = rendered.and_then(handed_back) else {
         return;
     };
-    let declared = returned.success.clone().unwrap_or(returned.plain);
     if declared.is_empty() {
         return;
     }
