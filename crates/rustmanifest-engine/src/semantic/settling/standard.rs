@@ -59,10 +59,10 @@ const NEVER: &str = "!";
 /// The library containers a fixture allocates, with the crate that
 /// declares each — the crate is what makes a call into it an allocation.
 const ALLOCATED: [(&str, &str); 5] = [
+    ("Box", "alloc::boxed::Box"),
     ("String", "alloc::string::String"),
     ("Vec", "alloc::vec::Vec"),
     ("VecDeque", "alloc::collections::VecDeque"),
-    ("Box", "alloc::boxed::Box"),
     ("Rc", "alloc::rc::Rc")
 ];
 

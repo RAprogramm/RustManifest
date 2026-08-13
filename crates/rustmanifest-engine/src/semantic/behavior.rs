@@ -493,6 +493,7 @@ mod tests {
             .typed("self.inner", "TcpStream")
             .and_over("app/src/disk.rs", disk_text)
             .typed("self.inner", "File")
+            .calling("self.inner.read(&mut [])", "std::io::Read::read", "std::fs::File")
             .done();
         let sources = vec![
             Source::new(PathBuf::from("app/src/net.rs"), net_text.to_owned()),
