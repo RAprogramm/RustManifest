@@ -195,12 +195,7 @@ fn traits_section(
 ) -> String {
     let mut told = vec!["**traits**".to_owned()];
     let mut named: Vec<&str> = ASKED_TRAITS.to_vec();
-    for extra in node
-        .derives
-        .iter()
-        .map(String::as_str)
-        .chain(implemented.iter().copied())
-    {
+    for extra in implemented.iter().copied() {
         if !named.contains(&extra) {
             named.push(extra);
         }
@@ -263,9 +258,6 @@ fn verdict(
     settled: Option<&rustmanifest_schema::Resolution>,
     trait_name: &str
 ) -> String {
-    if node.derives.iter().any(|derive| derive == trait_name) {
-        return format!("✓ `{trait_name}` — the definition derives it");
-    }
     if implemented.contains(&trait_name) {
         return format!("✓ `{trait_name}` — a written impl");
     }
