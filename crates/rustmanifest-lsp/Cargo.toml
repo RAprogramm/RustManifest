@@ -30,6 +30,7 @@ tracing-subscriber.workspace = true
 line-index = "0.1"
 
 [dev-dependencies]
+rustmanifest-engine = { workspace = true, features = ["fixtures"] }
 tempfile = { workspace = true }
 
 [lints]

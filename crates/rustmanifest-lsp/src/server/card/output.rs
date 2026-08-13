@@ -82,11 +82,13 @@ const fn named(stream: Stream) -> &'static str {
 mod tests {
     use std::path::PathBuf;
 
-    use rustmanifest_engine::{Source, behavior};
+    use rustmanifest_engine::Source;
 
     /// The rendered section of one written snippet's first function.
     fn section(text: &str) -> Option<String> {
-        let facts = behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]);
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let facts = rustmanifest_engine::behavior_with(&sources, Some(&settled));
         super::output_section(&facts[0].output_writes)
     }
 
