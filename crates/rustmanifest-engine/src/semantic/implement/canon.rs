@@ -5,9 +5,11 @@
 //! from the recorded facts of the type where the facts prove them.
 //!
 //! A body is real only when every named field carries the needed
-//! ability provably: the std tables answer for well-known field types,
-//! the type graph for workspace field types by their written impls and
-//! derives. A single displayed field prints as the bare value — the
+//! ability provably, and what proves it is the compiler: the traits it
+//! says the field's own type carries, whichever crate declares that
+//! type. Two written tables of forty-nine library names answered this
+//! before, for the names somebody thought of and for every namesake as
+//! well. A single displayed field prints as the bare value — the
 //! newtype reading — and several print as a labeled list in declaration
 //! order. A default builds the value field by field. Everything the
 //! facts cannot prove — enums, tuple and unit structs, a field of an
@@ -15,40 +17,6 @@
 //! the obligation without inventing behavior.
 
 use super::super::graph::{TypeGraph, TypeKind, TypeNode};
-
-/// Well-known std field types that implement `Display`.
-const DISPLAYED: [&str; 22] = [
-    "IpAddr",
-    "Ipv4Addr",
-    "Ipv6Addr",
-    "SocketAddr",
-    "String",
-    "bool",
-    "char",
-    "f32",
-    "f64",
-    "i8",
-    "i16",
-    "i32",
-    "i64",
-    "i128",
-    "isize",
-    "str",
-    "u8",
-    "u16",
-    "u32",
-    "u64",
-    "u128",
-    "usize"
-];
-
-/// Well-known std field types that implement `Default` for any type
-/// argument they carry.
-const DEFAULTED: [&str; 27] = [
-    "BTreeMap", "BTreeSet", "Duration", "HashMap", "HashSet", "Option", "OsString", "PathBuf",
-    "String", "Vec", "VecDeque", "bool", "char", "f32", "f64", "i8", "i16", "i32", "i64", "i128",
-    "isize", "u8", "u16", "u32", "u64", "u128", "usize"
-];
 
 /// The canonical impl of a well-known std trait for `node`, or nothing
 /// where the trait is outside the canon.
@@ -84,7 +52,7 @@ fn display_body(types: &TypeGraph, node: &TypeNode) -> Option<String> {
     let fields = named_fields(node)?;
     if !fields
         .iter()
-        .all(|(_, type_name)| proves(types, type_name, "Display", &DISPLAYED))
+        .all(|(_, type_name)| types.ability_given(type_name, "Display"))
     {
         return None;
     }
@@ -112,7 +80,7 @@ fn default_body(types: &TypeGraph, node: &TypeNode) -> Option<String> {
     let fields = named_fields(node)?;
     if !fields
         .iter()
-        .all(|(_, type_name)| proves(types, type_name, "Default", &DEFAULTED))
+        .all(|(_, type_name)| types.ability_given(type_name, "Default"))
     {
         return None;
     }
@@ -143,25 +111,14 @@ fn named_fields(node: &TypeNode) -> Option<Vec<(&str, &str)>> {
     }
 }
 
-/// Whether one field type provably carries `trait_name`, by the same
-/// tables and graph the canon bodies are written from — the single
-/// proof the deduction chains and the bodies must share, so a chain
-/// never claims what a body would refuse.
+/// Whether one field type carries `trait_name`, by the same graph the
+/// canon bodies are written from — the single proof the deduction chains
+/// and the bodies must share, so a chain never claims what a body would
+/// refuse.
 pub(in crate::semantic) fn field_carries(
     types: &TypeGraph,
     field_type: &str,
     trait_name: &str
 ) -> bool {
-    match trait_name {
-        "Display" => proves(types, field_type, "Display", &DISPLAYED),
-        "Default" => proves(types, field_type, "Default", &DEFAULTED),
-        _ => false
-    }
-}
-
-/// Whether `type_name` provably carries `trait_name`: the std table
-/// answers for well-known types, the type graph for workspace types by
-/// what the compiler says the type carries.
-fn proves(types: &TypeGraph, type_name: &str, trait_name: &str, table: &[&str]) -> bool {
-    table.contains(&type_name) || types.ability_given(type_name, trait_name)
+    matches!(trait_name, "Display" | "Default") && types.ability_given(field_type, trait_name)
 }
