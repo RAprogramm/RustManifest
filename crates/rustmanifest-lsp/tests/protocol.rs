@@ -198,6 +198,46 @@ impl Settled {
 
     /// States the full path of the body whose name is written as `fn
     /// <named>`.
+    /// States that the compiler grants `named` the trait `carried`,
+    /// whether a derive or a written impl put it there.
+    fn granting(mut self, named: &str, carried: &str) -> Self {
+        self.held.grants.push(rustmanifest_schema::ResolvedGrant {
+            at:         rustmanifest_schema::Location {
+                file:  std::path::PathBuf::from("src/lib.rs"),
+                range: rustmanifest_schema::Range {
+                    start: 0, end: 0
+                }
+            },
+            named:      named.to_owned(),
+            trait_name: carried.to_owned()
+        });
+        self
+    }
+
+    /// States the fields a compiler read off the declaration of `named`.
+    ///
+    /// What a field holds is the compiler's answer and nothing else, so
+    /// a session asking about a type's shape states it here.
+    fn shaping(mut self, named: &str, fields: &[(&str, &str)]) -> Self {
+        self.held.declared.push(rustmanifest_schema::ResolvedTypeDecl {
+            at:     rustmanifest_schema::Location {
+                file:  std::path::PathBuf::from("src/lib.rs"),
+                range: rustmanifest_schema::Range {
+                    start: 0, end: 0
+                }
+            },
+            named:  named.to_owned(),
+            fields: fields
+                .iter()
+                .map(|(name, held)| rustmanifest_schema::ResolvedFieldDecl {
+                    name:  (*name).to_owned(),
+                    named: (*held).to_owned()
+                })
+                .collect()
+        });
+        self
+    }
+
     fn declares(mut self, named: &str, path: &str) -> Self {
         let written = format!("fn {named}");
         let at = self.text.find(&written).expect("the fixture declares it");
@@ -762,9 +802,21 @@ const TYPED: &str = "#[derive(Clone, Debug)]\nstruct User {\n    id: u64,\n    n
                      std::fmt::Formatter<'_>) -> std::fmt::Result {\n        write!(out, \
                      \"{}\", self.name)\n    }\n}\n";
 
+/// The workspace the type card stands in: what the compiler read off
+/// the declaration, which is the only source of a field's type.
+fn typed_bed() -> tempfile::TempDir {
+    Settled::over("src/lib.rs", TYPED)
+        .shaping("User", &[("id", "u64"), ("name", "String")])
+        .granting("User", "Clone")
+        .granting("User", "Debug")
+        .granting("User", "Display")
+        .beside(&[("src/lib.rs", TYPED)])
+}
+
 #[test]
 fn a_hover_on_a_type_name_cards_its_facts() {
-    let (client, handle) = opened(TYPED);
+    let bed = typed_bed();
+    let (client, handle, uri) = opened_in(&bed, "src/lib.rs", TYPED);
     let line = TYPED
         .lines()
         .position(|held| held.contains("struct User"))
@@ -776,7 +828,7 @@ fn a_hover_on_a_type_name_cards_its_facts() {
             2.into(),
             "textDocument/hover".to_owned(),
             serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "textDocument": { "uri": uri },
                 "position": { "line": line, "character": character }
             })
         )))
@@ -790,7 +842,7 @@ fn a_hover_on_a_type_name_cards_its_facts() {
     assert!(value.contains("    name: String,"), "{value}");
     assert!(value.contains("**traits**"), "{value}");
     assert!(
-        value.contains("✓ `Clone` — the definition derives it"),
+        value.contains("✓ `Clone` — the compiler says the type carries it"),
         "{value}"
     );
     assert!(value.contains("✓ `Display` — a written impl"), "{value}");

@@ -261,6 +261,9 @@ fn verdict(
     if implemented.contains(&trait_name) {
         return format!("✓ `{trait_name}` — a written impl");
     }
+    if types.ability_given(&node.name, trait_name) {
+        return format!("✓ `{trait_name}` — the compiler says the type carries it");
+    }
     if trait_name == "Copy"
         && let Some(owning) = node.fields.iter().find(|field| {
             rustmanifest_engine::semantic::copyness(types, settled, &field.type_name)

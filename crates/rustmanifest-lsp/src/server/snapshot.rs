@@ -96,7 +96,8 @@ impl Snapshot {
                 )
             );
             let reached = rustmanifest_engine::transitive_effects(&facts, &graph);
-            let types = TypeGraph::from_sources(&sources);
+            let mut types = TypeGraph::from_sources(&sources);
+            types.granted_by(&sources, settled.as_ref());
             let shaped = shapes_with(&sources, settled.as_ref());
             let oracle = compiler_index(self.root.as_deref(), &sources);
             self.built = Some(Built {
