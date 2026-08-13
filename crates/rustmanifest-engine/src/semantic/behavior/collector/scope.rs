@@ -20,3 +20,21 @@ pub(super) struct FlowScope<'a> {
     /// written there does not come back.
     pub(super) leaving: &'a std::collections::BTreeSet<(u32, u32)>
 }
+
+impl FlowScope<'_> {
+    /// Whether what is written here does not come back.
+    ///
+    /// The never type says so, and the compiler states it at the position.
+    /// A macro is the case a reading of the text cannot answer at all: its
+    /// expansion is the macro's business, and a list of the standard
+    /// spellings knew only the ones somebody wrote down.
+    pub(super) fn leaves(&self, written: &syn::Macro) -> bool {
+        use syn::spanned::Spanned as _;
+
+        let span = written.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
+            return false;
+        };
+        self.leaving.contains(&(start, end))
+    }
+}

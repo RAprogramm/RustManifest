@@ -5,7 +5,7 @@
 //! fold that carries those answers through a block.
 
 use super::{
-    catalog::{DIVERGING_MACROS, SETTLED_MACROS},
+
     completion::Completion,
     flow::Flow,
     gate::gated,
@@ -71,11 +71,9 @@ impl FlowScope<'_> {
         else {
             return Flow::opaque();
         };
-        if DIVERGING_MACROS.contains(&name.as_str()) {
+        let _ = &name;
+        if self.leaves(invocation) {
             return Flow::proving(Completion::Never);
-        }
-        if !SETTLED_MACROS.contains(&name.as_str()) {
-            return Flow::opaque();
         }
         let Ok(arguments) = invocation.parse_body_with(
             syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated
