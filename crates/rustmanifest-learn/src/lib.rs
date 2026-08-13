@@ -198,7 +198,12 @@ mod tests {
         }
         text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        let held = super::deduce_with_precedent(&sources, None, "User", "Display").unwrap();
+        let held = super::deduce_with_precedent(
+            &sources,
+            Some(&rustmanifest_engine::semantic::settling::compiler_over(&sources)),
+            "User",
+            "Display"
+        ).unwrap();
         let step = held
             .chain
             .steps
@@ -230,7 +235,12 @@ mod tests {
         }
         text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        let held = super::deduce_with_precedent(&sources, None, "User", "Default").unwrap();
+        let held = super::deduce_with_precedent(
+            &sources,
+            Some(&rustmanifest_engine::semantic::settling::compiler_over(&sources)),
+            "User",
+            "Default"
+        ).unwrap();
         assert!(held.gain.is_some());
         assert!(
             held.chain
@@ -267,7 +277,12 @@ mod tests {
         }
         text.push_str("pub struct User { pub name: String, pub age: u8 }\n");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        let held = super::deduce_with_precedent(&sources, None, "User", "Default").unwrap();
+        let held = super::deduce_with_precedent(
+            &sources,
+            Some(&rustmanifest_engine::semantic::settling::compiler_over(&sources)),
+            "User",
+            "Default"
+        ).unwrap();
         assert!(held.gain.is_some());
         let step = held
             .chain
@@ -366,7 +381,12 @@ mod tests {
 
     #[test]
     fn io_clauses_mention_the_console_effect() {
-        let learned = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
+        let sources = corpus();
+        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let learned = learn_roles(
+            &Workspace::resolved(&sources, &settled),
+            LearnOptions::default()
+        );
         let io_clauses: Vec<_> = learned
             .iter()
             .filter(|clause| clause.role == "io")
@@ -403,7 +423,12 @@ mod tests {
 
     #[test]
     fn absent_roles_are_skipped() {
-        let learned = learn_roles(&Workspace::new(&corpus()), LearnOptions::default());
+        let sources = corpus();
+        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let learned = learn_roles(
+            &Workspace::resolved(&sources, &settled),
+            LearnOptions::default()
+        );
         assert!(learned.iter().all(|clause| clause.role != "mutator"));
     }
 }
