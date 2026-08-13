@@ -72,6 +72,33 @@ fn make_tree(files: &[(&str, &str)]) -> TempDir {
     dir
 }
 
+
+/// Writes beside `tree` what a compiler settles about its sources, and
+/// answers with the path the graph reads it from.
+///
+/// The type graph names a field by the type the compiler settled for
+/// it, so a run over a bare directory draws no edge at all.
+fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
+    let files = rustmanifest_engine::walker::discover(&[tree.path().to_path_buf()])
+        .expect("the tree is walkable");
+    let sources: Vec<rustmanifest_engine::Source> = files
+        .iter()
+        .filter_map(|path| {
+            let text = fs::read_to_string(path).ok()?;
+            let named = path.strip_prefix(tree.path()).unwrap_or(path);
+            Some(rustmanifest_engine::Source::new(named.to_path_buf(), text))
+        })
+        .collect();
+    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    let at = tree.path().join("resolution.json");
+    fs::write(
+        &at,
+        serde_json::to_string(&settled).expect("the overlay serializes")
+    )
+    .expect("the overlay is written");
+    at
+}
+
 #[test]
 fn modules_mermaid_contains_header_nodes_and_edge() {
     let tree = make_tree(&[
@@ -172,6 +199,8 @@ fn types_dot_contains_aggregation_edge() {
     rustmanifest()
         .arg("graph")
         .arg(tree.path())
+        .arg("--resolution")
+        .arg(settled_overlay(&tree))
         .arg("--kind")
         .arg("types")
         .arg("--format")
@@ -196,6 +225,8 @@ fn types_mermaid_labels_edges_with_field_names() {
     rustmanifest()
         .arg("graph")
         .arg(tree.path())
+        .arg("--resolution")
+        .arg(settled_overlay(&tree))
         .arg("--kind")
         .arg("types")
         .assert()
@@ -219,6 +250,8 @@ fn types_mermaid_shows_interaction_edges_dashed() {
     rustmanifest()
         .arg("graph")
         .arg(tree.path())
+        .arg("--resolution")
+        .arg(settled_overlay(&tree))
         .arg("--kind")
         .arg("types")
         .assert()
@@ -249,3 +282,4 @@ fn unknown_format_is_rejected() {
         .failure()
         .code(2);
 }
+

@@ -192,6 +192,12 @@ impl Resolution {
         for row in &mut self.modules {
             row.file = root.join(&row.file);
         }
+        for row in &mut self.declared {
+            row.at.file = root.join(&row.at.file);
+        }
+        for row in &mut self.grants {
+            row.at.file = root.join(&row.at.file);
+        }
         self.settle();
     }
 

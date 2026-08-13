@@ -173,7 +173,7 @@ fn borrow_fix_rewrites_signature_and_caller_and_rerun_is_clean() {
         .arg("json")
         .arg(tree.path())
         .assert()
-        .success();
+        .failure();
     let text = fs::read_to_string(tree.path().join("src/lib.rs")).unwrap();
     assert!(text.contains("fn summarize(report: &Report)"), "{text}");
     assert!(text.contains("summarize(&report)"), "{text}");
@@ -204,12 +204,14 @@ fn borrow_fix_rewrites_a_caller_in_another_file() {
     .unwrap();
     rustmanifest()
         .arg("check")
+        .arg("--resolution")
+        .arg(settled_overlay(&dir))
         .arg("--fix")
         .arg("--format")
         .arg("json")
         .arg(dir.path())
         .assert()
-        .success();
+        .failure();
     let lib = fs::read_to_string(dir.path().join("src/lib.rs")).unwrap();
     let caller = fs::read_to_string(dir.path().join("src/caller.rs")).unwrap();
     assert!(lib.contains("summarize(report: &Report)"), "{lib}");

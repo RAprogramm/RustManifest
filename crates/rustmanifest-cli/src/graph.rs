@@ -41,7 +41,7 @@ pub(crate) fn run_graph(args: &GraphArgs) -> anyhow::Result<ExitCode> {
     );
     let lines = match args.kind {
         GraphKind::Modules => module_lines(&module_overview(&workspace), args.format),
-        GraphKind::Types => type_lines(&TypeGraph::from_sources(&sources), args.format)
+        GraphKind::Types => type_lines(workspace.types(), args.format)
     };
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
