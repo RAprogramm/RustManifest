@@ -21,9 +21,9 @@ pub(in crate::semantic::graph) fn node(
             .filter_map(|field| {
                 field.ident.as_ref().map(|ident| FieldNode {
                     name:      ident.to_string(),
-                    type_name: last_segment(&field.ty),
+                    type_name: String::new(),
                     element:   None,
-                    key: None,
+                    key:       None,
                     holds:     None
                 })
             })
@@ -67,7 +67,7 @@ pub(in crate::semantic::graph) fn enum_node(
             );
             fields.push(FieldNode {
                 name,
-                type_name: last_segment(&field.ty),
+                type_name: String::new(),
                 element: None,
                 key: None,
                 holds: None
@@ -86,16 +86,3 @@ pub(in crate::semantic::graph) fn enum_node(
     }
 }
 
-/// Renders the last path segment of a type, or a placeholder for non-path
-/// types such as references, tuples, and slices.
-fn last_segment(ty: &syn::Type) -> String {
-    match ty {
-        syn::Type::Path(path) => path
-            .path
-            .segments
-            .last()
-            .map_or_else(|| "<type>".to_owned(), |segment| segment.ident.to_string()),
-        syn::Type::Reference(reference) => last_segment(&reference.elem),
-        _ => "<type>".to_owned()
-    }
-}

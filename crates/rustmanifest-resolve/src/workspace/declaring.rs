@@ -12,7 +12,7 @@
 
 mod shapes;
 
-pub(super) use self::shapes::settled as shapes_settled;
+pub(super) use self::shapes::{settled as shapes_settled, settled_enums};
 
 use ra_ap_syntax::{AstNode, ast, ast::HasName as _};
 use rustmanifest_schema::{ResolvedFunction, ResolvedMode, ResolvedParam, ResolvedSignature};

@@ -99,6 +99,7 @@ fn settle_file(reading: Reading<'_, '_>, parsed: &ast::SourceFile, into: &mut Re
     naming::settled(reading, parsed, &mut into.paths);
     granting::settled(reading, parsed, &mut into.grants);
     declaring::shapes_settled(reading, parsed, &mut into.declared);
+    declaring::settled_enums(reading, parsed, &mut into.declared);
     declaring::settled(reading, parsed, &mut into.functions, &mut into.signatures);
     for call in parsed
         .syntax()

@@ -4,9 +4,7 @@
 //! Construction of [`ImplNode`]s from impl blocks, including the type
 //! references each method body mentions.
 
-use std::collections::BTreeSet;
 
-use syn::visit::Visit;
 
 use crate::semantic::graph::nodes::{ImplNode, MethodNode};
 
@@ -54,25 +52,4 @@ pub(in crate::semantic::graph) fn impl_node(
         derived: false,
         methods
     })
-}
-
-/// Syntax visitor gathering type-looking path heads from expressions.
-#[derive(Default)]
-struct TypeRefCollector {
-    /// Distinct type-looking path heads seen so far.
-    refs: BTreeSet<String>
-}
-
-impl<'ast> Visit<'ast> for TypeRefCollector {
-    fn visit_path(&mut self, path: &'ast syn::Path) {
-        if path.segments.len() >= 2
-            && let Some(first) = path.segments.first()
-        {
-            let head = first.ident.to_string();
-            if head.chars().next().is_some_and(char::is_uppercase) {
-                self.refs.insert(head);
-            }
-        }
-        syn::visit::visit_path(self, path);
-    }
 }
