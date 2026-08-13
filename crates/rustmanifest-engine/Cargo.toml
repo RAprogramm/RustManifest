@@ -41,6 +41,7 @@ fixtures = []
 
 [dev-dependencies]
 rustmanifest-engine = { path = ".", features = ["fixtures"] }
+rustmanifest-resolve = { workspace = true }
 insta = { workspace = true }
 tempfile = { workspace = true }
 
