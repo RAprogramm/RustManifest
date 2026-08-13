@@ -134,7 +134,7 @@ mod tests {
 
     fn operands(text: &str, function: &str) -> Vec<Provenance> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
             .iter()
             .find(|fact| fact.function == function)
             .and_then(|fact| fact.operations.first().map(|site| site.operands.clone()))
@@ -152,7 +152,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let built = Provenance::Constructed("Pair".to_owned());
         assert!(
             facts
@@ -170,7 +170,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let alternatives: Vec<Provenance> = facts
             .iter()
             .flat_map(|fact| fact.choices.iter())
@@ -192,7 +192,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let selections = facts
             .iter()
             .flat_map(|fact| fact.operations.iter())
@@ -269,7 +269,7 @@ mod tests {
         )];
         let written = "OUTSIDE_LIMIT";
         let start = u32::try_from(text.find(written).unwrap()).unwrap();
-        let read: Vec<Provenance> = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
+        let read: Vec<Provenance> = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
             .iter()
             .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
             .collect();

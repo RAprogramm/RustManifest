@@ -92,7 +92,7 @@ mod tests {
 
     fn positions(text: &str, function: &str) -> Vec<(Outcome, Provenance)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
             .iter()
             .find(|fact| fact.function == function)
             .map(|fact| {

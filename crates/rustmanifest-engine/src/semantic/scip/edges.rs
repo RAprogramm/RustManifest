@@ -279,7 +279,7 @@ mod tests {
                 "pub struct TcpStream;\nimpl TcpStream { pub fn read(&self) {} }".to_owned()
             )
         ];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let mut document = Vec::new();
         put_field(&mut document, 1, b"tokio-1.53.1/src/net/tcp/stream.rs");
         put_field(

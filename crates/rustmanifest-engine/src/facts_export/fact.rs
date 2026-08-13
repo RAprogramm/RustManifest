@@ -141,8 +141,6 @@ mod tests {
                 produced: produced.to_owned()
             });
         }
-        crate::semantic::settling::settle_declared(&mut held, &wallet_sources());
-        crate::semantic::settling::settle_standard_macros(&mut held, &wallet_sources());
         held.settle();
         held
     }
@@ -178,7 +176,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "fn report(amount: i64) { println!(\"credited {amount}\"); }".to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let object = fact_json(&facts[0], &sources, false);
         let write = &object["output-writes"][0];
         assert!(write["text"].is_null(), "a template is not fully known");
@@ -197,7 +195,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "fn report() { println!(GREETING); }".to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let object = fact_json(&facts[0], &sources, false);
         let write = &object["output-writes"][0];
         assert!(write["text"].is_null(), "an opaque payload is not known");
@@ -211,7 +209,7 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "fn report(flag: bool) { if flag { println!(\"hi\"); } }".to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let object = fact_json(&facts[0], &sources, false);
         let write = &object["output-writes"][0];
         assert_eq!(write["certainty"], "possible");
@@ -221,7 +219,7 @@ mod tests {
     #[test]
     fn an_unguarded_write_exports_an_empty_stack() {
         let sources = wallet_sources();
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let object = fact_json(&facts[0], &sources, false);
         let write = &object["output-writes"][0];
         assert_eq!(write["guards"].as_array().unwrap().len(), 0);
@@ -232,7 +230,7 @@ mod tests {
     #[test]
     fn features_flag_appends_the_binarized_vector() {
         let sources = wallet_sources();
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let object = fact_json(&facts[0], &sources, true);
         let features = object["features"].as_array().unwrap();
         assert!(!features.is_empty());

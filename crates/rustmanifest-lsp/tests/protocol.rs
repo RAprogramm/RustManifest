@@ -223,10 +223,6 @@ impl Settled {
             std::path::PathBuf::from(file),
             self.text.clone()
         )];
-        rustmanifest_engine::semantic::settling::settle_standard_macros(
-            &mut self.held,
-            &sources
-        );
         self
     }
 

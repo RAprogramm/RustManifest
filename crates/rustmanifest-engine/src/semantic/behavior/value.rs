@@ -55,7 +55,7 @@ mod tests {
     /// order.
     fn handed_over(text: &str, function: &str) -> Arguments {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
             .iter()
             .find(|fact| fact.function == function)
             .and_then(|fact| fact.call_sites.last().map(|site| site.arguments.clone()))
@@ -102,8 +102,6 @@ mod tests {
         let mut resolution = crate::semantic::settling::Settling::over("src/lib.rs", text)
             .typed("inner()", "Result<u8, Inner>")
             .done();
-        crate::semantic::settling::settle_declared(&mut resolution, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let facts = crate::semantic::behavior_with(&sources, Some(&resolution));
         let caller = facts
             .iter()

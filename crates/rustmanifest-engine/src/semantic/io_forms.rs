@@ -83,7 +83,7 @@ mod tests {
         let file = fixture(rule, side);
         let text = std::fs::read_to_string(&file).expect("the fixture is readable");
         let sources = vec![Source::new(file, text)];
-        let recorded = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
+        let recorded = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
             .iter()
             .map(|fact| {
                 fact.output_writes

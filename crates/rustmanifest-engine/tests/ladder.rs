@@ -207,8 +207,6 @@ fn stated_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resoluti
         .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
         .collect();
     let mut settled = settled.clone();
-    rustmanifest_engine::semantic::settling::settle_declared(&mut settled, &owned);
-    rustmanifest_engine::semantic::settling::settle_standard_macros(&mut settled, &owned);
     program_meaning(&Workspace::resolved(&owned, &settled))
         .first()
         .map(|entry| match &entry.narrative {
@@ -402,8 +400,6 @@ fn kept_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resolution
         .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
         .collect();
     let mut settled = settled.clone();
-    rustmanifest_engine::semantic::settling::settle_declared(&mut settled, &owned);
-    rustmanifest_engine::semantic::settling::settle_standard_macros(&mut settled, &owned);
     purpose(&Workspace::resolved(&owned, &settled))
 }
 

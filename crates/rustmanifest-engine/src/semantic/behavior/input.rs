@@ -53,7 +53,7 @@ mod tests {
     fn reads(body: &str) -> Vec<InputRead> {
         let text = format!("use std::env;\nuse std::io::BufRead;\nfn main() {{\n{body}\n}}");
         let sources = [Source::new(PathBuf::from("src/main.rs"), text)];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
+        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
             .iter()
             .find(|fact| fact.function == "main")
             .map(|fact| fact.input_reads.clone())
@@ -166,7 +166,7 @@ mod tests {
              own::args(); }"
                 .to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let entry = facts
             .iter()
             .find(|fact| fact.function == "main")

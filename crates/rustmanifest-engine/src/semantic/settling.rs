@@ -12,27 +12,15 @@
 //! The fragment is found by its first occurrence, so a fixture wanting a
 //! later one says where to look from with [`Settling::after`].
 
-mod declared;
 mod identity;
-mod standard;
 
 use std::path::PathBuf;
 
-pub use self::{
-    declared::{declared_over, settle_declared, settle_mentions_of_declared},
-    identity::{identity_of, identity_over, settle_identity},
-    standard::{settle_standard_macros, standard_macros_over}
-};
+pub use self::identity::{identity_of, identity_over, settle_identity};
 use rustmanifest_schema::{
     Location, Range, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedGrant, ResolvedType,
     ResolvedTypeDecl, Resolution
 };
-
-/// A written type as the compiler renders it: arguments kept, the
-/// lifetimes a source wrote dropped.
-pub(super) fn written_rendering(written: &syn::Type) -> String {
-    declared::written_type(written).unwrap_or_default()
-}
 
 /// Everything a compiler settles about a fixture, asked of the compiler
 /// itself.

@@ -197,8 +197,6 @@ mod tests {
     /// `sources`.
     fn settled(sources: &[Source]) -> rustmanifest_schema::Resolution {
         let mut resolution = declared_tree(sources);
-        crate::semantic::settling::settle_declared(&mut resolution, sources);
-        crate::semantic::settling::settle_standard_macros(&mut resolution, sources);
         let facts = crate::semantic::behavior_with(sources, Some(&resolution));
         settle_identity(&mut resolution, sources, &facts);
         resolution

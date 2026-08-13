@@ -70,7 +70,7 @@ mod tests {
     fn prints(text: &str) -> Vec<u64> {
         {
             let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-            let settled = crate::semantic::settling::standard_macros_over(&sources);
+            let settled = crate::semantic::settling::settled_over(&sources);
             crate::semantic::behavior_with(&sources, Some(&settled))
         }
             .iter()

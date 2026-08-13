@@ -181,7 +181,7 @@ mod tests {
 
     fn marked(text: &str) -> Vec<(String, &'static str)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let types = TypeGraph::from_sources(&sources);
         let mut resolution = rustmanifest_schema::Resolution {
             resolver: "test".to_owned(),

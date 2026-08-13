@@ -40,7 +40,6 @@ petgraph = { workspace = true }
 fixtures = []
 
 [dev-dependencies]
-rustmanifest-engine = { path = ".", features = ["fixtures"] }
 rustmanifest-fixture = { workspace = true }
 insta = { workspace = true }
 tempfile = { workspace = true }

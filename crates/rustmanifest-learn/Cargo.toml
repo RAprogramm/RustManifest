@@ -21,7 +21,8 @@ rustmanifest-schema = { workspace = true }
 tsetlin-rs = { workspace = true }
 
 [dev-dependencies]
-rustmanifest-engine = { workspace = true, features = ["fixtures"] }
+rustmanifest-engine = { workspace = true }
+rustmanifest-fixture = { workspace = true }
 
 [lints]
 workspace = true

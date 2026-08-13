@@ -64,6 +64,20 @@ fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
     at
 }
 
+
+/// What a compiler settles about `sources`, asked of the compiler.
+fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
+    let written: Vec<(String, String)> = sources
+        .iter()
+        .map(|held| (held.path().display().to_string(), held.text().to_owned()))
+        .collect();
+    let asked: Vec<(&str, &str)> = written
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    rustmanifest_fixture::settled(&asked)
+}
+
 #[test]
 fn learn_emits_role_clauses_as_json() {
     let tree = mixed_tree();

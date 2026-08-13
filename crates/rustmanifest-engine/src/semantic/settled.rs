@@ -114,7 +114,7 @@ mod tests {
             ..Resolution::default()
         };
         let settled = Settled::new(Some(&resolution), &sources);
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let fact = facts.first().expect("the source records one function");
         assert_eq!(
             settled.returns(

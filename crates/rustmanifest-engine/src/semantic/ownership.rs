@@ -305,8 +305,6 @@ mod tests {
             .field("user.name", "User", "String")
             .done();
         let mut settled = settled;
-        crate::semantic::settling::settle_declared(&mut settled, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut settled, &sources);
         assert_eq!(insights(&Workspace::resolved(&sources, &settled)).len(), 0);
     }
 

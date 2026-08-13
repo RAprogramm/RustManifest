@@ -107,8 +107,6 @@ mod tests {
             .typed("text", "&str")
             .done();
         let mut resolution = resolution;
-        crate::semantic::settling::settle_declared(&mut resolution, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         behavior_with(&sources, Some(&resolution))
             .iter()
             .find(|fact| fact.function == function)

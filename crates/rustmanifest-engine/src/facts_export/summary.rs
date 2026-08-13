@@ -47,7 +47,7 @@ mod tests {
 
     fn summary_of(text: &str, function: &str) -> FunctionSummary {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)));
+        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
         let graph = call_graph(&facts, &resolution_context(&sources));
         summaries(&sources, &facts, &graph)
             .into_iter()

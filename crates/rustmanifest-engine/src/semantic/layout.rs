@@ -192,7 +192,6 @@ mod tests {
         };
         settled.settle();
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::settling::settle_declared(&mut settled, &sources);
         shapes_with(&sources, Some(&settled))
     }
 

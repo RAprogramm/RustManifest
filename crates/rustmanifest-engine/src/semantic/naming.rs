@@ -225,8 +225,6 @@ mod tests {
             .field("self.hits", "Counter", "u64")
             .done();
         let mut resolution = resolution;
-        crate::semantic::settling::settle_declared(&mut resolution, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let insights = insights(&Workspace::resolved(&sources, &resolution));
         assert_eq!(insights[0].trace.len(), 3);
         assert!(insights[0].trace[0].fact.contains("read-verb `get`"));

@@ -89,7 +89,7 @@ mod tests {
     fn facts(text: &str) -> Vec<FunctionFacts> {
         {
             let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-            let settled = crate::semantic::settling::standard_macros_over(&sources);
+            let settled = crate::semantic::settling::settled_over(&sources);
             crate::semantic::behavior_with(&sources, Some(&settled))
         }
     }
@@ -108,8 +108,6 @@ mod tests {
     ) -> Vec<FunctionFacts> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let mut resolution = settle(Settling::over("src/lib.rs", text)).done();
-        crate::semantic::settling::settle_declared(&mut resolution, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         super::behavior_with(&sources, Some(&resolution))
     }
 
@@ -500,8 +498,6 @@ mod tests {
             Source::new(PathBuf::from("app/src/disk.rs"), disk_text.to_owned()),
         ];
         let mut resolution = resolution;
-        crate::semantic::settling::settle_declared(&mut resolution, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut resolution, &sources);
         let all = super::behavior_with(&sources, Some(&resolution));
         let net = all
             .iter()

@@ -119,8 +119,6 @@ mod tests {
                 });
             }
         }
-        crate::semantic::settling::settle_declared(&mut held, &sources());
-        crate::semantic::settling::settle_standard_macros(&mut held, &sources());
         held.settle();
         held
     }

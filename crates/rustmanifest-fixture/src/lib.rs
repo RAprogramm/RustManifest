@@ -95,10 +95,12 @@ fn asked(files: &[(&str, &str)]) -> Resolution {
     let written: Vec<(PathBuf, PathBuf)> = files
         .iter()
         .map(|(path, _)| {
-            (
-                PathBuf::from("src").join(module_of(path)),
-                PathBuf::from(path)
-            )
+            let laid = if is_root(path) {
+                PathBuf::from("src/lib.rs")
+            } else {
+                PathBuf::from("src").join(module_of(path))
+            };
+            (laid, PathBuf::from(path))
         })
         .collect();
     rename(&mut held, &written);
@@ -143,6 +145,10 @@ fn rename_at(file: &mut PathBuf, named: &impl Fn(&PathBuf) -> Option<PathBuf>) -
 }
 
 /// Writes `files` as one package the resolver can read.
+///
+/// A snippet written as the crate root becomes the root; every other
+/// snippet becomes a module named by its own file, so a fixture writing
+/// `crate::other::Thing` reaches what it means.
 fn write_package(root: &Path, files: &[(&str, &str)]) {
     std::fs::write(
         root.join("Cargo.toml"),
@@ -152,16 +158,19 @@ fn write_package(root: &Path, files: &[(&str, &str)]) {
     .expect("the manifest is written");
     std::fs::create_dir_all(root.join("src")).expect("the source directory");
     let mut declared = String::new();
+    let mut rooted = String::new();
     for (path, text) in files {
+        if is_root(path) {
+            rooted.push_str(text);
+            rooted.push('\n');
+            continue;
+        }
         let at = root.join("src").join(module_of(path));
         std::fs::create_dir_all(at.parent().expect("a parent")).expect("the module directory");
         std::fs::write(&at, text).expect("the module is written");
-        declared.push_str(&format!(
-            "#[path = \"{}\"]\npub mod {};\n",
-            module_of(path),
-            module_name(path)
-        ));
+        declared.push_str(&format!("pub mod {};\n", module_name(path)));
     }
+    declared.push_str(&rooted);
     std::fs::write(root.join("src/lib.rs"), declared).expect("the crate root is written");
 }
 
@@ -170,12 +179,22 @@ fn module_of(path: &str) -> String {
     format!("{}.rs", module_name(path))
 }
 
-/// The module name a written path is declared as.
+/// The module name a written path is declared as: its own file name,
+/// which is what a fixture spells when it reaches across files.
 fn module_name(path: &str) -> String {
-    let stem = path
+    path.rsplit('/')
+        .next()
+        .unwrap_or(path)
         .trim_end_matches(".rs")
-        .replace(['/', '.', '-'], "_");
-    format!("held_{stem}")
+        .replace(['.', '-'], "_")
+}
+
+/// Whether a written path is the crate root rather than a module.
+fn is_root(path: &str) -> bool {
+    matches!(
+        path.rsplit('/').next().unwrap_or(path),
+        "lib.rs" | "main.rs"
+    )
 }
 
 

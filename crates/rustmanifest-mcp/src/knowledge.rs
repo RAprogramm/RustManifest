@@ -410,6 +410,22 @@ pub fn suppressions(target: &Path) -> Result<Vec<SuppressionRecord>, EngineError
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
+
+    /// What a compiler settles about `sources`, asked of the compiler.
+    fn settled_over(
+        sources: &[rustmanifest_engine::Source]
+    ) -> rustmanifest_schema::Resolution {
+        let written: Vec<(String, String)> = sources
+            .iter()
+            .map(|held| (held.path().display().to_string(), held.text().to_owned()))
+            .collect();
+        let asked: Vec<(&str, &str)> = written
+            .iter()
+            .map(|(path, text)| (path.as_str(), text.as_str()))
+            .collect();
+        rustmanifest_fixture::settled(&asked)
+    }
+
     use std::fs;
 
     use tempfile::TempDir;

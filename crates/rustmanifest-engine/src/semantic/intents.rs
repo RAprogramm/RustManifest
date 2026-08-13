@@ -225,8 +225,6 @@ mod tests {
             .typed("tag", "&Tag")
             .done();
         let mut settled = settled;
-        crate::semantic::settling::settle_declared(&mut settled, &sources);
-        crate::semantic::settling::settle_standard_macros(&mut settled, &sources);
         let intents = derived_intents_with(
             &behavior_with(&sources, Some(&settled)),
             &TypeGraph::from_sources(&sources)

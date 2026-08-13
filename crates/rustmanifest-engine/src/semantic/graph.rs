@@ -318,7 +318,10 @@ mod tests {
 
     #[test]
     fn structures_and_fields_are_recorded() {
-        let graph = graph(&["struct User { identity: Identity, age: u8 }"]);
+        let graph = graph(&[
+            "pub struct Identity { pub id: u64 }",
+            "use crate::file0::Identity;\npub struct User { identity: Identity, age: u8 }"
+        ]);
         let user = graph.type_named("User").unwrap();
         assert_eq!(user.fields.len(), 2);
         assert_eq!(user.fields[0].type_name, "Identity");
@@ -327,8 +330,8 @@ mod tests {
     #[test]
     fn aggregation_is_resolvable_across_files() {
         let graph = graph(&[
-            "struct Identity { id: u64 }",
-            "struct User { identity: Identity }"
+            "pub struct Identity { pub id: u64 }",
+            "use crate::file0::Identity;\npub struct User { identity: Identity }"
         ]);
         let aggregators = graph.aggregators_of("Identity");
         assert_eq!(aggregators.len(), 1);
@@ -342,8 +345,8 @@ mod tests {
     #[test]
     fn references_resolve_to_their_target_type() {
         let graph = graph(&[
-            "struct Identity { id: u64 }",
-            "struct View<'a> { identity: &'a Identity }"
+            "pub struct Identity { pub id: u64 }",
+            "use crate::file0::Identity;\npub struct View<'a> { identity: &'a Identity }"
         ]);
         assert_eq!(graph.aggregators_of("Identity").len(), 1);
     }
@@ -383,8 +386,9 @@ mod tests {
     #[test]
     fn enums_are_recorded_with_variant_payloads() {
         let graph = graph(&[
-            "struct Move { x: u8 }",
-            "enum Event { Moved(Move), Named { actor: String }, Quit }"
+            "pub struct Move { pub x: u8 }",
+            "use crate::file0::Move;\npub enum Event { Moved(Move), Named { actor: String }, \
+             Quit }"
         ]);
         let event = graph.type_named("Event").unwrap();
         assert_eq!(event.kind, super::TypeKind::Enum);
@@ -413,8 +417,9 @@ mod tests {
     #[test]
     fn interaction_edges_link_caller_to_callee_type() {
         let graph = graph(&[
-            "struct Board;\nimpl Board { pub fn reset() {} }",
-            "struct Game;\nimpl Game { fn restart(&self) { Board::reset(); } }"
+            "pub struct Board;\nimpl Board { pub fn reset() {} }",
+            "use crate::file0::Board;\npub struct Game;\nimpl Game { fn restart(&self) { \
+             Board::reset(); } }"
         ]);
         let edges = graph.interaction_edges();
         assert_eq!(edges.len(), 1);
