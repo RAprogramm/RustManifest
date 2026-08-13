@@ -83,6 +83,11 @@ pub fn settle_declared(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+    resolution.settle();
+}
+
+/// Adds to `resolution` what every mention of a declared type names.
+pub fn settle_mentions_of_declared(resolution: &mut Resolution, sources: &[Source]) {
     settle_mentions(resolution, sources);
     resolution.settle();
 }

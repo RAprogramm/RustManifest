@@ -276,6 +276,11 @@ fn semantic_fixtures_match_their_rule() {
         let mut fail_tree = mounted(&fail_sources);
         settle_receivers(&rule.id, &fail_sources, &mut fail_tree);
         settle_fields(&rule.id, &fail_sources, &mut fail_tree);
+        rustmanifest_engine::semantic::settling::settle_declared(&mut fail_tree, &fail_sources);
+        rustmanifest_engine::semantic::settling::settle_standard_macros(
+            &mut fail_tree,
+            &fail_sources
+        );
         let fail_findings = analyzer.analyze(&Workspace::resolved(&fail_sources, &fail_tree));
         assert!(
             !fail_findings.is_empty(),
@@ -286,6 +291,11 @@ fn semantic_fixtures_match_their_rule() {
         let mut pass_tree = mounted(&pass_sources);
         settle_receivers(&rule.id, &pass_sources, &mut pass_tree);
         settle_fields(&rule.id, &pass_sources, &mut pass_tree);
+        rustmanifest_engine::semantic::settling::settle_declared(&mut pass_tree, &pass_sources);
+        rustmanifest_engine::semantic::settling::settle_standard_macros(
+            &mut pass_tree,
+            &pass_sources
+        );
         let pass_findings = analyzer.analyze(&Workspace::resolved(&pass_sources, &pass_tree));
         assert!(
             pass_findings.is_empty(),

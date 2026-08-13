@@ -19,7 +19,7 @@ mod standard;
 use std::path::PathBuf;
 
 pub use self::{
-    declared::{declared_over, settle_declared},
+    declared::{declared_over, settle_declared, settle_mentions_of_declared},
     identity::{identity_of, identity_over, settle_identity},
     standard::{settle_standard_macros, standard_macros_over}
 };
@@ -47,6 +47,7 @@ pub fn compiler_over(sources: &[crate::source::Source]) -> Resolution {
         ..Resolution::default()
     };
     settle_declared(&mut resolution, sources);
+    settle_mentions_of_declared(&mut resolution, sources);
     settle_standard_macros(&mut resolution, sources);
     let facts = crate::semantic::behavior_with(sources, Some(&resolution));
     settle_identity(&mut resolution, sources, &facts);
