@@ -58,8 +58,19 @@ pub fn settle_declared(resolution: &mut Resolution, sources: &[Source]) {
                     let mut fields = Vec::new();
                     for variant in &declared.variants {
                         let held = variant.ident.to_string();
-                        for (name, named) in named_fields(&variant.fields) {
-                            fields.push((format!("{held}.{name}"), named));
+                        match &variant.fields {
+                            syn::Fields::Unnamed(payload) => {
+                                for carried in &payload.unnamed {
+                                    if let Some(named) = written_type(&carried.ty) {
+                                        fields.push((held.clone(), named));
+                                    }
+                                }
+                            }
+                            _ => {
+                                for (name, named) in named_fields(&variant.fields) {
+                                    fields.push((format!("{held}.{name}"), named));
+                                }
+                            }
                         }
                     }
                     record(resolution, source, &declared.ident.to_string(), fields);
@@ -177,5 +188,27 @@ fn named_fields(fields: &syn::Fields) -> Vec<(String, String)> {
 /// A written type as one rendering, arguments kept, so a container
 /// answers what it holds.
 fn written_type(written: &syn::Type) -> Option<String> {
-    Some(quote::ToTokens::to_token_stream(written).to_string().replace(' ', ""))
+    let rendered = quote::ToTokens::to_token_stream(written).to_string();
+    Some(lifetimeless(&rendered).replace(' ', ""))
+}
+
+/// A rendering with the lifetimes a source wrote dropped: the compiler
+/// renders a borrow without naming the region it holds for, and a name
+/// keyed by the written one matches nothing.
+fn lifetimeless(rendered: &str) -> String {
+    let mut held = String::with_capacity(rendered.len());
+    let mut letters = rendered.chars().peekable();
+    while let Some(letter) = letters.next() {
+        if letter != '\'' {
+            held.push(letter);
+            continue;
+        }
+        while letters
+            .peek()
+            .is_some_and(|next| next.is_alphanumeric() || *next == '_')
+        {
+            letters.next();
+        }
+    }
+    held
 }
