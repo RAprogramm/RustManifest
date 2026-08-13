@@ -1421,14 +1421,20 @@ fn an_intent_backed_action_cites_the_asking_call() {
 /// under what lock — the same reading the facts export carries.
 #[test]
 fn a_hover_tells_where_the_function_writes_and_through_what() {
-    let (client, handle) = opened("fn shout() {\n    println!(\"hi\");\n}\n");
+    const SHOUT: &str = "fn shout() {\n    println!(\"hi\");\n}\n";
+
+    let bed = Settled::over("src/lib.rs", SHOUT)
+        .signing("shout", &[], "()")
+        .standard("src/lib.rs")
+        .beside(&[("src/lib.rs", SHOUT)]);
+    let (client, handle, uri) = opened_in(&bed, "src/lib.rs", SHOUT);
     client
         .sender
         .send(Message::Request(Request::new(
             2.into(),
             "textDocument/hover".to_owned(),
             serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "textDocument": { "uri": uri },
                 "position": { "line": 0, "character": 4 }
             })
         )))
