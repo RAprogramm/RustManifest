@@ -36,7 +36,13 @@ pub struct LearnArgs {
 
     /// Training seed; identical seeds yield identical clauses.
     #[arg(long, default_value_t = 42)]
-    pub seed: u64
+    pub seed: u64,
+
+    /// Resolution overlay written by `rustmanifest-resolve`, so the roles
+    /// are learned from what the compiler settled rather than from what a
+    /// reading of the text could still guess.
+    #[arg(long)]
+    pub resolution: Option<PathBuf>
 }
 
 /// Runs the `learn` subcommand: discovers files, trains per-role
@@ -54,7 +60,17 @@ pub(crate) fn run_learn(args: &LearnArgs) -> anyhow::Result<ExitCode> {
         seed: args.seed,
         ..LearnOptions::default()
     };
-    let learned = learn_roles(&rustmanifest_engine::Workspace::new(&sources), options);
+    let settled = crate::resolution(
+        args.resolution.as_deref(),
+        args.paths
+            .first()
+            .map_or_else(|| std::path::Path::new("."), PathBuf::as_path)
+    )?;
+    let workspace = settled.as_ref().map_or_else(
+        || rustmanifest_engine::Workspace::new(&sources),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+    );
+    let learned = learn_roles(&workspace, options);
     let rendered = serde_json::to_string_pretty(
         &learned
             .iter()

@@ -40,11 +40,38 @@ fn mixed_tree() -> TempDir {
     dir
 }
 
+
+/// Writes beside `tree` what a compiler settles about its sources, and
+/// answers with the path the run reads it from.
+fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
+    let files = rustmanifest_engine::walker::discover(&[tree.path().to_path_buf()])
+        .expect("the tree is walkable");
+    let sources: Vec<rustmanifest_engine::Source> = files
+        .iter()
+        .filter_map(|path| {
+            let text = fs::read_to_string(path).ok()?;
+            let named = path.strip_prefix(tree.path()).unwrap_or(path);
+            Some(rustmanifest_engine::Source::new(named.to_path_buf(), text))
+        })
+        .collect();
+    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    let at = tree.path().join("resolution.json");
+    fs::write(
+        &at,
+        serde_json::to_string(&settled).expect("the overlay serializes")
+    )
+    .expect("the overlay is written");
+    at
+}
+
 #[test]
 fn learn_emits_role_clauses_as_json() {
+    let tree = mixed_tree();
     rustmanifest()
         .arg("learn")
-        .arg(mixed_tree().path())
+        .arg(tree.path())
+        .arg("--resolution")
+        .arg(settled_overlay(&tree))
         .assert()
         .success()
         .stdout(predicate::str::contains("\"role\": \"io\""))
