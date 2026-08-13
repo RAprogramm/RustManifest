@@ -56,7 +56,7 @@ mod role;
 mod scip;
 mod settled;
 #[cfg(test)]
-mod settling;
+pub mod settling;
 mod std_derive;
 mod std_knowledge;
 mod summary;

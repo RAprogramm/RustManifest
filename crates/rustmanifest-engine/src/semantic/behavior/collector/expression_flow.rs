@@ -58,7 +58,7 @@ impl FlowScope<'_> {
             syn::Expr::Macro(invocation) => self.macro_flow(&invocation.mac),
             syn::Expr::Call(call) => {
                 let flow = self.children_flow(expression);
-                if self.process_exit(&call.func) || self.never_returns(&call.func) {
+                if self.process_exit(&call.func) || self.never_returns(expression) {
                     return flow.then(Flow::proving(Completion::Never));
                 }
                 if let syn::Expr::Closure(closure) = unwrapped(&call.func) {

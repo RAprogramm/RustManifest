@@ -96,8 +96,8 @@ fn displayed_type(function: &str) -> Option<&str> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::super::{Payload, Segment, behavior};
-    use crate::source::Source;
+    use super::super::{Payload, Segment, behavior_with};
+    use crate::{semantic::settling::Settling, source::Source};
 
     /// The error type of a small program, its display implementation, and
     /// a `main` printing the error a call handed back.
@@ -111,8 +111,24 @@ mod tests {
                            eprintln!(\"error: {error}\")\n    }\n}";
 
     fn alternatives(text: &str, function: &str, position: &str) -> Vec<Payload> {
+        settled_alternatives(text, function, position, |settling| settling)
+    }
+
+    /// The alternatives listed for one position, read with what `settle`
+    /// states a resolver settled about the fixture.
+    ///
+    /// The name an arm binds is written without a type — which type it
+    /// holds is the compiler's answer, and the display implementation
+    /// answering the position is found by that type and by nothing else.
+    fn settled_alternatives<'text>(
+        text: &'text str,
+        function: &str,
+        position: &str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> Vec<Payload> {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        let facts = behavior(&sources);
+        let resolution = settle(Settling::over("src/main.rs", text)).done();
+        let facts = behavior_with(&sources, Some(&resolution));
         let fact = facts
             .iter()
             .find(|fact| fact.function == function)
@@ -141,7 +157,9 @@ mod tests {
     /// records, each proven as far as that write is.
     #[test]
     fn a_printed_error_names_every_text_its_type_can_render() {
-        let listed = alternatives(PROGRAM, "main", "error");
+        let listed = settled_alternatives(PROGRAM, "main", "error", |settling| {
+            settling.typed("error", "Failure")
+        });
         assert_eq!(listed.len(), 2);
         assert!(
             matches!(&listed[0], Payload::Template(_)),
@@ -169,7 +187,10 @@ mod tests {
     /// was answered, so an entry never carries answers of its own.
     #[test]
     fn the_list_is_one_level_deep() {
-        for entry in alternatives(PROGRAM, "main", "error") {
+        let listed = settled_alternatives(PROGRAM, "main", "error", |settling| {
+            settling.typed("error", "Failure")
+        });
+        for entry in listed {
             let Payload::Template(segments) = entry else {
                 continue;
             };

@@ -28,14 +28,137 @@ use std::path::PathBuf;
 
 use rustmanifest_engine::{Narrative, Source, Workspace, program_meaning, purpose};
 
+/// What a compiler settled about one fixture, written down.
+///
+/// Every reading of the engine answers from a resolution and from nothing
+/// else: what a value is, which type holds a field, what a call hands
+/// back. A fixture asking what a whole program means therefore carries the
+/// compiler's answers beside its text. Each is named by the written
+/// fragment it stands over and holds at every place the fixture writes it
+/// — these programs write a name for one thing throughout.
+struct Settled {
+    /// File the fragments stand in.
+    file: PathBuf,
+    /// Text of that file.
+    text: String,
+    /// Offset the fragments named next are looked for from.
+    from: usize,
+    /// What has been written down so far.
+    held: rustmanifest_schema::Resolution
+}
+
+impl Settled {
+    /// Starts writing down what a compiler settled about `text`.
+    fn over(path: &str, text: &str) -> Self {
+        Self {
+            file: PathBuf::from(path),
+            text: text.to_owned(),
+            from: 0,
+            held: rustmanifest_schema::Resolution {
+                resolver: "fixture".to_owned(),
+                ..rustmanifest_schema::Resolution::default()
+            }
+        }
+    }
+
+    /// Reads the fragments named next from after `marker`, so a name one
+    /// body writes for one thing and another writes for another is stated
+    /// once per body rather than once for the file.
+    fn after(mut self, marker: &str) -> Self {
+        let at = self.text[self.from..]
+            .find(marker)
+            .expect("the fixture writes the marker from here on");
+        self.from += at + marker.len();
+        self
+    }
+
+    /// Reads the fragments named next from the start of the file again.
+    const fn rewound(mut self) -> Self {
+        self.from = 0;
+        self
+    }
+
+    /// Every place `fragment` is written from the cursor on, as a
+    /// location.
+    fn places(&self, fragment: &str) -> Vec<rustmanifest_schema::Location> {
+        let mut found = Vec::new();
+        let mut cursor = self.from;
+        while let Some(at) = self.text[cursor..].find(fragment) {
+            let start = cursor + at;
+            cursor = start + fragment.len();
+            found.push(rustmanifest_schema::Location {
+                file:  self.file.clone(),
+                range: rustmanifest_schema::Range {
+                    start: u32::try_from(start).expect("a fixture is small"),
+                    end:   u32::try_from(cursor).expect("a fixture is small")
+                }
+            });
+        }
+        assert!(!found.is_empty(), "the fixture writes {fragment:?} nowhere");
+        found
+    }
+
+    /// States the type the compiler settled for everything written as
+    /// `fragment`.
+    fn typed(mut self, fragment: &str, rendered: &str) -> Self {
+        for at in self.places(fragment) {
+            self.held.types.push(rustmanifest_schema::ResolvedType {
+                at,
+                rendered: rendered.to_owned()
+            });
+        }
+        self
+    }
+
+    /// States the type holding every field written as `fragment` and the
+    /// type that field carries.
+    fn field(mut self, fragment: &str, owner: &str, produced: &str) -> Self {
+        for at in self.places(fragment) {
+            self.held.fields.push(rustmanifest_schema::ResolvedField {
+                at,
+                owner: owner.to_owned(),
+                produced: produced.to_owned()
+            });
+        }
+        self
+    }
+
+    /// States what every call written as `fragment` hands back and the
+    /// type of the receiver it stands on.
+    fn call(mut self, fragment: &str, callee: &str, returns: &str, receiver: Option<&str>) -> Self {
+        for at in self.places(fragment) {
+            self.held.calls.push(rustmanifest_schema::ResolvedCall {
+                at,
+                callee: callee.to_owned(),
+                returns: returns.to_owned(),
+                receiver: receiver.map(ToOwned::to_owned),
+                reaches: None,
+                takes: None
+            });
+        }
+        self
+    }
+
+    /// Hands back the resolution, in the order every lookup bisects.
+    fn done(mut self) -> rustmanifest_schema::Resolution {
+        self.held.settle();
+        self.held
+    }
+}
+
 /// The whole statement the engine makes about the entry point of
 /// `sources`, licensed clauses and refused one alike.
 fn stated(sources: &[(&str, &str)]) -> String {
+    stated_with(sources, &rustmanifest_schema::Resolution::default())
+}
+
+/// The same, read with what a compiler settled about the fixture.
+fn stated_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resolution) -> String {
     let owned: Vec<Source> = sources
         .iter()
         .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
         .collect();
-    program_meaning(&Workspace::new(&owned))
+    program_meaning(&Workspace::resolved(&owned, settled))
         .first()
         .map(|entry| match &entry.narrative {
             Narrative::Whole(said) => said.clone(),
@@ -220,13 +343,19 @@ fn app(state: Arc<AppState>) -> Router {
 }
 "#;
 
-/// What the keeping tier says about `sources`, one sentence per store.
-fn kept(sources: &[(&str, &str)]) -> Vec<String> {
+/// What the keeping tier says about `sources`, one sentence per store,
+/// read with what a compiler settled about them.
+fn kept_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resolution) -> Vec<String> {
     let owned: Vec<Source> = sources
         .iter()
         .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
         .collect();
-    purpose(&Workspace::new(&owned))
+    purpose(&Workspace::resolved(&owned, settled))
+}
+
+/// The same, over sources no resolver ran on.
+fn kept(sources: &[(&str, &str)]) -> Vec<String> {
+    kept_with(sources, &rustmanifest_schema::Resolution::default())
 }
 
 /// The task list a junior writes: read the command line, load a file,
@@ -432,13 +561,34 @@ async fn main() -> ExitCode {
 }
 "#;
 
+/// What a compiler settles about the database rung: the map behind the
+/// field, the record each row fills, and what every call written on the
+/// store stands on.
+fn database_todo_settled() -> rustmanifest_schema::Resolution {
+    Settled::over("src/main.rs", DATABASE_TODO)
+        .field("self.tasks", "Store", "BTreeMap<u64, Task>")
+        .field("task.done", "Task", "bool")
+        .field("task.title", "Task", "String")
+        .typed("self.tasks", "BTreeMap<u64, Task>")
+        .typed("store", "Store")
+        .typed("title", "String")
+        .typed("command", "&str")
+        .after("|text|")
+        .typed("text", "&String")
+        .rewound()
+        .call("text.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&String"))
+        .call("store.add(title)", "add", "u64", Some("&mut Store"))
+        .call("store.complete(id)", "complete", "bool", Some("&mut Store"))
+        .done()
+}
+
 /// The database rung: the store is the same map the file-backed rungs
 /// keep, and the sentence must say both ways it crosses the end of the
 /// run — filled from rows at the start, written back as rows at the
 /// end — with each way proven by the query that performs it.
 #[test]
 fn the_database_todo_states_both_ways_its_records_outlive_the_run() {
-    let said = kept(&[("src/main.rs", DATABASE_TODO)]);
+    let said = kept_with(&[("src/main.rs", DATABASE_TODO)], &database_todo_settled());
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
         said[0].contains("keeps `Task` records in `tasks` of `Store`, each found by a `u64`"),
@@ -471,7 +621,7 @@ fn the_database_todo_states_both_ways_its_records_outlive_the_run() {
 /// admitted row about something written elsewhere.
 #[test]
 fn the_database_todo_traces_its_command_key_and_states_its_endings() {
-    let said = kept(&[("src/main.rs", DATABASE_TODO)]);
+    let said = kept_with(&[("src/main.rs", DATABASE_TODO)], &database_todo_settled());
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
         said[0].contains(
@@ -596,7 +746,15 @@ fn the_server_over_the_database_states_its_table_its_verbs_and_its_routes() {
 /// names.
 #[test]
 fn the_api_server_states_its_store_its_verbs_and_its_routes() {
-    let said = kept(&[("src/main.rs", API_SERVER)]);
+    let settled = Settled::over("src/main.rs", API_SERVER)
+        .field("state.tasks", "AppState", "Mutex<BTreeMap<u64, Task>>")
+        .field("task.done", "Task", "bool")
+        .field("task.title", "Task", "String")
+        .typed("state.tasks", "Mutex<BTreeMap<u64, Task>>")
+        .typed("tasks", "BTreeMap<u64, Task>")
+        .typed("state", "Arc<AppState>")
+        .done();
+    let said = kept_with(&[("src/main.rs", API_SERVER)], &settled);
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(
         said[0].contains("keeps `Task` records in `tasks` of `AppState`, each found by a `u64`"),
@@ -640,9 +798,33 @@ fn the_greeting_states_what_it_writes_and_nothing_more() {
     );
 }
 
+/// What a compiler settles about the task-list rung: the map behind the
+/// field, the record each entry holds, and what every call written on
+/// them stands on and hands back.
+fn todo_settled() -> rustmanifest_schema::Resolution {
+    Settled::over("src/main.rs", TODO)
+        .field("self.tasks", "Store", "BTreeMap<u64, Task>")
+        .field("self.path", "Store", "String")
+        .field("task.done", "Task", "bool")
+        .field("task.title", "Task", "String")
+        .typed("self.tasks", "BTreeMap<u64, Task>")
+        .typed("store", "Store")
+        .typed("title", "String")
+        .typed("command", "&str")
+        .after("|text|")
+        .typed("text", "&String")
+        .rewound()
+        .call("text.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&String"))
+        .call("id.parse::<u64>()", "parse", "Result<u64, ParseIntError>", Some("&str"))
+        .call("store.add(title)", "add", "u64", Some("&mut Store"))
+        .call("store.complete(id)", "complete", "bool", Some("&mut Store"))
+        .call("store.save()", "save", "Result<(), io::Error>", Some("&Store"))
+        .done()
+}
+
 #[test]
 fn the_task_list_traces_every_position_it_prints() {
-    let stated = stated(&[("src/main.rs", TODO)]);
+    let stated = stated_with(&[("src/main.rs", TODO)], &todo_settled());
     assert!(
         !stated.contains("<id>` is a value this analysis did not derive"),
         "the identifier the task list prints is not traced: {stated}"
@@ -676,7 +858,15 @@ fn a_refusal_nothing_reaches_leaves_the_statement_whole() {
 
 #[test]
 fn the_task_list_states_what_it_prints_without_refusing_anywhere() {
-    let stated = stated(&[("src/main.rs", TASK_LIST)]);
+    let settled = Settled::over("src/main.rs", TASK_LIST)
+        .field("store.tasks", "Store", "BTreeMap<u64, Task>")
+        .field("task.done", "Task", "bool")
+        .field("task.title", "Task", "String")
+        .typed("store.tasks", "BTreeMap<u64, Task>")
+        .typed("id", "&u64")
+        .typed("task", "&Task")
+        .done();
+    let stated = stated_with(&[("src/main.rs", TASK_LIST)], &settled);
     assert!(
         !stated.contains("did not derive"),
         "the statement refuses somewhere: {stated}"
@@ -708,9 +898,27 @@ fn a_name_the_body_rewrites_refuses_while_its_neighbour_traces_home() {
     );
 }
 
+/// What a compiler settles about the calculator rung: the sequence the
+/// command line hands over, the text one position of it holds, and what
+/// the helper answers with.
+fn calculator_settled() -> rustmanifest_schema::Resolution {
+    Settled::over("app/src/main.rs", CALCULATOR)
+        .typed("args[position]", "String")
+        .typed("args[2]", "String")
+        .typed("left", "i64")
+        .typed("right", "i64")
+        .typed("value", "i64")
+        .typed("result", "i64")
+        .call("args[position].parse::<i64>()", "parse", "Result<i64, ParseIntError>", Some("String"))
+        .call("args[2].as_str()", "as_str", "&str", Some("String"))
+        .call("operand(&args, 1)", "operand", "Result<i64, ParseIntError>", None)
+        .call("operand(&args, 3)", "operand", "Result<i64, ParseIntError>", None)
+        .done()
+}
+
 #[test]
 fn the_calculator_traces_its_result_back_to_the_command_line() {
-    let said = stated(&[("app/src/main.rs", CALCULATOR)]);
+    let said = stated_with(&[("app/src/main.rs", CALCULATOR)], &calculator_settled());
     assert!(
         said.contains("takes whole of its command-line"),
         "the intake is not stated: {said}"
@@ -736,7 +944,7 @@ fn the_calculator_traces_its_result_back_to_the_command_line() {
 /// type, and the alternative that returns produces no value at all.
 #[test]
 fn the_calculator_states_its_choices_are_closed_and_that_one_arm_leaves() {
-    let said = stated(&[("app/src/main.rs", CALCULATOR)]);
+    let said = stated_with(&[("app/src/main.rs", CALCULATOR)], &calculator_settled());
     assert!(
         said.contains("which name every variant of a standard type"),
         "an exhaustive choice is still called unproven: {said}"
@@ -753,7 +961,7 @@ fn the_calculator_states_its_choices_are_closed_and_that_one_arm_leaves() {
 /// whole chain is derived: no link is a refusal.
 #[test]
 fn the_store_traces_the_written_value_to_the_collection_it_came_from() {
-    let said = stated(&[("app/src/main.rs", STORE)]);
+    let said = stated_with(&[("app/src/main.rs", STORE)], &store_settled());
     assert!(
         said.contains(
             "the result of a check that a value is held over the result of selection over the \
@@ -765,6 +973,21 @@ fn the_store_traces_the_written_value_to_the_collection_it_came_from() {
         !said.contains("did not derive"),
         "the sentence still refuses somewhere: {said}"
     );
+}
+
+/// What a compiler settles about the store rung: the map behind the
+/// field, the type each call stands on, and what each hands back.
+fn store_settled() -> rustmanifest_schema::Resolution {
+    Settled::over("app/src/main.rs", STORE)
+        .field("self.tasks", "Store", "BTreeMap<u64, Task>")
+        .field("task.done", "Task", "bool")
+        .typed("self.tasks", "BTreeMap<u64, Task>")
+        .typed("store", "Store")
+        .typed("listed", "bool")
+        .call("store.read(1)", "read", "Option<&Task>", Some("&Store"))
+        .call("store.read(1).is_some()", "is_some", "bool", Some("Option<&Task>"))
+        .call("self.tasks.get(&id)", "get", "Option<&Task>", Some("BTreeMap<u64, Task>"))
+        .done()
 }
 
 /// The store touches the outside world only through the write it makes,
@@ -785,9 +1008,21 @@ fn the_store_states_the_status_it_leaves_and_claims_nothing_further() {
 /// A written position singles one element out; what follows transforms
 /// that element and cannot change which one it was. Degrading the
 /// selector there cost the whole intake clause its licence.
+/// What a compiler settles about the tutorial rung: the text one
+/// position of the command line holds, and what the closure written
+/// beside the combinator stands on.
+fn tutorial_settled() -> rustmanifest_schema::Resolution {
+    Settled::over("app/src/main.rs", TUTORIAL)
+        .typed("raw", "&String")
+        .typed("command", "&str")
+        .typed("id", "usize")
+        .call("raw.parse::<usize>()", "parse", "Result<usize, ParseIntError>", Some("&String"))
+        .done()
+}
+
 #[test]
 fn the_tutorial_keeps_the_position_it_read_through_later_adapters() {
-    let said = stated(&[("app/src/main.rs", TUTORIAL)]);
+    let said = stated_with(&[("app/src/main.rs", TUTORIAL)], &tutorial_settled());
     assert!(
         said.contains("takes position 1 of its command-line"),
         "the position the source settled is lost: {said}"
@@ -798,7 +1033,7 @@ fn the_tutorial_keeps_the_position_it_read_through_later_adapters() {
 /// back to is written right there.
 #[test]
 fn the_tutorial_states_both_sides_of_its_fallback() {
-    let said = stated(&[("app/src/main.rs", TUTORIAL)]);
+    let said = stated_with(&[("app/src/main.rs", TUTORIAL)], &tutorial_settled());
     assert!(
         said.contains("the written value \"list\""),
         "the fallback the source writes is not named: {said}"
@@ -811,7 +1046,7 @@ fn the_tutorial_states_both_sides_of_its_fallback() {
 /// line through the conversion is stated whole.
 #[test]
 fn the_tutorial_reads_through_the_closure_written_beside_a_combinator() {
-    let said = stated(&[("app/src/main.rs", TUTORIAL)]);
+    let said = stated_with(&[("app/src/main.rs", TUTORIAL)], &tutorial_settled());
     assert!(
         said.contains("conversion to usize over position 2 of the command-line"),
         "the chain through the closure is broken: {said}"

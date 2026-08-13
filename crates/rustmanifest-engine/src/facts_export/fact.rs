@@ -104,21 +104,62 @@ mod tests {
     use std::path::PathBuf;
 
     use super::fact_json;
-    use crate::{semantic::behavior, source::Source};
+    use crate::{
+        semantic::{behavior, behavior_with},
+        source::Source
+    };
 
-    fn wallet_sources() -> [Source; 1] {
-        [Source::new(
-            PathBuf::from("src/lib.rs"),
-            "struct Wallet { balance: i64 }\nimpl Wallet { fn credit(&mut self, amount: i64) -> \
-             Result<(), String> { self.balance += amount; println!(\"credited\"); Ok(()) } }"
-                .to_owned()
-        )]
+    /// What a compiler settles about a field written as `fragment`: the
+    /// type holding it and the type it carries.
+    ///
+    /// The text says `self.balance` and nothing more; which type that
+    /// `self` is, is the compiler's answer, and every fact naming the
+    /// field by its owner rests on it.
+    fn settled_field(
+        text: &str,
+        fragment: &str,
+        owner: &str,
+        produced: &str
+    ) -> rustmanifest_schema::Resolution {
+        let mut held = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        let mut cursor = 0usize;
+        while let Some(found) = text[cursor..].find(fragment) {
+            let start = cursor + found;
+            cursor = start + fragment.len();
+            held.fields.push(rustmanifest_schema::ResolvedField {
+                at:       rustmanifest_schema::Location {
+                    file:  PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start: u32::try_from(start).expect("a fixture is small"),
+                        end:   u32::try_from(cursor).expect("a fixture is small")
+                    }
+                },
+                owner:    owner.to_owned(),
+                produced: produced.to_owned()
+            });
+        }
+        held.settle();
+        held
     }
 
+    const WALLET: &str = "struct Wallet { balance: i64 }\nimpl Wallet { fn credit(&mut self, \
+                          amount: i64) -> Result<(), String> { self.balance += amount; \
+                          println!(\"credited\"); Ok(()) } }";
+
+    fn wallet_sources() -> [Source; 1] {
+        [Source::new(PathBuf::from("src/lib.rs"), WALLET.to_owned())]
+    }
+
+    /// A field is named by the type holding it, and which type that is,
+    /// is the compiler's answer: the text writes `self`.
     #[test]
     fn json_object_carries_every_fact_category() {
         let sources = wallet_sources();
-        let facts = behavior(&sources);
+        let resolution = settled_field(WALLET, "self.balance", "Wallet", "i64");
+        let facts = behavior_with(&sources, Some(&resolution));
         let object = fact_json(&facts[0], &sources, false);
         assert_eq!(object["function"], "Wallet::credit");
         assert_eq!(object["file"], "src/lib.rs");

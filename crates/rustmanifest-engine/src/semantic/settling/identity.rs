@@ -26,7 +26,7 @@ use rustmanifest_schema::{Location, Resolution, ResolvedCall, ResolvedFunction};
 use crate::{semantic::behavior::FunctionFacts, source::Source};
 
 /// Adds to `resolution` the identity a compiler settles for `facts`.
-pub(in crate::semantic) fn settle_identity(
+pub fn settle_identity(
     resolution: &mut Resolution,
     sources: &[Source],
     facts: &[FunctionFacts]
@@ -67,7 +67,8 @@ pub(in crate::semantic) fn settle_identity(
 }
 
 /// The identity a compiler settles for `facts`, and nothing else.
-pub(in crate::semantic) fn identity_of(sources: &[Source], facts: &[FunctionFacts]) -> Resolution {
+#[must_use]
+pub fn identity_of(sources: &[Source], facts: &[FunctionFacts]) -> Resolution {
     let mut resolution = Resolution {
         resolver: "test".to_owned(),
         ..Resolution::default()
@@ -81,7 +82,8 @@ pub(in crate::semantic) fn identity_of(sources: &[Source], facts: &[FunctionFact
 /// The facts are read once without a resolution to find where the bodies
 /// and the call sites stand; nothing about a type is taken from that
 /// reading, only the places.
-pub(in crate::semantic) fn identity_over(sources: &[Source]) -> Resolution {
+#[must_use]
+pub fn identity_over(sources: &[Source]) -> Resolution {
     identity_of(sources, &crate::semantic::behavior::behavior(sources))
 }
 

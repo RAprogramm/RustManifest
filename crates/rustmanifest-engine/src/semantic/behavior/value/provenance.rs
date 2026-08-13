@@ -322,11 +322,18 @@ mod tests {
     /// an absence.
     #[test]
     fn a_value_read_out_of_a_field_is_named_by_the_field() {
-        let recorded = operands(
-            "struct Pair { left: u32, right: u32 }\nimpl Pair { fn total(&self) -> u32 { \
-             self.left + self.right } }",
-            "Pair::total"
-        );
+        let text = "struct Pair { left: u32, right: u32 }\nimpl Pair { fn total(&self) -> u32 { \
+                    self.left + self.right } }";
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = crate::semantic::settling::Settling::over("src/lib.rs", text)
+            .field("self.left", "Pair", "u32")
+            .field("self.right", "Pair", "u32")
+            .done();
+        let recorded = crate::semantic::behavior::behavior_with(&sources, Some(&resolution))
+            .iter()
+            .find(|fact| fact.function == "Pair::total")
+            .and_then(|fact| fact.operations.first().map(|site| site.operands.clone()))
+            .expect("the function records an operation");
         assert_eq!(
             recorded,
             vec![

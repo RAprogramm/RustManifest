@@ -112,7 +112,9 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
             .context("loading SCIP index")?;
         let settled = crate::resolution(
             args.resolution.as_deref(),
-            args.paths.first().map_or(std::path::Path::new("."), std::path::PathBuf::as_path)
+            args.paths
+                .first()
+                .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path)
         )?;
         findings.extend(rustmanifest_engine::check_invariants_settled(
             &sources,

@@ -83,15 +83,44 @@ mod tests {
     use super::{Convention, overview_markdown};
     use crate::{semantic::Workspace, source::Source};
 
+    const WALLET: &str = "pub struct Wallet { pub balance: i64 }\nimpl Wallet {\n    pub fn \
+                          credit(&mut self, amount: i64) { self.balance += amount; }\n    pub fn \
+                          balance(&self) -> i64 { self.balance }\n}\npub fn audit(wallet: \
+                          &Wallet) { println!(\"{}\", wallet.balance); }\n";
+
     fn sources() -> [Source; 1] {
-        [Source::new(
-            PathBuf::from("src/lib.rs"),
-            "pub struct Wallet { pub balance: i64 }\nimpl Wallet {\n    pub fn credit(&mut \
-             self, amount: i64) { self.balance += amount; }\n    pub fn balance(&self) -> i64 { \
-             self.balance }\n}\npub fn audit(wallet: &Wallet) { println!(\"{}\", \
-             wallet.balance); }\n"
-                .to_owned()
-        )]
+        [Source::new(PathBuf::from("src/lib.rs"), WALLET.to_owned())]
+    }
+
+    /// Which type holds the field a body reads is the compiler's answer,
+    /// and the report names contended state by it: the text writes `self`
+    /// in one body and a parameter's name in another, and neither says
+    /// what it is.
+    fn settled() -> rustmanifest_schema::Resolution {
+        let mut held = rustmanifest_schema::Resolution {
+            resolver: "test".to_owned(),
+            ..rustmanifest_schema::Resolution::default()
+        };
+        for fragment in ["self.balance", "wallet.balance"] {
+            let mut cursor = 0usize;
+            while let Some(found) = WALLET[cursor..].find(fragment) {
+                let start = cursor + found;
+                cursor = start + fragment.len();
+                held.fields.push(rustmanifest_schema::ResolvedField {
+                    at:       rustmanifest_schema::Location {
+                        file:  PathBuf::from("src/lib.rs"),
+                        range: rustmanifest_schema::Range {
+                            start: u32::try_from(start).expect("a fixture is small"),
+                            end:   u32::try_from(cursor).expect("a fixture is small")
+                        }
+                    },
+                    owner:    "Wallet".to_owned(),
+                    produced: "i64".to_owned()
+                });
+            }
+        }
+        held.settle();
+        held
     }
 
     #[test]
@@ -101,7 +130,13 @@ mod tests {
             includes: vec!["effect-console".to_owned()],
             excludes: Vec::new()
         }];
-        let report = overview_markdown(&Workspace::new(&sources()), 10, &conventions);
+        let held = sources();
+        let resolution = settled();
+        let report = overview_markdown(
+            &Workspace::resolved(&held, &resolution),
+            10,
+            &conventions
+        );
         for heading in [
             "## Size and understanding",
             "## Modules",

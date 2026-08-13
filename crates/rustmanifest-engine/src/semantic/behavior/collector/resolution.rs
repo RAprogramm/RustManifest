@@ -27,7 +27,7 @@ impl FactCollector {
     }
 
     /// The reachability fold read against this function's own file.
-    pub(super) fn flow_scope(&self) -> FlowScope<'_> {
+    pub(super) const fn flow_scope(&self) -> FlowScope<'_> {
         FlowScope {
             imports: &self.imports,
             leaving: &self.leaving

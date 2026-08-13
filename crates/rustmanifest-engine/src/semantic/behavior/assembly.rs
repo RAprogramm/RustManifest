@@ -152,17 +152,23 @@ pub(super) struct Settled {
 }
 
 /// The name the tables speak: the outermost type of a written type, with
-/// its arguments, its path, and the borrow it is held through dropped.
+/// its arguments, its path, the borrow it is held through and the
+/// dynamism it is reached through dropped.
 ///
 /// The resolver answers in full — `Option<&<T as Deref>::Target>` — while
 /// every table here is keyed by a last segment. Reading the full spelling
-/// into those tables would look up a name nothing declares.
+/// into those tables would look up a name nothing declares. A receiver
+/// reached through a trait object renders as `&dyn Sink`, whose outermost
+/// name is the trait: keeping the keyword would leave every call written
+/// on such a value nameless.
 pub(in crate::semantic) fn outermost(written: &str) -> Option<String> {
     let borrowless = written
         .trim()
         .trim_start_matches('&')
         .trim()
         .trim_start_matches("mut ")
+        .trim()
+        .trim_start_matches("dyn ")
         .trim();
     if let Some(named) = unnamed_shape(borrowless) {
         return Some(named.to_owned());

@@ -16,13 +16,13 @@ mod identity;
 
 use std::path::PathBuf;
 
-pub(in crate::semantic) use self::identity::{identity_of, identity_over, settle_identity};
+pub use self::identity::{identity_of, identity_over, settle_identity};
 use rustmanifest_schema::{
     Location, Range, ResolvedCall, ResolvedField, ResolvedType, Resolution
 };
 
 /// A resolution being written down over one or more fixture files.
-pub(in crate::semantic) struct Settling<'text> {
+pub struct Settling<'text> {
     /// File the fragments named next are written in.
     file:   PathBuf,
     /// Text of that file.
@@ -35,7 +35,8 @@ pub(in crate::semantic) struct Settling<'text> {
 
 impl<'text> Settling<'text> {
     /// Starts a resolution over `text`, recorded as the file at `file`.
-    pub(in crate::semantic) fn over(file: &str, text: &'text str) -> Self {
+    #[must_use]
+    pub fn over(file: &str, text: &'text str) -> Self {
         Self {
             file:    PathBuf::from(file),
             text,
@@ -48,7 +49,8 @@ impl<'text> Settling<'text> {
     }
 
     /// Continues over a second file, from its start.
-    pub(in crate::semantic) fn and_over(mut self, file: &str, text: &'text str) -> Self {
+    #[must_use]
+    pub fn and_over(mut self, file: &str, text: &'text str) -> Self {
         self.file = PathBuf::from(file);
         self.text = text;
         self.from = 0;
@@ -57,19 +59,22 @@ impl<'text> Settling<'text> {
 
     /// Searches the fragments named next from the start of the file
     /// again.
-    pub(in crate::semantic) const fn from_start(mut self) -> Self {
+    #[must_use]
+    pub const fn rewound(mut self) -> Self {
         self.from = 0;
         self
     }
 
     /// Searches the fragments named next from after `written`.
-    pub(in crate::semantic) fn after(mut self, written: &str) -> Self {
+    #[must_use]
+    pub fn after(mut self, written: &str) -> Self {
         self.from = self.located(written).range.end as usize;
         self
     }
 
     /// States the type the compiler settled for the written `fragment`.
-    pub(in crate::semantic) fn typed(mut self, fragment: &str, rendered: &str) -> Self {
+    #[must_use]
+    pub fn typed(mut self, fragment: &str, rendered: &str) -> Self {
         let at = self.located(fragment);
         self.settled.types.push(ResolvedType {
             at,
@@ -80,7 +85,8 @@ impl<'text> Settling<'text> {
 
     /// States the type holding the field written at `fragment` and the
     /// type that field itself has.
-    pub(in crate::semantic) fn field(
+    #[must_use]
+    pub fn field(
         mut self,
         fragment: &str,
         owner: &str,
@@ -100,7 +106,8 @@ impl<'text> Settling<'text> {
     ///
     /// A field of one name is read in as many bodies as a fixture has;
     /// naming each occurrence apart would say the same thing four times.
-    pub(in crate::semantic) fn fields(
+    #[must_use]
+    pub fn fields(
         mut self,
         fragment: &str,
         owner: &str,
@@ -119,7 +126,8 @@ impl<'text> Settling<'text> {
 
     /// States the type of every occurrence of `fragment` from the cursor
     /// on, and says nothing where the fixture writes none.
-    pub(in crate::semantic) fn all_typed(mut self, fragment: &str, rendered: &str) -> Self {
+    #[must_use]
+    pub fn all_typed(mut self, fragment: &str, rendered: &str) -> Self {
         while let Some(at) = self.next_at(fragment) {
             self.from = at.range.end as usize;
             self.settled.types.push(ResolvedType {
@@ -146,7 +154,8 @@ impl<'text> Settling<'text> {
     /// States the call the compiler settled at `fragment`: the function
     /// it reaches, the type it hands back, and the type of the receiver
     /// where it has one.
-    pub(in crate::semantic) fn call(
+    #[must_use]
+    pub fn call(
         mut self,
         fragment: &str,
         callee: &str,
@@ -165,21 +174,45 @@ impl<'text> Settling<'text> {
         self
     }
 
+    /// States the body the call written at `fragment` reaches, and
+    /// nothing else about it.
+    ///
+    /// Which body a call reaches is the one answer the written name
+    /// cannot give: a call into a dependency and a call into this
+    /// workspace are spelled the same, and only the reached path tells
+    /// them apart.
+    #[must_use]
+    pub fn reaching(mut self, fragment: &str, reaches: &str) -> Self {
+        let at = self.located(fragment);
+        self.settled.calls.push(ResolvedCall {
+            at,
+            callee: reaches.rsplit("::").next().unwrap_or(reaches).to_owned(),
+            returns: String::new(),
+            receiver: None,
+            reaches: Some(reaches.to_owned()),
+            takes: None
+        });
+        self
+    }
+
     /// Hands back the resolution, in the order every lookup bisects.
-    pub(in crate::semantic) fn done(mut self) -> Resolution {
+    #[must_use]
+    pub fn done(mut self) -> Resolution {
         self.settled.settle();
         self.settled
     }
 
     /// Where a written fragment stands in the file being settled.
     fn located(&self, fragment: &str) -> Location {
-        let start = self
+        let found = self
             .text
             .get(self.from..)
-            .and_then(|rest| rest.find(fragment).map(|at| self.from + at))
-            .unwrap_or_else(|| {
-                panic!("the fragment {fragment:?} is written in the fixture from here on")
-            });
+            .and_then(|rest| rest.find(fragment).map(|at| self.from + at));
+        assert!(
+            found.is_some(),
+            "the fragment {fragment:?} is written in the fixture from here on"
+        );
+        let start = found.unwrap_or_default();
         Location {
             file:  self.file.clone(),
             range: Range {

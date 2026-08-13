@@ -76,13 +76,218 @@ fn closed(client: Connection, handle: std::thread::JoinHandle<()>) {
     handle.join().unwrap();
 }
 
+/// What a compiler settled about one fixture, written down.
+///
+/// Every reading of the engine answers from a resolution and from nothing
+/// else: what a value is, which type holds a field, which body a call
+/// reaches. A session asking the server about a program therefore carries
+/// the compiler's answers beside it, the way a checked-out workspace
+/// carries the resolver's own emission. Each answer is named by the
+/// written fragment it stands over and holds at every place the fixture
+/// writes it.
+struct Settled {
+    /// File, relative to the workspace root, the fragments stand in.
+    file: String,
+    /// Text of that file.
+    text: String,
+    /// What has been written down so far.
+    held: rustmanifest_schema::Resolution
+}
+
+impl Settled {
+    /// Starts writing down what a compiler settled about `text`.
+    fn over(file: &str, text: &str) -> Self {
+        Self {
+            file: file.to_owned(),
+            text: text.to_owned(),
+            held: rustmanifest_schema::Resolution {
+                resolver: "test".to_owned(),
+                ..rustmanifest_schema::Resolution::default()
+            }
+        }
+    }
+
+    /// Continues over a second file of the same workspace.
+    fn and_over(mut self, file: &str, text: &str) -> Self {
+        file.clone_into(&mut self.file);
+        text.clone_into(&mut self.text);
+        self
+    }
+
+    /// States the module tree, one row per mounted file.
+    fn mounting(mut self, rows: &[(&str, &str)]) -> Self {
+        for (names, file) in rows {
+            self.held.modules.push(rustmanifest_schema::ResolvedModule {
+                names:      (*names).to_owned(),
+                file:       std::path::PathBuf::from(*file),
+                crate_root: !names.contains("::"),
+                parent:     names.rsplit_once("::").map(|(above, _)| above.to_owned())
+            });
+        }
+        self
+    }
+
+    /// One location per place `fragment` is written.
+    fn places(&self, fragment: &str) -> Vec<rustmanifest_schema::Location> {
+        let mut found = Vec::new();
+        let mut cursor = 0usize;
+        while let Some(at) = self.text[cursor..].find(fragment) {
+            let start = cursor + at;
+            cursor = start + fragment.len();
+            found.push(rustmanifest_schema::Location {
+                file:  std::path::PathBuf::from(&self.file),
+                range: rustmanifest_schema::Range {
+                    start: u32::try_from(start).unwrap(),
+                    end:   u32::try_from(cursor).unwrap()
+                }
+            });
+        }
+        assert!(!found.is_empty(), "the fixture writes {fragment:?} nowhere");
+        found
+    }
+
+    /// States the type the compiler settled for everything written as
+    /// `fragment`.
+    fn typed(mut self, fragment: &str, rendered: &str) -> Self {
+        for at in self.places(fragment) {
+            self.held.types.push(rustmanifest_schema::ResolvedType {
+                at,
+                rendered: rendered.to_owned()
+            });
+        }
+        self
+    }
+
+    /// States the type holding every field written as `fragment` and the
+    /// type that field carries.
+    fn field(mut self, fragment: &str, owner: &str, produced: &str) -> Self {
+        for at in self.places(fragment) {
+            self.held.fields.push(rustmanifest_schema::ResolvedField {
+                at,
+                owner: owner.to_owned(),
+                produced: produced.to_owned()
+            });
+        }
+        self
+    }
+
+    /// States the body every call written as `fragment` reaches, what it
+    /// hands back, and how it takes the value it stands on.
+    fn call(
+        mut self,
+        fragment: &str,
+        reaches: &str,
+        returns: &str,
+        takes: Option<rustmanifest_schema::ResolvedMode>
+    ) -> Self {
+        for at in self.places(fragment) {
+            self.held.calls.push(rustmanifest_schema::ResolvedCall {
+                at,
+                callee: reaches.rsplit("::").next().unwrap_or(reaches).to_owned(),
+                returns: returns.to_owned(),
+                receiver: None,
+                reaches: Some(reaches.to_owned()),
+                takes
+            });
+        }
+        self
+    }
+
+    /// States the full path of the body whose name is written as `fn
+    /// <named>`.
+    fn declares(mut self, named: &str, path: &str) -> Self {
+        let written = format!("fn {named}");
+        let at = self.text.find(&written).expect("the fixture declares it");
+        let start = at + written.len() - named.len();
+        self.held
+            .functions
+            .push(rustmanifest_schema::ResolvedFunction {
+                at:    rustmanifest_schema::Location {
+                    file:  std::path::PathBuf::from(&self.file),
+                    range: rustmanifest_schema::Range {
+                        start: u32::try_from(start).unwrap(),
+                        end:   u32::try_from(start + named.len()).unwrap()
+                    }
+                },
+                names: path.to_owned()
+            });
+        self
+    }
+
+    /// Writes the resolution beside a fresh workspace root and hands the
+    /// root back, the way a resolver's own run leaves it there.
+    fn beside(mut self, files: &[(&str, &str)]) -> tempfile::TempDir {
+        let bed = tempfile::tempdir().unwrap();
+        for (path, text) in files {
+            let at = bed.path().join(path);
+            std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+            std::fs::write(at, text).unwrap();
+        }
+        self.held.settle();
+        std::fs::write(
+            bed.path().join("resolution.json"),
+            serde_json::to_string(&self.held).unwrap()
+        )
+        .unwrap();
+        bed
+    }
+}
+
+/// Opens one document of a rooted workspace over a fresh server and
+/// swallows the published diagnostics, answering with the client and the
+/// document's own uri.
+fn opened_in(
+    bed: &tempfile::TempDir,
+    file: &str,
+    text: &str
+) -> (Connection, std::thread::JoinHandle<()>, String) {
+    let (server, client) = Connection::memory();
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
+    client
+        .sender
+        .send(Message::Request(Request::new(
+            1.into(),
+            "initialize".to_owned(),
+            serde_json::json!({
+                "capabilities": {},
+                "workspaceFolders": [{
+                    "uri": format!("file://{}", bed.path().display()),
+                    "name": "bed"
+                }]
+            })
+        )))
+        .unwrap();
+    let _initialize_answer = client.receiver.recv().unwrap();
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            "initialized".to_owned(),
+            serde_json::json!({})
+        )))
+        .unwrap();
+    let uri = format!("file://{}", bed.path().join(file).display());
+    client
+        .sender
+        .send(Message::Notification(Notification::new(
+            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
+            serde_json::json!({
+                "textDocument": {
+                    "uri": uri, "languageId": "rust", "version": 1, "text": text
+                }
+            })
+        )))
+        .unwrap();
+    let _diagnostics = client.receiver.recv().unwrap();
+    (client, handle, uri)
+}
+
 /// A source the bundled rules flag: a hardcoded credential.
 const FLAGGED: &str = "fn main() {\n    let password = \"hunter2\";\n}\n";
 
 #[test]
 fn an_opened_document_with_a_violation_receives_its_diagnostic() {
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
 
     client
         .sender
@@ -161,12 +366,24 @@ fn an_opened_document_with_a_violation_receives_its_diagnostic() {
         )))
         .unwrap();
     drop(client);
-    handle.join().unwrap().unwrap();
+    handle.join().unwrap();
 }
 
 /// A source whose function clones, allocates, takes a borrowed
 /// parameter, and reaches the file system only through a helper — the
 /// memory story a card must tell, and the inference it must carry.
+/// The workspace the hungry fixture stands in, with what a compiler
+/// settled about it: which body the written call reaches, and the paths
+/// the two declared bodies carry.
+fn hungry_bed() -> tempfile::TempDir {
+    Settled::over("src/lib.rs", HUNGRY)
+        .mounting(&[("demo", "src/lib.rs")])
+        .declares("persist", "demo::persist")
+        .declares("hoard", "demo::hoard")
+        .call("persist(input)", "demo::persist", "()", None)
+        .beside(&[("src/lib.rs", HUNGRY)])
+}
+
 const HUNGRY: &str = "fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\nfn \
                       hoard(input: &str) -> Vec<String> {\n    let mut out = Vec::new();\n    \
                       out.push(input.to_owned());\n    out.push(format!(\"{input}\"));\n    \
@@ -174,46 +391,15 @@ const HUNGRY: &str = "fn persist(entry: &str) { std::fs::write(\"log\", entry).o
 
 #[test]
 fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
-    let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            1.into(),
-            "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
-        )))
-        .unwrap();
-    let _initialize_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "initialized".to_owned(),
-            serde_json::json!({})
-        )))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
-            serde_json::json!({
-                "textDocument": {
-                    "uri": "file:///demo/src/lib.rs",
-                    "languageId": "rust",
-                    "version": 1,
-                    "text": HUNGRY
-                }
-            })
-        )))
-        .unwrap();
-    let _diagnostics = client.receiver.recv().unwrap();
+    let bed = hungry_bed();
+    let (client, handle, uri) = opened_in(&bed, "src/lib.rs", HUNGRY);
     client
         .sender
         .send(Message::Request(Request::new(
             2.into(),
             "textDocument/hover".to_owned(),
             serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "textDocument": { "uri": uri },
                 "position": { "line": 1, "character": 4 }
             })
         )))
@@ -240,63 +426,15 @@ fn a_hover_on_a_function_name_answers_with_its_recorded_facts() {
         value.contains("proven by the written call `std::fs::write`"),
         "{value}"
     );
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// The workspace command answers with the inference as data, so any
 /// client scripts it.
 #[test]
 fn the_why_command_answers_with_the_inference_as_data() {
-    let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            1.into(),
-            "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
-        )))
-        .unwrap();
-    let _initialize_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "initialized".to_owned(),
-            serde_json::json!({})
-        )))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
-            serde_json::json!({
-                "textDocument": {
-                    "uri": "file:///demo/src/lib.rs",
-                    "languageId": "rust",
-                    "version": 1,
-                    "text": HUNGRY
-                }
-            })
-        )))
-        .unwrap();
-    let _diagnostics = client.receiver.recv().unwrap();
+    let bed = hungry_bed();
+    let (client, handle, uri) = opened_in(&bed, "src/lib.rs", HUNGRY);
     client
         .sender
         .send(Message::Request(Request::new(
@@ -304,7 +442,7 @@ fn the_why_command_answers_with_the_inference_as_data() {
             "workspace/executeCommand".to_owned(),
             serde_json::json!({
                 "command": "rust-manifest.why",
-                "arguments": ["file:///demo/src/lib.rs", "hoard", "fs"]
+                "arguments": [uri, "hoard", "fs"]
             })
         )))
         .unwrap();
@@ -320,24 +458,7 @@ fn the_why_command_answers_with_the_inference_as_data() {
         "{held}"
     );
     assert_eq!(held["steps"].as_array().unwrap().len(), 2, "{held}");
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// Two documents, the chain crossing between them: the card of the
@@ -347,7 +468,7 @@ fn the_why_command_answers_with_the_inference_as_data() {
 fn a_chain_crossing_two_open_documents_answers_whole() {
     let bed = chained_bed();
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client
         .sender
         .send(Message::Request(Request::new(
@@ -372,16 +493,7 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
         .unwrap();
     let store_uri = format!("file://{}", bed.path().join("src/store.rs").display());
     let lib_uri = format!("file://{}", bed.path().join("src/lib.rs").display());
-    for (uri, text) in [
-        (
-            store_uri.as_str(),
-            "pub fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\n"
-        ),
-        (
-            lib_uri.as_str(),
-            "mod store;\nfn keep(entry: &str) { crate::store::persist(entry); }\n"
-        )
-    ] {
+    for (uri, text) in [(store_uri.as_str(), CHAINED_STORE), (lib_uri.as_str(), CHAINED_LIB)] {
         client
             .sender
             .send(Message::Notification(Notification::new(
@@ -417,24 +529,7 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
             .contains("reaches `fs` through `persist`"),
         "a chain crossing two documents must answer whole: {held}"
     );
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// The interview scene itself: a function taking a `String` by value,
@@ -443,92 +538,45 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
 /// A workspace whose call chain crosses two files, with the module tree a
 /// resolver would state beside it.
 fn chained_bed() -> tempfile::TempDir {
-    let bed = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(bed.path().join("src")).unwrap();
-    std::fs::write(
-        bed.path().join("src/store.rs"),
-        "pub fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); }\n"
-    )
-    .unwrap();
-    std::fs::write(
-        bed.path().join("src/lib.rs"),
-        "mod store;\nfn keep(entry: &str) { crate::store::persist(entry); }\n"
-    )
-    .unwrap();
-    settled_tree(
-        bed.path(),
-        &[("demo", "src/lib.rs"), ("demo::store", "src/store.rs")]
-    );
-    bed
+    Settled::over("src/store.rs", CHAINED_STORE)
+        .mounting(&[("demo", "src/lib.rs"), ("demo::store", "src/store.rs")])
+        .declares("persist", "demo::store::persist")
+        .and_over("src/lib.rs", CHAINED_LIB)
+        .declares("keep", "demo::keep")
+        .call("crate::store::persist(entry)", "demo::store::persist", "()", None)
+        .beside(&[
+            ("src/store.rs", CHAINED_STORE),
+            ("src/lib.rs", CHAINED_LIB)
+        ])
 }
 
-/// Writes beside the workspace the module tree a resolver would state,
-/// which the server reads on the next build.
-fn settled_tree(root: &std::path::Path, rows: &[(&str, &str)]) {
-    let modules: Vec<String> = rows
-        .iter()
-        .map(|(names, file)| {
-            let root_module = !names.contains("::");
-            let parent = names.rsplit_once("::").map_or(String::new(), |(above, _)| {
-                format!(", \"parent\": \"{above}\"")
-            });
-            format!(
-                "{{\"names\": \"{names}\", \"file\": \"{file}\", \"crate-root\": \
-                 {root_module}{parent}}}"
-            )
-        })
-        .collect();
-    std::fs::write(
-        root.join("resolution.json"),
-        format!(
-            "{{\"resolver\": \"test\", \"calls\": [], \"modules\": [{}]}}",
-            modules.join(", ")
-        )
-    )
-    .unwrap();
-}
+/// The file the chain ends in: the write itself.
+const CHAINED_STORE: &str = "pub fn persist(entry: &str) { std::fs::write(\"log\", entry).ok(); \
+                             }\n";
+
+/// The file the chain starts in: a call across the module boundary.
+const CHAINED_LIB: &str = "mod store;\nfn keep(entry: &str) { crate::store::persist(entry); }\n";
 
 const HANDED: &str = "fn foo(value: String) {}\nfn main() { let s = String::from(\"hello\"); \
                       foo(s); println!(\"{s}\"); }\n";
 
+/// The workspace the interview scene stands in, with the identity a
+/// compiler settles for it and nothing else: which body the written call
+/// reaches is stated, and whether the type it hands over is copied is
+/// not — which is exactly the question the surfaces must leave open.
+fn handed_bed() -> tempfile::TempDir {
+    Settled::over("src/lib.rs", HANDED)
+        .mounting(&[("demo", "src/lib.rs")])
+        .declares("foo", "demo::foo")
+        .declares("main", "demo::main")
+        .call("foo(s)", "demo::foo", "()", None)
+        .beside(&[("src/lib.rs", HANDED)])
+}
+
 #[test]
 fn a_hover_on_a_written_call_tells_where_ownership_goes() {
-    let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            1.into(),
-            "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
-        )))
-        .unwrap();
-    let _initialize_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "initialized".to_owned(),
-            serde_json::json!({})
-        )))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
-            serde_json::json!({
-                "textDocument": {
-                    "uri": "file:///demo/src/lib.rs",
-                    "languageId": "rust",
-                    "version": 1,
-                    "text": HANDED
-                }
-            })
-        )))
-        .unwrap();
-    let Message::Notification(published) = client.receiver.recv().unwrap() else {
-        panic!("the first message after an open must be the diagnostics");
-    };
-    assert!(published.params["diagnostics"].is_array());
+    let bed = handed_bed();
+    let (client, handle, uri) = opened_in(&bed, "src/lib.rs", HANDED);
     let line = HANDED.lines().nth(1).unwrap();
     let character = line.find("foo(s)").unwrap() + 1;
     client
@@ -537,7 +585,7 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
             2.into(),
             "textDocument/hover".to_owned(),
             serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "textDocument": { "uri": uri },
                 "position": { "line": 1, "character": character }
             })
         )))
@@ -554,27 +602,10 @@ fn a_hover_on_a_written_call_tells_where_ownership_goes() {
     );
     assert!(
         value.contains("unsettled"),
-        "a session with no resolution beside it must say the question is open rather than \
-         claim an answer: {value}"
+        "a resolution that does not say whether the type is copied must leave the question \
+         open rather than claim an answer: {value}"
     );
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// A type and a trait it does not implement: the implement command must
@@ -585,7 +616,7 @@ const UNWRITTEN: &str = "struct Disk;\ntrait Sink {\n    fn write(&mut self, chu
 #[test]
 fn the_implement_command_writes_the_impl_block() {
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client
         .sender
         .send(Message::Request(Request::new(
@@ -640,24 +671,7 @@ fn the_implement_command_writes_the_impl_block() {
     );
     assert!(text.contains("todo!()"), "{text}");
     assert!(!text.contains("fn flush"), "{text}");
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// A cursor on the type's written name must offer the implementable
@@ -665,7 +679,7 @@ fn the_implement_command_writes_the_impl_block() {
 #[test]
 fn a_code_action_on_a_type_offers_the_unimplemented_traits() {
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client
         .sender
         .send(Message::Request(Request::new(
@@ -735,24 +749,7 @@ fn a_code_action_on_a_type_offers_the_unimplemented_traits() {
         text.contains("fn write(&mut self, chunk: &[u8]) -> usize {"),
         "{text}"
     );
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// A type with fields, derives, and a written impl: the hover on its
@@ -816,46 +813,15 @@ fn a_hover_on_a_type_name_cards_its_facts() {
 /// argument itself, no hover asked.
 #[test]
 fn inlay_hints_mark_the_fate_of_each_argument() {
-    let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            1.into(),
-            "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
-        )))
-        .unwrap();
-    let _initialize_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "initialized".to_owned(),
-            serde_json::json!({})
-        )))
-        .unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
-            serde_json::json!({
-                "textDocument": {
-                    "uri": "file:///demo/src/lib.rs",
-                    "languageId": "rust",
-                    "version": 1,
-                    "text": HANDED
-                }
-            })
-        )))
-        .unwrap();
-    let _diagnostics = client.receiver.recv().unwrap();
+    let bed = handed_bed();
+    let (client, handle, uri) = opened_in(&bed, "src/lib.rs", HANDED);
     client
         .sender
         .send(Message::Request(Request::new(
             2.into(),
             "textDocument/inlayHint".to_owned(),
             serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "textDocument": { "uri": uri },
                 "range": {
                     "start": { "line": 0, "character": 0 },
                     "end": { "line": 2, "character": 0 }
@@ -870,30 +836,14 @@ fn inlay_hints_mark_the_fate_of_each_argument() {
     assert_eq!(hints.len(), 1, "{hints:?}");
     assert_eq!(
         hints[0]["label"], "by value?",
-        "a session with no resolution beside it states the open question: {hints:?}"
+        "a resolution that does not say whether the type is copied leaves the question open: \
+         {hints:?}"
     );
     let line = HANDED.lines().nth(1).unwrap();
     let argument = line.find("foo(s)").unwrap() + 4;
     assert_eq!(hints[0]["position"]["line"], 1, "{hints:?}");
     assert_eq!(hints[0]["position"]["character"], argument, "{hints:?}");
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// A finding that carries a synthesized fix must offer it as a
@@ -904,7 +854,7 @@ const FIXABLE: &str = "struct Report { total: u64 }\nfn summarize(report: Report
 #[test]
 fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
     let (server, client) = Connection::memory();
-    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server));
+    let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client
         .sender
         .send(Message::Request(Request::new(
@@ -983,24 +933,7 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
         }),
         "the quickfix must insert the borrow right before the owned type: {edits:?}"
     );
-    client
-        .sender
-        .send(Message::Request(Request::new(
-            3.into(),
-            "shutdown".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    let _shutdown_answer = client.receiver.recv().unwrap();
-    client
-        .sender
-        .send(Message::Notification(Notification::new(
-            "exit".to_owned(),
-            serde_json::Value::Null
-        )))
-        .unwrap();
-    drop(client);
-    handle.join().unwrap().unwrap();
+    closed(client, handle);
 }
 
 /// The intents command must answer with what the workspace's own
@@ -1092,12 +1025,17 @@ fn the_whence_command_restates_the_value_across_calls() {
 /// by every question command.
 #[test]
 fn the_kept_command_answers_why_a_store_is_kept() {
-    let (client, handle) = opened(
-        "use std::collections::BTreeMap;\n\npub struct Task {\n    pub title: String,\n}\n\npub \
-         struct Store {\n    pub tasks: BTreeMap<u64, Task>,\n}\n\nimpl Store {\n    pub fn \
-         add(&mut self, title: String) {\n        let id = self.tasks.len() as u64;\n        \
-         self.tasks.insert(id, Task { title });\n    }\n}\n"
-    );
+    let text = "use std::collections::BTreeMap;\n\npub struct Task {\n    pub title: \
+                String,\n}\n\npub struct Store {\n    pub tasks: BTreeMap<u64, \
+                Task>,\n}\n\nimpl Store {\n    pub fn add(&mut self, title: String) {\n        \
+                let id = self.tasks.len() as u64;\n        self.tasks.insert(id, Task { title \
+                });\n    }\n}\n";
+    let bed = Settled::over("src/lib.rs", text)
+        .mounting(&[("demo", "src/lib.rs")])
+        .field("self.tasks", "Store", "BTreeMap<u64, Task>")
+        .typed("self.tasks", "BTreeMap<u64, Task>")
+        .beside(&[("src/lib.rs", text)]);
+    let (client, handle, _uri) = opened_in(&bed, "src/lib.rs", text);
     client
         .sender
         .send(Message::Request(Request::new(
@@ -1248,35 +1186,27 @@ fn an_opened_document_with_a_written_intent_receives_its_diagnostic() {
 /// first workspace invariant delivered to the editor as a diagnostic.
 #[test]
 fn a_declared_invariant_violation_receives_its_diagnostic_with_the_trace() {
-    let bed = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(bed.path().join("src")).unwrap();
-    std::fs::write(
-        bed.path().join("src/lib.rs"),
-        "mod ledger;\nmod api;\npub struct Wallet { pub balance: i64 }\n"
-    )
-    .unwrap();
-    std::fs::write(
-        bed.path().join("src/ledger.rs"),
-        "use crate::Wallet;\npub fn post(wallet: &mut Wallet, amount: i64) { wallet.balance += \
-         amount; }\n"
-    )
-    .unwrap();
+    let held = "mod ledger;\nmod api;\npub struct Wallet { pub balance: i64 }\n";
+    let posted = "use crate::Wallet;\npub fn post(wallet: &mut Wallet, amount: i64) { \
+                  wallet.balance += amount; }\n";
     let hacked = "use crate::Wallet;\npub fn hack(wallet: &mut Wallet) { wallet.balance = 0; }\n";
-    std::fs::write(bed.path().join("src/api.rs"), hacked).unwrap();
-    std::fs::write(
-        bed.path().join("rustmanifest.toml"),
-        "[[invariants]]\nid = \"WALLET-BALANCE\"\nfield = \"Wallet.balance\"\nwrite-only-from = \
-         [\"crate::ledger\"]\n"
-    )
-    .unwrap();
-    settled_tree(
-        bed.path(),
-        &[
+    let invariant = "[[invariants]]\nid = \"WALLET-BALANCE\"\nfield = \
+                     \"Wallet.balance\"\nwrite-only-from = [\"crate::ledger\"]\n";
+    let bed = Settled::over("src/ledger.rs", posted)
+        .mounting(&[
             ("demo", "src/lib.rs"),
             ("demo::ledger", "src/ledger.rs"),
             ("demo::api", "src/api.rs")
-        ]
-    );
+        ])
+        .field("wallet.balance", "Wallet", "i64")
+        .and_over("src/api.rs", hacked)
+        .field("wallet.balance", "Wallet", "i64")
+        .beside(&[
+            ("src/lib.rs", held),
+            ("src/ledger.rs", posted),
+            ("src/api.rs", hacked),
+            ("rustmanifest.toml", invariant)
+        ]);
     let (server, client) = Connection::memory();
     let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client

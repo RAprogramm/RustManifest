@@ -37,6 +37,52 @@ const SETTLED_RECEIVERS: [(&str, &[(&str, ResolvedMode)]); 1] = [(
     ]
 )];
 
+/// The fields a resolver would name for one rule's fixtures, by rule and
+/// by the access as it is written: the type holding it and the type it
+/// carries.
+///
+/// The same fabrication as the receiver modes above, for the same reason.
+/// A field access says `self.hits`, and which type that `self` is, is the
+/// compiler's answer; a rule reading what a body writes has nothing to
+/// join on until it is stated.
+const SETTLED_FIELDS: [(&str, &[SettledField]); 1] =
+    [("RM-QUAL-002", &[("self.hits", "Counter", "u64")])];
+
+/// One field a resolver names: the access as it is written, the type
+/// holding it, and the type it carries.
+type SettledField = (&'static str, &'static str, &'static str);
+
+/// Adds the fields written for `rule` to a fixture's resolution, at every
+/// place the fixtures write them.
+fn settle_fields(rule: &str, sources: &[Source], into: &mut rustmanifest_schema::Resolution) {
+    let Some((_, fields)) = SETTLED_FIELDS.iter().find(|(named, _)| *named == rule) else {
+        return;
+    };
+    for source in sources {
+        for (written, owner, produced) in *fields {
+            let mut cursor = 0usize;
+            while let Some(found) = source.text()[cursor..].find(written) {
+                let at = cursor + found;
+                cursor = at + written.len();
+                let start = u32::try_from(at).expect("a fixture is small");
+                into.fields.push(rustmanifest_schema::ResolvedField {
+                    at:       rustmanifest_schema::Location {
+                        file:  source.path().to_path_buf(),
+                        range: rustmanifest_schema::Range {
+                            start,
+                            end: start
+                                + u32::try_from(written.len()).expect("a fixture is small")
+                        }
+                    },
+                    owner:    (*owner).to_owned(),
+                    produced: (*produced).to_owned()
+                });
+            }
+        }
+    }
+    into.settle();
+}
+
 /// Adds the receiver modes written for `rule` to a fixture's resolution.
 fn settle_receivers(rule: &str, sources: &[Source], into: &mut rustmanifest_schema::Resolution) {
     let Some((_, calls)) = SETTLED_RECEIVERS.iter().find(|(named, _)| *named == rule) else {
@@ -227,6 +273,7 @@ fn semantic_fixtures_match_their_rule() {
         let fail_sources = workspace(&dir, "fail");
         let mut fail_tree = mounted(&fail_sources);
         settle_receivers(&rule.id, &fail_sources, &mut fail_tree);
+        settle_fields(&rule.id, &fail_sources, &mut fail_tree);
         let fail_findings = analyzer.analyze(&Workspace::resolved(&fail_sources, &fail_tree));
         assert!(
             !fail_findings.is_empty(),
@@ -236,6 +283,7 @@ fn semantic_fixtures_match_their_rule() {
         let pass_sources = workspace(&dir, "pass");
         let mut pass_tree = mounted(&pass_sources);
         settle_receivers(&rule.id, &pass_sources, &mut pass_tree);
+        settle_fields(&rule.id, &pass_sources, &mut pass_tree);
         let pass_findings = analyzer.analyze(&Workspace::resolved(&pass_sources, &pass_tree));
         assert!(
             pass_findings.is_empty(),

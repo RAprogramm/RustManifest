@@ -243,11 +243,11 @@ mod tests {
                     0 } } }\nstruct Repo;\nimpl Repo { fn fetch(&self) -> Order { let mut order \
                     = Order::empty(); order.items = 3; order } }";
         assert_eq!(
-            draft_settled(text, "Repo::fetch", |settling| settling.field(
-                "order.items",
-                "Order",
-                "u32"
-            )),
+            draft_settled(text, "Repo::fetch", |settling| {
+                settling
+                    .field("order.items", "Order", "u32")
+                    .call("Order::empty()", "empty", "Order", None)
+            }),
             "/// Creates a new [`Order`]."
         );
     }

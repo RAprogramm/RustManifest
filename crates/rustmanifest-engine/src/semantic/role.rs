@@ -94,11 +94,25 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Role, role};
-    use crate::{semantic::behavior, source::Source};
+    use crate::{
+        semantic::{behavior, settling::Settling},
+        source::Source
+    };
 
     fn first_role(text: &str) -> Role {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         role(&behavior(&sources)[0])
+    }
+
+    /// The role of the first function of `text`, read with what `settle`
+    /// states a resolver settled about the fixture.
+    fn first_role_settled<'text>(
+        text: &'text str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> Role {
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
+        role(&crate::semantic::behavior::behavior_with(&sources, Some(&resolution))[0])
     }
 
     #[test]
@@ -131,13 +145,21 @@ mod tests {
         );
     }
 
+    /// A body writing into a value it made itself assembles that value,
+    /// and what the value is comes from the type the compiler settled for
+    /// the call that made it.
     #[test]
     fn fresh_value_assemblers_are_constructors() {
         assert_eq!(
-            first_role(
+            first_role_settled(
                 "struct Order { items: u32 }\nfn fetch() -> Order { let mut order = \
                  Order::empty(); order.items = 3; order }\nimpl Order { fn empty() -> Self { \
-                 Self { items: 0 } } }"
+                 Self { items: 0 } } }",
+                |settling| {
+                    settling
+                        .field("order.items", "Order", "u32")
+                        .call("Order::empty()", "empty", "Order", None)
+                }
             ),
             Role::Constructor
         );

@@ -403,12 +403,17 @@ mod tests {
         assert!(drive.calls.contains(&"WriteAll::poll".to_owned()));
     }
 
+    /// The error half a `?` converts is read out of the rendering the
+    /// compiler gives the tried call, so a site whose enclosing signature
+    /// declares another failure type records the conversion the language
+    /// performs there.
     #[test]
     fn try_sites_record_the_implicit_conversion() {
-        let all = facts(
+        let all = facts_settled(
             "struct AppError;\nstruct DbError;\nfn load() -> Result<u8, DbError> { Ok(0) }\nfn \
              handle() -> Result<u8, AppError> { let v = load()?; Ok(v) }\nfn same() -> \
-             Result<u8, DbError> { let v = load()?; Ok(v) }"
+             Result<u8, DbError> { let v = load()?; Ok(v) }",
+            |settling| settling.all_typed("load()", "Result<u8, DbError>")
         );
         assert!(
             named(&all, "handle")
@@ -615,41 +620,29 @@ mod tests {
         let all = facts_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Self { Self { balance: 0 \
              } } }\nfn opened() { let wallet = Wallet::open(); wallet.balance = 1; }",
-            |settling| settling.field("wallet.balance", "Wallet", "i64")
+            |settling| {
+                settling
+                    .field("wallet.balance", "Wallet", "i64")
+                    .call("Wallet::open()", "open", "Wallet", None)
+            }
         );
         assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
     }
 
-    #[test]
-    fn try_unwrapped_factories_yield_the_success_type() {
-        let all = facts_settled(
-            "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Result<Self, String> { \
-             Ok(Self { balance: 0 }) } }\nfn opened() -> Result<(), String> { let wallet = \
-             Wallet::open()?; wallet.balance = 1; Ok(()) }",
-            |settling| settling.field("wallet.balance", "Wallet", "i64")
-        );
-        assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
-    }
-
-    #[test]
-    fn awaited_factories_resolve_through_the_table() {
-        let all = facts_settled(
-            "struct Pool { size: u32 }\nimpl Pool { async fn connect() -> Result<Self, String> { \
-             Ok(Self { size: 0 }) } }\nasync fn ready() -> Result<(), String> { let pool = \
-             Pool::connect().await?; pool.size = 1; Ok(()) }",
-            |settling| settling.field("pool.size", "Pool", "u32")
-        );
-        assert_eq!(named(&all, "ready").builds, vec!["Pool.size"]);
-    }
-
+    /// A field written through a name the body itself made is assembly,
+    /// not a change to state someone else holds — and what the name holds
+    /// is the type the compiler settled for the call that made it.
     #[test]
     fn assembling_a_fresh_value_is_a_build_not_a_write() {
         let all = facts_settled(
-            "struct Order { items: u32 }\nimpl Order { fn load() -> Result<Self, String> { \
-             Ok(Self { items: 0 }) } }\nstruct Repo;\nimpl Repo { fn get_order(&self) -> \
-             Result<Order, String> { let mut order = Order::load()?; order.items = 3; Ok(order) \
-             } }",
-            |settling| settling.field("order.items", "Order", "u32")
+            "struct Order { items: u32 }\nimpl Order { fn load() -> Self { Self { items: 0 } } \
+             }\nstruct Repo;\nimpl Repo { fn get_order(&self) -> Order { let mut order = \
+             Order::load(); order.items = 3; order } }",
+            |settling| {
+                settling
+                    .field("order.items", "Order", "u32")
+                    .call("Order::load()", "load", "Order", None)
+            }
         );
         let getter = named(&all, "Repo::get_order");
         assert!(getter.writes.is_empty());

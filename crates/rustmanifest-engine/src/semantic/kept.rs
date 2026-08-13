@@ -197,9 +197,9 @@ mod tests {
     fn settled_over(sources: &[crate::source::Source]) -> rustmanifest_schema::Resolution {
         let mut resolution = Settling::over("src/lib.rs", sources[0].text())
             .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
-            .from_start()
+            .rewound()
             .all_typed("self.tasks", "BTreeMap<u64, Task>")
-            .from_start()
+            .rewound()
             .fields("task.title", "Task", "String")
             .done();
         let facts = behavior_with(sources, Some(&resolution));

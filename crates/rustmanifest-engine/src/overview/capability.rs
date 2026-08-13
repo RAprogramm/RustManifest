@@ -89,16 +89,27 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::{semantic::module_graph::declared_tree, source::Source};
+    use crate::{
+        semantic::{module_graph::declared_tree, settling::settle_identity},
+        source::Source
+    };
 
+    /// The section rendered over one file, with the module tree and the
+    /// call identity a compiler settles for it.
+    ///
+    /// An entry reaches a capability through the call graph, and a call
+    /// binds to the body the resolution names it reaches — so a fixture
+    /// asking what an entry starts has to state that identity first.
     fn rendered(path: &str, text: &str) -> String {
         let sources = vec![Source::new(PathBuf::from(path), text.to_owned())];
-        let mut out = String::new();
-        capability_section(
-            &mut out,
-            &Workspace::resolved(&sources, &declared_tree(&sources)),
-            10
+        let mut settled = declared_tree(&sources);
+        settle_identity(
+            &mut settled,
+            &sources,
+            &crate::semantic::behavior(&sources)
         );
+        let mut out = String::new();
+        capability_section(&mut out, &Workspace::resolved(&sources, &settled), 10);
         out
     }
 

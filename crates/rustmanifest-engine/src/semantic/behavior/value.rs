@@ -96,13 +96,13 @@ mod tests {
     /// fact.
     #[test]
     fn a_site_written_as_no_call_states_that_its_arguments_are_unwritten() {
-        let sources = [Source::new(
-            PathBuf::from("src/lib.rs"),
-            "fn caller() -> Result<u8, Outer> { inner()? }\nfn inner() -> Result<u8, Inner> { \
-             Ok(1) }"
-                .to_owned()
-        )];
-        let facts = behavior(&sources);
+        let text = "fn caller() -> Result<u8, Outer> { inner()? }\nfn inner() -> Result<u8, \
+                    Inner> { Ok(1) }";
+        let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
+        let resolution = crate::semantic::settling::Settling::over("src/lib.rs", text)
+            .typed("inner()", "Result<u8, Inner>")
+            .done();
+        let facts = crate::semantic::behavior::behavior_with(&sources, Some(&resolution));
         let caller = facts
             .iter()
             .find(|fact| fact.function == "caller")

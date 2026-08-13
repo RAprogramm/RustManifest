@@ -190,8 +190,7 @@ mod tests {
         semantic::{
             behavior::behavior_with,
             module_graph::declared_tree,
-            settling::{Settling, settle_identity},
-            workspace::Workspace
+            settling::{Settling, settle_identity}
         },
         source::Source
     };
@@ -228,7 +227,7 @@ mod tests {
             let path = source.path().to_string_lossy().into_owned();
             let mut settling = Settling::over(&path, source.text());
             for (fragment, rendered) in typed {
-                settling = settling.from_start().all_typed(fragment, rendered);
+                settling = settling.rewound().all_typed(fragment, rendered);
             }
             resolution.types.extend(settling.done().types);
         }

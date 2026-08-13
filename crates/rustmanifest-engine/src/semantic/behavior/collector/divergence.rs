@@ -22,14 +22,16 @@ impl FlowScope<'_> {
 
     /// Whether the call written here does not come back.
     ///
-    /// The never type is what says so, and the compiler states it at the
-    /// call. Looking the callee up by written name answered only for the
+    /// The never type is what says so, and the compiler states it as the
+    /// type of the call expression itself — the callee inside it is a
+    /// function, and its own type is a signature rather than an answer.
+    /// Looking the callee up by written name answered only for the
     /// functions this workspace declares, and for those only when the
     /// name was unique.
-    pub(super) fn never_returns(&self, callee: &syn::Expr) -> bool {
+    pub(super) fn never_returns(&self, call: &syn::Expr) -> bool {
         use syn::spanned::Spanned;
 
-        let span = callee.span().byte_range();
+        let span = call.span().byte_range();
         let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
             return false;
         };

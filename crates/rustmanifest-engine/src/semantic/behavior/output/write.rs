@@ -606,17 +606,25 @@ mod tests {
         );
     }
 
+    /// Whether a call comes back to its caller is the compiler's answer,
+    /// stated as the type of the call itself: a call the resolver renders
+    /// as the never type is reached and never left, so nothing written
+    /// after it runs.
     #[test]
     fn a_call_to_a_never_returning_function_kills_what_follows_it() {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
-        let sources = [Source::new(
-            PathBuf::from("src/main.rs"),
-            "fn dies() -> ! { panic!(\"stop\") }\nfn main() {\n    dies();\n                 println!(\"hi\");\n}"
-                .to_owned()
-        )];
-        let facts = behavior(&sources);
+        use crate::{
+            semantic::{behavior::behavior_with, settling::Settling},
+            source::Source
+        };
+        let dying = "fn dies() -> ! { panic!(\"stop\") }\nfn main() {\n    dies();\n                 println!(\"hi\");\n}";
+        let sources = [Source::new(PathBuf::from("src/main.rs"), dying.to_owned())];
+        let leaving = Settling::over("src/main.rs", dying)
+            .after("fn main")
+            .typed("dies()", "!")
+            .done();
+        let facts = behavior_with(&sources, Some(&leaving));
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -624,12 +632,16 @@ mod tests {
         assert_eq!(main.output_writes.len(), 1);
         assert_eq!(main.output_writes[0].guard.local_grade(), Grade::Dead);
 
+        let coming_back = "fn helper() -> u8 { 1 }\nfn main() {\n    helper();\n    println!(\"hi\");\n}";
         let returning = [Source::new(
             PathBuf::from("src/main.rs"),
-            "fn helper() -> u8 { 1 }\nfn main() {\n    helper();\n    println!(\"hi\");\n}"
-                .to_owned()
+            coming_back.to_owned()
         )];
-        let plain = behavior(&returning);
+        let settled = Settling::over("src/main.rs", coming_back)
+            .after("fn main")
+            .typed("helper()", "u8")
+            .done();
+        let plain = behavior_with(&returning, Some(&settled));
         let entry = plain
             .iter()
             .find(|fact| fact.function == "main")

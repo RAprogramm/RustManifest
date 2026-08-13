@@ -76,13 +76,26 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::{
-        semantic::behavior::{Operation, behavior},
+        semantic::{
+            behavior::{Operation, behavior_with},
+            settling::Settling
+        },
         source::Source
     };
 
+    /// The target of the first conversion `function` performs, read with
+    /// the type a resolver settled for the value being converted.
+    ///
+    /// Which library method a call reaches is decided by the type it is
+    /// written on, and that type is the compiler's answer; the fixture
+    /// states it where the body writes the receiver.
     fn target(text: &str, function: &str) -> Option<String> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        behavior(&sources)
+        let resolution = Settling::over("src/lib.rs", text)
+            .after("->")
+            .typed("text", "&str")
+            .done();
+        behavior_with(&sources, Some(&resolution))
             .iter()
             .find(|fact| fact.function == function)
             .and_then(|fact| {

@@ -39,7 +39,9 @@ impl Analyzed {
     pub(crate) fn resolution(&self) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
         crate::resolution(
             self.resolution.as_deref(),
-            self.paths.first().map_or(std::path::Path::new("."), PathBuf::as_path)
+            self.paths
+                .first()
+                .map_or_else(|| std::path::Path::new("."), PathBuf::as_path)
         )
     }
 }
