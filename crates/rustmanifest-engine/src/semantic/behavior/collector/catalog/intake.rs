@@ -141,6 +141,3 @@ pub(in crate::semantic::behavior::collector) const BOUNDARY_ADAPTERS: [(&str, bo
     ("map", false),
     ("take", true)
 ];
-
-/// Adapters singling out one element of a sequence by a written position.
-pub(in crate::semantic::behavior::collector) const ELEMENT_ADAPTERS: [&str; 2] = ["get", "nth"];

@@ -21,6 +21,9 @@ use super::FactCollector;
 /// under the key it was asked with.
 const OPTIONAL: &str = "Option";
 
+/// The type a written position is counted in.
+const POSITION: &str = "usize";
+
 impl FactCollector {
     /// Whether the call hands back an element of what it is written on,
     /// as the two types the compiler settled say.
@@ -41,6 +44,35 @@ impl FactCollector {
         arguments_of(&held)
             .iter()
             .any(|argument| bare(argument) == carried)
+    }
+
+    /// Whether the call singles out one element of what it is written on
+    /// by a written position: it is asked with a count and answers with
+    /// something or nothing.
+    ///
+    /// Two written adapter names said this before, and said it for any
+    /// namesake taking a number. A written number is read as one here
+    /// because the resolver states no type for a literal: its type is
+    /// not a question the source leaves open.
+    pub(super) fn takes_element_at(&self, call: &syn::ExprMethodCall) -> bool {
+        use syn::spanned::Spanned as _;
+
+        let Some(handed) = self.settled_type_over_full(&call.span().byte_range()) else {
+            return false;
+        };
+        if crate::semantic::behavior::outermost_name(handed.trim()).as_deref() != Some(OPTIONAL) {
+            return false;
+        }
+        call.args.first().is_some_and(|argument| {
+            self.settled_expr_type(argument).as_deref() == Some(POSITION)
+                || matches!(
+                    argument,
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Int(_),
+                        ..
+                    })
+                )
+        })
     }
 }
 

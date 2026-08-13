@@ -24,7 +24,7 @@
 
 use super::{
     FactCollector,
-    catalog::intake::{BOUNDARY_ADAPTERS, ELEMENT_ADAPTERS}
+    catalog::intake::BOUNDARY_ADAPTERS
 };
 use crate::semantic::behavior::{
     input::{ReadShape, Selector, SelectorGap},
@@ -71,7 +71,7 @@ impl FactCollector {
             if !keeps && narrowed.shape != ReadShape::Element {
                 narrowed.selector = Selector::NotIdentified(SelectorGap::Advanced);
             }
-        } else if ELEMENT_ADAPTERS.contains(&method.as_str()) {
+        } else if self.takes_element_at(call) {
             let asked = position_of(call.args.first());
             if narrowed.shape == ReadShape::Element && narrowed.selector != asked {
                 narrowed.selector = asked;
