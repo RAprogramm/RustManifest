@@ -66,6 +66,16 @@ const ALLOCATED: [(&str, &str); 5] = [
 /// The constructors a fixture writes such a container with.
 const CONSTRUCTORS: [&str; 3] = ["new", "with_capacity", "from"];
 
+/// The methods that hand back a copy of what they are written on, which
+/// the compiler states as a shared borrow answering with the receiver's
+/// own type.
+const COPYING: [&str; 3] = ["clone", "to_owned", "to_vec"];
+
+/// The rendering a fixture states for a copy's receiver and answer
+/// alike: the two are one type, which is the whole of what the reading
+/// asks, and naming it would state more than the fixture knows.
+const SAME_TYPE: &str = "Self";
+
 /// Adds to `resolution` what a compiler settles about the standard
 /// macros `sources` write.
 pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
@@ -98,6 +108,7 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
         }
     }
     settle_allocations(resolution, sources);
+    settle_copies(resolution, sources);
     resolution.settle();
 }
 
@@ -127,6 +138,58 @@ fn settle_allocations(resolution: &mut Resolution, sources: &[Source]) {
             }
         }
     }
+}
+
+/// Records the copying calls a fixture writes, as the compiler states
+/// them: taken by shared borrow, answering with the receiver's own type.
+fn settle_copies(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for method in COPYING {
+            let spelled = format!(".{method}");
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+                let start = from + at;
+                let opens = start + spelled.len();
+                from = opens;
+                let Some(whole) = written_call(text, opens) else {
+                    continue;
+                };
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: whole
+                    },
+                    callee:         method.to_owned(),
+                    returns:        SAME_TYPE.to_owned(),
+                    receiver:       Some(SAME_TYPE.to_owned()),
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        Some(format!("core::clone::Clone::{method}")),
+                    takes:          Some(rustmanifest_schema::ResolvedMode::Borrowed)
+                });
+            }
+        }
+    }
+}
+
+/// The range the whole call written on a receiver stands at: from the
+/// start of the receiver's own expression to the closing bracket.
+fn written_call(text: &str, opens: usize) -> Option<Range> {
+    let closes = closed_at(text, 0, opens)?.end as usize;
+    let head = text.get(..opens)?;
+    let start = head
+        .char_indices()
+        .rev()
+        .take_while(|(_, letter)| {
+            letter.is_alphanumeric() || *letter == '_' || *letter == '.' || *letter == ')'
+        })
+        .last()
+        .map_or(opens, |(at, _)| at);
+    Some(Range {
+        start: u32::try_from(start).unwrap_or(u32::MAX),
+        end:   u32::try_from(closes).unwrap_or(u32::MAX)
+    })
 }
 
 /// Every range a written call stands at, its argument list closed.
