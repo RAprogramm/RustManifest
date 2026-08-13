@@ -85,6 +85,39 @@ const ENDING: [(&str, &str); 4] = [
     ("process::abort", "std::process::abort")
 ];
 
+/// The process's own handle constructors a fixture writes, with the
+/// body each reaches and the type it hands back.
+const HANDLES: [(&str, &str, &str); 3] = [
+    ("std::io::stdout", "std::io::stdio::stdout", "std::io::stdio::Stdout"),
+    ("std::io::stderr", "std::io::stdio::stderr", "std::io::stdio::Stderr"),
+    ("std::io::stdin", "std::io::stdio::stdin", "std::io::stdio::Stdin")
+];
+
+/// The numeric methods a fixture writes, each reaching the numeric
+/// module of the language's own library.
+const NUMERIC: [&str; 20] = [
+    "checked_add",
+    "checked_div",
+    "checked_mul",
+    "checked_neg",
+    "checked_rem",
+    "checked_sub",
+    "overflowing_add",
+    "overflowing_mul",
+    "overflowing_sub",
+    "saturating_add",
+    "saturating_mul",
+    "saturating_sub",
+    "wrapping_add",
+    "wrapping_div",
+    "wrapping_mul",
+    "wrapping_neg",
+    "wrapping_rem",
+    "wrapping_sub",
+    "abs_diff",
+    "pow"
+];
+
 /// The methods that hand back a copy of what they are written on, which
 /// the compiler states as a shared borrow answering with the receiver's
 /// own type.
@@ -130,6 +163,8 @@ pub fn settle_standard_macros(resolution: &mut Resolution, sources: &[Source]) {
     settle_copies(resolution, sources);
     settle_variants(resolution, sources);
     settle_endings(resolution, sources);
+    settle_handles(resolution, sources);
+    settle_numeric(resolution, sources);
     resolution.settle();
 }
 
@@ -200,6 +235,72 @@ fn settle_endings(resolution: &mut Resolution, sources: &[Source]) {
                     receiver_path:  None,
                     caller_decides: false,
                     reaches:        Some(names.to_owned()),
+                    takes:          None
+                });
+            }
+        }
+    }
+}
+
+/// Records the handle constructors a fixture writes, as the bodies they
+/// reach and the types they hand back.
+fn settle_handles(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for (written, reaches, declared) in HANDLES {
+            for at in call_at(text, written) {
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: at
+                    },
+                    callee:         reaches.rsplit("::").next().unwrap_or(reaches).to_owned(),
+                    returns:        declared.rsplit("::").next().unwrap_or(declared).to_owned(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        Some(reaches.to_owned()),
+                    takes:          None
+                });
+                resolution.types.push(ResolvedType {
+                    at:       Location {
+                        file:  source.path().to_path_buf(),
+                        range: at
+                    },
+                    rendered: declared.rsplit("::").next().unwrap_or(declared).to_owned(),
+                    declared: Some(declared.to_owned())
+                });
+            }
+        }
+    }
+}
+
+/// Records the numeric calls a fixture writes, as the bodies of the
+/// numeric module they reach.
+fn settle_numeric(resolution: &mut Resolution, sources: &[Source]) {
+    for source in sources {
+        let text = source.text();
+        for method in NUMERIC {
+            let spelled = format!(".{method}");
+            let mut from = 0usize;
+            while let Some(at) = text.get(from..).and_then(|rest| rest.find(&spelled)) {
+                let start = from + at;
+                let opens = start + spelled.len();
+                from = opens;
+                let Some(whole) = written_call(text, opens) else {
+                    continue;
+                };
+                resolution.calls.push(ResolvedCall {
+                    at:             Location {
+                        file:  source.path().to_path_buf(),
+                        range: whole
+                    },
+                    callee:         method.to_owned(),
+                    returns:        String::new(),
+                    receiver:       None,
+                    receiver_path:  None,
+                    caller_decides: false,
+                    reaches:        Some(format!("core::num::{method}")),
                     takes:          None
                 });
             }
