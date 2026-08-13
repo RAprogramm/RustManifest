@@ -14,6 +14,7 @@
               zerocopy-derive are still on syn 2 — not deduplicable from this crate"
 )]
 
+mod manifests;
 pub mod analyzed;
 pub mod ask;
 pub mod check;
