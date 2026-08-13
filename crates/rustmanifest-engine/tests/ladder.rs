@@ -963,7 +963,12 @@ fn calculator_settled() -> rustmanifest_schema::Resolution {
         .typed("right", "i64")
         .typed("value", "i64")
         .typed("result", "i64")
-        .call("args[position].parse::<i64>()", "parse", "Result<i64, ParseIntError>", Some("String"))
+        .converting(
+            "args[position].parse::<i64>()",
+            "parse",
+            "Result<i64, ParseIntError>",
+            Some("String")
+        )
         .call("args[2].as_str()", "as_str", "&str", Some("String"))
         .call("operand(&args, 1)", "operand", "Result<i64, ParseIntError>", None)
         .call("operand(&args, 3)", "operand", "Result<i64, ParseIntError>", None)
