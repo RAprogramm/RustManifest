@@ -524,8 +524,14 @@ mod tests {
             |settling| {
                 settling
                     .typed("self.sink", "File")
+                    .calling("self.sink.sync_all()", "std::fs::File::sync_all", "std::fs::File")
                     .after("fn pump(stream: &mut TcpStream) { ")
                     .typed("stream", "&mut TcpStream")
+                    .calling(
+                        "stream.read(&mut [])",
+                        "std::io::Read::read",
+                        "std::net::tcp::TcpStream"
+                    )
             }
         );
         assert_eq!(named(&all, "Log::flush").effects, vec![Effect::FileSystem]);

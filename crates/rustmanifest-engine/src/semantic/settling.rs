@@ -210,6 +210,35 @@ impl<'text> Settling<'text> {
         self
     }
 
+    /// States the call the compiler settled at `fragment` in full: the
+    /// body it reaches and the type of the receiver it is written on,
+    /// spelled from the crate that declares it.
+    ///
+    /// What a call on a handle touches is decided by where that handle's
+    /// type lives, so a fixture asking about an effect states the path
+    /// and not the bare name.
+    #[must_use]
+    pub fn calling(mut self, fragment: &str, reaches: &str, receiver_path: &str) -> Self {
+        let at = self.located(fragment);
+        self.settled.calls.push(ResolvedCall {
+            at,
+            callee: reaches.rsplit("::").next().unwrap_or(reaches).to_owned(),
+            returns: String::new(),
+            receiver: Some(
+                receiver_path
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(receiver_path)
+                    .to_owned()
+            ),
+            receiver_path: Some(receiver_path.to_owned()),
+            caller_decides: false,
+            reaches: Some(reaches.to_owned()),
+            takes: None
+        });
+        self
+    }
+
     /// States the body the call written at `fragment` reaches, and
     /// nothing else about it.
     ///
