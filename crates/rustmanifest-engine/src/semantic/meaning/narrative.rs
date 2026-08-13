@@ -107,13 +107,13 @@ mod tests {
 
     use super::{Clause, Narrative};
     use crate::{
-        semantic::{meaning::program_meaning, settling::identity_over, workspace::Workspace},
+        semantic::{meaning::program_meaning, workspace::Workspace},
         source::Source
     };
 
     fn statement(text: &str) -> Narrative {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        let settled = identity_over(&sources);
+        let settled = crate::semantic::settling::compiler_over(&sources);
         program_meaning(&Workspace::resolved(&sources, &settled))
             .into_iter()
             .next()
