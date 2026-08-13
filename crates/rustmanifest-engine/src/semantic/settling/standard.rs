@@ -230,6 +230,19 @@ fn settle_allocations(resolution: &mut Resolution, sources: &[Source]) {
             for constructor in CONSTRUCTORS {
                 let spelled = format!("{written}::{constructor}");
                 for at in call_at(text, &spelled) {
+                    resolution.paths.push(ResolvedPath {
+                        at:        Location {
+                            file:  source.path().to_path_buf(),
+                            range: Range {
+                                start: at.start,
+                                end:   at.start
+                                    + u32::try_from(spelled.len()).unwrap_or(u32::MAX)
+                            }
+                        },
+                        names:     format!("{declared}::{constructor}"),
+                        kind:      "function".to_owned(),
+                        declaring: "alloc".to_owned()
+                    });
                     resolution.calls.push(ResolvedCall {
                         at:             Location {
                             file:  source.path().to_path_buf(),
