@@ -35,7 +35,14 @@ impl FactCollector {
     }
 
     /// Records every fact one macro invocation carries.
+    ///
+    /// What the library's own macros do is read from the item each
+    /// invocation reaches; what a dependency's macro carries — a
+    /// statement, and the table it names — is the knowledge pack's own
+    /// answer, keyed by the name that pack exports, and is read whether
+    /// or not a resolver settled the path.
     pub(super) fn collect_macro(&mut self, invocation: &syn::Macro) {
+        self.collect_statement_macro(invocation);
         if let Some(name) = self.reached_macro(invocation) {
             let name = name.as_str();
             if let Some((_, stream, newline)) = OUTPUT_MACROS
@@ -56,18 +63,6 @@ impl FactCollector {
             }
             if self.leaves_from(invocation) {
                 self.facts.flags = self.facts.flags.with_panic();
-            }
-            let tokens = invocation.tokens.to_string();
-            let spelled = invocation
-                .path
-                .segments
-                .last()
-                .map(|segment| segment.ident.to_string())
-                .unwrap_or_default();
-            if let Some(effect) = knowledge::sql_macro_effect(&spelled, &tokens) {
-                self.facts.effects.push(effect);
-                self.record_macro_effect_site(invocation, effect);
-                self.record_statement(invocation, &spelled, &tokens);
             }
             if EXPRESSION_MACROS.contains(&name) {
                 self.visit_macro_arguments(invocation);
@@ -102,6 +97,23 @@ impl FactCollector {
             return false;
         };
         self.leaving.contains(&(start, end))
+    }
+
+    /// Records the statement a dependency's macro carries, where a
+    /// knowledge pack names that macro.
+    fn collect_statement_macro(&mut self, invocation: &syn::Macro) {
+        let tokens = invocation.tokens.to_string();
+        let spelled = invocation
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string())
+            .unwrap_or_default();
+        if let Some(effect) = knowledge::sql_macro_effect(&spelled, &tokens) {
+            self.facts.effects.push(effect);
+            self.record_macro_effect_site(invocation, effect);
+            self.record_statement(invocation, &spelled, &tokens);
+        }
     }
 
     /// Records the site an effect-carrying macro proved its effect at:
