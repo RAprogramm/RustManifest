@@ -642,7 +642,6 @@ struct Named<'a> {
 impl Named<'_> {
     /// Records one name as holding the type written beside it.
     fn record(&mut self, name: &syn::Ident, written: &syn::Type) {
-        use syn::spanned::Spanned as _;
 
         let bytes = name.span().byte_range();
         let rendered = written_rendering(written);
@@ -724,7 +723,6 @@ fn record_signature(
     signature: &syn::Signature,
     owner: Option<&str>
 ) {
-    use syn::spanned::Spanned as _;
 
     let bytes = signature.ident.span().byte_range();
     let mut params = Vec::new();

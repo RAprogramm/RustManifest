@@ -207,8 +207,10 @@ mod tests {
 
     fn found(text: &str) -> usize {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let _graph = TypeGraph::from_sources(&sources);
-        insights(&Workspace::resolved(&sources, &crate::semantic::settling::compiler_over(&sources))).len()
+        let mut settled = crate::semantic::settling::compiler_over(&sources);
+        settled.layouts = weighed().layouts;
+        settled.settle();
+        insights(&Workspace::resolved(&sources, &settled)).len()
     }
 
     /// The sizes a compiler states for the primitives and headers these

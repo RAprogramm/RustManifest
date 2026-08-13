@@ -15,7 +15,7 @@ mod types;
 use std::{io::Write, process::ExitCode};
 
 use anyhow::Context;
-use rustmanifest_engine::{TypeGraph, module_overview, walker};
+use rustmanifest_engine::{module_overview, walker};
 
 pub use self::options::{DiagramFormat, GraphArgs, GraphKind};
 use self::{modules::module_lines, types::type_lines};
