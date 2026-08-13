@@ -292,11 +292,13 @@ fn settle_guards(resolution: &mut Resolution, sources: &[Source]) {
             let Some(whole) = written_call(text, start + ".lock".len()) else {
                 continue;
             };
+            let held = text.get(whole.start as usize..start).unwrap_or_default();
             let Some(handle) = handle_of(
                 resolution,
                 &file,
                 u32::try_from(start).unwrap_or(u32::MAX)
-            ) else {
+            )
+            .or_else(|| named_handle(resolution, &file, text, held.trim())) else {
                 continue;
             };
             let Some((_, guard)) = GUARDS.iter().find(|(named, _)| *named == handle) else {
@@ -318,6 +320,29 @@ fn settle_guards(resolution: &mut Resolution, sources: &[Source]) {
             });
         }
     }
+}
+
+/// The handle a written name holds, as this settler stated it at the
+/// binding: a name written in one statement and locked in the next
+/// stands at two positions and is one binding.
+fn named_handle(
+    resolution: &Resolution,
+    file: &std::path::Path,
+    text: &str,
+    written: &str
+) -> Option<String> {
+    if written.is_empty() || !written.chars().all(|letter| letter.is_alphanumeric() || letter == '_')
+    {
+        return None;
+    }
+    resolution
+        .types
+        .iter()
+        .filter(|row| row.at.file == file && row.declared.is_some())
+        .find(|row| {
+            text.get(row.at.range.start as usize..row.at.range.end as usize) == Some(written)
+        })
+        .and_then(|row| row.declared.clone())
 }
 
 /// The handle a locking call is written on, as this settler already
