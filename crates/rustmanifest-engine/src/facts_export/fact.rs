@@ -141,6 +141,8 @@ mod tests {
                 produced: produced.to_owned()
             });
         }
+        crate::semantic::settling::settle_declared(&mut held, &wallet_sources());
+        crate::semantic::settling::settle_standard_macros(&mut held, &wallet_sources());
         held.settle();
         held
     }
