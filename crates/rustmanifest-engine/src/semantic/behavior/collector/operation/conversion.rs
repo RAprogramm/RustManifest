@@ -23,11 +23,11 @@ impl FactCollector {
     /// Records the conversion a library method performs, where a
     /// knowledge row states that the caller decides what it produces.
     ///
-    /// The target is read where the source writes it: as the call's own
-    /// type argument first, and nowhere else. A target the source leaves
-    /// to a later use is stated as unidentified — reading it off the type
-    /// a consumer declares would name a different fact, one about the
-    /// consumer.
+    /// The target is the type the compiler settled for the call. A
+    /// position it left unsettled is stated as unidentified — the call's
+    /// written type argument named the spelling somebody reached the type
+    /// by, which an alias or a renaming import makes a different name for
+    /// the same answer.
     pub(super) fn record_conversion(
         &mut self,
         call: &syn::ExprMethodCall,
@@ -46,7 +46,7 @@ impl FactCollector {
         if !converts(&row) {
             return false;
         }
-        let target = written_target(call);
+        let target = self.settled_type_over(&call.span().byte_range());
         let guarding = match row.outcome {
             Outcome::Total => Guarding::Unchecked,
             Outcome::Fallible => Guarding::Reported,
@@ -65,16 +65,4 @@ impl FactCollector {
         }
         true
     }
-}
-
-/// The type a call's own type argument names, where the source writes
-/// one.
-fn written_target(call: &syn::ExprMethodCall) -> Option<String> {
-    let arguments = call.turbofish.as_ref()?;
-    arguments.args.iter().find_map(|argument| match argument {
-        syn::GenericArgument::Type(written) => {
-            crate::semantic::behavior::signature::type_last_segment(written)
-        }
-        _ => None
-    })
 }

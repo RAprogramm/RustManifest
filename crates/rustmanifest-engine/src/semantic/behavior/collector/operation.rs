@@ -395,13 +395,17 @@ impl FactCollector {
         );
     }
 
-    /// Records the conversion a written cast performs, whose target the
-    /// source writes outright.
+    /// Records the conversion a written cast performs, whose target is
+    /// the type the compiler settled for the cast itself.
+    ///
+    /// The written target names what the source spelled; through an alias
+    /// or an import that renames it, that spelling and the type reached
+    /// are two different things, and only the second is the conversion.
     pub(super) fn record_cast(&mut self, cast: &syn::ExprCast) {
         use syn::spanned::Spanned;
 
         let operand = self.origin_of(&cast.expr);
-        let target = crate::semantic::behavior::signature::type_last_segment(&cast.ty);
+        let target = self.settled_type_over(&cast.span().byte_range());
         let index = self.push_operation(
             &cast.span().byte_range(),
             Operation::Conversion(Conversion {
