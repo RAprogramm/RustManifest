@@ -165,7 +165,11 @@ fn publish(
     text: &str
 ) -> anyhow::Result<()> {
     let path = std::path::PathBuf::from(uri.path().as_str());
-    let mut diagnostics = analysis.diagnostics(path.clone(), text);
+    let mut diagnostics = analysis.diagnostics(
+        path.clone(),
+        text,
+        derived.and_then(|held| held.settled)
+    );
     if let Some(held) = derived {
         diagnostics.extend(intent::diagnostics(held, &path));
         diagnostics.extend(invariant::diagnostics(held, root, &path));

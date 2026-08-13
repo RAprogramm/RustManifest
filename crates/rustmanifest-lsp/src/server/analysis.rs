@@ -54,7 +54,17 @@ impl Analysis {
     }
 
     /// The findings of one document text, fixes included.
-    pub(super) fn findings(&self, path: PathBuf, text: &str) -> Vec<rustmanifest_schema::Finding> {
+    ///
+    /// The semantic tier answers from what a compiler settled, so the
+    /// resolution the session holds is handed to it: without one every
+    /// such reading refuses, and the editor would show a quieter file
+    /// than the same run on the command line.
+    pub(super) fn findings(
+        &self,
+        path: PathBuf,
+        text: &str,
+        settled: Option<&rustmanifest_schema::Resolution>
+    ) -> Vec<rustmanifest_schema::Finding> {
         let source = Source::new(path, text.to_owned());
         let mut findings: Vec<rustmanifest_schema::Finding> = self
             .tiered
@@ -63,7 +73,10 @@ impl Analysis {
             .flat_map(|analyzer| analyzer.analyze(&source))
             .collect();
         let held = [source];
-        let workspace = rustmanifest_engine::Workspace::new(&held);
+        let workspace = settled.map_or_else(
+            || rustmanifest_engine::Workspace::new(&held),
+            |settled| rustmanifest_engine::Workspace::resolved(&held, settled)
+        );
         findings.extend(rustmanifest_engine::semantic_findings(
             &self.semantic,
             &workspace
@@ -72,9 +85,14 @@ impl Analysis {
     }
 
     /// The diagnostics of one document text.
-    pub(super) fn diagnostics(&self, path: PathBuf, text: &str) -> Vec<Diagnostic> {
+    pub(super) fn diagnostics(
+        &self,
+        path: PathBuf,
+        text: &str,
+        settled: Option<&rustmanifest_schema::Resolution>
+    ) -> Vec<Diagnostic> {
         let index = LineIndex::new(text);
-        self.findings(path, text)
+        self.findings(path, text, settled)
             .into_iter()
             .map(|finding| Diagnostic {
                 range: lsp_types::Range {

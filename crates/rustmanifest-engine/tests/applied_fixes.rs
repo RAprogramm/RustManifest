@@ -224,3 +224,4 @@ fn every_fulfilled_intent_survives_the_compiler() {
         }
     }
 }
+

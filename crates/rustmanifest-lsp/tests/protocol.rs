@@ -198,6 +198,24 @@ impl Settled {
 
     /// States the full path of the body whose name is written as `fn
     /// <named>`.
+    /// Adds everything a compiler settles about this fixture: the types
+    /// it declares, the standard bodies it reaches, and the signature of
+    /// every function it writes.
+    fn compiling(mut self, file: &str) -> Self {
+        let sources = [rustmanifest_engine::Source::new(
+            std::path::PathBuf::from(file),
+            self.text.clone()
+        )];
+        let held = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        self.held.declared.extend(held.declared);
+        self.held.grants.extend(held.grants);
+        self.held.signatures.extend(held.signatures);
+        self.held.calls.extend(held.calls);
+        self.held.types.extend(held.types);
+        self.held.paths.extend(held.paths);
+        self
+    }
+
     /// Adds what a compiler settles about the standard macros and
     /// container constructors this fixture writes.
     fn standard(mut self, file: &str) -> Self {
@@ -962,10 +980,8 @@ const FIXABLE: &str = "struct Report { total: u64 }\nfn summarize(report: Report
 #[test]
 fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
     let bed = Settled::over("src/lib.rs", FIXABLE)
-        .shaping("Report", &[("total", "u64")])
         .field("report.total", "Report", "u64")
-        .typed("report", "Report")
-        .signing("summarize", &[("report", "Report")], "u64")
+        .compiling("src/lib.rs")
         .beside(&[("src/lib.rs", FIXABLE)]);
     let (server, client) = Connection::memory();
     let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
@@ -1005,16 +1021,18 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
             })
         )))
         .unwrap();
-    let Message::Notification(published) = client.receiver.recv().unwrap() else {
-        panic!("the first message after an open must be the diagnostics");
+    let diagnostics = loop {
+        let Message::Notification(published) = client.receiver.recv().unwrap() else {
+            panic!("a diagnostics notification must follow an open");
+        };
+        let held = published.params["diagnostics"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        if held.iter().any(|entry| entry["code"] == "RM-MEM-001") {
+            break held;
+        }
     };
-    let diagnostics = published.params["diagnostics"].as_array().unwrap().clone();
-    assert!(
-        diagnostics
-            .iter()
-            .any(|entry| entry["code"] == "RM-MEM-001"),
-        "{diagnostics:?}"
-    );
     client
         .sender
         .send(Message::Request(Request::new(
@@ -1540,3 +1558,4 @@ fn a_stopped_deduction_reaches_the_client_with_its_refusal() {
     assert_eq!(held["panics"], serde_json::Value::Null, "{held}");
     closed(client, handle);
 }
+
