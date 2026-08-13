@@ -91,12 +91,6 @@ impl FactCollector {
         if self.settled_item(path) {
             return Provenance::Constant(written_path(path));
         }
-        if let Some(named) = self.declared_path(path) {
-            return Provenance::Constant(named);
-        }
-        if let Some(named) = self.function_path(path) {
-            return Provenance::Constant(named);
-        }
         if let Some(name) = path.get_ident() {
             return self.named_origin(&name.to_string());
         }
@@ -121,41 +115,6 @@ impl FactCollector {
         self.items
             .get(&(start, end))
             .is_some_and(|kind| VALUE_ITEMS.contains(&kind.as_str()))
-    }
-
-    /// A path of several segments written where a value is expected names
-    /// an item and never a binding, because a binding has one segment.
-    /// Which item it is — a constant, a variant carrying nothing, a
-    /// static, a function — the reading does not need to settle to state
-    /// that the value is the one that path names. What it holds is fixed
-    /// where the item is declared, exactly as for a field.
-    ///
-    /// The name a written path stands for, where the workspace declares
-    /// it as a value: a constant, a static, or a variant carrying
-    /// nothing.
-    ///
-    /// The qualified spelling is asked first, so a bare name two
-    /// declarations share answers for neither rather than for the nearest
-    /// one.
-    fn declared_path(&self, path: &syn::Path) -> Option<String> {
-        let segments: Vec<String> = path
-            .segments
-            .iter()
-            .map(|segment| segment.ident.to_string())
-            .collect();
-        let written = segments.join("::");
-        if let [.., owner, named] = segments.as_slice()
-            && self
-                .declared
-                .resolve(&format!("{owner}.{named}"), self.src, &self.crates)
-                .is_some()
-        {
-            return Some(written);
-        }
-        let named = segments.last()?;
-        self.declared
-            .resolve(named, self.src, &self.crates)
-            .map(|()| written)
     }
 
     /// The value a propagating operator leaves standing where it does not
@@ -212,37 +171,6 @@ impl FactCollector {
             return self.origin_of(last);
         }
         Provenance::Written(Literal::Unit)
-    }
-
-    /// The name a written path stands for, where the workspace declares
-    /// a function under it.
-    ///
-    /// A function written without being called is a value: it is handed
-    /// to an adapter, stored, or passed on, and which function it is, is
-    /// exactly what the path says. Only paths the return table answers
-    /// for are read this way, so a name the workspace never declares
-    /// stays the refusal it was.
-    fn function_path(&self, path: &syn::Path) -> Option<String> {
-        let segments: Vec<String> = path
-            .segments
-            .iter()
-            .map(|segment| segment.ident.to_string())
-            .collect();
-        let written = segments.join("::");
-        let qualified = match segments.as_slice() {
-            [.., owner, named] => Some(format!("{owner}::{named}")),
-            _ => None
-        };
-        if qualified
-            .as_deref()
-            .is_some_and(|key| self.ret(key).is_some())
-        {
-            return Some(written);
-        }
-        let [only] = segments.as_slice() else {
-            return None;
-        };
-        self.ret(only).map(|_| written)
     }
 
     /// The field a value is read out of, where the tables name the type

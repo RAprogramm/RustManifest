@@ -20,41 +20,36 @@ use std::{
 
 use cargo_metadata::MetadataCommand;
 
-/// Every workspace root reachable from `paths`, deepest first, so a
-/// nested workspace is asked about before the tree that contains it.
+/// Every manifest reachable from `paths`, in one order whatever the
+/// filesystem hands back.
+///
+/// The walk is the one the rest of the tool already walks with, so a
+/// hidden directory, a build output and an ignored path are skipped by the
+/// same rules here as everywhere else — a second recursion with its own
+/// idea of what to skip would disagree with the first the day one of them
+/// learned something.
 #[must_use]
 pub fn manifest_files(paths: &[PathBuf]) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    for path in paths {
-        walk(path, &mut files);
+    let mut roots = paths.iter();
+    let Some(first) = roots.next() else {
+        return Vec::new();
+    };
+    let mut builder = ignore::WalkBuilder::new(first);
+    for root in roots {
+        builder.add(root);
     }
+    builder.standard_filters(true).hidden(true).filter_entry(|entry| {
+        entry.file_name().to_str().is_none_or(|name| name != "target")
+    });
+    let mut files: Vec<PathBuf> = builder
+        .build()
+        .filter_map(Result::ok)
+        .map(ignore::DirEntry::into_path)
+        .filter(|path| path.file_name().is_some_and(|name| name == "Cargo.toml"))
+        .collect();
     files.sort();
     files.dedup();
     files
-}
-
-/// Recursive step of [`manifest_files`].
-fn walk(dir: &Path, files: &mut Vec<PathBuf>) {
-    let manifest = dir.join("Cargo.toml");
-    if manifest.is_file() {
-        files.push(manifest);
-    }
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() && !skipped_dir(&path) {
-            walk(&path, files);
-        }
-    }
-}
-
-/// Returns whether a directory is hidden or a build-output directory.
-fn skipped_dir(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .is_none_or(|name| name.starts_with('.') || name == "target")
 }
 
 /// Every crate name cargo reports around `manifest`, in the spelling a

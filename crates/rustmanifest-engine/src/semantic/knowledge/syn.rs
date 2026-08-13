@@ -22,39 +22,6 @@ use super::CrateKnowledge;
 /// What the engine knows about `syn`.
 pub(super) const PACK: CrateKnowledge = CrateKnowledge {
     name:           "syn",
-    constructors:   &[],
-    method_returns: &[],
-    fields:         &[
-        ("ItemFn", "sig", "Signature"),
-        ("ItemFn", "block", "Block"),
-        ("ItemFn", "vis", "Visibility"),
-        ("ImplItemFn", "sig", "Signature"),
-        ("TraitItemFn", "sig", "Signature"),
-        ("Signature", "ident", "Ident"),
-        ("ItemStruct", "ident", "Ident"),
-        ("ItemEnum", "ident", "Ident"),
-        ("ItemImpl", "self_ty", "Type"),
-        ("ExprMethodCall", "receiver", "Expr"),
-        ("ExprMethodCall", "method", "Ident"),
-        ("ExprCall", "func", "Expr")
-    ],
-    field_elements: &[
-        ("ItemFn", "attrs", "Attribute"),
-        ("ItemStruct", "attrs", "Attribute"),
-        ("ItemEnum", "attrs", "Attribute"),
-        ("ItemMod", "attrs", "Attribute"),
-        ("ItemImpl", "attrs", "Attribute"),
-        ("ItemImpl", "items", "ImplItem"),
-        ("ItemTrait", "items", "TraitItem"),
-        ("Block", "stmts", "Stmt"),
-        ("ItemStruct", "fields", "Field"),
-        ("ItemEnum", "variants", "Variant"),
-        ("Signature", "inputs", "FnArg"),
-        ("ExprMethodCall", "args", "Expr"),
-        ("ExprCall", "args", "Expr"),
-        ("File", "items", "Item")
-    ],
-    iterated:       &[],
     method_effects: &[],
     crate_effect:   None
 };

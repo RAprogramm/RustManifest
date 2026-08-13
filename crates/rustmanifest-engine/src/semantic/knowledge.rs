@@ -30,27 +30,6 @@ use super::behavior::Effect;
 pub(super) struct CrateKnowledge {
     /// Crate name as it appears in call paths.
     pub name:           &'static str,
-    /// Constructor call names with the concrete type each produces;
-    /// `Result`/`Option` wrappers already unwrapped, since these are
-    /// consumed behind `unwrap`/`?`.
-    pub constructors:   &'static [(&'static str, &'static str)],
-    /// `(type, method, returned type)` rows typing the crate's builder
-    /// and accessor chains, wrappers unwrapped the same way.
-    pub method_returns: &'static [(&'static str, &'static str, &'static str)],
-    /// `(type, field, field type)` rows for the fields a crate's own
-    /// structures write, so a value read off one is typed like any
-    /// other.
-    pub fields:         &'static [(&'static str, &'static str, &'static str)],
-    /// `(type, field, element)` rows for the fields that hold a
-    /// sequence, naming what one step of it carries — the loop written
-    /// over such a field binds that.
-    pub field_elements: &'static [(&'static str, &'static str, &'static str)],
-    /// `(type, method, element)` rows for the methods that hand back a
-    /// sequence, naming what one step of it carries. A wrapper the
-    /// sequence puts around each step is already unwrapped, the way the
-    /// return rows unwrap theirs, because the written loop consumes it
-    /// on the spot.
-    pub iterated:       &'static [(&'static str, &'static str, &'static str)],
     /// `(type, method, effect)` rows for the calls that actually
     /// perform the effect.
     pub method_effects: &'static [(&'static str, &'static str, Effect)],
@@ -68,50 +47,7 @@ const PACKS: [&CrateKnowledge; 5] = [
     &tokio::PACK
 ];
 
-/// Looks up the type produced by a known external constructor call.
-pub(super) fn constructor_type(name: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.constructors)
-        .find(|(constructor, _)| *constructor == name)
-        .map(|(_, produced)| *produced)
-}
 
-/// Looks up the return type of a pack-known method on a pack-known type.
-pub(super) fn method_return(owner: &str, method: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.method_returns)
-        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
-        .map(|(_, _, returned)| *returned)
-}
-
-/// Looks up the type of a field a pack knows.
-pub(super) fn field_type(owner: &str, field: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.fields)
-        .find(|(known_owner, known_field, _)| *known_owner == owner && *known_field == field)
-        .map(|(_, _, held)| *held)
-}
-
-/// Looks up what one step of a pack-known sequence field carries.
-pub(super) fn field_element(owner: &str, field: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.field_elements)
-        .find(|(known_owner, known_field, _)| *known_owner == owner && *known_field == field)
-        .map(|(_, _, element)| *element)
-}
-
-/// Looks up what one step of a pack-known sequence carries.
-pub(super) fn iterated_element(owner: &str, method: &str) -> Option<&'static str> {
-    PACKS
-        .iter()
-        .flat_map(|pack| pack.iterated)
-        .find(|(known_owner, known_method, _)| *known_owner == owner && *known_method == method)
-        .map(|(_, _, element)| *element)
-}
 
 /// Looks up the effect performed by a pack-known method call.
 pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
@@ -218,30 +154,8 @@ pub(super) fn crate_effect(first_segment: &str) -> Option<Effect> {
 )]
 mod tests {
     use super::{
-        super::behavior::Effect, constructor_type, crate_effect, method_effect, method_return
+        super::behavior::Effect, crate_effect, method_effect
     };
-
-    #[test]
-    fn constructors_resolve_to_their_produced_types() {
-        assert_eq!(constructor_type("tempdir"), Some("TempDir"));
-        assert_eq!(super::field_type("ItemFn", "sig"), Some("Signature"));
-        assert_eq!(super::field_element("ItemFn", "attrs"), Some("Attribute"));
-        assert_eq!(constructor_type("unknown_fn"), None);
-    }
-
-    #[test]
-    fn builder_chains_type_through_method_returns() {
-        assert_eq!(method_return("Client", "get"), Some("RequestBuilder"));
-        assert_eq!(method_return("RequestBuilder", "send"), Some("Response"));
-        assert_eq!(
-            method_return("TempDir", "path"),
-            Some("Path"),
-            "a bed hands back a path, and every call written on it is typed by that"
-        );
-        assert_eq!(method_return("Command", "arg"), Some("Command"));
-        assert_eq!(method_return("Command", "spawn"), Some("Child"));
-        assert_eq!(method_return("Child", "wait"), Some("ExitStatus"));
-    }
 
     #[test]
     fn only_performing_methods_carry_effects() {

@@ -13,10 +13,6 @@ pub(super) struct ItemContext<'name> {
     pub(super) impl_type: Option<&'name str>,
     /// Declaration flags of the item.
     pub(super) flags:     FunctionFlags,
-    /// Impl-block generic parameters to their first trait bound, so a
-    /// generic-typed field resolves as its bound inside the block's
-    /// methods.
-    pub(super) bounds:    std::collections::BTreeMap<String, String>
 }
 
 /// Packs declaration flags from the trait context, attributes, and

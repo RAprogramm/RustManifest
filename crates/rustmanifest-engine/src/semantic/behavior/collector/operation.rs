@@ -152,6 +152,24 @@ impl FactCollector {
         }
     }
 
+    /// Records every closure input written beside an adapter as one
+    /// element of what the adapter runs over.
+    pub(super) fn record_adapter_elements(
+        &mut self,
+        call: &syn::ExprMethodCall,
+        span: &std::ops::Range<usize>
+    ) {
+        for argument in &call.args {
+            let syn::Expr::Closure(closure) = argument else {
+                continue;
+            };
+            let [only] = closure.inputs.iter().collect::<Vec<_>>()[..] else {
+                continue;
+            };
+            self.record_iterated_element(only, &call.receiver, span);
+        }
+    }
+
     /// The failure half of a value, recorded as the selection that takes
     /// it: position one of a fallible answer, the same position a
     /// pattern writing `Err` takes.

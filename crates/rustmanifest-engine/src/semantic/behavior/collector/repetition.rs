@@ -15,7 +15,7 @@ impl FactCollector {
     pub(super) fn collect_for_loop(&mut self, loop_expr: &syn::ExprForLoop) {
         use syn::spanned::Spanned;
 
-        self.bind_element(&loop_expr.pat, &loop_expr.expr);
+        self.bind_pattern(&loop_expr.pat);
         self.visit_expr(&loop_expr.expr);
         let body = self.flow_scope().block_flow(&loop_expr.body);
         let multiplicity = body_multiplicity(&body, loop_expr.label.as_ref());

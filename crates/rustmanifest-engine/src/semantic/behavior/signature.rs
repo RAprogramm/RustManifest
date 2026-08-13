@@ -21,10 +21,9 @@ mod type_name;
 mod wrapper;
 
 pub(super) use self::{
-    bound::generics_bounds,
     element::{element_type, pair_types},
     error_type::error_types,
-    parameter::{param_facts, parameter_elements, parameter_pairs, parameter_types},
+    parameter::{param_facts, parameter_types},
     slot::param_slots,
     type_name::type_last_segment,
     wrapper::wrapped_type

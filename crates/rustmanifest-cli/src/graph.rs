@@ -29,7 +29,10 @@ pub(crate) fn run_graph(args: &GraphArgs) -> anyhow::Result<ExitCode> {
         &files,
         rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
-    let settled = crate::resolution(args.resolution.as_deref())?;
+    let settled = crate::resolution(
+            args.resolution.as_deref(),
+            args.paths.first().map_or(std::path::Path::new("."), std::path::PathBuf::as_path)
+        )?;
     let workspace = settled.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
         |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution)

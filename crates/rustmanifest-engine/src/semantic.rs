@@ -55,6 +55,8 @@ mod rename_op;
 mod role;
 mod scip;
 mod settled;
+#[cfg(test)]
+mod settling;
 mod std_derive;
 mod std_knowledge;
 mod summary;

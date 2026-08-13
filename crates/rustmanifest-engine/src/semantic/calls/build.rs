@@ -13,9 +13,8 @@ use super::{
     graph::CallGraph,
     overlay::apply_overlay,
     reach::linkable,
-    rows::{RefusalRow, refusal_row},
-    scope::Scopes,
-    tables::{name_tables, named as named_of}
+    rows::RefusalRow,
+    tables::name_tables
 };
 use crate::semantic::behavior::FunctionFacts;
 
@@ -81,18 +80,6 @@ pub fn call_graph_rows_with(
     let mut rows: Vec<Vec<(String, RefusalRow)>> = vec![Vec::new(); facts.len()];
     let graph = built(facts, context, overlay, Some(&mut rows));
     (graph, rows)
-}
-
-/// Every workspace body by the owner its written name carries.
-fn owners_of(facts: &[FunctionFacts]) -> std::collections::BTreeMap<&str, Vec<usize>> {
-    let mut owners: std::collections::BTreeMap<&str, Vec<usize>> =
-        std::collections::BTreeMap::new();
-    for (at, fact) in facts.iter().enumerate() {
-        if let Some((owner, _)) = fact.function.rsplit_once("::") {
-            owners.entry(owner).or_default().push(at);
-        }
-    }
-    owners
 }
 
 /// Books a candidate a resolver already settled, and answers whether it
@@ -202,14 +189,12 @@ fn built(
     overlay: Option<&[Vec<usize>]>,
     mut rows: Option<&mut Vec<Vec<(String, RefusalRow)>>>
 ) -> CallGraph {
-    let module_segments = &context.segments;
     let tables = name_tables(facts);
-    let workspace_owners = owners_of(facts);
     let bodies = declared_bodies(facts, context);
     let mut edges: Vec<Vec<usize>> = vec![Vec::new(); facts.len()];
     let mut tallies = Tallies::default();
     let mut possibilistic: BTreeSet<(usize, usize)> = BTreeSet::new();
-    let mut settled: BTreeSet<(usize, usize)> = BTreeSet::new();
+    let settled: BTreeSet<(usize, usize)> = BTreeSet::new();
     let (by_identity, outside) = bound_by_identity(facts, context, &bodies, &mut edges);
     for (index, fact) in facts.iter().enumerate() {
         for candidate in &fact.calls {
@@ -221,46 +206,12 @@ fn built(
             ) {
                 continue;
             }
-            let named = named_of(candidate, &tables, module_segments);
-            let matches = named
-                .as_ref()
-                .map(|indices| linkable(context, facts, index, indices));
-            if let Some([only]) = matches.as_deref() {
-                tallies.resolved += 1;
-                if !edges[index].contains(only) {
-                    edges[index].push(*only);
-                }
-                continue;
-            }
-            if let Some(only) =
-                scoped_home(facts, &context.scopes, index, candidate, matches.as_deref())
-            {
-                tallies.resolved += 1;
-                if !edges[index].contains(&only) {
-                    edges[index].push(only);
-                }
-                continue;
-            }
-            if let (Some(found), Some(over)) = (matches.as_deref(), overlay)
-                && found.len() > 1
-                && let Some(listed) = over.get(index)
-            {
-                let mut confirmed = found.iter().copied().filter(|held| listed.contains(held));
-                if let (Some(only), None) = (confirmed.next(), confirmed.next()) {
-                    tallies.resolved += 1;
-                    settled.insert((index, only));
-                    if !edges[index].contains(&only) {
-                        edges[index].push(only);
-                    }
-                    continue;
-                }
-            }
-            let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(o, m)| {
+            let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(owner, method)| {
                 linkable(
                     context,
                     facts,
                     index,
-                    &dispatch_targets(o, m, context, &tables.0)
+                    &dispatch_targets(owner, method, context, &tables.0)
                 )
             });
             if !targets.is_empty() {
@@ -276,20 +227,9 @@ fn built(
                 tallies.resolved += 1;
                 continue;
             }
-            let row = refusal_row(
-                candidate,
-                named.is_some(),
-                matches.as_deref(),
-                &|owner| {
-                    workspace_owners.get(owner).is_some_and(|declared| {
-                        !linkable(context, facts, index, declared).is_empty()
-                    })
-                },
-                context
-            );
-            tallies.book(row);
+            tallies.book(RefusalRow::Unsettled);
             if let Some(collected) = rows.as_deref_mut() {
-                collected[index].push((candidate.clone(), row));
+                collected[index].push((candidate.clone(), RefusalRow::Unsettled));
             }
         }
         edges[index].sort_unstable();
@@ -300,49 +240,6 @@ fn built(
         })
     });
     tallies.graph(edges, indexed, settled, possibilistic)
-}
-
-/// The one definition an unqualified call means by Rust's own scoping,
-/// where several workspace functions carry the name: the language
-/// resolves an unqualified path in the calling scope before looking
-/// wider, so the single definition standing in the caller's own scope
-/// is the meant one and not a pick between siblings.
-///
-/// Two conditions hold it to what the sources prove. The candidate must
-/// be written bare — a qualifier names its own scope, and a receiver's
-/// method is chosen by type, not by module. And the caller's scope must
-/// hold exactly one of the matches, scope meaning the innermost inline
-/// module rather than the file: a file's test module and its top level
-/// are two scopes, and a call in one of them does not reach a namesake
-/// in the other. Nothing here consults the imports, because nothing
-/// needs to: an item declared in the calling scope cannot be shadowed —
-/// a same-named explicit import in that scope does not compile, and a
-/// globbed one loses to the declaration.
-fn scoped_home(
-    facts: &[FunctionFacts],
-    scopes: &Scopes,
-    caller: usize,
-    candidate: &str,
-    matches: Option<&[usize]>
-) -> Option<usize> {
-    if candidate.contains("::") {
-        return None;
-    }
-    let found = matches?;
-    if found.len() < 2 {
-        return None;
-    }
-    let calling = facts.get(caller)?;
-    let mut housed = found.iter().copied().filter(|held| {
-        facts.get(*held).is_some_and(|fact| {
-            fact.source == calling.source
-                && scopes.shared(fact.source, fact.range.start, calling.range.start)
-        })
-    });
-    match (housed.next(), housed.next()) {
-        (Some(only), None) => Some(only),
-        _ => None
-    }
 }
 
 /// The resolution tallies while the graph is under construction.
@@ -366,7 +263,9 @@ struct Tallies {
     /// not functions called.
     constructions:     u64,
     /// Candidates whose member the owner carries without a written body.
-    granted:           u64
+    granted:           u64,
+    /// Candidates no resolver settled a reached body for.
+    unsettled:         u64
 }
 
 impl Tallies {
@@ -381,6 +280,7 @@ impl Tallies {
             RefusalRow::Ambiguous => self.ambiguous += 1,
             RefusalRow::OwnerWithoutMember => self.owned_unmatched += 1,
             RefusalRow::GrantedWithoutBody => self.granted += 1,
+            RefusalRow::Unsettled => self.unsettled += 1,
             RefusalRow::Construction => self.constructions += 1
         }
     }

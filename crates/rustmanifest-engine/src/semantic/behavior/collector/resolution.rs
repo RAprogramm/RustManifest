@@ -19,11 +19,6 @@ impl FactCollector {
         self.field_types.resolve(key, self.src, &self.crates)
     }
 
-    /// Resolves a field element-type key for this function's scope.
-    pub(super) fn elem(&self, key: &str) -> Option<&String> {
-        self.field_elems.resolve(key, self.src, &self.crates)
-    }
-
     /// Resolves a wrapper inner-type key for this function's scope.
     pub(super) fn wrap(&self, key: &str) -> Option<&String> {
         self.field_wraps.resolve(key, self.src, &self.crates)

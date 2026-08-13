@@ -20,7 +20,7 @@ impl FactCollector {
         span: &std::ops::Range<usize>
     ) {
         syn::visit::visit_expr(self, &call.receiver);
-        self.bind_adapter_inputs(call, span);
+        self.record_adapter_elements(call, span);
         for argument in &call.args {
             syn::visit::visit_expr(self, argument);
         }

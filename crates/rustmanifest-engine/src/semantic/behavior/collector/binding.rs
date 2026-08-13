@@ -8,7 +8,7 @@
 //! whether the value it holds was constructed in this body.
 
 use super::{FactCollector, typing::initializer_type};
-use crate::semantic::behavior::signature::{element_type, pair_types, type_last_segment};
+use crate::semantic::behavior::signature::type_last_segment;
 
 impl FactCollector {
     /// Types every name a destructuring `let` binds from a call that
@@ -49,12 +49,6 @@ impl FactCollector {
                         self.param_types
                             .insert(pattern.ident.to_string(), type_name);
                     }
-                    if let Some(element) = element_type(&typed.ty) {
-                        self.elem_types.insert(pattern.ident.to_string(), element);
-                    }
-                    if let Some(pair) = pair_types(&typed.ty) {
-                        self.local_pairs.insert(pattern.ident.to_string(), pair);
-                    }
                     Some(pattern.ident.to_string())
                 } else {
                     None
@@ -90,14 +84,6 @@ impl FactCollector {
                     .or_else(|| self.called_return(&init.expr))
                     .or_else(|| self.opened_of(&init.expr))
             });
-            if let Some(element) = init
-                .as_ref()
-                .and_then(|init| self.call_key(&init.expr))
-                .and_then(|key| self.ret(&key))
-                .and_then(|returned| returned.element.clone())
-            {
-                self.elem_types.insert(name.clone(), element);
-            }
             match constructed {
                 Some(type_name) => {
                     self.param_types.insert(name.clone(), type_name);

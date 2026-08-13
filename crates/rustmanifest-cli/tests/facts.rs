@@ -20,9 +20,20 @@ fn rustmanifest() -> Command {
     Command::cargo_bin("rustmanifest").unwrap()
 }
 
+/// The wallet crate, with what the compiler settles about it written
+/// beside it.
+///
+/// A fact about a field names the type holding it, and which type that is
+/// is the compiler's answer. The tree is a cargo crate so the resolver can
+/// read it, and the run is handed what it wrote.
 fn wallet_tree() -> TempDir {
     let dir = TempDir::new().unwrap();
     fs::create_dir_all(dir.path().join("src")).unwrap();
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"wallet\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\n"
+    )
+    .unwrap();
     fs::write(
         dir.path().join("src/lib.rs"),
         "pub struct Wallet { pub balance: i64 }\nimpl Wallet {\n    pub fn credit(&mut self, \
@@ -30,14 +41,23 @@ fn wallet_tree() -> TempDir {
          Ok(())\n    }\n    pub fn balance(&self) -> i64 { self.balance }\n}\n"
     )
     .unwrap();
+    Command::cargo_bin("rustmanifest-resolve")
+        .unwrap()
+        .arg(dir.path())
+        .arg(dir.path().join("resolution.json"))
+        .assert()
+        .success();
     dir
 }
 
 #[test]
 fn facts_report_writes_reads_and_error_types() {
+    let tree = wallet_tree();
     rustmanifest()
         .arg("facts")
-        .arg(wallet_tree().path())
+        .arg("--resolution")
+        .arg(tree.path().join("resolution.json"))
+        .arg(tree.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("\"function\": \"Wallet::credit\""))

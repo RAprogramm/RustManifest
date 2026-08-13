@@ -15,26 +15,6 @@ use super::{super::behavior::Effect, CrateKnowledge};
 /// What the engine knows about `tokio`.
 pub(super) const PACK: CrateKnowledge = CrateKnowledge {
     name:           "tokio",
-    constructors:   &[],
-    method_returns: &[
-        ("Child", "wait", "ExitStatus"),
-        ("Child", "wait_with_output", "Output"),
-        ("Command", "arg", "Command"),
-        ("Command", "args", "Command"),
-        ("Command", "current_dir", "Command"),
-        ("Command", "env", "Command"),
-        ("Command", "envs", "Command"),
-        ("Command", "kill_on_drop", "Command"),
-        ("Command", "output", "Output"),
-        ("Command", "spawn", "Child"),
-        ("Command", "status", "ExitStatus"),
-        ("Command", "stderr", "Command"),
-        ("Command", "stdin", "Command"),
-        ("Command", "stdout", "Command")
-    ],
-    fields:         &[],
-    field_elements: &[],
-    iterated:       &[],
     method_effects: &[
         ("Child", "kill", Effect::Process),
         ("Child", "start_kill", Effect::Process),

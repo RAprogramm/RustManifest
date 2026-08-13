@@ -8,7 +8,6 @@
 use super::{
     declaration::{ItemContext, item_flags},
     extraction::{Known, function_facts},
-    signature::generics_bounds,
     types::FunctionFacts
 };
 
@@ -21,7 +20,6 @@ pub(super) fn trait_default_facts(
 ) -> Vec<FunctionFacts> {
     let trait_name = definition.ident.to_string();
     let public = matches!(definition.vis, syn::Visibility::Public(_));
-    let trait_bounds = generics_bounds(&definition.generics);
     let mut facts = Vec::new();
     for trait_item in &definition.items {
         let syn::TraitItem::Fn(method) = trait_item else {
@@ -35,8 +33,7 @@ pub(super) fn trait_default_facts(
             format!("{trait_name}::{}", method.sig.ident),
             &ItemContext {
                 impl_type: Some(&trait_name),
-                flags:     item_flags(true, &method.attrs, public, false),
-                bounds:    trait_bounds.clone()
+                flags:     item_flags(true, &method.attrs, public, false)
             },
             &method.sig,
             block,

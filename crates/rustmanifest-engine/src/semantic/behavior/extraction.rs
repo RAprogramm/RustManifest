@@ -14,8 +14,7 @@ use super::{
     declaration::ItemContext,
     folding::fold_constants,
     signature::{
-        error_types, param_facts, param_slots, parameter_elements, parameter_pairs,
-        parameter_types
+        error_types, param_facts, param_slots, parameter_types
     },
     tables::TypeTables,
     targeting::name_targets,
@@ -113,12 +112,9 @@ pub(super) fn function_facts(
             queries: Vec::new()
         },
         param_types:      parameter_types(signature, context.impl_type),
-        elem_types:       parameter_elements(signature),
-        local_pairs:      parameter_pairs(signature),
         fn_returns:       known.tables.returns.clone(),
         mutates:          known.tables.mutates.clone(),
         field_types:      known.tables.fields.clone(),
-        field_elems:      known.tables.field_elems.clone(),
         field_wraps:      known.tables.field_wraps.clone(),
         field_pairs:      known.tables.field_pairs.clone(),
         crates:           known.tables.crates.clone(),
@@ -130,7 +126,6 @@ pub(super) fn function_facts(
         typed:            known.settled.types.clone(),
         items:            known.settled.items.clone(),
         src:              source,
-        bounds:           context.bounds.clone(),
         local_wraps:      std::collections::BTreeMap::new(),
         imports:          known.imports.clone(),
         fresh:            std::collections::BTreeSet::new(),

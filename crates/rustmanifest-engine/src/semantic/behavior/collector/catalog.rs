@@ -147,26 +147,6 @@ pub(super) const EXPRESSION_MACROS: [&str; 20] = [
     "writeln"
 ];
 
-/// Iterator and `Option` adapters whose single-parameter closure
-/// receives one element of the adapted collection or option.
-/// Methods whose closure is handed two elements of the receiver at once,
-/// so both of its inputs stand for an element and neither for anything
-/// else.
-///
-/// A comparator is the ordinary shape: the library hands it two of the
-/// values it is ordering. Reading only the first input left every
-/// comparison written this way standing on an untyped name.
-pub(super) const PAIRWISE_ADAPTERS: [&str; 8] = [
-    "binary_search_by",
-    "dedup_by",
-    "max_by",
-    "min_by",
-    "partition_point",
-    "sort_by",
-    "sort_unstable_by",
-    "windows"
-];
-
 pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
     "all",
     "and_then",
@@ -188,33 +168,6 @@ pub(super) const ITERATOR_ADAPTERS: [&str; 18] = [
     "take_while"
 ];
 
-/// Iterator constructors and element accessors that keep the
-/// collection's element type.
-/// Adapters that hand on the same element the receiver hands out, so a
-/// reading follows the chain through them: they reorder, shorten, or
-/// copy the sequence, and none of them changes what one step is.
-pub(super) const ELEMENT_PRESERVING: [&str; 10] = [
-    "by_ref",
-    "cloned",
-    "copied",
-    "filter",
-    "peekable",
-    "rev",
-    "skip",
-    "skip_while",
-    "take",
-    "take_while"
-];
-
-pub(super) const ITERATOR_SOURCES: [&str; 7] = [
-    "drain",
-    "first",
-    "get",
-    "into_iter",
-    "iter",
-    "iter_mut",
-    "last"
-];
 
 /// Macros that end the current path rather than returning to it.
 pub(super) const DIVERGING_MACROS: [&str; 4] = ["panic", "todo", "unimplemented", "unreachable"];

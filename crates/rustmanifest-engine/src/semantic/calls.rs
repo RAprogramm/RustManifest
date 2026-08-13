@@ -23,7 +23,6 @@ mod graph;
 mod overlay;
 mod reach;
 mod rows;
-mod scope;
 mod tables;
 mod target;
 

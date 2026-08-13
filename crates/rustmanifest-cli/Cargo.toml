@@ -24,6 +24,7 @@ name = "rustmanifest"
 path = "src/main.rs"
 
 [dependencies]
+ignore = { workspace = true }
 cargo_metadata = "0.23.1"
 anyhow = { workspace = true }
 clap = { workspace = true }

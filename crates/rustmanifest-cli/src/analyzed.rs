@@ -37,7 +37,10 @@ impl Analyzed {
     ///
     /// Returns the failure of reading or parsing the named file.
     pub(crate) fn resolution(&self) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
-        crate::resolution(self.resolution.as_deref())
+        crate::resolution(
+            self.resolution.as_deref(),
+            self.paths.first().map_or(std::path::Path::new("."), PathBuf::as_path)
+        )
     }
 }
 

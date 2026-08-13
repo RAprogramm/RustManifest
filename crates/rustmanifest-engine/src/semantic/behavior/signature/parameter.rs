@@ -8,7 +8,6 @@ use std::collections::BTreeMap;
 
 use super::{
     bound::generic_bounds,
-    element::element_type,
     type_name::{type_last_segment, written_type_segment}
 };
 use crate::semantic::behavior::types::{ParamFacts, ParamMode};
@@ -150,39 +149,3 @@ fn unwrapped_argument(ty: &syn::Type) -> Option<String> {
     type_last_segment(first)
 }
 
-/// Maps parameter names to the key and value types of their declared
-/// map type, so a tuple destructured from iterating one is typed on
-/// both sides.
-pub(in crate::semantic::behavior) fn parameter_pairs(
-    signature: &syn::Signature
-) -> BTreeMap<String, (String, String)> {
-    let mut pairs = BTreeMap::new();
-    for input in &signature.inputs {
-        if let syn::FnArg::Typed(argument) = input
-            && let (syn::Pat::Ident(pattern), Some(pair)) = (
-                argument.pat.as_ref(),
-                super::element::pair_types(&argument.ty)
-            )
-        {
-            pairs.insert(pattern.ident.to_string(), pair);
-        }
-    }
-    pairs
-}
-
-/// Maps parameter names to the element type of their declared
-/// collection type, when one is evident.
-pub(in crate::semantic::behavior) fn parameter_elements(
-    signature: &syn::Signature
-) -> BTreeMap<String, String> {
-    let mut elements = BTreeMap::new();
-    for input in &signature.inputs {
-        if let syn::FnArg::Typed(argument) = input
-            && let (syn::Pat::Ident(pattern), Some(element)) =
-                (argument.pat.as_ref(), element_type(&argument.ty))
-        {
-            elements.insert(pattern.ident.to_string(), element);
-        }
-    }
-    elements
-}

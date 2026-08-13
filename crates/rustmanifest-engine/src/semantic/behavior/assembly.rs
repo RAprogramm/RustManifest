@@ -12,7 +12,6 @@ use super::{
     extraction::{Known, function_facts},
     imports::use_imports,
     rendering::name_rendered_texts,
-    signature::generics_bounds,
     tables::TypeTables,
     trait_default::trait_default_facts,
     types::FunctionFacts
@@ -67,7 +66,6 @@ pub fn behavior_with(
                                 matches!(function.vis, syn::Visibility::Public(_)),
                                 false
                             ),
-                            bounds:    std::collections::BTreeMap::new()
                         },
                         &function.sig,
                         &function.block,
@@ -80,7 +78,6 @@ pub fn behavior_with(
                     };
                     let trait_impl = block.trait_.is_some();
                     let impl_attributed = is_attributed(&block.attrs);
-                    let impl_bounds = generics_bounds(&block.generics);
                     for impl_item in &block.items {
                         let syn::ImplItem::Fn(method) = impl_item else {
                             continue;
@@ -95,8 +92,7 @@ pub fn behavior_with(
                                     &method.attrs,
                                     matches!(method.vis, syn::Visibility::Public(_)),
                                     impl_attributed
-                                ),
-                                bounds:    impl_bounds.clone()
+                                )
                             },
                             &method.sig,
                             &method.block,

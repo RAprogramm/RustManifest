@@ -86,7 +86,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Effect, FunctionFacts, behavior};
-    use crate::source::Source;
+    use crate::{semantic::settling::Settling, source::Source};
 
     fn facts(text: &str) -> Vec<FunctionFacts> {
         behavior(&[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())])
@@ -95,24 +95,16 @@ mod tests {
     /// The facts of `text` read with a resolver's answer that the
     /// expression spelled `expression` has type `rendered`.
     fn facts_typed(text: &str, expression: &str, rendered: &str) -> Vec<FunctionFacts> {
-        let start = u32::try_from(text.find(expression).expect("the expression is written"))
-            .expect("the fixture is small");
-        let mut resolution = rustmanifest_schema::Resolution {
-            resolver: "test".to_owned(),
-            types: vec![rustmanifest_schema::ResolvedType {
-                at:       rustmanifest_schema::Location {
-                    file:  PathBuf::from("src/lib.rs"),
-                    range: rustmanifest_schema::Range {
-                        start,
-                        end: start
-                            + u32::try_from(expression.len()).expect("the fixture is small")
-                    }
-                },
-                rendered: rendered.to_owned()
-            }],
-            ..rustmanifest_schema::Resolution::default()
-        };
-        resolution.settle();
+        facts_settled(text, |settling| settling.typed(expression, rendered))
+    }
+
+    /// The facts of `text` read with everything `settle` states a
+    /// resolver settled about it.
+    fn facts_settled<'text>(
+        text: &'text str,
+        settle: impl FnOnce(Settling<'text>) -> Settling<'text>
+    ) -> Vec<FunctionFacts> {
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
         super::behavior_with(
             &[Source::new(PathBuf::from("src/lib.rs"), text.to_owned())],
             Some(&resolution)
@@ -271,11 +263,21 @@ mod tests {
         assert_eq!(counted.tables_named, 1, "the join names no table");
     }
 
+    /// The type holding `self.balance` is the impl's, which the written
+    /// text spells nowhere; the resolver states it, and the write and the
+    /// read are named by it.
     #[test]
     fn self_field_writes_and_reads_are_qualified() {
-        let all = facts(
+        let all = facts_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet {\n    fn credit(&mut self, amount: \
-             i64) { self.balance += amount; }\n    fn balance(&self) -> i64 { self.balance }\n}"
+             i64) { self.balance += amount; }\n    fn balance(&self) -> i64 { self.balance }\n}",
+            |settling| {
+                settling
+                    .after("fn credit")
+                    .field("self.balance", "Wallet", "i64")
+                    .after("fn balance")
+                    .field("self.balance", "Wallet", "i64")
+            }
         );
         let credit = named(&all, "Wallet::credit");
         assert_eq!(credit.writes, vec!["Wallet.balance"]);
@@ -285,13 +287,17 @@ mod tests {
         assert!(getter.writes.is_empty());
     }
 
+    /// A field the resolver settled an owner for is named by that owner;
+    /// one it settled nothing for keeps its honest `?`.
     #[test]
-    fn typed_parameter_receivers_resolve_the_owner() {
-        let all = facts(
+    fn a_settled_owner_names_the_field_written_on_it() {
+        let all = facts_settled(
             "struct Wallet { balance: i64 }\nfn drain(wallet: &mut Wallet) { wallet.balance = 0; \
-             }\nfn peek(unknown: impl Fn()) { }"
+             }\nfn peek(other: &mut Wallet) { other.balance = 1; }",
+            |settling| settling.field("wallet.balance", "Wallet", "i64")
         );
         assert_eq!(named(&all, "drain").writes, vec!["Wallet.balance"]);
+        assert_eq!(named(&all, "peek").writes, vec!["?.balance"]);
     }
 
     #[test]
@@ -303,9 +309,10 @@ mod tests {
 
     #[test]
     fn mutating_methods_on_fields_count_as_writes() {
-        let all = facts(
+        let all = facts_settled(
             "struct State { cache: Vec<u8> }\nimpl State { fn add(&self, byte: u8) { \
-             self.cache.push(byte); } }"
+             self.cache.push(byte); } }",
+            |settling| settling.field("self.cache", "State", "Vec<u8>")
         );
         assert_eq!(named(&all, "State::add").writes, vec!["State.cache"]);
     }
@@ -373,13 +380,22 @@ mod tests {
         assert_eq!(named(&all, "who").effects, vec![Effect::Environment]);
     }
 
+    /// A generic field has no type the written text can name — the
+    /// resolver names it, and the call written on it is qualified by that
+    /// name. An `await` on a call the resolver typed reaches the `poll`
+    /// that type declares.
     #[test]
-    fn impl_bounds_type_generic_fields_and_awaits_reach_poll() {
-        let all = facts(
+    fn a_settled_receiver_qualifies_the_call_and_awaits_reach_poll() {
+        let all = facts_settled(
             "struct WriteAll<W> { writer: W }\nimpl<W: AsyncWrite> Future for WriteAll<W> {\n    \
              fn poll(&mut self) -> u8 { self.writer.poll_write(); 0 }\n}\nstruct Done;\nimpl \
              Done { fn write_all(&self) -> WriteAll<Done> { WriteAll { writer: Done } } }\nasync \
-             fn drive(done: Done) { done.write_all().await; }"
+             fn drive(done: Done) { done.write_all().await; }",
+            |settling| {
+                settling
+                    .typed("self.writer", "AsyncWrite")
+                    .call("done.write_all()", "write_all", "WriteAll<Done>", Some("Done"))
+            }
         );
         let poll = named(&all, "WriteAll::poll");
         assert!(poll.calls.contains(&"AsyncWrite::poll_write".to_owned()));
@@ -418,15 +434,19 @@ mod tests {
         assert!(all.iter().all(|f| f.function != "Plain::from"));
     }
 
+    /// A tuple field is written as a position and nothing else; the
+    /// resolver states what stands at it, and the call written on it
+    /// carries that type's effect.
     #[test]
-    fn tuple_fields_type_their_receivers() {
-        let all = facts(
+    fn a_settled_tuple_field_types_its_receiver() {
+        let all = facts_settled(
             "struct Wire(TcpStream);\nimpl Wire { fn pump(&self) { self.0.read(&mut []).ok(); } \
              }\nstruct Layer(Wrapper<TcpStream>);\nimpl Layer { fn go(&self) { \
-             self.0.do_io(|s| { s.read(&mut []).ok(); }); } }"
+             self.0.read(&mut []).ok(); } }",
+            |settling| settling.typed("self.0", "TcpStream")
         );
         assert_eq!(named(&all, "Wire::pump").effects, vec![Effect::Network]);
-        assert_eq!(named(&all, "Layer::go").effects, vec![Effect::Network]);
+        assert!(named(&all, "Layer::go").effects.is_empty());
     }
 
     #[test]
@@ -470,23 +490,25 @@ mod tests {
         assert!(named(&all, "add").effect_sites.is_empty());
     }
 
+    /// A resolution names two files' same-named types apart, and the
+    /// effect each body reaches follows the name it was given rather than
+    /// whichever declaration stood nearer.
     #[test]
-    fn colliding_type_names_resolve_by_consumer_proximity() {
+    fn a_resolution_tells_two_same_named_types_apart() {
+        let net_text = "pub struct Client { inner: TcpStream }\nimpl Client { pub fn go(&self) { \
+                        self.inner.read(&mut []).ok(); } }";
+        let disk_text = "pub struct Client { inner: File }\nimpl Client { pub fn go(&self) { \
+                         self.inner.read(&mut []).ok(); } }";
+        let resolution = Settling::over("app/src/net.rs", net_text)
+            .typed("self.inner", "TcpStream")
+            .and_over("app/src/disk.rs", disk_text)
+            .typed("self.inner", "File")
+            .done();
         let sources = vec![
-            Source::new(
-                PathBuf::from("app/src/net.rs"),
-                "pub struct Client { inner: TcpStream }\nimpl Client { pub fn go(&self) { \
-                 self.inner.read(&mut []).ok(); } }"
-                    .to_owned()
-            ),
-            Source::new(
-                PathBuf::from("app/src/disk.rs"),
-                "pub struct Client { inner: File }\nimpl Client { pub fn go(&self) { \
-                 self.inner.read(&mut []).ok(); } }"
-                    .to_owned()
-            ),
+            Source::new(PathBuf::from("app/src/net.rs"), net_text.to_owned()),
+            Source::new(PathBuf::from("app/src/disk.rs"), disk_text.to_owned()),
         ];
-        let all = behavior(&sources);
+        let all = super::behavior_with(&sources, Some(&resolution));
         let net = all
             .iter()
             .find(|f| f.function == "Client::go" && f.source == 0)
@@ -501,11 +523,12 @@ mod tests {
 
     #[test]
     fn service_calls_dispatch_to_the_wrapped_service() {
-        let all = facts(
+        let all = facts_settled(
             "struct Layered<S> { inner: S }\nstruct HyperService;\nimpl HyperService { fn \
              call(&self) { std::net::TcpStream::connect(\"h\").ok(); } }\nstruct Client { \
              hyper: Layered<HyperService> }\nimpl Client { fn execute(&self) { let svc = \
-             self.hyper.clone(); svc.call(); } }"
+             self.hyper.clone(); svc.call(); } }",
+            |settling| settling.after("let svc = ").typed("self", "Client")
         );
         assert!(
             named(&all, "Client::execute")
@@ -515,52 +538,18 @@ mod tests {
     }
 
     #[test]
-    fn nested_field_chains_type_recursively() {
-        let all = facts(
-            "struct App { db: Db }\nstruct Db { conn: TcpStream }\nimpl App { fn ping(&self) { \
-             self.db.conn.read(&mut []).ok(); } }"
-        );
-        assert_eq!(named(&all, "App::ping").effects, vec![Effect::Network]);
-    }
-
-    #[test]
-    fn fieldless_projections_type_as_their_receiver() {
-        let all = facts(
-            "struct Sender { sock: TcpStream }\nstruct Projection;\nimpl Sender {\n    fn \
-             project(&mut self) -> Projection { Projection }\n    fn pump(&mut self) { let me = \
-             self.project(); me.sock.read(&mut []).ok(); }\n}\nstruct Real { count: u32 }\nimpl \
-             Real { fn project(&self) -> Real { Real { count: 0 } } }"
-        );
-        assert_eq!(named(&all, "Sender::pump").effects, vec![Effect::Network]);
-    }
-
-    #[test]
-    fn pinned_receivers_type_through_the_inner_expression() {
-        let all = facts(
-            "fn pump(stream: &mut TcpStream) { Pin::new(&mut *stream).read(&mut []).ok(); }"
-        );
-        assert_eq!(named(&all, "pump").effects, vec![Effect::Network]);
-    }
-
-    #[test]
-    fn wrapped_closure_parameters_type_through_the_field_inner() {
-        let all = facts(
-            "struct Src { inner: IoSource<TcpStream> }\nimpl Src { fn pump(&self) { \
-             self.inner.do_io(|stream| { stream.read(&mut []).ok(); }); } }\nstruct Two { \
-             pair: Both<TcpStream, File> }\nimpl Two { fn poke(&self) { \
-             self.pair.do_io(|value| { value.read(&mut []).ok(); }); } }"
-        );
-        assert_eq!(named(&all, "Src::pump").effects, vec![Effect::Network]);
-        assert!(named(&all, "Two::poke").effects.is_empty());
-    }
-
-    #[test]
     fn std_method_axioms_fire_on_typed_receivers() {
-        let all = facts(
+        let all = facts_settled(
             "struct Log { sink: File }\nimpl Log { fn flush(&self) { \
              self.sink.sync_all().ok(); } }\nfn pump(stream: &mut TcpStream) { \
              stream.read(&mut []).ok(); }\nfn untyped(stream: &mut Unknown) { \
-             stream.read(&mut []).ok(); }"
+             stream.read(&mut []).ok(); }",
+            |settling| {
+                settling
+                    .typed("self.sink", "File")
+                    .after("fn pump(stream: &mut TcpStream) { ")
+                    .typed("stream", "&mut TcpStream")
+            }
         );
         assert_eq!(named(&all, "Log::flush").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "pump").effects, vec![Effect::Network]);
@@ -590,14 +579,28 @@ mod tests {
         assert_eq!(named(&all, "raw").effects, vec![Effect::Unsafe]);
     }
 
+    /// What a `let` holds decides whether writing through it assembles a
+    /// value or changes one that was already standing: a literal and a
+    /// constructor call both leave a fresh value, an annotated binding
+    /// taken from elsewhere does not. The owner naming each key is the
+    /// resolver's.
     #[test]
     fn let_bindings_resolve_owners_by_annotation_literal_and_constructor() {
-        let all = facts(
+        let all = facts_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet { fn new() -> Self { Self { balance: 0 \
              } } }\nfn annotated() { let wallet: Wallet = make(); wallet.balance = 1; }\nfn \
              literal() { let wallet = Wallet { balance: 0 }; wallet.balance = 2; }\nfn \
              constructed() { let wallet = Wallet::new(); wallet.balance = 3; }\nfn opaque() { \
-             let wallet = make(); wallet.balance = 4; }"
+             let wallet = make(); wallet.balance = 4; }",
+            |settling| {
+                settling
+                    .after("fn annotated")
+                    .field("wallet.balance", "Wallet", "i64")
+                    .after("fn literal")
+                    .field("wallet.balance", "Wallet", "i64")
+                    .after("fn constructed")
+                    .field("wallet.balance", "Wallet", "i64")
+            }
         );
         assert_eq!(named(&all, "annotated").writes, vec!["Wallet.balance"]);
         assert_eq!(named(&all, "literal").builds, vec!["Wallet.balance"]);
@@ -605,42 +608,48 @@ mod tests {
         assert_eq!(named(&all, "opaque").writes, vec!["?.balance"]);
     }
 
+    /// A binding taken from an associated factory holds a value this body
+    /// made, so writing through it assembles rather than changes.
     #[test]
-    fn associated_factories_type_their_bindings() {
-        let all = facts(
+    fn associated_factories_leave_a_fresh_binding() {
+        let all = facts_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Self { Self { balance: 0 \
-             } } }\nfn opened() { let wallet = Wallet::open(); wallet.balance = 1; }"
+             } } }\nfn opened() { let wallet = Wallet::open(); wallet.balance = 1; }",
+            |settling| settling.field("wallet.balance", "Wallet", "i64")
         );
         assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
     }
 
     #[test]
     fn try_unwrapped_factories_yield_the_success_type() {
-        let all = facts(
+        let all = facts_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Result<Self, String> { \
              Ok(Self { balance: 0 }) } }\nfn opened() -> Result<(), String> { let wallet = \
-             Wallet::open()?; wallet.balance = 1; Ok(()) }"
+             Wallet::open()?; wallet.balance = 1; Ok(()) }",
+            |settling| settling.field("wallet.balance", "Wallet", "i64")
         );
         assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
     }
 
     #[test]
     fn awaited_factories_resolve_through_the_table() {
-        let all = facts(
+        let all = facts_settled(
             "struct Pool { size: u32 }\nimpl Pool { async fn connect() -> Result<Self, String> { \
              Ok(Self { size: 0 }) } }\nasync fn ready() -> Result<(), String> { let pool = \
-             Pool::connect().await?; pool.size = 1; Ok(()) }"
+             Pool::connect().await?; pool.size = 1; Ok(()) }",
+            |settling| settling.field("pool.size", "Pool", "u32")
         );
         assert_eq!(named(&all, "ready").builds, vec!["Pool.size"]);
     }
 
     #[test]
     fn assembling_a_fresh_value_is_a_build_not_a_write() {
-        let all = facts(
+        let all = facts_settled(
             "struct Order { items: u32 }\nimpl Order { fn load() -> Result<Self, String> { \
              Ok(Self { items: 0 }) } }\nstruct Repo;\nimpl Repo { fn get_order(&self) -> \
              Result<Order, String> { let mut order = Order::load()?; order.items = 3; Ok(order) \
-             } }"
+             } }",
+            |settling| settling.field("order.items", "Order", "u32")
         );
         let getter = named(&all, "Repo::get_order");
         assert!(getter.writes.is_empty());
@@ -649,22 +658,39 @@ mod tests {
 
     #[test]
     fn rebinding_a_fresh_name_to_state_restores_write_facts() {
-        let all = facts(
+        let all = facts_settled(
             "struct Wallet { balance: i64 }\nimpl Wallet { fn new() -> Self { Self { balance: 0 \
              } } }\nfn rebind(source: &mut Wallet) { let wallet = Wallet::new(); let wallet = \
-             source; wallet.balance = 1; }"
+             source; wallet.balance = 1; }",
+            |settling| settling.field("wallet.balance", "Wallet", "i64")
         );
         let facts = named(&all, "rebind");
         assert!(facts.builds.is_empty());
         assert_eq!(facts.writes, vec!["Wallet.balance"]);
     }
 
+    /// A pack states what a crate's own method reaches; which type the
+    /// method was called on is the resolver's answer, and the effect
+    /// follows from the two together.
     #[test]
-    fn knowledge_packs_type_chains_and_carry_effects() {
-        let all = facts(
+    fn knowledge_packs_carry_the_effects_of_settled_receivers() {
+        let all = facts_settled(
             "async fn fetch(client: &Client) -> Result<String, String> { let body = \
              client.get(\"u\").send().await.unwrap().text().await.unwrap(); Ok(body) }\nfn \
-             probe() { let dir = tempfile::tempdir().unwrap(); dir.close().unwrap(); }"
+             probe() { let dir = tempfile::tempdir().unwrap(); dir.close().unwrap(); }",
+            |settling| {
+                settling
+                    .after("let body = ")
+                    .typed("client", "&Client")
+                    .call(
+                        "client.get(\"u\").send()",
+                        "send",
+                        "Response",
+                        Some("RequestBuilder")
+                    )
+                    .after("tempfile::tempdir().unwrap(); ")
+                    .typed("dir", "TempDir")
+            }
         );
         assert!(named(&all, "fetch").effects.contains(&Effect::Network));
         let probe = named(&all, "probe");

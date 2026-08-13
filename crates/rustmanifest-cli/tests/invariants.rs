@@ -21,6 +21,44 @@ fn rustmanifest() -> Command {
 }
 
 /// Writes the module tree a resolver would state for the fixture.
+fn overlay_with(
+    dir: &std::path::Path,
+    rows: &[(&str, &str)],
+    fields: &[(&str, u32, u32, &str, &str)]
+) {
+    let modules: Vec<String> = rows
+        .iter()
+        .map(|(names, file)| {
+            let root = !names.contains("::");
+            let parent = names.rsplit_once("::").map_or(String::new(), |(above, _)| {
+                format!(", \"parent\": \"{above}\"")
+            });
+            format!(
+                "{{\"names\": \"{names}\", \"file\": \"{file}\", \"crate-root\": {root}{parent}}}"
+            )
+        })
+        .collect();
+    let held: Vec<String> = fields
+        .iter()
+        .map(|(file, start, end, owner, produced)| {
+            format!(
+                "{{\"at\": {{\"file\": \"{file}\", \"range\": {{\"start\": {start}, \
+                 \"end\": {end}}}}}, \"owner\": \"{owner}\", \"produced\": \
+                 \"{produced}\"}}"
+            )
+        })
+        .collect();
+    fs::write(
+        dir.join("resolution.json"),
+        format!(
+            "{{\"resolver\": \"test\", \"calls\": [], \"fields\": [{}], \"modules\": [{}]}}",
+            held.join(", "),
+            modules.join(", ")
+        )
+    )
+    .unwrap();
+}
+
 fn overlay(dir: &std::path::Path, rows: &[(&str, &str)]) {
     let modules: Vec<String> = rows
         .iter()
@@ -69,12 +107,16 @@ fn tree_with_invariant() -> TempDir {
          \"Wallet.balance\"\nwrite-only-from = [\"crate::ledger\"]\n"
     )
     .unwrap();
-    overlay(
+    overlay_with(
         dir.path(),
         &[
             ("fixture", "src/lib.rs"),
             ("fixture::ledger", "src/ledger.rs"),
             ("fixture::api", "src/api.rs")
+        ],
+        &[
+            ("src/ledger.rs", 67, 81, "&mut Wallet", "i64"),
+            ("src/api.rs", 54, 68, "&mut Wallet", "i64"),
         ]
     );
     dir

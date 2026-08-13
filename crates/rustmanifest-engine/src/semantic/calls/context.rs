@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{scope::Scopes, target::Target};
+use super::target::Target;
 use crate::{semantic::expr::impl_type_name, source::Source};
 
 /// Everything call resolution knows about the workspace beyond the
@@ -40,10 +40,6 @@ pub struct ResolutionContext {
     /// candidates are dropped before uniqueness is judged. An empty
     /// vector disables the check, keeping hand-built contexts permissive.
     pub targets:     Vec<Target>,
-    /// Written module spans of every source, the granularity an
-    /// unqualified call is resolved at. Empty for a hand-built context,
-    /// which then reads every source as one scope.
-    pub scopes:      Scopes,
     /// Enum name to its written variant names. A candidate naming one of
     /// them builds a value; nothing is being called there.
     pub variants:    BTreeMap<String, BTreeSet<String>>,
@@ -168,7 +164,6 @@ pub fn resolution_context_with(
             .map(|source| Target::of_path(&source.path().to_string_lossy()))
             .collect(),
         loose: loose_sources(sources, settled),
-        scopes: Scopes::of(sources),
         variants,
         granted
     }

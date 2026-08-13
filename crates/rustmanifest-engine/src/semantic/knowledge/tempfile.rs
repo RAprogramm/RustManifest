@@ -9,15 +9,6 @@ use super::{super::behavior::Effect, CrateKnowledge};
 /// What the engine knows about `tempfile`.
 pub(super) const PACK: CrateKnowledge = CrateKnowledge {
     name:           "tempfile",
-    constructors:   &[("tempdir", "TempDir"), ("tempfile", "File")],
-    method_returns: &[
-        ("TempDir", "path", "Path"),
-        ("TempDir", "keep", "PathBuf"),
-        ("NamedTempFile", "path", "Path")
-    ],
-    fields:         &[],
-    field_elements: &[],
-    iterated:       &[],
     method_effects: &[
         ("NamedTempFile", "keep", Effect::FileSystem),
         ("NamedTempFile", "persist", Effect::FileSystem),

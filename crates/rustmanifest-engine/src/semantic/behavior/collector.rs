@@ -13,6 +13,7 @@
 mod assignment;
 mod binding;
 mod block;
+mod bound;
 mod branch;
 mod branch_flow;
 mod call;
@@ -27,7 +28,6 @@ mod deferral;
 mod destination;
 mod divergence;
 mod effect;
-mod element;
 mod expansion;
 mod expression_flow;
 mod field_fact;
@@ -72,17 +72,10 @@ pub(super) struct FactCollector {
     pub(super) facts:            FunctionFacts,
     /// Parameter name to type-name mapping from the signature.
     pub(super) param_types:      BTreeMap<String, String>,
-    /// Binding name to collection element type, from the signature.
-    pub(super) elem_types:       BTreeMap<String, String>,
-    /// Binding name to the key and value types of a map it holds, from
-    /// the signature or from a written `let`.
-    pub(super) local_pairs:      BTreeMap<String, (String, String)>,
     /// Workspace functions to their return types, scoped by source.
     pub(super) fn_returns:       Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) field_types:      Scoped<String>,
-    /// `Type.field` keys of collection fields to element types.
-    pub(super) field_elems:      Scoped<String>,
     /// `Type.field` keys of wrapper fields to their wrapped inner type.
     /// Key and value types of every map-typed field.
     pub(super) field_pairs:      super::scoped::Scoped<(String, String)>,
@@ -114,9 +107,6 @@ pub(super) struct FactCollector {
     pub(super) crates:           Vec<String>,
     /// Source index of the function under analysis.
     pub(super) src:              usize,
-    /// Enclosing impl block's generic parameters to their first trait
-    /// bound, so a generic-typed field resolves as its bound.
-    pub(super) bounds:           BTreeMap<String, String>,
     /// Let bindings holding a wrapper value with a known wrapped inner
     /// type, cloned or borrowed off a wrapper field.
     pub(super) local_wraps:      BTreeMap<String, String>,

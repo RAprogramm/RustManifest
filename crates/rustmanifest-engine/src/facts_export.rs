@@ -60,7 +60,7 @@ pub fn facts_json_with(
     with_features: bool,
     scip: Option<&ScipEdges>
 ) -> serde_json::Value {
-    let facts = crate::semantic::behavior(sources);
+    let facts = crate::semantic::behavior_with(sources, resolution);
     let overlay = scip.map(|edges| edges.candidates(&facts, sources));
     let graph = call_graph_with(
         &facts,

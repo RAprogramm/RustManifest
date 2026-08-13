@@ -104,14 +104,12 @@ impl FactCollector {
             syn::Expr::Try(tried) => self
                 .call_key(&tried.expr)
                 .and_then(|key| self.ret(&key))
-                .and_then(|returned| returned.success.clone())
-                .or_else(|| self.optional_element(&tried.expr)),
+                .and_then(|returned| returned.success.clone()),
             syn::Expr::MethodCall(call) if call.method == "unwrap" || call.method == "expect" => {
                 if let Some(key) = self.call_key(&call.receiver) {
                     return self.ret(&key).and_then(|returned| returned.success.clone());
                 }
-                self.optional_element(&call.receiver)
-                    .or_else(|| initializer_type(&call.receiver))
+                initializer_type(&call.receiver)
                     .or_else(|| self.called_return(&call.receiver))
             }
             syn::Expr::Await(awaited) => self.called_return(&awaited.base),
@@ -136,7 +134,7 @@ impl FactCollector {
                 {
                     return Some(owner);
                 }
-                declared.or_else(|| knowledge::method_return(&owner, &method).map(str::to_owned))
+                declared
             }
             syn::Expr::Call(call) => {
                 if let Some(inner) = pinned_inner(call) {
@@ -153,7 +151,6 @@ impl FactCollector {
                     .iter()
                     .find(|(constructor, _)| *constructor == name)
                     .map(|(_, produced)| (*produced).to_owned())
-                    .or_else(|| knowledge::constructor_type(&name).map(str::to_owned))
             }
             _ => self
                 .call_key(expression)

@@ -23,18 +23,6 @@ impl FactCollector {
         self.held.get(&(start, end)).map(|(owner, _)| owner.clone())
     }
 
-    /// The type a resolver settled for the field read at a position.
-    pub(super) fn settled_field_type(&self, field: &syn::ExprField) -> Option<String> {
-        use syn::spanned::Spanned;
-
-        let span = field.span().byte_range();
-        let start = u32::try_from(span.start).ok()?;
-        let end = u32::try_from(span.end).ok()?;
-        self.held
-            .get(&(start, end))
-            .map(|(_, produced)| produced.clone())
-    }
-
     /// Renders a field expression as `Owner.field` where the tables name
     /// the type holding it, or `?.field` where they do not.
     ///

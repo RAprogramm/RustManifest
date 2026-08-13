@@ -24,8 +24,6 @@ pub(super) struct TypeTables {
     pub(super) returns:     Scoped<Returned>,
     /// `Type.field` keys to field type names, scoped by source.
     pub(super) fields:      Scoped<String>,
-    /// `Type.field` keys of collection fields to element types.
-    pub(super) field_elems: Scoped<String>,
     /// `Type.field` keys of single-generic wrapper fields to the
     /// wrapped inner type.
     pub(super) field_wraps: Scoped<String>,
@@ -54,7 +52,6 @@ impl TypeTables {
             returns:     function_return::return_types(sources),
             mutates:     function_return::receiver_mutability(sources),
             fields:      fields.plain,
-            field_elems: fields.elems,
             field_wraps: fields.wraps,
             field_pairs: fields.pairs,
             constants:   constant::constant_texts(sources),
