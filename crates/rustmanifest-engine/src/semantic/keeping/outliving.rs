@@ -61,15 +61,28 @@ pub struct Outliving {
     pub source:    usize
 }
 
-/// Written spellings that put bytes where a later run can read them.
-const WRITING: [&str; 6] = [
-    "write",
-    "write_all",
-    "write_fmt",
-    "create",
-    "append",
-    "create_new"
+/// The trait whose bodies put bytes on a sink, so a call reaching one
+/// writes whatever it is called on.
+const WRITING_TRAIT: &str = "std::io::Write";
+
+/// The library bodies that put bytes where a later run can read them
+/// without going through the writing trait, each named by the item the
+/// call reaches.
+///
+/// Six written spellings answered this before, and answered for any
+/// namesake: a workspace method called `create` was read as a save.
+const WRITING_BODIES: [&str; 4] = [
+    "std::fs::File::create",
+    "std::fs::File::create_new",
+    "std::fs::write",
+    "std::fs::OpenOptions::append"
 ];
+
+/// Whether the body a site proves the effect with puts bytes out.
+fn writes_out(proof: &str) -> bool {
+    proof.starts_with(&format!("{WRITING_TRAIT}::"))
+        || WRITING_BODIES.iter().any(|named| proof == *named)
+}
 
 /// Every method that carries a store across the end of the run.
 #[must_use]
@@ -80,9 +93,8 @@ pub fn outliving(workspace: &Workspace<'_>) -> Vec<Outliving> {
             continue;
         };
         for site in &fact.effect_sites {
-            let named = site.proof.rsplit("::").next().unwrap_or(&site.proof);
             let direction = match site.effect {
-                Effect::FileSystem if WRITING.contains(&named) => Direction::Saves,
+                Effect::FileSystem if writes_out(&site.proof) => Direction::Saves,
                 Effect::FileSystem => Direction::Loads,
                 Effect::DatabaseWrite => Direction::Persists,
                 Effect::DatabaseRead => Direction::Restores,
