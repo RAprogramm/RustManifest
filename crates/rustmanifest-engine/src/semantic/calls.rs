@@ -51,7 +51,7 @@ mod tests {
     use super::{call_graph, transitive_effects};
     use crate::{
         semantic::{
-            behavior::{Effect, FunctionFacts, behavior, behavior_with},
+            behavior::{Effect, FunctionFacts, behavior_with},
             settling::{Settling, identity_of, settle_identity}
         },
         source::Source
@@ -128,7 +128,7 @@ mod tests {
             "A::missing();\n}\n"
         );
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let mut resolution = Settling::over("src/lib.rs", text)
+        let resolution = Settling::over("src/lib.rs", text)
             .call("a.run()", "run", "()", Some("&A"))
             .reaching("std::fs::read(\"x\")", "std::fs::read")
             .done();
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn a_call_inside_one_test_target_still_resolves() {
         let sources = library_and_test_target();
-        let mut resolution = Settling::over("crates/demo/src/lib.rs", sources[0].text())
+        let resolution = Settling::over("crates/demo/src/lib.rs", sources[0].text())
             .and_over("crates/demo/tests/server.rs", sources[1].text())
             .call("client.get()", "get", "()", Some("TestClient"))
             .done();

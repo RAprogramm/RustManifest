@@ -68,7 +68,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::detect_renames;
-    use crate::{semantic::behavior, source::Source};
+    use crate::source::Source;
 
     fn facts(text: &str) -> Vec<crate::semantic::FunctionFacts> {
         {

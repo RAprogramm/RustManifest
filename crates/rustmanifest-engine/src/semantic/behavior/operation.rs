@@ -44,7 +44,7 @@ mod tests {
 
     use super::{Arithmetic, Comparison, Guarding, Operation, OperationSite};
     use crate::{
-        semantic::behavior::{Literal, Provenance, behavior},
+        semantic::behavior::{Literal, Provenance},
         source::Source
     };
 

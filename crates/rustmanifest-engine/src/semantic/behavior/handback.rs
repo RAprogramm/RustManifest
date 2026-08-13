@@ -86,10 +86,7 @@ mod tests {
 
     use super::Outcome;
     use crate::{
-        semantic::behavior::{
-            behavior,
-            value::{Literal, Provenance}
-        },
+        semantic::behavior::value::{Literal, Provenance},
         source::Source
     };
 

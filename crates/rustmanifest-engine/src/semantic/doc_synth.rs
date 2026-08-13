@@ -177,7 +177,7 @@ mod tests {
 
     use super::doc_draft;
     use crate::{
-        semantic::{behavior, settling::Settling},
+        semantic::settling::Settling,
         source::Source
     };
 

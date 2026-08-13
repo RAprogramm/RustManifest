@@ -65,7 +65,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::behavior_fingerprint;
-    use crate::{semantic::behavior, source::Source};
+    use crate::source::Source;
 
     fn prints(text: &str) -> Vec<u64> {
         {

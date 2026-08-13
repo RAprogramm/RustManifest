@@ -49,7 +49,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Arguments, Literal, OriginGap, Provenance};
-    use crate::{semantic::behavior::behavior, source::Source};
+    use crate::source::Source;
 
     /// The arguments of the last call site of one function, in written
     /// order.

@@ -72,7 +72,7 @@ mod tests {
     /// it, so a command reaching a store's method is an edge and not a
     /// guess.
     fn settled_over(sources: &[Source]) -> rustmanifest_schema::Resolution {
-        let mut resolution = Settling::over("src/lib.rs", sources[0].text())
+        let resolution = Settling::over("src/lib.rs", sources[0].text())
             .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
             .rewound()
             .fields("state.tasks", "AppState", "Mutex<BTreeMap<u64, Task>>")

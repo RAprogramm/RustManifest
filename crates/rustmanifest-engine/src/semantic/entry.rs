@@ -187,7 +187,7 @@ mod tests {
 
     use super::{EntryKind, entry_points};
     use crate::{
-        semantic::behavior::{FunctionFacts, behavior},
+        semantic::behavior::FunctionFacts,
         source::Source
     };
 

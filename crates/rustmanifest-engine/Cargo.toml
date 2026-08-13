@@ -34,6 +34,11 @@ scip = { workspace = true }
 protobuf = { workspace = true }
 petgraph = { workspace = true }
 
+[features]
+# States what a compiler settles about a short fixture, so a test outside
+# this crate can read one against the answers a compiler would give.
+fixtures = []
+
 [dev-dependencies]
 insta = { workspace = true }
 tempfile = { workspace = true }

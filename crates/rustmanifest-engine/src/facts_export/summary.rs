@@ -41,7 +41,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        semantic::{behavior, call_graph, resolution_context, summaries},
+        semantic::{call_graph, resolution_context, summaries},
         source::Source
     };
 

@@ -172,7 +172,6 @@ mod tests {
     use super::handover_marks;
     use crate::{
         semantic::{
-            behavior::behavior,
             calls::{call_graph, resolution_context_with},
             graph::TypeGraph,
             settling::settle_identity

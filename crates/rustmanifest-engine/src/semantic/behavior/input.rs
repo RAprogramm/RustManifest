@@ -46,7 +46,7 @@ mod tests {
 
     use super::{Channel, InputRead, Intake, ReadShape, Selector, SelectorGap, Terminator};
     use crate::{
-        semantic::behavior::{Acquisition, behavior},
+        semantic::behavior::Acquisition,
         source::Source
     };
 

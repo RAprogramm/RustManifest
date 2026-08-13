@@ -83,7 +83,7 @@ pub use self::{
 mod tests {
     use std::path::PathBuf;
 
-    use super::{Effect, FunctionFacts, behavior};
+    use super::{Effect, FunctionFacts};
     use crate::{semantic::settling::Settling, source::Source};
 
     fn facts(text: &str) -> Vec<FunctionFacts> {

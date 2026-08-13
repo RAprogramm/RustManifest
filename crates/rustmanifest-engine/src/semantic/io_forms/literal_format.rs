@@ -118,7 +118,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::literal_format_insights;
-    use crate::{semantic::workspace::Workspace, source::Source};
+    use crate::source::Source;
 
     fn sources(text: &str) -> Vec<Source> {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]

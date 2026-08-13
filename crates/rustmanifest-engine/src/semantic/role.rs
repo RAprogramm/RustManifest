@@ -95,7 +95,7 @@ mod tests {
 
     use super::{Role, role};
     use crate::{
-        semantic::{behavior, settling::Settling},
+        semantic::settling::Settling,
         source::Source
     };
 

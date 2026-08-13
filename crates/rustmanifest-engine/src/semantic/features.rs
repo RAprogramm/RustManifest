@@ -170,7 +170,7 @@ mod tests {
 
     use super::features;
     use crate::{
-        semantic::{behavior, settling::Settling},
+        semantic::settling::Settling,
         source::Source
     };
 

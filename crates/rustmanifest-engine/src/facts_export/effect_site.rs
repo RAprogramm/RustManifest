@@ -31,7 +31,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::{semantic::behavior, source::Source};
+    use crate::source::Source;
 
     #[test]
     fn a_site_states_its_effect_its_proof_and_its_place() {

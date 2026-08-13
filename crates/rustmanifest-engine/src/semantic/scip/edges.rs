@@ -266,7 +266,7 @@ mod tests {
     fn colliding_short_names_settle_through_crate_and_module_path() {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
+        use crate::source::Source;
         let sources = [
             Source::new(
                 PathBuf::from("tokio-1.53.1/src/net/tcp/stream.rs"),

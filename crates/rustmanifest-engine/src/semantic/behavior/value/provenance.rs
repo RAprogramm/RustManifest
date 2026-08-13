@@ -128,7 +128,7 @@ mod tests {
 
     use super::Provenance;
     use crate::{
-        semantic::behavior::{OriginGap, behavior},
+        semantic::behavior::OriginGap,
         source::Source
     };
 

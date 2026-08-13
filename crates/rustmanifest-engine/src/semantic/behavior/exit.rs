@@ -84,7 +84,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{ExitRoute, ExitStatus};
-    use crate::{semantic::behavior::behavior, source::Source};
+    use crate::source::Source;
 
     fn statuses(text: &str) -> Vec<(ExitStatus, ExitRoute)> {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];

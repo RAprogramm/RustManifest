@@ -105,7 +105,7 @@ mod tests {
 
     use super::fact_json;
     use crate::{
-        semantic::{behavior, behavior_with},
+        semantic::behavior_with,
         source::Source
     };
 

@@ -64,7 +64,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        semantic::{FunctionFacts, behavior},
+        semantic::FunctionFacts,
         source::Source
     };
 

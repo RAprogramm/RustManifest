@@ -71,8 +71,8 @@ mod tests {
 
     use crate::{
         semantic::behavior::{
-            FunctionFacts, Provenance, behavior,
-            output::{Grade, Guard, OpaqueReason, Payload, Segment, Stream}
+            FunctionFacts, Provenance,
+            output::{Grade, Guard, Payload, Segment}
         },
         source::Source
     };
@@ -121,7 +121,7 @@ mod tests {
     fn a_greeting_records_one_stdout_write_with_its_proven_text() {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
+        use crate::source::Source;
         let sources = [Source::new(
             PathBuf::from("src/main.rs"),
             "fn main() {\n    println!(\"Hello, world!\");\n}".to_owned()
@@ -152,7 +152,7 @@ mod tests {
     fn a_write_through_a_bound_handle_keeps_its_stream() {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
+        use crate::source::Source;
         for body in [
             "    let mut out = std::io::stdout().lock();\n    out.write_all(b\"hi\")",
             "    let out = std::io::stdout();\n    let mut held = out.lock();\n    \
@@ -181,7 +181,7 @@ mod tests {
     fn a_write_on_the_handle_itself_takes_the_lock_at_the_site() {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
+        use crate::source::Source;
         let sources = [Source::new(
             PathBuf::from("src/main.rs"),
             "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout();\n    \
@@ -205,7 +205,7 @@ mod tests {
     fn each_write_is_its_own_event_in_body_order() {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
+        use crate::source::Source;
         let sources = [Source::new(
             PathBuf::from("src/main.rs"),
             "fn main() {\n    println!(\"one\");\n    eprintln!(\"two\");\n    println!(\"one\");\n}"
@@ -234,7 +234,7 @@ mod tests {
     fn writes_of_source(source: &str, function: &str) -> Vec<super::OutputWrite> {
         use std::path::PathBuf;
 
-        use crate::{semantic::behavior::behavior, source::Source};
+        use crate::source::Source;
         let sources = [Source::new(PathBuf::from("src/main.rs"), source.to_owned())];
         crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::standard_macros_over(&sources)))
             .into_iter()

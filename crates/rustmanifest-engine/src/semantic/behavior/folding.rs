@@ -129,7 +129,7 @@ impl<'ast> Visit<'ast> for BoundNames {
 mod tests {
     use std::path::PathBuf;
 
-    use super::super::behavior;
+    
     use crate::source::Source;
 
     fn written(text: &str) -> Option<String> {

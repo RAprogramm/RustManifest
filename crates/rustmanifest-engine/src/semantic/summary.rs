@@ -221,7 +221,7 @@ mod tests {
     use super::{ComposedOrigin, summaries};
     use crate::{
         semantic::{
-            behavior::{Literal, OriginGap, behavior},
+            behavior::{Literal, OriginGap},
             calls::{call_graph, resolution_context}
         },
         source::Source

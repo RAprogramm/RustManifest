@@ -40,7 +40,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Choice, Closure};
-    use crate::{semantic::behavior::behavior, source::Source};
+    use crate::source::Source;
 
     fn chosen(body: &str) -> Vec<Choice> {
         let text = format!("fn decide(value: Kind) -> u32 {{\n{body}\n}}");

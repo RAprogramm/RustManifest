@@ -55,7 +55,7 @@ mod rename_op;
 mod role;
 mod scip;
 mod settled;
-#[cfg(test)]
+#[cfg(any(test, feature = "fixtures"))]
 pub mod settling;
 mod std_derive;
 mod std_knowledge;

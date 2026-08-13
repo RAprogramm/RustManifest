@@ -103,7 +103,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::Condition;
-    use crate::{semantic::behavior::behavior, source::Source};
+    use crate::source::Source;
 
     /// The condition stack of every return position of one function,
     /// paired with the length of the guard stack beside it.
