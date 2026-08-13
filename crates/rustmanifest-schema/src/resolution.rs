@@ -19,6 +19,7 @@
 //! guessing from spelling — see [`typed`] and [`path`] for why each exists.
 
 mod call;
+mod declared_type;
 mod function;
 mod granted_trait;
 mod layout;
@@ -34,6 +35,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::{
     call::{ResolvedCall, ResolvedField},
+    declared_type::{ResolvedFieldDecl, ResolvedTypeDecl},
     function::ResolvedFunction,
     granted_trait::ResolvedGrant,
     layout::ResolvedLayout,
@@ -83,6 +85,10 @@ pub struct Resolution {
     /// name order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub layouts:       Vec<ResolvedLayout>,
+    /// Every type the workspace declares, with its fields, in file then
+    /// position order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub declared:      Vec<ResolvedTypeDecl>,
     /// Every trait every type carries, in type then trait order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grants:        Vec<ResolvedGrant>,
@@ -202,6 +208,9 @@ impl Resolution {
         positioned::settle(&mut self.paths);
         positioned::settle(&mut self.functions);
         positioned::settle(&mut self.signatures);
+        self.declared
+            .sort_by(|left, right| left.at.file.cmp(&right.at.file).then(left.at.range.start.cmp(&right.at.range.start)));
+        self.declared.dedup();
         self.grants.sort();
         self.grants.dedup();
         self.types_granted

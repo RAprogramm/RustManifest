@@ -10,6 +10,10 @@
 //! body and still know which body they are about: two types with a `new`
 //! share the written name and never the path.
 
+mod shapes;
+
+pub(super) use self::shapes::settled as shapes_settled;
+
 use ra_ap_syntax::{AstNode, ast, ast::HasName as _};
 use rustmanifest_schema::{ResolvedFunction, ResolvedMode, ResolvedParam, ResolvedSignature};
 

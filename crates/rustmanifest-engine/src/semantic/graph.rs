@@ -129,12 +129,31 @@ impl TypeGraph {
             .any(|(held, carried)| held == name && carried == trait_name)
     }
 
-    /// States what the compiler settled about which traits each type
-    /// carries.
+    /// States what the compiler settled about the workspace: which traits
+    /// each type carries, and what each declared type is made of.
     pub fn granted_by(&mut self, settled: Option<&rustmanifest_schema::Resolution>) {
         let Some(resolution) = settled else {
             return;
         };
+        for declared in &resolution.declared {
+            let Some(node) = self
+                .types
+                .iter_mut()
+                .find(|node| node.name == declared.named)
+            else {
+                continue;
+            };
+            for settled in &declared.fields {
+                if let Some(field) = node
+                    .fields
+                    .iter_mut()
+                    .find(|held| held.name == settled.name)
+                    && let Some(named) = crate::semantic::behavior::outermost_name(&settled.named)
+                {
+                    field.type_name = named;
+                }
+            }
+        }
         self.granted = resolution
             .grants
             .iter()

@@ -24,7 +24,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::resolution::{
-    Resolution, ResolvedCall, ResolvedField, ResolvedFunction, ResolvedGrant, ResolvedLayout,
+    Resolution, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedFunction, ResolvedGrant,
+    ResolvedLayout, ResolvedTypeDecl,
     ResolvedMode,
     ResolvedModule, ResolvedParam, ResolvedPath, ResolvedProperty, ResolvedSignature,
     ResolvedType
