@@ -55,9 +55,7 @@ impl FactCollector {
             syn::Expr::Let(_) => Provenance::Constructed("bool".to_owned()),
             syn::Expr::Const(block) => self.block_origin(&block.block),
             syn::Expr::TryBlock(block) => self.block_origin(&block.block),
-            syn::Expr::Macro(invocation)
-                if crate::semantic::std_knowledge::macro_leaves(&invocation.mac.path) =>
-            {
+            syn::Expr::Macro(_) if self.flow_scope().never_returns(expression) => {
                 Provenance::Leaves
             }
             syn::Expr::Macro(_) => self

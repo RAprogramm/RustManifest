@@ -13,13 +13,11 @@
 
 mod arithmetic;
 mod flow;
-mod macro_value;
 mod presence;
 
 pub(super) use self::{
     arithmetic::operation_method,
     flow::{Carried, carried_by},
-    macro_value::macro_leaves,
     presence::{Presence, presence_method}
 };
 
