@@ -75,15 +75,6 @@ pub(super) const STREAM_HANDLE_PATHS: [(&[&str], Stream, &str, &str); 2] = [
     )
 ];
 
-/// The library's own wrappers around a value: constructing one produces
-/// the value it was handed, in a shell that says which half of an outcome
-/// it is.
-///
-/// The value such a construction stands for is the value written inside
-/// it, so naming the construction would put a step between a value and
-/// itself.
-pub(super) const VALUE_WRAPPERS: [&str; 3] = ["Err", "Ok", "Some"];
-
 /// The locking call a stream handle answers with a guard held until the
 /// guard is dropped.
 pub(super) const STREAM_LOCK_METHOD: &str = "lock";

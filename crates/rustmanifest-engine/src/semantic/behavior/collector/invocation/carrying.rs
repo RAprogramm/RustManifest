@@ -10,12 +10,36 @@
 //! inside is handed on, and the call is not named at all.
 
 use super::super::FactCollector;
-use crate::semantic::{
-    behavior::{Provenance, collector::catalog::VALUE_WRAPPERS},
-    std_knowledge::Carried
-};
+use crate::semantic::{behavior::Provenance, std_knowledge::Carried};
+
+/// The crate whose outcome variants wrap one value and add nothing to
+/// it.
+///
+/// Which three names those variants have is not the question — a
+/// workspace variant spelled `Ok` is a different item, and the compiler
+/// is the one that tells them apart. Three written names answered here
+/// before, and answered for every namesake too.
+const OUTCOME_CRATE: &str = "core";
 
 impl FactCollector {
+    /// Whether the written path names an outcome variant of the crate
+    /// that declares them, as the compiler settled it.
+    fn wraps_one_value(&self, path: &syn::Path) -> bool {
+        use syn::spanned::Spanned as _;
+
+        let span = path.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
+            return false;
+        };
+        if self.items.get(&(start, end)).map(String::as_str) != Some("variant") {
+            return false;
+        }
+        self.named
+            .get(&(start, end))
+            .and_then(|reached| reached.split("::").next())
+            == Some(OUTCOME_CRATE)
+    }
+
     /// Hands on the origin of the one value a library wrapper is built
     /// around.
     pub(in crate::semantic::behavior::collector) fn carry_wrapper(
@@ -26,10 +50,7 @@ impl FactCollector {
         let syn::Expr::Path(path) = call.func.as_ref() else {
             return;
         };
-        let Some(named) = path.path.segments.last() else {
-            return;
-        };
-        if !VALUE_WRAPPERS.contains(&named.ident.to_string().as_str()) {
+        if !self.wraps_one_value(&path.path) {
             return;
         }
         let [only] = call.args.iter().collect::<Vec<_>>()[..] else {
