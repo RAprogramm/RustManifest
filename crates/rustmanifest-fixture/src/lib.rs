@@ -163,12 +163,19 @@ fn write_package(root: &Path, files: &[(&str, &str)]) {
         if is_root(path) {
             rooted.push_str(text);
             rooted.push('\n');
+        }
+    }
+    for (path, text) in files {
+        if is_root(path) {
             continue;
         }
         let at = root.join("src").join(module_of(path));
         std::fs::create_dir_all(at.parent().expect("a parent")).expect("the module directory");
         std::fs::write(&at, text).expect("the module is written");
-        declared.push_str(&format!("pub mod {};\n", module_name(path)));
+        let named = module_name(path);
+        if !rooted.contains(&format!("mod {named};")) {
+            declared.push_str(&format!("pub mod {named};\n"));
+        }
     }
     declared.push_str(&rooted);
     std::fs::write(root.join("src/lib.rs"), declared).expect("the crate root is written");

@@ -62,45 +62,6 @@ mod tests {
         source::Source
     };
 
-    /// What a compiler settles about these fixtures.
-    ///
-    /// Every question the module asks starts from a field: which type
-    /// holds `tasks`, and what that field carries. The written text names
-    /// neither — `self` is spelled `self` and a handler's state arrives
-    /// through a pattern — so the whole reading rests on the resolver
-    /// saying it. Which body each written call reaches is settled beside
-    /// it, so a command reaching a store's method is an edge and not a
-    /// guess.
-    fn settled_over_text(sources: &[Source]) -> rustmanifest_schema::Resolution {
-        let resolution = Settling::over("src/lib.rs", sources[0].text())
-            .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
-            .rewound()
-            .fields("state.tasks", "AppState", "Mutex<BTreeMap<u64, Task>>")
-            .rewound()
-            .fields("store.tasks", "Store", "BTreeMap<u64, Task>")
-            .rewound()
-            .fields("task.done", "Task", "bool")
-            .rewound()
-            .fields("task.title", "Task", "String")
-            .rewound()
-            .all_typed("self.tasks", "BTreeMap<u64, Task>")
-            .rewound()
-            .all_typed("state.tasks", "Mutex<BTreeMap<u64, Task>>")
-            .rewound()
-            .all_typed("store.tasks", "BTreeMap<u64, Task>")
-            .rewound()
-            .all_typed("store", "&mut Store")
-            .rewound()
-            .all_typed("state", "AppState")
-            .rewound()
-            .all_typed("tasks", "BTreeMap<u64, Task>")
-            .done();
-        let mut resolution = resolution;
-        let facts = behavior_with(sources, Some(&resolution));
-        settle_identity(&mut resolution, sources, &facts);
-        resolution
-    }
-
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
 

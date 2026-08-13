@@ -196,7 +196,9 @@ mod tests {
     /// The module tree and the call identity a compiler settles for
     /// `sources`.
     fn settled(sources: &[Source]) -> rustmanifest_schema::Resolution {
-        let mut resolution = declared_tree(sources);
+        let mut resolution = crate::semantic::settling::settled_over(sources);
+        let tree = declared_tree(sources);
+        resolution.modules = tree.modules;
         let facts = crate::semantic::behavior_with(sources, Some(&resolution));
         settle_identity(&mut resolution, sources, &facts);
         resolution

@@ -186,7 +186,7 @@ mod tests {
         settle: impl FnOnce(Settling<'text>) -> Settling<'text>
     ) -> Vec<super::Feature> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let mut resolution = settle(Settling::over("src/lib.rs", text)).done();
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
         features(&crate::semantic::behavior_with(&sources, Some(&resolution))[0])
     }
 

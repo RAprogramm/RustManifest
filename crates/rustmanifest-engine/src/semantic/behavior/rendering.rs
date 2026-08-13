@@ -127,7 +127,7 @@ mod tests {
         settle: impl FnOnce(Settling<'text>) -> Settling<'text>
     ) -> Vec<Payload> {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        let mut resolution = settle(Settling::over("src/main.rs", text)).done();
+        let resolution = settle(Settling::over("src/main.rs", text)).done();
         let facts = behavior_with(&sources, Some(&resolution));
         let fact = facts
             .iter()

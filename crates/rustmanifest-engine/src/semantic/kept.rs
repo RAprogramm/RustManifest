@@ -192,22 +192,6 @@ mod tests {
         workspace::Workspace
     };
 
-    /// What a compiler settles about the fixture: the type holding
-    /// `tasks`, what it carries, and which body each call reaches.
-    fn settled_over_text(sources: &[crate::source::Source]) -> rustmanifest_schema::Resolution {
-        let resolution = Settling::over("src/lib.rs", sources[0].text())
-            .fields("self.tasks", "Store", "BTreeMap<u64, Task>")
-            .rewound()
-            .all_typed("self.tasks", "BTreeMap<u64, Task>")
-            .rewound()
-            .fields("task.title", "Task", "String")
-            .done();
-        let mut resolution = resolution;
-        let facts = behavior_with(sources, Some(&resolution));
-        settle_identity(&mut resolution, sources, &facts);
-        resolution
-    }
-
     fn one(text: &str) -> Vec<crate::source::Source> {
         vec![crate::source::Source::new(
             PathBuf::from("src/lib.rs"),

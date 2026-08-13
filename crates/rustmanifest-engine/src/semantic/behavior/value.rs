@@ -99,7 +99,7 @@ mod tests {
         let text = "fn caller() -> Result<u8, Outer> { inner()? }\nfn inner() -> Result<u8, \
                     Inner> { Ok(1) }";
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let mut resolution = crate::semantic::settling::Settling::over("src/lib.rs", text)
+        let resolution = crate::semantic::settling::Settling::over("src/lib.rs", text)
             .typed("inner()", "Result<u8, Inner>")
             .done();
         let facts = crate::semantic::behavior_with(&sources, Some(&resolution));

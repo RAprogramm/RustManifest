@@ -497,7 +497,7 @@ mod tests {
             .after("fn main")
             .typed("dies()", "!")
             .done();
-        let mut leaving = leaving;
+        let leaving = leaving;
         let facts = behavior_with(&sources, Some(&leaving));
         let main = facts
             .iter()
@@ -515,7 +515,7 @@ mod tests {
             .after("fn main")
             .typed("helper()", "u8")
             .done();
-        let mut settled = settled;
+        let settled = settled;
         let plain = behavior_with(&returning, Some(&settled));
         let entry = plain
             .iter()

@@ -224,7 +224,7 @@ mod tests {
             .after("String {")
             .typed("tag", "&Tag")
             .done();
-        let mut settled = settled;
+        let settled = settled;
         let intents = derived_intents_with(
             &behavior_with(&sources, Some(&settled)),
             &TypeGraph::from_sources(&sources)

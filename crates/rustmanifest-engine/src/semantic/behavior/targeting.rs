@@ -106,7 +106,7 @@ mod tests {
             .after("->")
             .typed("text", "&str")
             .done();
-        let mut resolution = resolution;
+        let resolution = resolution;
         behavior_with(&sources, Some(&resolution))
             .iter()
             .find(|fact| fact.function == function)

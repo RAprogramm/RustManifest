@@ -145,7 +145,7 @@ mod tests {
             source("src/lib.rs", "pub struct Ok;"),
             source("src/broken.rs", "fn broken(")
         ];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.files_total, 2);
         assert_eq!(report.files_parsed, 1);
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn inline_modules_count_as_modules_of_one_file() {
         let sources = [source("src/lib.rs", "mod a {} mod b {}")];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.modules_total, 3);
         assert_eq!(report.files_reachable, 1);
@@ -219,7 +219,7 @@ mod tests {
             source("src/a.rs", "use crate::b::Item; use std::fmt;"),
             source("src/b.rs", "")
         ];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.use_targets_total, 2);
         assert_eq!(report.use_targets_resolved, 1);
@@ -239,7 +239,7 @@ mod tests {
             ),
             source("src/handlers/account.rs", "")
         ];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.use_targets_resolved, 2);
         assert_eq!(report.use_targets_unresolved, 1);
@@ -277,7 +277,7 @@ mod tests {
                 "pub struct User { pub identity: Identity, pub age: u8 }"
             )
         ];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.structs_captured, 2);
         assert_eq!(report.fields_captured, 3);
@@ -291,7 +291,7 @@ mod tests {
             "#[derive(Debug, Clone)]\npub struct A;\nmacro_rules! noise { () => {} }\nmod inner \
              { #[derive(Default)] pub struct B; }"
         )];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         let report = coverage(&Workspace::resolved(&sources, &settled));
         assert_eq!(report.derives_seen, 2);
         assert_eq!(report.item_macros_seen, 1);
@@ -315,7 +315,7 @@ mod tests {
             ),
             source("src/a.rs", "use crate::S; use std::fmt;")
         ];
-        let mut settled = declared_tree(&sources);
+        let settled = declared_tree(&sources);
         assert_eq!(
             coverage(&Workspace::resolved(&sources, &settled)),
             coverage(&Workspace::resolved(&sources, &settled))

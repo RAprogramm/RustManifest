@@ -218,8 +218,8 @@ impl Settled {
 
     /// Adds what a compiler settles about the standard macros and
     /// container constructors this fixture writes.
-    fn standard(mut self, file: &str) -> Self {
-        let sources = [rustmanifest_engine::Source::new(
+    fn standard(self, file: &str) -> Self {
+        let _sources = [rustmanifest_engine::Source::new(
             std::path::PathBuf::from(file),
             self.text.clone()
         )];

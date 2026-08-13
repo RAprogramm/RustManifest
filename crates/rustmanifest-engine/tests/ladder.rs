@@ -206,7 +206,7 @@ fn stated_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resoluti
         .iter()
         .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
         .collect();
-    let mut settled = settled.clone();
+    let settled = settled.clone();
     program_meaning(&Workspace::resolved(&owned, &settled))
         .first()
         .map(|entry| match &entry.narrative {
@@ -399,7 +399,7 @@ fn kept_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resolution
         .iter()
         .map(|(path, body)| Source::new(PathBuf::from(path), (*body).to_owned()))
         .collect();
-    let mut settled = settled.clone();
+    let settled = settled.clone();
     purpose(&Workspace::resolved(&owned, &settled))
 }
 

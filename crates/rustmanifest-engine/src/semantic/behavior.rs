@@ -107,7 +107,7 @@ mod tests {
         settle: impl FnOnce(Settling<'text>) -> Settling<'text>
     ) -> Vec<FunctionFacts> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let mut resolution = settle(Settling::over("src/lib.rs", text)).done();
+        let resolution = settle(Settling::over("src/lib.rs", text)).done();
         super::behavior_with(&sources, Some(&resolution))
     }
 
@@ -497,7 +497,7 @@ mod tests {
             Source::new(PathBuf::from("app/src/net.rs"), net_text.to_owned()),
             Source::new(PathBuf::from("app/src/disk.rs"), disk_text.to_owned()),
         ];
-        let mut resolution = resolution;
+        let resolution = resolution;
         let all = super::behavior_with(&sources, Some(&resolution));
         let net = all
             .iter()
