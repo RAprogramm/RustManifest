@@ -157,6 +157,17 @@ mod tests {
         vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())]
     }
 
+    /// What a compiler settles about the fixture the two fulfilment
+    /// tests share: the fields the type declares and the abilities each
+    /// field's own type carries — the answers a canonical body rests on.
+    fn settled_over(text: &str) -> rustmanifest_schema::Resolution {
+        Settling::over("src/lib.rs", text)
+            .declaring("User", &[("name", "String"), ("age", "u8")])
+            .granting("String", "Default")
+            .granting("u8", "Default")
+            .done()
+    }
+
     /// A written `default` call on a type without `Default` derives the
     /// intent, and its fulfilment reads back panic-free.
     #[test]
@@ -169,7 +180,8 @@ mod tests {
         assert_eq!(intents.len(), 1, "{intents:?}");
         assert_eq!(intents[0].trait_name, "Default");
         assert!(intents[0].evidence.fact.contains("fn `make`"));
-        let fulfilled = fulfill_intents(&sources, None);
+        let settled = settled_over(sources[0].text());
+        let fulfilled = fulfill_intents(&sources, Some(&settled));
         assert_eq!(fulfilled.len(), 1);
         let held = &fulfilled[0];
         assert!(held.gain.as_ref().is_some_and(|gain| !gain.panics));
@@ -185,7 +197,8 @@ mod tests {
             "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n\npub fn make() -> \
              User {\n    User::default()\n}\n"
         );
-        let fulfilled = fulfill_intents(&sources, None);
+        let settled = settled_over(sources[0].text());
+        let fulfilled = fulfill_intents(&sources, Some(&settled));
         let held = &fulfilled[0];
         let marker = held.catalog.as_ref().unwrap();
         assert!(
