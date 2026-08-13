@@ -28,16 +28,26 @@ const BOUNDARY_MODULES: [(&str, Effect); 4] = [
     ("env", Effect::Environment)
 ];
 
-/// The handles of the process's own console, whose module is the same
-/// one every other reader and writer lives in.
-const CONSOLE_HANDLES: [&str; 3] = ["Stdout", "Stderr", "Stdin"];
+/// The handles of the process's own console, each named by the item
+/// that declares it: their module is the same one every other reader
+/// and writer lives in, so the module alone cannot tell them apart, and
+/// a bare name would answer for any library's namesake.
+const CONSOLE_HANDLES: [&str; 3] = [
+    "std::io::stdio::Stdout",
+    "std::io::stdio::Stderr",
+    "std::io::stdio::Stdin"
+];
 
 /// The effect a path performs, by the module of the library it runs
 /// through and the handle it names.
 pub(in crate::semantic::behavior::collector) fn reached_effect(
     segments: &[String]
 ) -> Option<Effect> {
-    if segments.iter().any(|held| CONSOLE_HANDLES.contains(&held.as_str())) {
+    let joined = segments.join("::");
+    if CONSOLE_HANDLES
+        .iter()
+        .any(|named| joined == *named || joined.starts_with(&format!("{named}::")))
+    {
         return Some(Effect::ConsoleIo);
     }
     if let Some((_, effect)) = BOUNDARY_MODULES
