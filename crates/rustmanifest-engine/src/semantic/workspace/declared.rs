@@ -41,7 +41,7 @@ impl Declared {
     ) -> &TypeGraph {
         self.types.get_or_init(|| {
             let mut graph = TypeGraph::from_sources(sources);
-            graph.granted_by(settled);
+            graph.granted_by(sources, settled);
             graph
         })
     }

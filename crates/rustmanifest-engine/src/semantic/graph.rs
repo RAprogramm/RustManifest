@@ -131,7 +131,11 @@ impl TypeGraph {
 
     /// States what the compiler settled about the workspace: which traits
     /// each type carries, and what each declared type is made of.
-    pub fn granted_by(&mut self, settled: Option<&rustmanifest_schema::Resolution>) {
+    pub fn granted_by(
+        &mut self,
+        sources: &[Source],
+        settled: Option<&rustmanifest_schema::Resolution>
+    ) {
         let Some(resolution) = settled else {
             return;
         };
@@ -160,6 +164,26 @@ impl TypeGraph {
                     field.element = held(&opened);
                     field.key = looked_up_by(&opened);
                 }
+            }
+        }
+        for block in &mut self.impls {
+            let Some(file) = sources.get(block.source).map(crate::source::Source::path) else {
+                continue;
+            };
+            for method in &mut block.methods {
+                method.type_refs = resolution
+                    .paths
+                    .iter()
+                    .filter(|row| row.at.file == file)
+                    .filter(|row| {
+                        row.at.range.start >= method.body.start
+                            && row.at.range.end <= method.body.end
+                    })
+                    .filter(|row| matches!(row.kind.as_str(), "struct" | "enum" | "union"))
+                    .filter_map(|row| row.names.rsplit("::").next().map(ToOwned::to_owned))
+                    .collect();
+                method.type_refs.sort_unstable();
+                method.type_refs.dedup();
             }
         }
         self.granted = resolution

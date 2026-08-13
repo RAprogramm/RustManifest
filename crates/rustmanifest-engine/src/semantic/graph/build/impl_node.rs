@@ -32,9 +32,18 @@ pub(in crate::semantic::graph) fn impl_node(
             let syn::ImplItem::Fn(function) = item else {
                 return None;
             };
+            let span = {
+                use syn::spanned::Spanned as _;
+
+                function.block.span().byte_range()
+            };
             Some(MethodNode {
                 name:      function.sig.ident.to_string(),
-                type_refs: body_type_refs(&function.block)
+                type_refs: Vec::new(),
+                body:      rustmanifest_schema::Range {
+                    start: u32::try_from(span.start).unwrap_or(u32::MAX),
+                    end:   u32::try_from(span.end).unwrap_or(u32::MAX)
+                }
             })
         })
         .collect();
@@ -45,14 +54,6 @@ pub(in crate::semantic::graph) fn impl_node(
         derived: false,
         methods
     })
-}
-
-/// Collects the first segments of qualified paths in a method body that
-/// look like type names (leading uppercase), deduplicated and sorted.
-fn body_type_refs(block: &syn::Block) -> Vec<String> {
-    let mut collector = TypeRefCollector::default();
-    collector.visit_block(block);
-    collector.refs.into_iter().collect()
 }
 
 /// Syntax visitor gathering type-looking path heads from expressions.

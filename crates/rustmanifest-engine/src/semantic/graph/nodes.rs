@@ -83,9 +83,11 @@ pub struct Absorption {
 pub struct MethodNode {
     /// Method name as written.
     pub name:      String,
-    /// First segments of qualified paths in the body that look like type
-    /// names, deduplicated and sorted.
-    pub type_refs: Vec<String>
+    /// Types the body names, as the compiler settled each written path.
+    pub type_refs: Vec<String>,
+    /// Byte range of the method body, so the settled paths inside it can
+    /// be found.
+    pub body:      rustmanifest_schema::Range
 }
 
 /// One `impl` block found in the workspace.
