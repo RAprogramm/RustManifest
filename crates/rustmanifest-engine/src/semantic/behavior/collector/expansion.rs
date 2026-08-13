@@ -13,17 +13,37 @@ use super::{
 };
 use crate::semantic::{behavior::types::Effect, knowledge};
 
+/// The crate the language declares its heap containers in, so a macro
+/// the compiler settles into it allocates.
+const ALLOCATING_CRATE: &str = "alloc";
+
+/// The print macro that also names what it prints, which is why its
+/// payload reads differently from the rest.
+const DEBUG_PRINT: &str = "std::macros::dbg";
+
 impl FactCollector {
+    /// The item a macro invocation reaches, as the compiler settled the
+    /// path it is written with.
+    fn reached_macro(&self, invocation: &syn::Macro) -> Option<String> {
+        use syn::spanned::Spanned;
+
+        let span = invocation.path.span().byte_range();
+        let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
+            return None;
+        };
+        self.named.get(&(start, end)).cloned()
+    }
+
     /// Records every fact one macro invocation carries.
     pub(super) fn collect_macro(&mut self, invocation: &syn::Macro) {
-        if let Some(segment) = invocation.path.segments.last() {
-            let name = segment.ident.to_string();
+        if let Some(name) = self.reached_macro(invocation) {
+            let name = name.as_str();
             if let Some((_, stream, newline)) = OUTPUT_MACROS
                 .iter()
                 .find(|(macro_name, _, _)| *macro_name == name)
             {
                 self.facts.effects.push(Effect::ConsoleIo);
-                self.record_output(invocation, *stream, *newline, name == "dbg");
+                self.record_output(invocation, *stream, *newline, name == DEBUG_PRINT);
             }
             if let Some((_, newline)) = WRITER_MACROS
                 .iter()
@@ -31,19 +51,25 @@ impl FactCollector {
             {
                 self.record_writer_output(invocation, *newline);
             }
-            if name == "vec" || name == "format" {
+            if name.split("::").next() == Some(ALLOCATING_CRATE) {
                 self.facts.allocations += 1;
             }
             if self.leaves_from(invocation) {
                 self.facts.flags = self.facts.flags.with_panic();
             }
             let tokens = invocation.tokens.to_string();
-            if let Some(effect) = knowledge::sql_macro_effect(&name, &tokens) {
+            let spelled = invocation
+                .path
+                .segments
+                .last()
+                .map(|segment| segment.ident.to_string())
+                .unwrap_or_default();
+            if let Some(effect) = knowledge::sql_macro_effect(&spelled, &tokens) {
                 self.facts.effects.push(effect);
                 self.record_macro_effect_site(invocation, effect);
-                self.record_statement(invocation, &name, &tokens);
+                self.record_statement(invocation, &spelled, &tokens);
             }
-            if EXPRESSION_MACROS.contains(&name.as_str()) {
+            if EXPRESSION_MACROS.contains(&name) {
                 self.visit_macro_arguments(invocation);
             }
             if OUTPUT_MACROS

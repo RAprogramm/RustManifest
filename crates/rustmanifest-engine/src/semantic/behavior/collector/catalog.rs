@@ -18,24 +18,28 @@ pub(super) mod intake;
 use crate::semantic::behavior::output::{Newline, Stream};
 
 /// Print-family macros with the stream each one writes to and whether it
-/// appends a line terminator. Every entry also carries
-/// [`Effect::ConsoleIo`], which stays the coarse summary category.
+/// appends a line terminator, each named by the item the invocation
+/// reaches rather than by the letters somebody typed. Every entry also
+/// carries [`Effect::ConsoleIo`], which stays the coarse summary
+/// category.
 ///
 /// [`Effect::ConsoleIo`]: crate::semantic::behavior::types::Effect::ConsoleIo
 pub(super) const OUTPUT_MACROS: [(&str, Stream, Newline); 5] = [
-    ("dbg", Stream::Stderr, Newline::Appended),
-    ("eprint", Stream::Stderr, Newline::None),
-    ("eprintln", Stream::Stderr, Newline::Appended),
-    ("print", Stream::Stdout, Newline::None),
-    ("println", Stream::Stdout, Newline::Appended)
+    ("std::macros::dbg", Stream::Stderr, Newline::Appended),
+    ("std::macros::eprint", Stream::Stderr, Newline::None),
+    ("std::macros::eprintln", Stream::Stderr, Newline::Appended),
+    ("std::macros::print", Stream::Stdout, Newline::None),
+    ("std::macros::println", Stream::Stdout, Newline::Appended)
 ];
 
 /// Macros that write to a destination handed to them as their first
 /// argument. Where [`OUTPUT_MACROS`] fix the stream by name, these
 /// leave it to the destination, which is a different question and is
 /// answered by the write-destination reading.
-pub(super) const WRITER_MACROS: [(&str, Newline); 2] =
-    [("write", Newline::None), ("writeln", Newline::Appended)];
+pub(super) const WRITER_MACROS: [(&str, Newline); 2] = [
+    ("core::macros::write", Newline::None),
+    ("core::macros::writeln", Newline::Appended)
+];
 
 /// The write-trait method that puts a caller-provided byte slice on a
 /// writer. It is the one write spelling that carries its payload as a
@@ -110,29 +114,29 @@ pub(super) const STREAM_TYPES: [(&str, Stream); 4] = [
 
 
 
-/// Macros that end the current path rather than returning to it.
 /// Macros whose every argument is an expression, so the fact channel can
-/// read the same tokens the reachability fold reads.
+/// read the same tokens the reachability fold reads — each named by the
+/// item the invocation reaches.
 pub(super) const EXPRESSION_MACROS: [&str; 20] = [
-    "assert",
-    "assert_eq",
-    "assert_ne",
-    "dbg",
-    "debug_assert",
-    "debug_assert_eq",
-    "debug_assert_ne",
-    "eprint",
-    "eprintln",
-    "format",
-    "format_args",
-    "panic",
-    "print",
-    "println",
-    "todo",
-    "unimplemented",
-    "unreachable",
-    "vec",
-    "write",
-    "writeln"
+    "alloc::macros::format",
+    "alloc::macros::vec",
+    "core::macros::assert_eq",
+    "core::macros::assert_ne",
+    "core::macros::builtin::assert",
+    "core::macros::debug_assert",
+    "core::macros::debug_assert_eq",
+    "core::macros::debug_assert_ne",
+    "core::macros::panic",
+    "core::macros::todo",
+    "core::macros::unimplemented",
+    "core::macros::unreachable",
+    "core::macros::write",
+    "core::macros::writeln",
+    "std::macros::dbg",
+    "std::macros::eprint",
+    "std::macros::eprintln",
+    "std::macros::format_args",
+    "std::macros::print",
+    "std::macros::println"
 ];
 
