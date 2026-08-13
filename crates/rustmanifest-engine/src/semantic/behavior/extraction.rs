@@ -14,7 +14,7 @@ use super::{
     declaration::ItemContext,
     folding::fold_constants,
     signature::{
-        error_types, param_facts, param_slots, parameter_types
+        error_types, param_slots
     },
     tables::TypeTables,
     targeting::name_targets,
@@ -49,24 +49,16 @@ fn mark_unsafe(collector: &mut FactCollector, signature: &syn::Signature) {
     }
 }
 
-/// What the function takes, as the compiler read its signature — and, for
-/// a source no resolver ran over, as the written text spells it.
+/// What the function takes, as the compiler read its signature.
 fn taken(
     known: &Known<'_>,
-    bytes: &std::ops::Range<usize>,
-    signature: &syn::Signature,
-    context: &ItemContext<'_>
+    bytes: &std::ops::Range<usize>
 ) -> Vec<super::types::ParamFacts> {
     let at = (
         u32::try_from(bytes.start).unwrap_or(u32::MAX),
         u32::try_from(bytes.end).unwrap_or(u32::MAX)
     );
-    known
-        .settled
-        .params
-        .get(&at)
-        .cloned()
-        .unwrap_or_else(|| param_facts(signature, context.impl_type))
+    known.settled.params.get(&at).cloned().unwrap_or_default()
 }
 
 pub(super) fn function_facts(
@@ -79,7 +71,8 @@ pub(super) fn function_facts(
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let census = name_census(block);
-    let params = taken(known, &bytes, signature, context);
+    let params = taken(known, &bytes);
+    let collected = params.clone();
     let mut collector = FactCollector {
         facts:            FunctionFacts {
             function,
@@ -111,7 +104,10 @@ pub(super) fn function_facts(
             exits: Vec::new(),
             queries: Vec::new()
         },
-        param_types:      parameter_types(signature, context.impl_type),
+        param_types:      collected
+            .iter()
+            .map(|param| (param.name.clone(), param.type_name.clone()))
+            .collect(),
         settled:          known.settled.produced.clone(),
         receivers:        known.settled.receivers.clone(),
         takes:            known.settled.takes.clone(),

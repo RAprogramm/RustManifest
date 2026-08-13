@@ -12,7 +12,6 @@
 //! the bounds renders a written type as a single name through the
 //! shared type vocabulary in `type_name`.
 
-mod bound;
 mod element;
 mod error_type;
 mod parameter;
@@ -23,7 +22,7 @@ mod wrapper;
 pub(super) use self::{
     element::element_type,
     error_type::error_types,
-    parameter::{param_facts, parameter_types},
+
     slot::param_slots,
     type_name::type_last_segment,
 };

@@ -4,31 +4,6 @@
 //! The type vocabulary every other signature reading shares: how a type
 //! written in a declaration renders as one name.
 
-/// Renders the last path segment of the type as written, references
-/// stripped but smart pointers kept — the shape ownership advice
-/// reasons about: an owned `Arc` parameter is idiomatic sharing, not a
-/// borrow candidate. A slice or array renders as its bracketed element
-/// (`&[u8]` → `[u8]`): the borrow of it is provable from the written
-/// `&` alone, and dropping the parameter for an unreadable name hid
-/// that provable fact.
-pub(super) fn written_type_segment(ty: &syn::Type) -> Option<String> {
-    match ty {
-        syn::Type::Path(path) => path
-            .path
-            .segments
-            .last()
-            .map(|segment| segment.ident.to_string()),
-        syn::Type::Reference(reference) => written_type_segment(&reference.elem),
-        syn::Type::Slice(slice) => {
-            written_type_segment(&slice.elem).map(|inner| format!("[{inner}]"))
-        }
-        syn::Type::Array(array) => {
-            written_type_segment(&array.elem).map(|inner| format!("[{inner}]"))
-        }
-        other => type_last_segment(other)
-    }
-}
-
 /// Renders the last path segment of a type, looking through references
 /// and the std shared pointers (`Box`, `Rc`, `Arc`), whose deref makes
 /// the wrapped type the receiver; a trait object renders as its first
