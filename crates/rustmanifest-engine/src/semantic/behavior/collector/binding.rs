@@ -8,38 +8,24 @@
 //! whether the value it holds was constructed in this body.
 
 use super::{FactCollector, typing::initializer_type};
-use crate::semantic::behavior::signature::type_last_segment;
 
 impl FactCollector {
-    /// Types every name a destructuring `let` binds from what a resolver
-    /// settled at each binding.
-    ///
-    /// Which type stands at which position is the compiler's answer at
-    /// the name itself; reading it off the callee's declared tuple was
-    /// the same answer taken the long way round, and only for a callee
-    /// this workspace declares.
-    fn record_tuple_binding(&mut self, local: &syn::Local) {
-        if matches!(local.pat, syn::Pat::Tuple(_)) {
-            self.bind_pattern(&local.pat);
-        }
-    }
-
     /// Records the types and the freshness a `let` binding carries.
+    ///
+    /// Every name the `let` binds is typed by what the compiler settled
+    /// at the name itself, however deeply the pattern destructures. A
+    /// written annotation used to answer for the simple case, and it
+    /// answered with the last segment somebody spelled — through an
+    /// alias, through an import renaming it, and only where an annotation
+    /// was written at all.
     pub(super) fn record_local_binding(&mut self, local: &syn::Local) {
-        self.record_tuple_binding(local);
+        self.bind_pattern(&local.pat);
         let name = match &local.pat {
             syn::Pat::Ident(pattern) => Some(pattern.ident.to_string()),
-            syn::Pat::Type(typed) => {
-                if let syn::Pat::Ident(pattern) = typed.pat.as_ref() {
-                    if let Some(type_name) = type_last_segment(&typed.ty) {
-                        self.param_types
-                            .insert(pattern.ident.to_string(), type_name);
-                    }
-                    Some(pattern.ident.to_string())
-                } else {
-                    None
-                }
-            }
+            syn::Pat::Type(typed) => match typed.pat.as_ref() {
+                syn::Pat::Ident(pattern) => Some(pattern.ident.to_string()),
+                _ => None
+            },
             _ => None
         };
         if let (Some(name), init) = (name.clone(), &local.init)
