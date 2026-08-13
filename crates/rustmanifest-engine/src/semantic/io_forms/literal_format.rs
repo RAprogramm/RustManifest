@@ -124,16 +124,24 @@ mod tests {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
     }
 
+    /// The insights of a fixture read against what a compiler settles
+    /// about it: the standard macros it writes and the types it
+    /// declares, without which the readings above answer nothing.
+    fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
+        let settled = crate::semantic::settling::compiler_over(sources);
+        literal_format_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+    }
+
     #[test]
     fn a_constant_through_the_format_machinery_is_reported() {
-        let constant = literal_format_insights(&Workspace::new(&sources(
+        let constant = insights_over(&sources(
             "fn main() {\n    println!(\"hi\");\n}"
-        )));
+        ));
         assert_eq!(constant.len(), 1);
 
-        let computed = literal_format_insights(&Workspace::new(&sources(
+        let computed = insights_over(&sources(
             "fn main() {\n    println!(\"{name}\");\n}"
-        )));
+        ));
         assert!(computed.is_empty());
     }
 
@@ -143,7 +151,7 @@ mod tests {
     #[test]
     fn the_finding_carries_the_prescribed_byte_write_as_a_fix() {
         let text = "fn main() {\n    println!(\"hi \\\"there\\\"\");\n}";
-        let constant = literal_format_insights(&Workspace::new(&sources(text)));
+        let constant = insights_over(&sources(text));
         let fixes = &constant[0].fixes;
         assert_eq!(fixes.len(), 1);
         assert_eq!(
@@ -159,9 +167,9 @@ mod tests {
     /// so no fix is synthesized for it.
     #[test]
     fn a_caller_supplied_stream_gets_no_fix() {
-        let held = literal_format_insights(&Workspace::new(&sources(
+        let held = insights_over(&sources(
             "fn tell(out: &mut impl std::io::Write) {\n    writeln!(out, \"hi\").ok();\n}"
-        )));
+        ));
         assert!(held.iter().all(|insight| insight.fixes.is_empty()));
     }
 
@@ -170,16 +178,16 @@ mod tests {
     /// machinery, so there is no argument pack to charge it for.
     #[test]
     fn the_prescribed_byte_write_is_not_reported_against_itself() {
-        let prescribed = literal_format_insights(&Workspace::new(&sources(
+        let prescribed = insights_over(&sources(
             "fn main() -> std::io::Result<()> {\n    \
              std::io::stdout().lock().write_all(b\"hi\")\n}"
-        )));
+        ));
         assert!(prescribed.is_empty());
 
-        let bound = literal_format_insights(&Workspace::new(&sources(
+        let bound = insights_over(&sources(
             "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout().lock();\n    \
              out.write_all(b\"hi\")\n}"
-        )));
+        ));
         assert!(bound.is_empty());
     }
 }

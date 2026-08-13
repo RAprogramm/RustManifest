@@ -168,17 +168,25 @@ mod tests {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
     }
 
+    /// The insights of a fixture read against what a compiler settles
+    /// about it: the standard macros it writes and the types it
+    /// declares, without which the readings above answer nothing.
+    fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
+        let settled = crate::semantic::settling::compiler_over(sources);
+        lock_run_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+    }
+
     #[test]
     fn a_run_of_prints_is_reported_and_a_single_print_is_not() {
-        let run = lock_run_insights(&Workspace::new(&sources(
+        let run = insights_over(&sources(
             "fn main() {\n    println!(\"one\");\n    println!(\"two\");\n}"
-        )));
+        ));
         assert_eq!(run.len(), 1);
         assert!(run[0].detail.contains("2 writes to stdout"));
 
-        let single = lock_run_insights(&Workspace::new(&sources(
+        let single = insights_over(&sources(
             "fn main() {\n    println!(\"one\");\n}"
-        )));
+        ));
         assert!(single.is_empty());
     }
 
@@ -186,15 +194,15 @@ mod tests {
     /// could not serve both and a print to each is not a run.
     #[test]
     fn the_two_standard_streams_are_never_pooled_into_one_run() {
-        let mixed = lock_run_insights(&Workspace::new(&sources(
+        let mixed = insights_over(&sources(
             "fn main() {\n    println!(\"out\");\n    eprintln!(\"err\");\n}"
-        )));
+        ));
         assert!(mixed.is_empty());
 
-        let both = lock_run_insights(&Workspace::new(&sources(
+        let both = insights_over(&sources(
             "fn main() {\n    println!(\"a\");\n    println!(\"b\");\n    eprintln!(\"c\");\n    \
              eprintln!(\"d\");\n}"
-        )));
+        ));
         assert_eq!(both.len(), 2);
         assert!(both[0].detail.contains("2 writes to stdout"));
         assert!(both[1].detail.contains("2 writes to stderr"));
@@ -205,21 +213,21 @@ mod tests {
     /// ever happen in one execution.
     #[test]
     fn writes_under_branches_are_not_counted_as_a_run() {
-        let exclusive = lock_run_insights(&Workspace::new(&sources(
+        let exclusive = insights_over(&sources(
             "fn main(ok: bool) {\n    if ok { println!(\"yes\"); } else { println!(\"no\"); }\n}"
-        )));
+        ));
         assert!(exclusive.is_empty());
 
-        let arms = lock_run_insights(&Workspace::new(&sources(
+        let arms = insights_over(&sources(
             "fn main(v: Command) {\n    match v {\n        Command::Place(_) => \
              println!(\"placing\"),\n        Command::Cancel(_) => println!(\"cancelling\")\n    \
              }\n}"
-        )));
+        ));
         assert!(arms.is_empty());
 
-        let dead = lock_run_insights(&Workspace::new(&sources(
+        let dead = insights_over(&sources(
             "fn main() {\n    return;\n    println!(\"a\");\n    println!(\"b\");\n}"
-        )));
+        ));
         assert!(dead.is_empty());
     }
 
@@ -227,10 +235,10 @@ mod tests {
     /// reader knows the run reported is not the whole story.
     #[test]
     fn sites_left_out_of_a_run_are_stated_in_the_trace() {
-        let mixed = lock_run_insights(&Workspace::new(&sources(
+        let mixed = insights_over(&sources(
             "fn main(ok: bool) {\n    println!(\"a\");\n    println!(\"b\");\n    if ok { \
              println!(\"c\"); }\n}"
-        )));
+        ));
         assert_eq!(mixed.len(), 1);
         assert!(mixed[0].detail.contains("2 writes to stdout"));
         assert!(mixed[0].trace.iter().any(|step| {
@@ -244,11 +252,11 @@ mod tests {
     /// itself: the lock was taken once, at the binding.
     #[test]
     fn writes_through_a_guard_bound_once_are_not_a_run() {
-        let locked_once = lock_run_insights(&Workspace::new(&sources(
+        let locked_once = insights_over(&sources(
             "fn main() -> std::io::Result<()> {\n    let mut out = std::io::stdout().lock();\n    \
              out.write_all(b\"one\")?;\n    out.write_all(b\"two\")?;\n    \
              out.write_all(b\"three\")\n}"
-        )));
+        ));
         assert!(locked_once.is_empty());
     }
 
@@ -256,10 +264,10 @@ mod tests {
     /// means every unguarded site before it has already written.
     #[test]
     fn a_run_after_an_early_exit_claims_only_the_paths_that_reach_it() {
-        let weakened = lock_run_insights(&Workspace::new(&sources(
+        let weakened = insights_over(&sources(
             "fn main() -> Result<(), ()> {\n    println!(\"a\");\n    helper()?;\n    \
              println!(\"b\");\n    Ok(())\n}"
-        )));
+        ));
         assert_eq!(weakened.len(), 1);
         assert!(
             weakened[0]

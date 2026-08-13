@@ -97,6 +97,14 @@ mod tests {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
     }
 
+    /// The insights of a fixture read against what a compiler settles
+    /// about it: the standard macros it writes and the types it
+    /// declares, without which the readings above answer nothing.
+    fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
+        let settled = crate::semantic::settling::compiler_over(sources);
+        loop_write_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+    }
+
     /// The locked-handle shape with a written flush carries the
     /// buffering fix: one edit wrapping the initializer.
     #[test]
@@ -104,7 +112,7 @@ mod tests {
         let text = "use std::io::Write;\nfn main() {\n    let stdout = std::io::stdout();\n    \
                     let mut handle = stdout.lock();\n    for line in 0..9 {\n        \
                     writeln!(handle, \"{line}\").ok();\n    }\n    handle.flush().ok();\n}";
-        let found = loop_write_insights(&Workspace::new(&sources(text)));
+        let found = insights_over(&sources(text));
         let fixes = &found[0].fixes;
         assert_eq!(fixes.len(), 1, "{fixes:?}");
         assert_eq!(
@@ -122,7 +130,7 @@ mod tests {
         let text = "use std::io::Write;\nfn main() {\n    let stdout = std::io::stdout();\n    \
                     let mut handle = stdout.lock();\n    for line in 0..9 {\n        \
                     writeln!(handle, \"{line}\").ok();\n    }\n}";
-        let found = loop_write_insights(&Workspace::new(&sources(text)));
+        let found = insights_over(&sources(text));
         assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
     }
 
@@ -134,7 +142,7 @@ mod tests {
                     handle; }\nfn main() {\n    let stdout = std::io::stdout();\n    let mut \
                     handle = stdout.lock();\n    for line in 0..9 {\n        writeln!(handle, \
                     \"{line}\").ok();\n    }\n    keep(&handle);\n    handle.flush().ok();\n}";
-        let found = loop_write_insights(&Workspace::new(&sources(text)));
+        let found = insights_over(&sources(text));
         assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
     }
 
@@ -144,11 +152,11 @@ mod tests {
     /// destination.
     #[test]
     fn a_buffered_loop_write_is_silent_by_knowledge() {
-        let found = loop_write_insights(&Workspace::new(&sources(
+        let found = insights_over(&sources(
             "use std::io::Write;\nfn main() {\n    let mut out = \
              std::io::BufWriter::new(std::io::stdout().lock());\n    for line in 0..9 {\n        \
              writeln!(out, \"{line}\").ok();\n    }\n    out.flush().ok();\n}"
-        )));
+        ));
         assert!(found.is_empty(), "{found:?}");
     }
 
@@ -156,11 +164,11 @@ mod tests {
     /// buffer bound over its lock — resolves the same as the inline one.
     #[test]
     fn a_buffered_write_over_a_bound_stream_is_silent_too() {
-        let found = loop_write_insights(&Workspace::new(&sources(
+        let found = insights_over(&sources(
             "use std::io::Write;\nfn main() {\n    let stdout = std::io::stdout();\n    let mut \
              out = std::io::BufWriter::new(stdout.lock());\n    for line in 0..9 {\n        \
              writeln!(out, \"{line}\").ok();\n    }\n    out.flush().ok();\n}"
-        )));
+        ));
         assert!(found.is_empty(), "{found:?}");
     }
 
@@ -168,23 +176,23 @@ mod tests {
     /// stays a suggestion.
     #[test]
     fn a_bare_println_in_a_loop_gets_no_fix() {
-        let found = loop_write_insights(&Workspace::new(&sources(
+        let found = insights_over(&sources(
             "fn main() {\n    for line in 0..9 {\n        println!(\"{line}\");\n    }\n}"
-        )));
+        ));
         assert!(found[0].fixes.is_empty(), "{:?}", found[0].fixes);
     }
 
     #[test]
     fn a_write_in_a_loop_is_reported_and_a_straight_one_is_not() {
-        let looped = loop_write_insights(&Workspace::new(&sources(
+        let looped = insights_over(&sources(
             "fn main() {\n    for index in 0..10 { println!(\"{index}\"); }\n}"
-        )));
+        ));
         assert_eq!(looped.len(), 1);
         assert!(looped[0].detail.contains("buffered writer"));
 
-        let straight = loop_write_insights(&Workspace::new(&sources(
+        let straight = insights_over(&sources(
             "fn main() {\n    println!(\"once\");\n}"
-        )));
+        ));
         assert!(straight.is_empty());
     }
 
@@ -193,19 +201,19 @@ mod tests {
     /// this insight; that boundary is stated here so a change to it is visible.
     #[test]
     fn a_guarded_loop_carrying_a_write_is_reported_in_either_form() {
-        let whiled = loop_write_insights(&Workspace::new(&sources(
+        let whiled = insights_over(&sources(
             "pub fn tick(mut n: u32) {\n    while n > 0 { println!(\"tick\"); n -= 1; }\n}"
-        )));
+        ));
         assert_eq!(whiled.len(), 1);
 
-        let counted = loop_write_insights(&Workspace::new(&sources(
+        let counted = insights_over(&sources(
             "pub fn tick() {\n    for _ in 0..3 { println!(\"tick\"); }\n}"
-        )));
+        ));
         assert_eq!(counted.len(), 1);
 
-        let bare = loop_write_insights(&Workspace::new(&sources(
+        let bare = insights_over(&sources(
             "pub fn tick() {\n    loop { println!(\"tick\"); }\n}"
-        )));
+        ));
         assert!(bare.is_empty());
     }
 
@@ -214,17 +222,17 @@ mod tests {
     /// line buffering proves nothing about it.
     #[test]
     fn a_loop_write_cites_the_buffering_of_its_own_stream() {
-        let out = loop_write_insights(&Workspace::new(&sources(
+        let out = insights_over(&sources(
             "pub fn dump(lines: &[String]) {\n    for line in lines { println!(\"{line}\"); }\n}"
-        )));
+        ));
         assert_eq!(out.len(), 1);
         assert!(out[0].detail.contains("a write to stdout"));
         assert!(out[0].trace[1].fact.contains("LineWriter"));
         assert!(out[0].trace[1].reason.contains("stdio.rs"));
 
-        let err = loop_write_insights(&Workspace::new(&sources(
+        let err = insights_over(&sources(
             "pub fn warn(lines: &[String]) {\n    for line in lines { eprintln!(\"{line}\"); }\n}"
-        )));
+        ));
         assert_eq!(err.len(), 1);
         assert!(err[0].detail.contains("a write to stderr"));
         assert!(err[0].trace[1].fact.contains("StderrRaw"));

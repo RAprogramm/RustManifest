@@ -81,17 +81,25 @@ mod tests {
         vec![Source::new(PathBuf::from("src/main.rs"), text.to_owned())]
     }
 
+    /// The insights of a fixture read against what a compiler settles
+    /// about it: the standard macros it writes and the types it
+    /// declares, without which the readings above answer nothing.
+    fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
+        let settled = crate::semantic::settling::compiler_over(sources);
+        lost_write_error_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+    }
+
     #[test]
     fn an_entry_point_losing_the_write_error_is_reported() {
-        let lost = lost_write_error_insights(&Workspace::new(&sources(
+        let lost = insights_over(&sources(
             "fn main() {\n    println!(\"hi\");\n}"
-        )));
+        ));
         assert_eq!(lost.len(), 1);
         assert!(lost[0].detail.contains("declares no return type"));
 
-        let returned = lost_write_error_insights(&Workspace::new(&sources(
+        let returned = insights_over(&sources(
             "fn main() -> std::io::Result<()> {\n    println!(\"hi\");\n    Ok(())\n}"
-        )));
+        ));
         assert!(returned.is_empty());
     }
 }
