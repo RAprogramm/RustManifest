@@ -114,7 +114,8 @@ fn every_applied_fix_survives_the_compiler() {
             continue;
         };
         let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.clone())];
-        let workspace = Workspace::new(&sources);
+        let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+        let workspace = Workspace::resolved(&sources, &settled);
         let analyzer = SemanticAnalyzer::new(rule.clone()).expect("a bundled rule builds");
         for finding in analyzer.analyze(&workspace) {
             if finding.fixes.is_empty() {
@@ -206,7 +207,8 @@ fn every_fulfilled_intent_survives_the_compiler() {
     let text = "pub struct Job {\n    pub name: String,\n}\n\npub fn make() -> Job {\n    \
                 Job::default()\n}\n";
     let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-    let fulfilled = rustmanifest_engine::semantic::fulfill_intents(&sources, None);
+    let settled = rustmanifest_engine::semantic::settling::compiler_over(&sources);
+    let fulfilled = rustmanifest_engine::semantic::fulfill_intents(&sources, Some(&settled));
     assert!(!fulfilled.is_empty(), "the written call states an intent");
     for held in fulfilled {
         let gain = held.gain.expect("a confirmed gain");
