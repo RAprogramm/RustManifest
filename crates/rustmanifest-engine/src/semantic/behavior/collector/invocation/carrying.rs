@@ -76,8 +76,11 @@ impl FactCollector {
         call: &syn::ExprMethodCall,
         span: &std::ops::Range<usize>
     ) {
-        let method = call.method.to_string();
-        let Some(carried) = crate::semantic::std_knowledge::carried_by(&method) else {
+        let Some(carried) = self
+            .reached_by(span)
+            .as_deref()
+            .and_then(crate::semantic::std_knowledge::carried_by)
+        else {
             return;
         };
         let origin = match carried {

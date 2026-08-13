@@ -85,7 +85,9 @@ impl FactCollector {
         };
         let reserved = self.reserve_method_call(call, &method, &span);
         let carried = matches!(
-            crate::semantic::std_knowledge::carried_by(&method),
+            self.reached_by(&span)
+                .as_deref()
+                .and_then(crate::semantic::std_knowledge::carried_by),
             Some(crate::semantic::std_knowledge::Carried::ClosureOver(_))
         );
         if !carried && call.args.iter().any(|argument| matches!(argument, syn::Expr::Closure(_))) {

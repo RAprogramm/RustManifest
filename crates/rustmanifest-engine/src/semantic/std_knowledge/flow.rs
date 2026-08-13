@@ -47,35 +47,46 @@ pub(in crate::semantic) enum Carried {
     ClosureOver(u8)
 }
 
-/// Library methods whose answer carries one of their inputs, with which.
+/// The bodies whose answer carries one of their inputs, each named by
+/// the item the call reaches and paired with which input it carries.
 ///
-/// Read as one row of a models-as-data table: the input named here, the
-/// return value as the output, and value preservation as the kind.
-const FLOW_METHODS: [(&str, Carried); 17] = [
-    ("unwrap_or_default", Carried::HeldOrDefault),
-    ("map_err", Carried::Receiver),
-    ("ok_or", Carried::Receiver),
-    ("ok_or_else", Carried::Receiver),
-    ("ok", Carried::Receiver),
-    ("as_ref", Carried::Receiver),
-    ("as_mut", Carried::Receiver),
-    ("as_deref", Carried::Receiver),
-    ("cloned", Carried::Receiver),
-    ("copied", Carried::Receiver),
-    ("clone", Carried::Receiver),
-    ("to_owned", Carried::Receiver),
-    ("unwrap", Carried::Held),
-    ("expect", Carried::Held),
-    ("unwrap_or", Carried::HeldOrArgument(0)),
-    ("and_then", Carried::ClosureOver(0)),
-    ("map", Carried::ClosureOver(0))
+/// Written method names keyed this before, and keyed it for a workspace
+/// method spelled the same way just as readily: the compiler settles
+/// which body a call reaches, and only that body carries the library's
+/// guarantee.
+const FLOW_METHODS: [(&str, Carried); 25] = [
+    ("core::result::Result::unwrap_or_default", Carried::HeldOrDefault),
+    ("core::option::Option::unwrap_or_default", Carried::HeldOrDefault),
+    ("core::result::Result::map_err", Carried::Receiver),
+    ("core::option::Option::ok_or", Carried::Receiver),
+    ("core::option::Option::ok_or_else", Carried::Receiver),
+    ("core::result::Result::ok", Carried::Receiver),
+    ("core::option::Option::as_ref", Carried::Receiver),
+    ("core::result::Result::as_ref", Carried::Receiver),
+    ("core::option::Option::as_mut", Carried::Receiver),
+    ("core::result::Result::as_mut", Carried::Receiver),
+    ("core::option::Option::as_deref", Carried::Receiver),
+    ("core::option::Option::cloned", Carried::Receiver),
+    ("core::option::Option::copied", Carried::Receiver),
+    ("core::clone::Clone::clone", Carried::Receiver),
+    ("core::option::Option::clone", Carried::Receiver),
+    ("core::result::Result::clone", Carried::Receiver),
+    ("alloc::str::to_owned", Carried::Receiver),
+    ("alloc::borrow::ToOwned::to_owned", Carried::Receiver),
+    ("core::option::Option::unwrap", Carried::Held),
+    ("core::result::Result::unwrap", Carried::Held),
+    ("core::option::Option::expect", Carried::Held),
+    ("core::result::Result::expect", Carried::Held),
+    ("core::option::Option::unwrap_or", Carried::HeldOrArgument(0)),
+    ("core::result::Result::unwrap_or", Carried::HeldOrArgument(0)),
+    ("core::option::Option::and_then", Carried::ClosureOver(0))
 ];
 
-/// What a library call hands back, where a row names it.
-pub(in crate::semantic) fn carried_by(method: &str) -> Option<Carried> {
+/// What the body a call reaches hands back, where a row names it.
+pub(in crate::semantic) fn carried_by(reached: &str) -> Option<Carried> {
     FLOW_METHODS
         .iter()
-        .find(|(named, _)| *named == method)
+        .find(|(named, _)| *named == reached)
         .map(|(_, carried)| *carried)
 }
 

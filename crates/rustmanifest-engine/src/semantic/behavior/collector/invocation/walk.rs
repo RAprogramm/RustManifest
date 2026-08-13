@@ -39,9 +39,12 @@ impl FactCollector {
         &mut self,
         call: &syn::ExprMethodCall
     ) {
-        let method = call.method.to_string();
-        let Some(Carried::ClosureOver(position)) =
-            crate::semantic::std_knowledge::carried_by(&method)
+        use syn::spanned::Spanned as _;
+
+        let Some(Carried::ClosureOver(position)) = self
+            .reached_by(&call.span().byte_range())
+            .as_deref()
+            .and_then(crate::semantic::std_knowledge::carried_by)
         else {
             syn::visit::visit_expr_method_call(self, call);
             return;
