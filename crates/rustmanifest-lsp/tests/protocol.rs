@@ -961,6 +961,12 @@ const FIXABLE: &str = "struct Report { total: u64 }\nfn summarize(report: Report
 
 #[test]
 fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
+    let bed = Settled::over("src/lib.rs", FIXABLE)
+        .shaping("Report", &[("total", "u64")])
+        .field("report.total", "Report", "u64")
+        .typed("report", "Report")
+        .signing("summarize", &[("report", "Report")], "u64")
+        .beside(&[("src/lib.rs", FIXABLE)]);
     let (server, client) = Connection::memory();
     let handle = std::thread::spawn(move || rustmanifest_lsp::serve(&server).unwrap());
     client
@@ -968,7 +974,13 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
         .send(Message::Request(Request::new(
             1.into(),
             "initialize".to_owned(),
-            serde_json::json!({ "capabilities": {} })
+            serde_json::json!({
+                "capabilities": {},
+                "workspaceFolders": [{
+                    "uri": format!("file://{}", bed.path().display()),
+                    "name": "bed"
+                }]
+            })
         )))
         .unwrap();
     let _initialize_answer = client.receiver.recv().unwrap();
@@ -985,7 +997,7 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
             lsp_types::notification::DidOpenTextDocument::METHOD.to_owned(),
             serde_json::json!({
                 "textDocument": {
-                    "uri": "file:///demo/src/lib.rs",
+                    "uri": format!("file://{}", bed.path().join("src/lib.rs").display()),
                     "languageId": "rust",
                     "version": 1,
                     "text": FIXABLE
@@ -1009,7 +1021,7 @@ fn a_diagnostic_with_a_fix_offers_it_as_a_quickfix() {
             2.into(),
             "textDocument/codeAction".to_owned(),
             serde_json::json!({
-                "textDocument": { "uri": "file:///demo/src/lib.rs" },
+                "textDocument": { "uri": format!("file://{}", bed.path().join("src/lib.rs").display()) },
                 "range": {
                     "start": { "line": 1, "character": 0 },
                     "end": { "line": 1, "character": 10 }
