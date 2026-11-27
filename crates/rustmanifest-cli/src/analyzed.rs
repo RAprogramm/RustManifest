@@ -36,7 +36,9 @@ impl Analyzed {
     /// # Errors
     ///
     /// Returns the failure of reading or parsing the named file.
-    pub(crate) fn resolution(&self) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
+    pub(crate) fn resolution(
+        &self
+    ) -> masterror::AppResult<Option<rustmanifest_schema::Resolution>> {
         crate::resolution(
             self.resolution.as_deref(),
             self.paths

@@ -16,8 +16,8 @@
 
 use std::{io::Write as _, path::PathBuf, process::ExitCode};
 
-use anyhow::Context as _;
 use clap::Args;
+use masterror::ResultExt as _;
 use tracing::{info, warn};
 
 use crate::{EXIT_CLEAN, EXIT_ERROR};
@@ -39,8 +39,8 @@ pub struct ResolveArgs {
 ///
 /// # Errors
 ///
-/// Returns an [`anyhow::Error`] when the report cannot be written.
-pub fn run_resolve(args: &ResolveArgs) -> anyhow::Result<ExitCode> {
+/// Returns an [`masterror::AppError`] when the report cannot be written.
+pub fn run_resolve(args: &ResolveArgs) -> masterror::AppResult<ExitCode> {
     let out = args
         .out
         .clone()

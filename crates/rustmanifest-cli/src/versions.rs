@@ -5,8 +5,8 @@
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
 use clap::Parser;
+use masterror::ResultExt as _;
 
 use crate::{EXIT_CLEAN, EXIT_FINDINGS};
 
@@ -24,10 +24,17 @@ pub struct VersionsArgs {
 
 /// Returns the distinct `ra_ap` versions found in workspace `Cargo.toml` when
 /// they are misaligned, otherwise `None`.
-pub(crate) fn ra_ap_misaligned(root: &std::path::Path) -> anyhow::Result<Option<Vec<String>>> {
+pub(crate) fn ra_ap_misaligned(
+    root: &std::path::Path
+) -> masterror::AppResult<Option<Vec<String>>> {
     let manifest_path = root.join("Cargo.toml");
-    let manifest = std::fs::read_to_string(&manifest_path)
-        .with_context(|| format!("reading {}", manifest_path.display()))?;
+    let manifest = match std::fs::read_to_string(&manifest_path) {
+        Ok(manifest) => manifest,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error).context(format!("reading {}", manifest_path.display()));
+        }
+    };
     let mut ra_versions: Vec<String> = Vec::new();
     for line in manifest.lines() {
         let trimmed = line.trim();
@@ -48,11 +55,11 @@ pub(crate) fn ra_ap_misaligned(root: &std::path::Path) -> anyhow::Result<Option<
 }
 
 /// Runs the `versions` subcommand: prints a version-synchronisation report.
-pub(crate) fn run_versions(args: &VersionsArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_versions(args: &VersionsArgs) -> masterror::AppResult<ExitCode> {
     let root = &args.path;
     let manifest_path = root.join("Cargo.toml");
     let mut manifest = std::fs::read_to_string(&manifest_path)
-        .with_context(|| format!("reading {}", manifest_path.display()))?;
+        .context(format!("reading {}", manifest_path.display()))?;
 
     let msrv = manifest
         .lines()
@@ -94,7 +101,7 @@ pub(crate) fn run_versions(args: &VersionsArgs) -> anyhow::Result<ExitCode> {
         let canonical = canonical_ra_version(&manifest).unwrap_or_else(|| ra_versions[0].clone());
         manifest = align_ra_versions(&manifest, &canonical);
         std::fs::write(&manifest_path, &manifest)
-            .with_context(|| format!("writing {}", manifest_path.display()))?;
+            .context(format!("writing {}", manifest_path.display()))?;
         ra_versions.clear();
         ra_versions.push(canonical);
         ra_aligned = true;

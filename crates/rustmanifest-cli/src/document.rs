@@ -21,8 +21,8 @@
 
 use std::{io::Write as _, path::PathBuf, process::ExitCode};
 
-use anyhow::Context as _;
 use clap::Args;
+use masterror::ResultExt as _;
 use tracing::{info, warn};
 
 use crate::{EXIT_CLEAN, EXIT_ERROR};
@@ -44,10 +44,10 @@ pub struct DocumentArgs {
 ///
 /// # Errors
 ///
-/// Returns an [`anyhow::Error`] only where the workspace root cannot be
+/// Returns an [`masterror::AppError`] only where the workspace root cannot be
 /// read at all; a missing toolchain or a failing emitter is reported and
 /// exits with the operational code.
-pub fn run_document(args: &DocumentArgs) -> anyhow::Result<ExitCode> {
+pub fn run_document(args: &DocumentArgs) -> masterror::AppResult<ExitCode> {
     if !args.path.join("Cargo.toml").is_file() {
         warn!(path = %args.path.display(), "no Cargo.toml in the path to document");
         return Ok(ExitCode::from(EXIT_ERROR));

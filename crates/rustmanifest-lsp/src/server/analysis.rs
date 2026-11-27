@@ -30,7 +30,7 @@ impl Analysis {
     /// # Errors
     ///
     /// Returns the first rule whose analyzer failed to build.
-    pub(super) fn new() -> anyhow::Result<Self> {
+    pub(super) fn new() -> masterror::AppResult<Self> {
         let rules: Vec<&Rule> = rustmanifest_rules_core::RULES.iter().collect();
         let mut tiered: Vec<Box<dyn Analyzer>> = Vec::new();
         let mut semantic = Vec::new();

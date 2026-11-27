@@ -14,7 +14,7 @@ mod types;
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 use rustmanifest_engine::{module_overview, walker};
 
 pub use self::options::{DiagramFormat, GraphArgs, GraphKind};
@@ -23,7 +23,7 @@ use crate::EXIT_CLEAN;
 
 /// Runs the `graph` subcommand: discovers files, reads sources within the
 /// default per-file memory budget, and prints the requested diagram.
-pub(crate) fn run_graph(args: &GraphArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_graph(args: &GraphArgs) -> masterror::AppResult<ExitCode> {
     let files = walker::discover(&args.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,

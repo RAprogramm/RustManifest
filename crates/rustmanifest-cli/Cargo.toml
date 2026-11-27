@@ -25,7 +25,7 @@ path = "src/main.rs"
 [dependencies]
 ignore = { workspace = true }
 cargo_metadata = "0.23"
-anyhow = { workspace = true }
+masterror = { workspace = true }
 clap = { workspace = true }
 globset = { workspace = true }
 rustmanifest-config = { workspace = true }

@@ -6,8 +6,8 @@
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
 use clap::Parser;
+use masterror::ResultExt as _;
 use rustmanifest_rules_core::{RULES, methodology};
 use rustmanifest_schema::{RuleDefinition, Severity};
 
@@ -47,14 +47,14 @@ const fn tier_name(definition: &RuleDefinition) -> &'static str {
 
 /// Prints the rationale for one rule: identity, severity, tier, and the
 /// methodology excerpt referenced by its rationale URI.
-pub(crate) fn run_explain(args: &ExplainArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_explain(args: &ExplainArgs) -> masterror::AppResult<ExitCode> {
     let Some(rule) = RULES.iter().find(|rule| rule.id == args.rule_id) else {
         let known: Vec<&str> = RULES.iter().map(|rule| rule.id.as_str()).collect();
-        anyhow::bail!(
+        return Err(masterror::AppError::internal(format!(
             "unknown rule id {:?}; known rules: {}",
             args.rule_id,
             known.join(", ")
-        );
+        )));
     };
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();

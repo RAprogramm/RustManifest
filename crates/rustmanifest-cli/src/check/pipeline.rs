@@ -10,7 +10,7 @@
 //! twice, and loading it unconditionally read them all for a run that used
 //! neither tier.
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 use rustmanifest_config::Effective;
 use rustmanifest_engine::{
     AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
@@ -27,7 +27,9 @@ use crate::read_sources;
 
 /// Runs the full analysis pipeline once and returns the filtered findings
 /// with the effective configuration.
-pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>, Effective)> {
+pub(super) fn collect_findings(
+    args: &CheckArgs
+) -> masterror::AppResult<(Vec<Finding>, Effective)> {
     let config =
         rustmanifest_config::load(args.config.as_deref()).context("loading configuration")?;
     let effective = Effective::from_config(config).context("resolving configuration profile")?;
@@ -79,7 +81,7 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
         .as_deref()
         .map(|dir| {
             FindingsCache::open(dir)
-                .with_context(|| format!("opening findings cache at {}", dir.display()))
+                .context(format!("opening findings cache at {}", dir.display()))
         })
         .transpose()?;
 
@@ -135,7 +137,10 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     Ok((findings, effective))
 }
 
-fn push_version_sync_finding(findings: &mut Vec<Finding>, args: &CheckArgs) -> anyhow::Result<()> {
+fn push_version_sync_finding(
+    findings: &mut Vec<Finding>,
+    args: &CheckArgs
+) -> masterror::AppResult<()> {
     let Some(root) = args.paths.first() else {
         return Ok(());
     };

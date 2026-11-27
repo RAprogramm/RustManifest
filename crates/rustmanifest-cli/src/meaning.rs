@@ -20,7 +20,7 @@ mod wording;
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 use rustmanifest_engine::walker;
 
 pub use self::options::{MeaningArgs, MeaningFormat};
@@ -28,7 +28,7 @@ use self::{data::json_report, table::text_report};
 use crate::EXIT_CLEAN;
 
 /// Runs the `meaning` subcommand.
-pub(crate) fn run_meaning(args: &MeaningArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_meaning(args: &MeaningArgs) -> masterror::AppResult<ExitCode> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,

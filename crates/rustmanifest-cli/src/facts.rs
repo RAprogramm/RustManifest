@@ -13,8 +13,8 @@
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
 use clap::Parser;
+use masterror::ResultExt as _;
 use rustmanifest_engine::walker;
 
 use crate::EXIT_CLEAN;
@@ -47,7 +47,7 @@ pub struct FactsArgs {
 
 /// Runs the `facts` subcommand: discovers files, extracts behavioral
 /// facts, and prints them as a JSON array.
-pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_facts(args: &FactsArgs) -> masterror::AppResult<ExitCode> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,

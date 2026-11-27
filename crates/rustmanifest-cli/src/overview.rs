@@ -9,8 +9,8 @@
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
 use clap::Parser;
+use masterror::ResultExt as _;
 use rustmanifest_engine::overview::{Convention, overview_markdown};
 use rustmanifest_learn::{LearnOptions, learn_roles};
 
@@ -30,7 +30,7 @@ pub struct OverviewArgs {
 
 /// Runs the `overview` subcommand: analyzes the paths and prints the
 /// aggregated knowledge report.
-pub(crate) fn run_overview(args: &OverviewArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_overview(args: &OverviewArgs) -> masterror::AppResult<ExitCode> {
     let files = rustmanifest_engine::walker::discover(&args.analyzed.paths)
         .context("file discovery failed")?;
     let sources = crate::read_sources(

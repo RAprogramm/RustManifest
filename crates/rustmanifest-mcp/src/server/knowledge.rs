@@ -153,7 +153,7 @@ impl ReviewServer {
 async fn blocking<T, F>(work: F) -> Result<T, ErrorData>
 where
     T: Send + 'static,
-    F: FnOnce() -> Result<T, rustmanifest_engine::EngineError> + Send + 'static
+    F: FnOnce() -> Result<T, masterror::AppError> + Send + 'static
 {
     tokio::task::spawn_blocking(work)
         .await

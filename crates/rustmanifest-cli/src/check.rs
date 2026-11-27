@@ -28,7 +28,7 @@ use self::{
 pub use self::{options::CheckArgs, output::OutputFormat, severity::SeverityFilter};
 use crate::{EXIT_CLEAN, EXIT_FINDINGS};
 
-pub(crate) fn run_check(args: &CheckArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_check(args: &CheckArgs) -> masterror::AppResult<ExitCode> {
     let (mut findings, effective) = collect_findings(args)?;
     if args.fix {
         let applied = apply_machine_fixes(&findings)?;

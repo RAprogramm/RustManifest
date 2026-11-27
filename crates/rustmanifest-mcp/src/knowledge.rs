@@ -10,8 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use rustmanifest_engine::{
-    Analyzer, AstAnalyzer, EngineError, PatternAnalyzer, SemanticAnalyzer, Source, Workspace,
-    facts_export,
+    Analyzer, AstAnalyzer, PatternAnalyzer, SemanticAnalyzer, Source, Workspace, facts_export,
     orchestrator::DEFAULT_MAX_FILE_BYTES,
     overview::{Convention, overview_markdown},
     pragma, walker
@@ -22,8 +21,8 @@ use rustmanifest_learn::{LearnOptions, learn_roles};
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
-pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
+/// Returns an [`AppError`] when file discovery fails.
+pub fn overview(target: &Path, top: usize) -> Result<String, masterror::AppError> {
     let sources = sources_for(target)?;
     let settled = settled_for(target);
     let workspace = settled.as_ref().map_or_else(
@@ -46,8 +45,11 @@ pub fn overview(target: &Path, top: usize) -> Result<String, EngineError> {
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
-pub fn facts(target: &Path, filter: Option<&str>) -> Result<serde_json::Value, EngineError> {
+/// Returns an [`AppError`] when file discovery fails.
+pub fn facts(
+    target: &Path,
+    filter: Option<&str>
+) -> Result<serde_json::Value, masterror::AppError> {
     let sources = sources_for(target)?;
     Ok(facts_export::facts_json(
         &sources, filter, false, false, None
@@ -71,8 +73,8 @@ pub struct ConventionClause {
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
-pub fn conventions(target: &Path) -> Result<Vec<ConventionClause>, EngineError> {
+/// Returns an [`AppError`] when file discovery fails.
+pub fn conventions(target: &Path) -> Result<Vec<ConventionClause>, masterror::AppError> {
     let sources = sources_for(target)?;
     let settled = settled_for(target);
     let workspace = settled.as_ref().map_or_else(
@@ -124,12 +126,12 @@ pub struct DeductionRecord {
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
+/// Returns an [`AppError`] when file discovery fails.
 pub fn deduction(
     target: &Path,
     type_name: &str,
     trait_name: &str
-) -> Result<DeductionRecord, EngineError> {
+) -> Result<DeductionRecord, masterror::AppError> {
     let sources = sources_for(target)?;
     let settled = settled_for(target);
     let held = rustmanifest_learn::deduce_with_precedent(
@@ -199,8 +201,8 @@ impl From<rustmanifest_engine::semantic::Answer> for AnswerRecord {
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
-pub fn whence(target: &Path, function: &str) -> Result<AnswerRecord, EngineError> {
+/// Returns an [`AppError`] when file discovery fails.
+pub fn whence(target: &Path, function: &str) -> Result<AnswerRecord, masterror::AppError> {
     let sources = sources_for(target)?;
     let settled = settled_for(target);
     let workspace = settled.as_ref().map_or_else(
@@ -215,8 +217,8 @@ pub fn whence(target: &Path, function: &str) -> Result<AnswerRecord, EngineError
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
-pub fn kept(target: &Path, asked: &str) -> Result<AnswerRecord, EngineError> {
+/// Returns an [`AppError`] when file discovery fails.
+pub fn kept(target: &Path, asked: &str) -> Result<AnswerRecord, masterror::AppError> {
     let sources = sources_for(target)?;
     let settled = settled_for(target);
     let workspace = settled.as_ref().map_or_else(
@@ -254,8 +256,8 @@ pub struct IntentRecord {
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when file discovery fails.
-pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, EngineError> {
+/// Returns an [`AppError`] when file discovery fails.
+pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, masterror::AppError> {
     let sources = sources_for(target)?;
     Ok(rustmanifest_engine::semantic::derived_intents(&sources)
         .into_iter()
@@ -295,7 +297,7 @@ pub(crate) fn settled_for(target: &Path) -> Option<rustmanifest_schema::Resoluti
     Some(held)
 }
 
-fn sources_for(target: &Path) -> Result<Vec<Source>, EngineError> {
+fn sources_for(target: &Path) -> Result<Vec<Source>, masterror::AppError> {
     let files: Vec<PathBuf> = if target.is_dir() {
         walker::discover(&[target])?
     } else {
@@ -339,9 +341,9 @@ pub struct SuppressionRecord {
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when an analyzer cannot be built or file
+/// Returns an [`AppError`] when an analyzer cannot be built or file
 /// discovery fails.
-pub fn suppressions(target: &Path) -> Result<Vec<SuppressionRecord>, EngineError> {
+pub fn suppressions(target: &Path) -> Result<Vec<SuppressionRecord>, masterror::AppError> {
     let files = if target.is_dir() {
         walker::discover(&[target])?
     } else {

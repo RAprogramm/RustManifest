@@ -19,7 +19,7 @@ mod tally;
 
 use std::{fmt::Write as _, io::Write, process::ExitCode};
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 use rustmanifest_engine::Source;
 
 pub use self::options::PrescribeArgs;
@@ -31,7 +31,7 @@ use self::{
 use crate::EXIT_CLEAN;
 
 /// Runs the `prescribe` subcommand.
-pub(crate) fn run_prescribe(args: &PrescribeArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_prescribe(args: &PrescribeArgs) -> masterror::AppResult<ExitCode> {
     let files =
         rustmanifest_engine::walker::discover(&args.paths).context("file discovery failed")?;
     let sources = crate::read_sources(

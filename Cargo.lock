@@ -2436,12 +2436,12 @@ dependencies = [
 name = "rustmanifest-cli"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "assert_cmd",
  "cargo_metadata",
  "clap",
  "globset",
  "ignore",
+ "masterror",
  "predicates",
  "rustmanifest-config",
  "rustmanifest-engine",
@@ -2498,6 +2498,7 @@ name = "rustmanifest-eval"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "masterror",
  "rustmanifest-engine",
  "rustmanifest-rules-core",
  "rustmanifest-schema",
@@ -2505,7 +2506,6 @@ dependencies = [
  "serde_json",
  "syn 3.0.10",
  "tempfile",
- "thiserror 2.0.21",
  "toml",
  "tracing",
  "tracing-subscriber",
@@ -2535,10 +2535,10 @@ dependencies = [
 name = "rustmanifest-lsp"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "line-index",
  "lsp-server",
  "lsp-types",
+ "masterror",
  "rustmanifest-config",
  "rustmanifest-engine",
  "rustmanifest-fixture",
@@ -2555,7 +2555,7 @@ dependencies = [
 name = "rustmanifest-mcp"
 version = "0.0.0"
 dependencies = [
- "anyhow",
+ "masterror",
  "rmcp",
  "rustmanifest-engine",
  "rustmanifest-fixture",

@@ -23,7 +23,7 @@ mod unresolved;
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 
 pub use self::options::CoverageArgs;
 use self::{counters::report_lines, measurement::measure, unresolved::unresolved_lines};
@@ -31,7 +31,7 @@ use crate::EXIT_CLEAN;
 
 /// Runs the `coverage` subcommand: discovers files, reads sources within
 /// the default per-file memory budget, and prints the coverage report.
-pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_coverage(args: &CoverageArgs) -> masterror::AppResult<ExitCode> {
     let measured = measure(args)?;
     let mut lines = report_lines(&measured.report);
     if args.unresolved {

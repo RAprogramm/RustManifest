@@ -5,14 +5,14 @@
 
 use std::{collections::HashMap, path::Path};
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 use rustmanifest_schema::Finding;
 use tracing::warn;
 
 /// Applies every machine-applicable fix, grouped per file, edits sorted
 /// descending by start so earlier offsets stay valid. Returns how many
 /// fixes were applied; a file that changed on disk is skipped honestly.
-pub(super) fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize> {
+pub(super) fn apply_machine_fixes(findings: &[Finding]) -> masterror::AppResult<usize> {
     use rustmanifest_schema::Applicability;
     let mut per_file: HashMap<&Path, Vec<&rustmanifest_schema::Fix>> = HashMap::new();
     for finding in findings {
@@ -42,7 +42,7 @@ pub(super) fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize>
         edits.sort_by_key(|edit| std::cmp::Reverse(edit.range.start));
         edits.dedup_by(|a, b| a.range == b.range && a.replacement == b.replacement);
         let mut text = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {} for fixing", path.display()))?;
+            .context(format!("reading {} for fixing", path.display()))?;
         let mut touched = false;
         for edit in edits {
             let (start, end) = (edit.range.start as usize, edit.range.end as usize);
@@ -55,8 +55,7 @@ pub(super) fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize>
             applied += 1;
         }
         if touched {
-            std::fs::write(path, text)
-                .with_context(|| format!("writing fixed {}", path.display()))?;
+            std::fs::write(path, text).context(format!("writing fixed {}", path.display()))?;
         }
     }
     renames.sort_unstable();
@@ -67,11 +66,13 @@ pub(super) fn apply_machine_fixes(findings: &[Finding]) -> anyhow::Result<usize>
             continue;
         }
         if let Some(parent) = to.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("creating {}", parent.display()))?;
+            std::fs::create_dir_all(parent).context(format!("creating {}", parent.display()))?;
         }
-        std::fs::rename(from, to)
-            .with_context(|| format!("renaming {} to {}", from.display(), to.display()))?;
+        std::fs::rename(from, to).context(format!(
+            "renaming {} to {}",
+            from.display(),
+            to.display()
+        ))?;
         applied += 1;
     }
     Ok(applied)

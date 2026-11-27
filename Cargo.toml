@@ -65,8 +65,6 @@ proc-macro2 = { version = "1", features = ["span-locations"] }
 globset = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-thiserror = "2"
-anyhow = "1"
 masterror = { version = "0.32", default-features = false }
 anstyle = "1"
 petgraph = "0.8"

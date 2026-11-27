@@ -13,13 +13,13 @@
               wit-bindgen) that cannot be deduplicated from this crate"
 )]
 
-use anyhow::Context;
+use masterror::ResultExt;
 use rmcp::{ServiceExt, transport::stdio};
 use rustmanifest_mcp::server::ReviewServer;
 use tracing::info;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> masterror::AppResult<()> {
     init_tracing();
     let server = ReviewServer::from_current_dir()
         .context("resolving workspace root from current directory")?;

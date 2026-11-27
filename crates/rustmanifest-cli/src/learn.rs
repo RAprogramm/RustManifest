@@ -13,8 +13,8 @@
 
 use std::{io::Write, path::PathBuf, process::ExitCode};
 
-use anyhow::Context;
 use clap::Parser;
+use masterror::ResultExt as _;
 use rustmanifest_learn::{LearnOptions, learn_roles};
 
 use crate::EXIT_CLEAN;
@@ -47,7 +47,7 @@ pub struct LearnArgs {
 
 /// Runs the `learn` subcommand: discovers files, trains per-role
 /// machines, and prints the learned clauses as a JSON array.
-pub(crate) fn run_learn(args: &LearnArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_learn(args: &LearnArgs) -> masterror::AppResult<ExitCode> {
     let files =
         rustmanifest_engine::walker::discover(&args.paths).context("file discovery failed")?;
     let sources = crate::read_sources(

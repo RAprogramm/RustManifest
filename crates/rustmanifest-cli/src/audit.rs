@@ -9,8 +9,8 @@
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
 use clap::Parser;
+use masterror::ResultExt as _;
 
 use crate::EXIT_CLEAN;
 
@@ -108,7 +108,7 @@ fn tool_available(binary: &str, args: &[&str]) -> bool {
 }
 
 /// Runs the `audit` subcommand.
-pub(crate) fn run_audit(args: &AuditArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_audit(args: &AuditArgs) -> masterror::AppResult<ExitCode> {
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
     writeln!(handle, "## audit ({})", args.profile).context("writing output")?;

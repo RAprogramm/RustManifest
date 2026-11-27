@@ -11,8 +11,8 @@
 
 use std::{io::Write, process::ExitCode};
 
-use anyhow::Context;
 use clap::Args;
+use masterror::ResultExt as _;
 use rustmanifest_engine::walker;
 
 use crate::{EXIT_CLEAN, EXIT_REFUSED};
@@ -34,7 +34,7 @@ pub struct AskArgs {
 }
 
 /// Runs the `ask` subcommand.
-pub(crate) fn run_ask(args: &AskArgs) -> anyhow::Result<ExitCode> {
+pub(crate) fn run_ask(args: &AskArgs) -> masterror::AppResult<ExitCode> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,

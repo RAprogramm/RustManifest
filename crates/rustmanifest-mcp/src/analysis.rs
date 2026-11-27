@@ -11,8 +11,8 @@
 use std::path::{Path, PathBuf};
 
 use rustmanifest_engine::{
-    Analyzer, AstAnalyzer, EngineError, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer,
-    Source, orchestrator::DEFAULT_MAX_FILE_BYTES, walker
+    Analyzer, AstAnalyzer, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, Source,
+    orchestrator::DEFAULT_MAX_FILE_BYTES, walker
 };
 use rustmanifest_schema::{Finding, Rule, RuleDefinition};
 
@@ -24,9 +24,9 @@ use rustmanifest_schema::{Finding, Rule, RuleDefinition};
 ///
 /// # Errors
 ///
-/// Returns an [`EngineError`] when an analyzer cannot be built from a rule,
-/// when file discovery fails, or when the orchestrator run fails.
-pub fn run_rules<'rules, I>(rules: I, target: &Path) -> Result<Vec<Finding>, EngineError>
+/// Returns an [`masterror::AppError`] when an analyzer cannot be built from a
+/// rule, when file discovery fails, or when the orchestrator run fails.
+pub fn run_rules<'rules, I>(rules: I, target: &Path) -> Result<Vec<Finding>, masterror::AppError>
 where
     I: IntoIterator<Item = &'rules Rule>
 {
@@ -58,7 +58,7 @@ where
 /// Expands `target` into the list of files to analyze.
 ///
 /// A file is analyzed as-is; a directory is walked for Rust sources.
-fn discover_targets(target: &Path) -> Result<Vec<PathBuf>, EngineError> {
+fn discover_targets(target: &Path) -> Result<Vec<PathBuf>, masterror::AppError> {
     if target.is_dir() {
         walker::discover(&[target])
     } else {

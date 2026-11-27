@@ -5,7 +5,7 @@
 
 use std::collections::BTreeSet;
 
-use anyhow::Context;
+use masterror::ResultExt as _;
 use rustmanifest_engine::{Coverage, Source, coverage_with, walker};
 
 use super::{dependencies::declared_dependencies, options::CoverageArgs};
@@ -27,7 +27,7 @@ pub(super) struct Measurement {
 /// the default per-file memory budget, and measures coverage, overlaying
 /// name-resolved call edges when a SCIP index was given and what a
 /// resolver settled when a resolution was given.
-pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
+pub(super) fn measure(args: &CoverageArgs) -> masterror::AppResult<Measurement> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,

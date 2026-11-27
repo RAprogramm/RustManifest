@@ -5,8 +5,8 @@
 
 use std::io::{IsTerminal, Write};
 
-use anyhow::Context;
 use clap::ValueEnum;
+use masterror::ResultExt as _;
 use rustmanifest_report::{JsonRenderer, Renderer, SarifRenderer, TtyRenderer};
 use rustmanifest_schema::Finding;
 
@@ -27,7 +27,7 @@ pub(super) fn render(
     findings: &[Finding],
     format: OutputFormat,
     no_color: bool
-) -> anyhow::Result<()> {
+) -> masterror::AppResult<()> {
     let resolved = resolve_format(format);
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();

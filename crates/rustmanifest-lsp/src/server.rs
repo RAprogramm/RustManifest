@@ -14,7 +14,6 @@
 //! republishes only the per-document findings, so typing never pays
 //! for a workspace walk.
 
-use anyhow::Context;
 use lsp_server::{Connection, Message, Notification};
 use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
@@ -25,6 +24,7 @@ use lsp_types::{
         PublishDiagnostics
     }
 };
+use masterror::{AppResult, ResultExt};
 
 mod action;
 mod analysis;
@@ -47,7 +47,7 @@ use self::{analysis::Analysis, snapshot::Snapshot};
 ///
 /// Returns protocol failures: a broken transport, or a handshake the
 /// client abandoned.
-pub fn serve(connection: &Connection) -> anyhow::Result<()> {
+pub fn serve(connection: &Connection) -> AppResult<()> {
     let capabilities = ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
@@ -163,7 +163,7 @@ fn publish(
     root: Option<&std::path::Path>,
     uri: Uri,
     text: &str
-) -> anyhow::Result<()> {
+) -> AppResult<()> {
     let path = std::path::PathBuf::from(uri.path().as_str());
     let mut diagnostics =
         analysis.diagnostics(path.clone(), text, derived.and_then(|held| held.settled));

@@ -116,8 +116,8 @@ pub enum Command {
 ///
 /// # Errors
 ///
-/// Returns an [`anyhow::Error`] for unrecoverable operational failures.
-pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
+/// Returns an [`AppError`] for unrecoverable operational failures.
+pub fn run(cli: Cli) -> masterror::AppResult<ExitCode> {
     init_tracing(cli.verbose);
     match cli.command {
         Command::Ask(args) => ask::run_ask(&args),
@@ -163,16 +163,19 @@ fn init_tracing(verbose: u8) {
 fn resolution(
     path: Option<&std::path::Path>,
     analyzed: &std::path::Path
-) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
-    use anyhow::Context as _;
+) -> masterror::AppResult<Option<rustmanifest_schema::Resolution>> {
+    use masterror::ResultExt as _;
 
     let Some(path) = path else {
         return Ok(None);
     };
-    let text = std::fs::read_to_string(path)
-        .with_context(|| format!("reading the resolution overlay at {}", path.display()))?;
-    let mut settled: rustmanifest_schema::Resolution = serde_json::from_str(&text)
-        .with_context(|| format!("parsing the resolution overlay at {}", path.display()))?;
+    let text = std::fs::read_to_string(path).context(format!(
+        "reading the resolution overlay at {}",
+        path.display()
+    ))?;
+    let mut settled: rustmanifest_schema::Resolution = serde_json::from_str(&text).context(
+        format!("parsing the resolution overlay at {}", path.display())
+    )?;
     if analyzed != std::path::Path::new(".") {
         settled.rebase(analyzed);
     }
