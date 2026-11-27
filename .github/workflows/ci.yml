@@ -146,6 +146,34 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo +nightly miri test --workspace
 
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly fuzz run -- -max_total_time=60
+
+  geiger:
+    name: Cargo Geiger
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-geiger
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo geiger
+
   docs:
     name: Documentation
     runs-on: ubuntu-latest
