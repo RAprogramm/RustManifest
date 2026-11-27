@@ -72,7 +72,6 @@ fn make_tree(files: &[(&str, &str)]) -> TempDir {
     dir
 }
 
-
 /// Writes beside `tree` what a compiler settles about its sources, and
 /// answers with the path the graph reads it from.
 ///
@@ -98,7 +97,6 @@ fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
     .expect("the overlay is written");
     at
 }
-
 
 /// What a compiler settles about `sources`, asked of the compiler.
 fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
@@ -296,4 +294,3 @@ fn unknown_format_is_rejected() {
         .failure()
         .code(2);
 }
-
