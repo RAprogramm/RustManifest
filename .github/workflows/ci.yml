@@ -106,6 +106,33 @@ jobs:
           tool: cargo-deny
       - run: cargo deny check
 
+  sanitizers:
+    name: Sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - env:
+          RUSTFLAGS: -Zsanitizer=address
+        run: cargo +nightly test --workspace
+
+  careful:
+    name: Cargo Careful
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-careful
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly careful test --workspace
+
   miri:
     name: Miri
     runs-on: ubuntu-latest
