@@ -1,5 +1,9 @@
 # Rust Architecture Engine — Plan & State of the Art (July 2026)
 
+> Status note (2026-11-27): this is a historical research and planning document.
+> Current implementation status, shipped phases, and active priorities are tracked
+> in [`ROADMAP.md`](./ROADMAP.md).
+
 Deterministic analyzer for Rust workspaces: rules and a semantic fact base make the
 decisions, an LLM only proposes candidate changes and explains tasks. Every finding
 carries a full derivation trace ("why").
