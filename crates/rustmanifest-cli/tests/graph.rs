@@ -205,7 +205,7 @@ fn types_dot_contains_aggregation_edge() {
         ("src/identity.rs", "pub struct Identity { pub id: u64 }\n"),
         (
             "src/user.rs",
-            "pub struct User { pub identity: Identity }\n"
+            "pub struct User { pub identity: crate::identity::Identity }\n"
         )
     ]);
     rustmanifest()
@@ -231,7 +231,7 @@ fn types_mermaid_labels_edges_with_field_names() {
         ("src/identity.rs", "pub struct Identity { pub id: u64 }\n"),
         (
             "src/user.rs",
-            "pub struct User { pub identity: Identity }\n"
+            "pub struct User { pub identity: crate::identity::Identity }\n"
         )
     ]);
     rustmanifest()
@@ -256,7 +256,7 @@ fn types_mermaid_shows_interaction_edges_dashed() {
         ),
         (
             "src/game.rs",
-            "pub struct Game;\nimpl Game { pub fn restart(&self) { Board::reset(); } }\n"
+            "pub struct Game;\nimpl Game { pub fn restart(&self) { crate::board::Board::reset(); } }\n"
         )
     ]);
     rustmanifest()

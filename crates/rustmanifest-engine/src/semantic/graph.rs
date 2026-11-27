@@ -422,8 +422,8 @@ mod tests {
     #[test]
     fn aggregation_edges_resolve_across_files() {
         let graph = graph(&[
-            "struct Identity { id: u64 }",
-            "struct User { identity: Identity, age: u8 }"
+            "pub struct Identity { pub id: u64 }",
+            "pub struct User { pub identity: crate::file0::Identity, pub age: u8 }"
         ]);
         let edges = graph.aggregation_edges();
         assert_eq!(edges.len(), 1);
