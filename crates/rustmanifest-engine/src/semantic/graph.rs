@@ -273,7 +273,7 @@ impl TypeGraph {
 /// The single type argument of a rendered type, where it has exactly one.
 fn single_argument(rendered: &str) -> Option<String> {
     let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let mut written = arguments(inside);
+    let mut written = significant_arguments(inside);
     (written.len() == 1).then(|| written.pop()).flatten()
 }
 
@@ -297,11 +297,30 @@ fn arguments(inside: &str) -> Vec<String> {
     written
 }
 
+/// Removes allocator arguments a resolver may add to standard containers.
+fn significant_arguments(inside: &str) -> Vec<String> {
+    arguments(inside)
+        .into_iter()
+        .filter(|argument| !is_global(argument))
+        .collect()
+}
+
+/// Whether `argument` names the standard global allocator.
+fn is_global(argument: &str) -> bool {
+    argument
+        .trim()
+        .trim_start_matches('&')
+        .trim()
+        .rsplit("::")
+        .next()
+        .is_some_and(|name| name == "Global")
+}
+
 /// What a rendered map is looked into with: its first type argument,
 /// where it carries two.
 fn looked_up_by(rendered: &str) -> Option<String> {
     let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let written = arguments(inside);
+    let written = significant_arguments(inside);
     let key = written.first()?;
     crate::semantic::behavior::outermost_name(key)
 }
@@ -339,7 +358,7 @@ fn held(rendered: &str) -> Option<String> {
         .rsplit("::")
         .next()?;
     let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let written = arguments(inside);
+    let written = significant_arguments(inside);
     let element = match shape {
         "BTreeMap" | "HashMap" => written.get(1)?,
         "BTreeSet" | "HashSet" | "BinaryHeap" | "LinkedList" | "Vec" | "VecDeque" => {

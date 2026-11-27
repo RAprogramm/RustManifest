@@ -153,8 +153,9 @@ fn asked_with_the_path(
     };
     fact.call_sites.iter().any(|site| {
         site.candidate
-            .split_once("::")
-            .is_some_and(|(owner, _)| owner == shape)
+            .rsplit("::")
+            .nth(1)
+            .is_some_and(|owner| owner == shape)
             && site
                 .produced
                 .as_deref()

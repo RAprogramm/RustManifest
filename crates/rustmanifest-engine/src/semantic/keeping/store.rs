@@ -49,6 +49,23 @@ pub struct Store {
 /// for it only for the eight somebody listed.
 const TAKES_MANY: &str = "Extend";
 
+/// Whether `shape` is a standard-library collection whose `Extend`
+/// implementation a resolver may not have listed.
+fn takes_many(shape: &str) -> bool {
+    matches!(
+        shape,
+        "BTreeMap"
+            | "BTreeSet"
+            | "BinaryHeap"
+            | "HashMap"
+            | "HashSet"
+            | "LinkedList"
+            | "String"
+            | "Vec"
+            | "VecDeque"
+    )
+}
+
 /// The collections of workspace records every workspace type holds.
 ///
 /// Sorted by owner and then by field, so two runs over one workspace
@@ -69,7 +86,7 @@ pub fn stores(workspace: &Workspace<'_>) -> Vec<Store> {
                 .holds
                 .clone()
                 .unwrap_or_else(|| field.type_name.clone());
-            if !graph.ability_given(&shape, TAKES_MANY) {
+            if !graph.ability_given(&shape, TAKES_MANY) && !takes_many(&shape) {
                 continue;
             }
             let declared = graph
