@@ -134,8 +134,14 @@ mod tests {
         assert_eq!(score.counts.agreed, 2);
         assert_eq!(score.precision(), Some(1.0));
         assert_eq!(score.recall(), Some(1.0));
-        assert_eq!(score.disagreement.unrecovered, [] as [std::string::String; 0]);
-        assert_eq!(score.disagreement.undeclared, [] as [std::string::String; 0]);
+        assert_eq!(
+            score.disagreement.unrecovered,
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            score.disagreement.undeclared,
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]

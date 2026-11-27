@@ -1,4 +1,5 @@
 .opencode/
+.claude/
 /target
 **/*.rs.bk
 *.swp

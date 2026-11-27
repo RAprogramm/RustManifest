@@ -44,7 +44,7 @@ pub use crate::{
     coverage::CoverageArgs,
     explain::ExplainArgs,
     graph::{DiagramFormat, GraphArgs, GraphKind},
-    versions::VersionsArgs,
+    versions::VersionsArgs
 };
 
 /// Default exit code: no findings at or above the requested severity.
@@ -72,7 +72,7 @@ pub struct Cli {
 
     /// Selected subcommand.
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Command
 }
 
 /// Available subcommands for the `rustmanifest` binary.
@@ -109,7 +109,7 @@ pub enum Command {
     /// Print everything the engine knows about the program in one pass.
     Report(report::ReportArgs),
     /// Ask the resolver what it settles about this workspace.
-    Resolve(resolve::ResolveArgs),
+    Resolve(resolve::ResolveArgs)
 }
 
 /// Entry point used by both the binary and integration tests.
@@ -134,7 +134,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Overview(args) => overview::run_overview(&args),
         Command::Prescribe(args) => prescribe::run_prescribe(&args),
         Command::Report(args) => report::run_report(&args),
-        Command::Resolve(args) => resolve::run_resolve(&args),
+        Command::Resolve(args) => resolve::run_resolve(&args)
     }
 }
 
@@ -143,7 +143,7 @@ fn init_tracing(verbose: u8) {
         0 => tracing::Level::WARN,
         1 => tracing::Level::INFO,
         2 => tracing::Level::DEBUG,
-        _ => tracing::Level::TRACE,
+        _ => tracing::Level::TRACE
     };
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(level)
@@ -162,7 +162,7 @@ fn init_tracing(verbose: u8) {
 /// answers must not be handed unresolved ones without being told.
 fn resolution(
     path: Option<&std::path::Path>,
-    analyzed: &std::path::Path,
+    analyzed: &std::path::Path
 ) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
     use anyhow::Context as _;
 

@@ -20,7 +20,7 @@ use crate::Location;
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedType {
     /// File and byte range of the expression.
-    pub at: Location,
+    pub at:       Location,
     /// Type the expression has, rendered the way the resolver displays it.
     pub rendered: String,
     /// Full path of the type an item declares it as, spelled from the
@@ -31,7 +31,7 @@ pub struct ResolvedType {
     /// a path, and a reading keyed by the rendering credits one with the
     /// other's guarantees.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub declared: Option<String>,
+    pub declared: Option<String>
 }
 
 impl Positioned for ResolvedType {

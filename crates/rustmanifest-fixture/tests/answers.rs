@@ -35,9 +35,7 @@ fn the_compiler_answers_about_a_written_snippet() {
         held.declared
     );
     assert!(
-        held.calls
-            .iter()
-            .all(|row| row.at.file == *"src/lib.rs"),
+        held.calls.iter().all(|row| row.at.file == *"src/lib.rs"),
         "{:?}",
         held.calls
     );

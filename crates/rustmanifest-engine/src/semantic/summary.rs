@@ -190,9 +190,7 @@ pub fn summaries_with(
     (0..facts.len())
         .map(|fact| {
             settled.remove(&fact).unwrap_or_else(|| FunctionSummary {
-                function: facts
-                    .get(fact)
-                    .map_or_default(|own| own.function.clone()),
+                function: facts.get(fact).map_or_default(|own| own.function.clone()),
                 fact,
                 slots: Vec::new(),
                 result: ComposedOrigin::NotDerived(

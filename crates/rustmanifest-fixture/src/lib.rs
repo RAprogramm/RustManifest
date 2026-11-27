@@ -157,7 +157,7 @@ fn write_package(root: &Path, files: &[(&str, &str)]) {
     std::fs::write(
         root.join("Cargo.toml"),
         "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2021\"\n\n[lib]\npath \
-         = \"src/lib.rs\"\n",
+         = \"src/lib.rs\"\n"
     )
     .expect("the manifest is written");
     std::fs::create_dir_all(root.join("src")).expect("the source directory");

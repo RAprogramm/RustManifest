@@ -71,7 +71,13 @@ mod tests {
 
     #[test]
     fn budget_holds_at_or_below_the_limit() {
-        assert_eq!(budget_breaches(&report_with_p95(100.0)), [] as [std::string::String; 0]);
-        assert_eq!(budget_breaches(&report_with_p95(3.0)), [] as [std::string::String; 0]);
+        assert_eq!(
+            budget_breaches(&report_with_p95(100.0)),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            budget_breaches(&report_with_p95(3.0)),
+            [] as [std::string::String; 0]
+        );
     }
 }

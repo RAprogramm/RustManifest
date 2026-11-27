@@ -38,7 +38,7 @@ fn wallet_tree() -> TempDir {
         dir.path().join("src/lib.rs"),
         "pub struct Wallet { pub balance: i64 }\nimpl Wallet {\n    pub fn credit(&mut self, \
          amount: i64) -> Result<(), String> {\n        self.balance += amount;\n        \
-         Ok(())\n    }\n    pub fn balance(&self) -> i64 { self.balance }\n}\n",
+         Ok(())\n    }\n    pub fn balance(&self) -> i64 { self.balance }\n}\n"
     )
     .unwrap();
     let resolve_bin = std::env::var("CARGO_BIN_EXE_rustmanifest-resolve")

@@ -73,8 +73,7 @@ fn owner_method(segment: &str) -> (String, String) {
     let (bracketed, bare) = split_brackets(method);
     let owner = strip_generics(owner);
     let owner = if owner == "impl" || owner.is_empty() {
-        bracketed
-            .map_or_default(|inner| strip_generics(&inner))
+        bracketed.map_or_default(|inner| strip_generics(&inner))
     } else {
         owner
     };

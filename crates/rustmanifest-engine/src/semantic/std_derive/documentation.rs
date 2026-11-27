@@ -66,10 +66,7 @@ pub(super) fn doc_quote(
         let (attrs, name) = match item {
             syn::Item::Macro(declared) => (
                 &declared.attrs,
-                declared
-                    .ident
-                    .as_ref()
-                    .map_or_default(ToString::to_string)
+                declared.ident.as_ref().map_or_default(ToString::to_string)
             ),
             syn::Item::Struct(declared) => (&declared.attrs, declared.ident.to_string()),
             syn::Item::Fn(declared) => (&declared.attrs, declared.sig.ident.to_string()),

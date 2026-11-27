@@ -18,9 +18,9 @@ use crate::Location;
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedFieldDecl {
     /// Name the field is declared under, its position for a tuple field.
-    pub name: String,
+    pub name:  String,
     /// Type the field has, as the resolver renders it.
-    pub named: String,
+    pub named: String
 }
 
 /// One type the workspace declares.
@@ -28,10 +28,10 @@ pub struct ResolvedFieldDecl {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedTypeDecl {
     /// File and byte range of the type's name.
-    pub at: Location,
+    pub at:     Location,
     /// Name the type is declared under.
-    pub named: String,
+    pub named:  String,
     /// Fields it declares, in written order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub fields: Vec<ResolvedFieldDecl>,
+    pub fields: Vec<ResolvedFieldDecl>
 }

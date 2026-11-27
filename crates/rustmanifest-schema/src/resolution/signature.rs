@@ -24,7 +24,7 @@ pub enum ResolvedMode {
     /// Taken by shared borrow.
     Borrowed,
     /// Taken by exclusive borrow.
-    BorrowedMut,
+    BorrowedMut
 }
 
 /// One parameter of a function.
@@ -32,11 +32,11 @@ pub enum ResolvedMode {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedParam {
     /// Name the parameter is bound to, `self` for a receiver.
-    pub name: String,
+    pub name:  String,
     /// Type the parameter has, as the resolver renders it.
     pub named: String,
     /// How the function takes it.
-    pub mode: ResolvedMode,
+    pub mode:  ResolvedMode
 }
 
 /// The signature of one declared function.
@@ -44,11 +44,11 @@ pub struct ResolvedParam {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedSignature {
     /// File and byte range of the function's name.
-    pub at: Location,
+    pub at:      Location,
     /// Parameters in written order, the receiver first where there is one.
-    pub params: Vec<ResolvedParam>,
+    pub params:  Vec<ResolvedParam>,
     /// Type the function hands back.
-    pub returns: String,
+    pub returns: String
 }
 
 impl Positioned for ResolvedSignature {
