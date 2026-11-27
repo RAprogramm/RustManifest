@@ -67,12 +67,12 @@ pub(super) fn delegated_clippy_findings(paths: &[PathBuf]) -> Vec<Finding> {
         (
             &left.location.file,
             left.location.range.start,
-            &left.rule_id,
+            &left.rule_id
         )
             .cmp(&(
                 &right.location.file,
                 right.location.range.start,
-                &right.rule_id,
+                &right.rule_id
             ))
     });
     findings
@@ -106,12 +106,12 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
     let code = message.get("code")?.get("code")?.as_str()?;
     let rationale = code.strip_prefix("clippy::").map_or_else(
         || RUSTC_LINT_INDEX_URL.to_owned(),
-        |anchor| format!("{CLIPPY_INDEX_URL}{anchor}"),
+        |anchor| format!("{CLIPPY_INDEX_URL}{anchor}")
     );
     let severity = match message.get("level").and_then(serde_json::Value::as_str) {
         Some("error") => Severity::Error,
         Some("warning") => Severity::Warning,
-        _ => Severity::Info,
+        _ => Severity::Info
     };
     let spans = message.get("spans")?.as_array()?;
     let primary = spans
@@ -138,12 +138,12 @@ fn parse_clippy_line(line: &str, root: &Path) -> Option<Finding> {
             file,
             range: Range {
                 start: u32::try_from(start).ok()?,
-                end: u32::try_from(end).ok()?,
-            },
+                end:   u32::try_from(end).ok()?
+            }
         },
         message: text.to_owned(),
         rationale_uri: rationale,
         trace: Vec::new(),
-        fixes: Vec::new(),
+        fixes: Vec::new()
     })
 }

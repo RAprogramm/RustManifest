@@ -4,11 +4,11 @@
 //! The machine form: the same claims as data, with the byte range that
 //! proves each of them and the recognizer set the build ran.
 
-use rustmanifest_engine::{EntryMeaning, Multiplicity, OutputClaim, OUTPUT_SINK_SET};
+use rustmanifest_engine::{EntryMeaning, Multiplicity, OUTPUT_SINK_SET, OutputClaim};
 
 use super::{
     location::relative,
-    wording::{certainty, entry_kind},
+    wording::{certainty, entry_kind}
 };
 
 /// Renders the report as data.
@@ -69,16 +69,16 @@ mod tests {
 
     fn silent_entry() -> EntryMeaning {
         EntryMeaning {
-            file: "src/main.rs".to_owned(),
-            kind: EntryKind::Plain,
-            claims: Vec::new(),
-            intake: Vec::new(),
+            file:         "src/main.rs".to_owned(),
+            kind:         EntryKind::Plain,
+            claims:       Vec::new(),
+            intake:       Vec::new(),
             computations: Vec::new(),
-            choices: Vec::new(),
-            handbacks: Vec::new(),
-            narrative: rustmanifest_engine::Narrative::Whole(String::new()),
-            completion: rustmanifest_engine::Completion::Nothing,
-            exits: Vec::new(),
+            choices:      Vec::new(),
+            handbacks:    Vec::new(),
+            narrative:    rustmanifest_engine::Narrative::Whole(String::new()),
+            completion:   rustmanifest_engine::Completion::Nothing,
+            exits:        Vec::new()
         }
     }
 

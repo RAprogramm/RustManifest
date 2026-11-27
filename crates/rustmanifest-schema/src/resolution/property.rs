@@ -25,5 +25,5 @@ pub struct ResolvedProperty {
     pub named: String,
     /// Whether a value of this type is copied rather than moved when it
     /// is passed by value.
-    pub copy: bool,
+    pub copy:  bool
 }

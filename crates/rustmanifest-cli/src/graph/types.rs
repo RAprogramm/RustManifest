@@ -28,7 +28,7 @@ pub(super) fn type_lines(graph: &TypeGraph, format: DiagramFormat) -> Vec<String
             (
                 owner.name.as_str(),
                 field.name.as_str(),
-                target.name.as_str(),
+                target.name.as_str()
             )
         })
         .collect();

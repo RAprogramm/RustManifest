@@ -15,7 +15,7 @@ pub struct MeaningArgs {
 
     /// Output format.
     #[arg(long, value_enum, default_value_t = MeaningFormat::Text)]
-    pub format: MeaningFormat,
+    pub format: MeaningFormat
 }
 
 /// Rendering of the meaning report.
@@ -24,5 +24,5 @@ pub enum MeaningFormat {
     /// Aligned table meant for a reader.
     Text,
     /// Canonical JSON array, one object per entry point.
-    Json,
+    Json
 }

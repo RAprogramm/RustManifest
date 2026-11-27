@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-//! `versions` subcommand: checks that the workspace's declared versions,
-//! toolchain pin, and dependency alignment are mutually consistent and
-//! current, so a reader learns what needs synchronising before a build.
+//! `versions` subcommand: checks version synchronisation.
 
 use std::{io::Write, process::ExitCode};
 
@@ -17,7 +15,7 @@ use crate::EXIT_CLEAN;
 pub struct VersionsArgs {
     /// Path to the workspace root (defaults to the current directory).
     #[arg(default_value = ".")]
-    pub path: std::path::PathBuf,
+    pub path: std::path::PathBuf
 }
 
 /// Runs the `versions` subcommand: prints a version-synchronisation report.
@@ -53,12 +51,12 @@ pub(crate) fn run_versions(args: &VersionsArgs) -> anyhow::Result<ExitCode> {
     let mut ra_versions: Vec<String> = Vec::new();
     for line in manifest.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("ra_ap_") {
-            if let Some(value) = trimmed.split('=').nth(1) {
-                let value = value.trim().trim_matches('"').to_owned();
-                if !value.is_empty() && !ra_versions.contains(&value) {
-                    ra_versions.push(value);
-                }
+        if trimmed.starts_with("ra_ap_")
+            && let Some(value) = trimmed.split('=').nth(1)
+        {
+            let value = value.trim().trim_matches('"').to_owned();
+            if !value.is_empty() && !ra_versions.contains(&value) {
+                ra_versions.push(value);
             }
         }
     }

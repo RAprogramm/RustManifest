@@ -23,5 +23,5 @@ pub struct PrescribeArgs {
     /// canonical body rests on the traits the compiler says a field's
     /// type carries rather than on nothing at all.
     #[arg(long)]
-    pub resolution: Option<PathBuf>,
+    pub resolution: Option<PathBuf>
 }

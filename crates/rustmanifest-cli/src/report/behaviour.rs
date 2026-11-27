@@ -76,6 +76,6 @@ const fn certainty(grade: rustmanifest_engine::Grade) -> &'static str {
         rustmanifest_engine::Grade::Certain => "always",
         rustmanifest_engine::Grade::Possible => "maybe",
         rustmanifest_engine::Grade::Dead => "never",
-        rustmanifest_engine::Grade::Unreached => "unreached",
+        rustmanifest_engine::Grade::Unreached => "unreached"
     }
 }

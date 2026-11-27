@@ -7,10 +7,10 @@
 use std::fmt::Write as _;
 
 use rustmanifest_engine::{
-    overview::{overview_markdown, Convention},
     Workspace,
+    overview::{Convention, overview_markdown}
 };
-use rustmanifest_learn::{learn_roles, LearnOptions};
+use rustmanifest_learn::{LearnOptions, learn_roles};
 
 /// What the sources hold: modules, types, roles, boundaries, layers, the
 /// external surface, and the learned conventions.
@@ -18,9 +18,9 @@ pub(super) fn structure(workspace: &Workspace<'_>, top: usize) -> String {
     let conventions: Vec<Convention> = learn_roles(workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {
-            role: clause.role,
+            role:     clause.role,
             includes: clause.includes,
-            excludes: clause.excludes,
+            excludes: clause.excludes
         })
         .collect();
     let rendered = overview_markdown(workspace, top, &conventions);

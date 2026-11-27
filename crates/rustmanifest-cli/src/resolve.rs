@@ -32,7 +32,7 @@ pub struct ResolveArgs {
     /// Where to write the resolution. Defaults to `resolution.json` in the
     /// workspace root, which is where every reader looks for it.
     #[arg(long)]
-    pub out: Option<PathBuf>,
+    pub out: Option<PathBuf>
 }
 
 /// Runs the resolver over the workspace and reports what it settled.

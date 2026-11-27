@@ -20,7 +20,7 @@ pub enum SeverityFilter {
     /// Report `error`, `warning`, and `info`.
     Info,
     /// Report every severity.
-    Hint,
+    Hint
 }
 
 impl SeverityFilter {
@@ -29,7 +29,7 @@ impl SeverityFilter {
             Self::Error => 3,
             Self::Warning => 2,
             Self::Info => 1,
-            Self::Hint => 0,
+            Self::Hint => 0
         }
     }
 
@@ -44,7 +44,7 @@ pub(super) const fn severity_rank(severity: Severity) -> u8 {
         Severity::Error => 3,
         Severity::Warning => 2,
         Severity::Info => 1,
-        Severity::Hint => 0,
+        Severity::Hint => 0
     }
 }
 

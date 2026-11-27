@@ -14,6 +14,7 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
+    clippy::assert_is_empty,
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 

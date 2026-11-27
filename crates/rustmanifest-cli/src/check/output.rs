@@ -20,13 +20,13 @@ pub enum OutputFormat {
     /// SARIF 2.1.0 document.
     Sarif,
     /// Human-readable terminal output.
-    Tty,
+    Tty
 }
 
 pub(super) fn render(
     findings: &[Finding],
     format: OutputFormat,
-    no_color: bool,
+    no_color: bool
 ) -> anyhow::Result<()> {
     let resolved = resolve_format(format);
     let stdout = std::io::stdout();

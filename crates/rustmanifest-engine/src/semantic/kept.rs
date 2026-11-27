@@ -186,11 +186,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::why_kept;
-    use crate::semantic::{
-        behavior::behavior_with,
-        settling::{Settling, settle_identity},
-        workspace::Workspace
-    };
+    use crate::semantic::workspace::Workspace;
 
     fn one(text: &str) -> Vec<crate::source::Source> {
         vec![crate::source::Source::new(

@@ -91,7 +91,6 @@ fn applied(text: &str, finding: &Finding) -> String {
 
 /// Every single-file fix a bundled rule synthesizes on its own `fail`
 /// fixture must compile once applied.
-
 /// What a compiler settles about `sources`, asked of the compiler.
 fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
     let written: Vec<(String, String)> = sources

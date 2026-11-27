@@ -53,14 +53,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Direction, Verb, commands, keeping, outliving, purpose, stores, tables};
-    use crate::{
-        semantic::{
-            behavior::behavior_with,
-            settling::{Settling, settle_identity},
-            workspace::Workspace
-        },
-        source::Source
-    };
+    use crate::{semantic::workspace::Workspace, source::Source};
 
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
 

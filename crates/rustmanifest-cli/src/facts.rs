@@ -42,7 +42,7 @@ pub struct FactsArgs {
     /// Additionally print each function's binarized feature vector — the
     /// fixed-order named binary features the learning layer trains on.
     #[arg(long)]
-    pub features: bool,
+    pub features: bool
 }
 
 /// Runs the `facts` subcommand: discovers files, extracts behavioral
@@ -51,7 +51,7 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let scip = args
         .overlays
@@ -68,7 +68,7 @@ pub(crate) fn run_facts(args: &FactsArgs) -> anyhow::Result<ExitCode> {
             args.filter.as_deref(),
             args.active,
             args.features,
-            scip.as_ref(),
+            scip.as_ref()
         ))
         .context("serializing facts")?;
     let stdout = std::io::stdout();

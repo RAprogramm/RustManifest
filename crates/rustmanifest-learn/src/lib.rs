@@ -1,6 +1,12 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
+#![allow(
+    clippy::assert_is_empty,
+    clippy::redundant_locals,
+    clippy::map_unwrap_or
+)]
+
 //! Interpretable learning layer over the engine's fact base.
 //!
 //! Trains one binary Tsetlin machine per behavioral role on the engine's
@@ -614,8 +620,10 @@ pub fn deduce_with_precedent(
     );
     if let Some(top) = ranked.first() {
         let agreement = top.name == choice.form;
-        held.chain.steps.insert(choice.step + 1, rustmanifest_schema::TraceStep {
-            fact:   format!(
+        held.chain.steps.insert(
+            choice.step + 1,
+            rustmanifest_schema::TraceStep {
+                fact: format!(
                 "the workspace's own precedent ({} impl(s)) ranks `{}` first and {} the catalog \
                  — clause: {}",
                 precedents.len(),
@@ -623,9 +631,10 @@ pub fn deduce_with_precedent(
                 if agreement { "agrees with" } else { "contradicts" },
                 top.grounds.join(" AND ")
             ),
-            reason: "learned clauses describe the codebase; the catalog's choice stands"
-                .to_owned()
-        });
+                reason: "learned clauses describe the codebase; the catalog's choice stands"
+                    .to_owned(),
+            },
+        );
     }
     Some(held)
 }

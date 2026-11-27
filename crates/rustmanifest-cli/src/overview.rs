@@ -11,8 +11,8 @@ use std::{io::Write, process::ExitCode};
 
 use anyhow::Context;
 use clap::Parser;
-use rustmanifest_engine::overview::{overview_markdown, Convention};
-use rustmanifest_learn::{learn_roles, LearnOptions};
+use rustmanifest_engine::overview::{Convention, overview_markdown};
+use rustmanifest_learn::{LearnOptions, learn_roles};
 
 use crate::EXIT_CLEAN;
 
@@ -25,7 +25,7 @@ pub struct OverviewArgs {
 
     /// Cap for every ranked list in the report.
     #[arg(long, default_value_t = 10)]
-    pub top: usize,
+    pub top: usize
 }
 
 /// Runs the `overview` subcommand: analyzes the paths and prints the
@@ -35,19 +35,19 @@ pub(crate) fn run_overview(args: &OverviewArgs) -> anyhow::Result<ExitCode> {
         .context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
     );
     let conventions: Vec<Convention> = learn_roles(&workspace, LearnOptions::default())
         .into_iter()
         .map(|clause| Convention {
-            role: clause.role,
+            role:     clause.role,
             includes: clause.includes,
-            excludes: clause.excludes,
+            excludes: clause.excludes
         })
         .collect();
     let report = overview_markdown(&workspace, args.top, &conventions);

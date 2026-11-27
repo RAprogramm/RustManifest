@@ -38,7 +38,7 @@ pub(crate) fn run_coverage(args: &CoverageArgs) -> anyhow::Result<ExitCode> {
         lines.extend(unresolved_lines(&rustmanifest_engine::unresolved_targets(
             &measured.sources,
             &measured.declared,
-            measured.settled.as_ref(),
+            measured.settled.as_ref()
         )));
     }
     let stdout = std::io::stdout();

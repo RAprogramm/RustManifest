@@ -13,7 +13,7 @@
 use anyhow::Context;
 use rustmanifest_config::Effective;
 use rustmanifest_engine::{
-    walker, AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer,
+    AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
 };
 use rustmanifest_rules_core::RULES;
 use rustmanifest_schema::{Finding, Rule, RuleDefinition};
@@ -21,7 +21,7 @@ use tracing::info;
 
 use super::{
     delegation::delegated_clippy_findings, globs::apply_globs, options::CheckArgs,
-    severity::apply_severity_overrides,
+    severity::apply_severity_overrides
 };
 use crate::read_sources;
 
@@ -41,15 +41,21 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
         .iter()
         .copied()
         .filter_map(|rule| match rule.definition {
-            RuleDefinition::Pattern { .. } => Some(
+            RuleDefinition::Pattern {
+                ..
+            } => Some(
                 PatternAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>),
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
             ),
-            RuleDefinition::Ast { .. } => Some(
+            RuleDefinition::Ast {
+                ..
+            } => Some(
                 AstAnalyzer::new(rule.clone())
-                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>),
+                    .map(|analyzer| Box::new(analyzer) as Box<dyn rustmanifest_engine::Analyzer>)
             ),
-            RuleDefinition::Semantic { .. } => None,
+            RuleDefinition::Semantic {
+                ..
+            } => None
         })
         .collect::<Result<Vec<_>, _>>()
         .context("building analyzers from bundled rules")?;
@@ -97,14 +103,14 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
         args.resolution.as_deref(),
         args.paths
             .first()
-            .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path),
+            .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path)
     )?;
     let workspace = settled.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
     );
     findings.extend(rustmanifest_engine::semantic_findings(
-        &semantic, &workspace,
+        &semantic, &workspace
     ));
     if !effective.invariants().is_empty() {
         let scip = args
@@ -117,7 +123,7 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
             &sources,
             effective.invariants(),
             scip.as_ref(),
-            settled.as_ref(),
+            settled.as_ref()
         ));
     }
     if args.delegate_clippy {

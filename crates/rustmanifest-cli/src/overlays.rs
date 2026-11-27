@@ -28,7 +28,7 @@ pub struct Overlays {
     /// SCIP index file (`rust-analyzer scip .`) overlaying name-resolved
     /// call edges onto the graph.
     #[arg(long, value_name = "INDEX")]
-    pub scip: Option<PathBuf>,
+    pub scip: Option<PathBuf>
 }
 
 #[cfg(test)]
@@ -45,7 +45,7 @@ mod tests {
     fn asking_for_neither_is_the_plain_reading() {
         let overlays = Overlays {
             expand: false,
-            scip: None,
+            scip:   None
         };
         assert!(!overlays.expand);
         assert!(overlays.scip.is_none());
@@ -55,11 +55,11 @@ mod tests {
     fn each_is_asked_for_on_its_own() {
         let expanded = Overlays {
             expand: true,
-            scip: None,
+            scip:   None
         };
         let indexed = Overlays {
             expand: false,
-            scip: Some(PathBuf::from("index.scip")),
+            scip:   Some(PathBuf::from("index.scip"))
         };
         assert!(expanded.expand && expanded.scip.is_none());
         assert!(!indexed.expand && indexed.scip.is_some());

@@ -21,5 +21,5 @@ pub struct CoverageArgs {
 
     /// What the run is handed beside the sources.
     #[command(flatten)]
-    pub overlays: crate::overlays::Overlays,
+    pub overlays: crate::overlays::Overlays
 }

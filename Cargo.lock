@@ -2571,6 +2571,7 @@ dependencies = [
 name = "rustmanifest-rules-core"
 version = "0.0.0"
 dependencies = [
+ "regex",
  "rustmanifest-schema",
  "serde_json",
  "toml",

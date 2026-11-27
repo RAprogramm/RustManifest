@@ -1,6 +1,12 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
+#![allow(
+    clippy::assert_is_empty,
+    clippy::unused_async,
+    clippy::unused_async_trait_impl
+)]
+
 //! MCP server for `rustmanifest` (stdio transport).
 //!
 //! The server exposes the review engine over the Model Context Protocol:

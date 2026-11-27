@@ -10,7 +10,7 @@ use rustmanifest_engine::{OutputClaim, Source};
 /// bytes.
 pub(super) fn span(
     claim: &OutputClaim,
-    sources: &[Source],
+    sources: &[Source]
 ) -> Option<(usize, String, usize, usize)> {
     let source = sources
         .iter()
@@ -32,7 +32,7 @@ pub(super) fn span(
         line_number,
         line_text,
         start - line_start,
-        end.saturating_sub(start),
+        end.saturating_sub(start)
     ))
 }
 

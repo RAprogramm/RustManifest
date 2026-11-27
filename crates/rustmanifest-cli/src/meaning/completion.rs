@@ -6,7 +6,7 @@
 
 use std::fmt::Write as _;
 
-use rustmanifest_engine::{completion_rule, EntryMeaning, ExitClaim};
+use rustmanifest_engine::{EntryMeaning, ExitClaim, completion_rule};
 
 use super::{location::relative, wording::certainty};
 
@@ -38,7 +38,7 @@ fn row(claim: &ExitClaim, root: &std::path::Path) -> [String; 3] {
     [
         certainty(claim.execution).to_owned(),
         claim.exit.status.to_string(),
-        format!("{} ({})", claim.function, relative(&claim.file, root)),
+        format!("{} ({})", claim.function, relative(&claim.file, root))
     ]
 }
 

@@ -30,7 +30,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 "(files reachable from crate roots: {reachable}  {reach_rate:.1}%   standalone \
                  roots: {standalone})",
                 standalone = report.files_standalone
-            ),
+            )
         ),
         line(
             "structs captured",
@@ -39,7 +39,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 "enums {enums}   traits {traits}   fields {fields}",
                 enums = report.enums_captured,
                 traits = report.traits_captured
-            ),
+            )
         ),
         line(
             "impls captured",
@@ -48,7 +48,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 "methods {methods}   aggregation edges {edges}   interaction edges {interactions}",
                 methods = report.methods_captured,
                 interactions = report.interaction_edges_resolved
-            ),
+            )
         ),
         line(
             "use targets",
@@ -56,7 +56,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
             &format!(
                 "resolved in-workspace {resolved}  {resolution_rate:.1}%   external \
                  {external}   unresolved {unresolved}   accounted {accounted:.1}%"
-            ),
+            )
         ),
         line(
             "call candidates",
@@ -79,7 +79,7 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 calls_built = report.call_candidates_built,
                 call_accounted = report.call_accounted_rate(),
                 scip_tail = scip_tail(report)
-            ),
+            )
         ),
         line(
             "value origins",
@@ -90,12 +90,12 @@ pub(super) fn report_lines(report: &Coverage) -> Vec<String> {
                 derived = report.origins_derived,
                 origin_rate = report.origin_rate(),
                 refused = report.origins_total - report.origins_derived
-            ),
+            )
         ),
         line(
             "derives seen",
             &report.derives_seen.to_string(),
-            &format!("item macros seen {macros}   (expansions not analyzed)"),
+            &format!("item macros seen {macros}   (expansions not analyzed)")
         ),
     ]
 }
@@ -132,38 +132,38 @@ mod tests {
     #[test]
     fn report_lines_are_aligned_and_honest() {
         let report = Coverage {
-            files_total: 318,
-            files_parsed: 318,
-            modules_total: 212,
-            files_reachable: 296,
-            files_standalone: 22,
-            structs_captured: 509,
-            enums_captured: 41,
-            traits_captured: 12,
-            impls_captured: 480,
-            methods_captured: 1920,
-            fields_captured: 2140,
-            aggregation_edges_resolved: 87,
-            interaction_edges_resolved: 133,
-            use_targets_total: 4044,
-            use_targets_resolved: 1620,
-            use_targets_external: 2400,
-            use_targets_unresolved: 24,
-            derives_seen: 233,
-            item_macros_seen: 12,
-            call_candidates_total: 5000,
-            call_candidates_resolved: 1066,
-            call_candidates_external: 3600,
-            call_candidates_unknown: 200,
+            files_total:                 318,
+            files_parsed:                318,
+            modules_total:               212,
+            files_reachable:             296,
+            files_standalone:            22,
+            structs_captured:            509,
+            enums_captured:              41,
+            traits_captured:             12,
+            impls_captured:              480,
+            methods_captured:            1920,
+            fields_captured:             2140,
+            aggregation_edges_resolved:  87,
+            interaction_edges_resolved:  133,
+            use_targets_total:           4044,
+            use_targets_resolved:        1620,
+            use_targets_external:        2400,
+            use_targets_unresolved:      24,
+            derives_seen:                233,
+            item_macros_seen:            12,
+            call_candidates_total:       5000,
+            call_candidates_resolved:    1066,
+            call_candidates_external:    3600,
+            call_candidates_unknown:     200,
             call_candidates_unreachable: 90,
-            call_candidates_ambiguous: 30,
-            call_candidates_owned: 14,
-            call_candidates_granted: 0,
-            call_candidates_built: 0,
-            call_candidates_scip: 0,
-            call_candidates_settled: 0,
-            origins_total: 1400,
-            origins_derived: 1050,
+            call_candidates_ambiguous:   30,
+            call_candidates_owned:       14,
+            call_candidates_granted:     0,
+            call_candidates_built:       0,
+            call_candidates_scip:        0,
+            call_candidates_settled:     0,
+            origins_total:               1400,
+            origins_derived:             1050
         };
         let lines = report_lines(&report);
         assert_eq!(lines.len(), 8);

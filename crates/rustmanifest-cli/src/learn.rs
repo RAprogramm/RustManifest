@@ -15,7 +15,7 @@ use std::{io::Write, path::PathBuf, process::ExitCode};
 
 use anyhow::Context;
 use clap::Parser;
-use rustmanifest_learn::{learn_roles, LearnOptions};
+use rustmanifest_learn::{LearnOptions, learn_roles};
 
 use crate::EXIT_CLEAN;
 
@@ -42,7 +42,7 @@ pub struct LearnArgs {
     /// are learned from what the compiler settled rather than from what a
     /// reading of the text could still guess.
     #[arg(long)]
-    pub resolution: Option<PathBuf>,
+    pub resolution: Option<PathBuf>
 }
 
 /// Runs the `learn` subcommand: discovers files, trains per-role
@@ -52,7 +52,7 @@ pub(crate) fn run_learn(args: &LearnArgs) -> anyhow::Result<ExitCode> {
         rustmanifest_engine::walker::discover(&args.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let options = LearnOptions {
         clauses: args.clauses,
@@ -64,11 +64,11 @@ pub(crate) fn run_learn(args: &LearnArgs) -> anyhow::Result<ExitCode> {
         args.resolution.as_deref(),
         args.paths
             .first()
-            .map_or_else(|| std::path::Path::new("."), PathBuf::as_path),
+            .map_or_else(|| std::path::Path::new("."), PathBuf::as_path)
     )?;
     let workspace = settled.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled),
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
     );
     let learned = learn_roles(&workspace, options);
     let rendered = serde_json::to_string_pretty(
@@ -81,7 +81,7 @@ pub(crate) fn run_learn(args: &LearnArgs) -> anyhow::Result<ExitCode> {
                     "unless": clause.excludes
                 })
             })
-            .collect::<Vec<_>>(),
+            .collect::<Vec<_>>()
     )
     .context("serializing learned clauses")?;
     let stdout = std::io::stdout();

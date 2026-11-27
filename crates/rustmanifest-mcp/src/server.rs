@@ -24,7 +24,7 @@ use rmcp::{
     handler::server::router::tool::ToolRouter,
     model::{
         Implementation, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
-        ReadResourceResponse, ServerCapabilities, ServerInfo
+        ReadResourceResponse, ServerCapabilities, ServerConfig
     },
     service::RequestContext,
     tool_handler
@@ -79,9 +79,10 @@ impl ReviewServer {
 }
 
 #[tool_handler]
+#[allow(clippy::unused_async)]
 impl ServerHandler for ReviewServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
@@ -99,6 +100,7 @@ impl ServerHandler for ReviewServer {
         )
     }
 
+    #[allow(clippy::unused_async)]
     async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParams>,
@@ -109,6 +111,7 @@ impl ServerHandler for ReviewServer {
         Ok(listed)
     }
 
+    #[allow(clippy::unused_async)]
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,

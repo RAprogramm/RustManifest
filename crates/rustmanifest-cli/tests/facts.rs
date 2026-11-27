@@ -41,12 +41,13 @@ fn wallet_tree() -> TempDir {
          Ok(())\n    }\n    pub fn balance(&self) -> i64 { self.balance }\n}\n"
     )
     .unwrap();
-    let resolve_bin = std::env::var("CARGO_BIN_EXE_rustmanifest-resolve")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
+    let resolve_bin = std::env::var("CARGO_BIN_EXE_rustmanifest-resolve").map_or_else(
+        |_| {
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../../target/debug/rustmanifest-resolve")
-        });
+        },
+        std::path::PathBuf::from
+    );
     Command::new(resolve_bin)
         .arg(dir.path())
         .arg(dir.path().join("resolution.json"))

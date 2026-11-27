@@ -26,7 +26,7 @@ pub struct GraphArgs {
     /// Resolution overlay to read the module tree from. A module diagram
     /// needs one: which file holds which module is the compiler's answer.
     #[arg(long)]
-    pub resolution: Option<PathBuf>,
+    pub resolution: Option<PathBuf>
 }
 
 /// Diagram content selector.
@@ -35,7 +35,7 @@ pub enum GraphKind {
     /// One node per module, one edge per resolved intra-crate dependency.
     Modules,
     /// One node per structure, one edge per aggregating field.
-    Types,
+    Types
 }
 
 /// Diagram output format.
@@ -44,5 +44,5 @@ pub enum DiagramFormat {
     /// Mermaid `graph LR` flowchart.
     Mermaid,
     /// Graphviz DOT digraph.
-    Dot,
+    Dot
 }

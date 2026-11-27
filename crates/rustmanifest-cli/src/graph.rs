@@ -27,21 +27,21 @@ pub(crate) fn run_graph(args: &GraphArgs) -> anyhow::Result<ExitCode> {
     let files = walker::discover(&args.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
     );
     let settled = crate::resolution(
         args.resolution.as_deref(),
         args.paths
             .first()
-            .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path),
+            .map_or_else(|| std::path::Path::new("."), std::path::PathBuf::as_path)
     )?;
     let workspace = settled.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution),
+        |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution)
     );
     let lines = match args.kind {
         GraphKind::Modules => module_lines(&module_overview(&workspace), args.format),
-        GraphKind::Types => type_lines(workspace.types(), args.format),
+        GraphKind::Types => type_lines(workspace.types(), args.format)
     };
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
