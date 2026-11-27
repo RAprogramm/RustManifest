@@ -13,6 +13,9 @@ Key points:
 - No `unwrap()` or `expect()` in production code
 - Documentation via Rustdoc only (no inline comments)
 - Descriptive naming conventions
+- Error handling uses `masterror` (`AppError`/`AppResult`) for all crates; `thiserror`/`anyhow`
+  are not used. Library crates define typed errors via `#[derive(Masterror)]` with
+  `#[app_error(...)]`; binaries aggregate with `masterror::AppResult`.
 
 ## Development Setup
 
