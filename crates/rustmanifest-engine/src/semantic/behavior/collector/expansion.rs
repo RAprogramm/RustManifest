@@ -31,7 +31,10 @@ impl FactCollector {
         let (Ok(start), Ok(end)) = (u32::try_from(span.start), u32::try_from(span.end)) else {
             return None;
         };
-        self.named.get(&(start, end)).cloned()
+        self.named
+            .get(&(start, end))
+            .cloned()
+            .or_else(|| standard_macro(invocation))
     }
 
     /// Records every fact one macro invocation carries.
@@ -211,4 +214,31 @@ fn plain_written_names(text: &str) -> Vec<String> {
             named.then(|| last.to_owned())
         })
         .collect()
+}
+
+/// The canonical name of a standard-library macro the invocation spells,
+/// answering `None` for anything not in the language's own macro set.
+///
+/// Used only where no resolver settled the macro's path: the standard
+/// names are fixed by the language, so the spelling alone names the
+/// item, while a workspace macro needs a resolver to tell it apart from
+/// a namesake and stays unrecognized without one.
+fn standard_macro(invocation: &syn::Macro) -> Option<String> {
+    let spelled = invocation
+        .path
+        .segments
+        .last()
+        .map(|segment| segment.ident.to_string())?;
+    let canonical = match spelled.as_str() {
+        "println" => "std::macros::println",
+        "print" => "std::macros::print",
+        "eprintln" => "std::macros::eprintln",
+        "eprint" => "std::macros::eprint",
+        "dbg" => "std::macros::dbg",
+        "write" => "core::macros::write",
+        "writeln" => "core::macros::writeln",
+        "format" => "alloc::macros::format",
+        _ => return None
+    };
+    Some(canonical.to_owned())
 }

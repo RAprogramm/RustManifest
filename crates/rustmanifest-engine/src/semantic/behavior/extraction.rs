@@ -66,6 +66,21 @@ fn handed_back(known: &Known<'_>, bytes: &std::ops::Range<usize>) -> Option<Stri
     known.settled.returns.get(&at).cloned()
 }
 
+/// The return type a signature writes, rendered as tokens.
+///
+/// Read only where no resolver settled a rendering: the compiler's own
+/// spelling is preferred whenever it has one, and this recovers the
+/// written `Result<_, E>` half a resolver could not render because the
+/// error type itself does not resolve.
+fn rendered_return(signature: &syn::Signature) -> Option<String> {
+    use quote::ToTokens as _;
+
+    match &signature.output {
+        syn::ReturnType::Default => None,
+        syn::ReturnType::Type(_, ty) => Some(ty.to_token_stream().to_string())
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 pub(super) fn function_facts(
     source: usize,
@@ -149,7 +164,11 @@ pub(super) fn function_facts(
         conditions:       Vec::new()
     };
     mark_unsafe(&mut collector, signature);
-    collector.facts.error_types = error_types(handed_back(known, &bytes).as_deref());
+    collector.facts.error_types = error_types(
+        handed_back(known, &bytes)
+            .or_else(|| rendered_return(signature))
+            .as_deref()
+    );
     collector.visit_block(block);
     collector.collect_tail(block);
     collector.facts.reads.sort();

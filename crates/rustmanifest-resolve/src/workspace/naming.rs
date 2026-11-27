@@ -48,14 +48,14 @@ fn settled_path(reading: Reading<'_, '_>, path: &ast::Path) -> Option<ResolvedPa
         _ => return None
     };
     let krate = definition.module(reading.database)?.krate(reading.database);
+    let names = match definition {
+        ModuleDef::Function(function) => canonical_function(reading.database, function)?,
+        other => canonical(reading.database, other, krate.edition(reading.database))?
+    };
     Some(ResolvedPath {
-        at:        reading.located(path.syntax().text_range()),
-        names:     canonical(
-            reading.database,
-            definition,
-            krate.edition(reading.database)
-        )?,
-        kind:      kind.to_owned(),
+        at: reading.located(path.syntax().text_range()),
+        names,
+        kind: kind.to_owned(),
         declaring: named(reading.database, krate)?
     })
 }
