@@ -4,6 +4,7 @@
 //! Construction of [`TypeNode`]s from data definitions: structures and
 //! enums, with their fields, derives, and source anchor.
 
+use quote::ToTokens;
 use rustmanifest_schema::Range;
 
 use crate::semantic::graph::nodes::{FieldNode, TypeKind, TypeNode};
@@ -21,7 +22,7 @@ pub(in crate::semantic::graph) fn node(
             .filter_map(|field| {
                 field.ident.as_ref().map(|ident| FieldNode {
                     name:      ident.to_string(),
-                    type_name: String::new(),
+                    type_name: field_type(&field.ty),
                     element:   None,
                     key:       None,
                     holds:     None
@@ -40,6 +41,12 @@ pub(in crate::semantic::graph) fn node(
         generic: !definition.generics.params.is_empty(),
         fields
     }
+}
+
+/// Returns the outermost type name written for `ty`, or an empty string.
+fn field_type(ty: &syn::Type) -> String {
+    let written = ty.to_token_stream().to_string();
+    crate::semantic::behavior::outermost_name(&written).unwrap_or_default()
 }
 
 /// Converts a span byte range into the schema [`Range`].
@@ -67,7 +74,7 @@ pub(in crate::semantic::graph) fn enum_node(
             );
             fields.push(FieldNode {
                 name,
-                type_name: String::new(),
+                type_name: field_type(&field.ty),
                 element: None,
                 key: None,
                 holds: None

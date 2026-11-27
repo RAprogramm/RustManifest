@@ -302,9 +302,7 @@ fn arguments(inside: &str) -> Vec<String> {
 fn looked_up_by(rendered: &str) -> Option<String> {
     let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
     let written = arguments(inside);
-    let [key, _] = written.as_slice() else {
-        return None;
-    };
+    let key = written.first()?;
     crate::semantic::behavior::outermost_name(key)
 }
 
@@ -328,9 +326,28 @@ fn opened(rendered: &str) -> String {
 /// What a rendered collection holds: its last type argument, so a map
 /// answers with its values and a sequence with its elements.
 fn held(rendered: &str) -> Option<String> {
+    let shape = rendered
+        .split('<')
+        .next()?
+        .trim()
+        .trim_start_matches('&')
+        .trim()
+        .trim_start_matches("mut ")
+        .trim()
+        .trim_start_matches("dyn ")
+        .trim()
+        .rsplit("::")
+        .next()?;
     let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let last = arguments(inside).pop()?;
-    crate::semantic::behavior::outermost_name(&last)
+    let written = arguments(inside);
+    let element = match shape {
+        "BTreeMap" | "HashMap" => written.get(1)?,
+        "BTreeSet" | "HashSet" | "BinaryHeap" | "LinkedList" | "Vec" | "VecDeque" => {
+            written.first()?
+        }
+        _ => written.last()?
+    };
+    crate::semantic::behavior::outermost_name(element)
 }
 
 #[cfg(test)]
