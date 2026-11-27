@@ -152,9 +152,9 @@ fn asked_with_the_path(
         return false;
     };
     fact.call_sites.iter().any(|site| {
-        site.candidate
-            .rsplit("::")
-            .nth(1)
+        site.reaches
+            .as_deref()
+            .and_then(|reaches| reaches.rsplit("::").nth(1))
             .is_some_and(|owner| owner == shape)
             && site
                 .produced
