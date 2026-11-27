@@ -191,10 +191,13 @@ const fn declared_mode(mode: rustmanifest_schema::ResolvedMode) -> super::types:
 /// name is the trait: keeping the keyword would leave every call written
 /// on such a value nameless.
 pub(in crate::semantic) fn outermost(written: &str) -> Option<String> {
-    let borrowless = written
+    let stripped = written
         .trim()
         .trim_start_matches('&')
         .trim()
+        .trim_start_matches("mut ")
+        .trim();
+    let borrowless = without_lifetime(stripped)
         .trim_start_matches("mut ")
         .trim()
         .trim_start_matches("dyn ")
@@ -208,12 +211,23 @@ pub(in crate::semantic) fn outermost(written: &str) -> Option<String> {
         .trim()
         .trim_start_matches("mut ")
         .trim();
-    let named = without_borrow.rsplit("::").next()?.trim();
+    let named = without_lifetime(without_borrow).rsplit("::").next()?.trim();
     (!named.is_empty()
         && named
             .chars()
             .all(|letter| letter.is_alphanumeric() || letter == '_'))
     .then(|| named.to_owned())
+}
+
+/// Removes a leading lifetime token from a rendered reference.
+fn without_lifetime(written: &str) -> &str {
+    let written = written.trim();
+    if written.starts_with('\'')
+        && let Some(end) = written.find(char::is_whitespace)
+    {
+        return written[end..].trim();
+    }
+    written
 }
 
 /// The name the tables speak for a shape the language spells with
