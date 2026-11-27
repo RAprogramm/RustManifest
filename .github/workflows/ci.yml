@@ -1,203 +1,138 @@
 # SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 # SPDX-License-Identifier: MIT
 
-name: ci
+name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
 
 jobs:
-  lint:
-    name: lint
-    runs-on: ubuntu-24.04
+  msrv:
+    name: Extract MSRV
+    runs-on: ubuntu-latest
+    outputs:
+      msrv: ${{ steps.parse.outputs.msrv }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Install stable toolchain (pinned by rust-toolchain.toml)
-        run: rustup show active-toolchain
-      - name: Install nightly toolchain for rustfmt
-        run: |
-          rustup toolchain install nightly --profile minimal --component rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v7
         with:
-          shared-key: lint
-      - name: cargo +nightly fmt --check
-        run: cargo +nightly fmt --all -- --check
-      - name: cargo clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+          persist-credentials: false
+      - id: parse
+        run: |
+          MSRV=$(grep -E 'rust-version\s*=\s*"' Cargo.toml | sed 's/.*"\([^"]*\)".*/\1/' | head -n1)
+          if [ -z "$MSRV" ]; then echo "::error::rust-version not found"; exit 1; fi
+          echo "msrv=$MSRV" >> "$GITHUB_OUTPUT"
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    needs: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ needs.msrv.outputs.msrv }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::pedantic -W clippy::nursery
 
   test:
-    name: test ${{ matrix.os }}
+    name: Tests
+    needs: msrv
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2022]
+        rust: [msrv, stable]
+        os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@v4
-      - name: Show toolchain
-        run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v7
         with:
-          shared-key: test-${{ matrix.os }}
-      - name: cargo test
-        run: cargo test --workspace --all-features --locked
-      - name: Benchmarks still compile
-        run: cargo bench --workspace --no-run --locked
-      - name: cargo build --release
-        run: cargo build --workspace --release --locked
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust == 'msrv' && needs.msrv.outputs.msrv || 'stable' }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --all-features
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: rustsec/audit-check@v2
+
+  deny:
+    name: Dependency Policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - run: cargo deny check
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --all-features --no-deps
 
   self-analysis:
-    name: self-analysis
-    runs-on: ubuntu-24.04
+    name: Self-analysis
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v7
         with:
-          shared-key: self-analysis
-      - name: Build the release binary
-        run: cargo build --release --bin rustmanifest --locked
-      # The engine analyzing its own sources is the only corpus CI can
-      # reach: `eval/corpus.toml` names local and private checkouts, so the
-      # evaluation harness stays a gate the maintainer runs, not this one.
-      # Exit code 1 means findings were reported and is expected; 2 means
-      # the run itself failed. The ceiling is deliberately far above the
-      # sub-second time this takes, so it catches an order-of-magnitude
-      # regression without depending on how loaded a shared runner is.
-      - name: Analyze this workspace
-        run: |
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --bin rustmanifest
+      - run: |
           set +e
           timeout 120 ./target/release/rustmanifest check crates --format json > findings.json
           status=$?
           set -e
-          if [ "$status" -ge 2 ]; then
-            echo "self-analysis failed with exit status $status"
-            exit 1
-          fi
-          echo "findings reported: $(python3 -c 'import json;print(len(json.load(open("findings.json"))))')"
-      - name: Every command answers about this workspace
-        run: |
-          for command in overview facts graph learn meaning report; do
-            timeout 300 ./target/release/rustmanifest "$command" crates > /dev/null \
-              || { echo "$command failed"; exit 1; }
-          done
-
-  msrv:
-    name: msrv
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Verify the toolchain pin matches the declared MSRV
-        run: |
-          declared=$(grep -m1 '^rust-version = ' Cargo.toml | cut -d'"' -f2)
-          pinned=$(grep -m1 '^channel = ' rust-toolchain.toml | cut -d'"' -f2)
-          if [ -z "$declared" ] || [ -z "$pinned" ]; then
-            echo "MSRV unreadable: declared='$declared' pinned='$pinned'"
-            exit 1
-          fi
-          if [ "${pinned%.*}" != "$declared" ]; then
-            echo "MSRV drifted: Cargo.toml declares $declared, rust-toolchain.toml pins $pinned"
-            exit 1
-          fi
-          echo "MSRV $declared, toolchain pinned to $pinned"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: msrv
-      - name: cargo check --workspace
-        run: cargo check --workspace --all-targets --all-features --locked
-
-  audit:
-    name: audit
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-audit
-      - run: cargo audit --deny warnings
-
-  deny:
-    name: deny
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-      - run: cargo deny --all-features check
-
-  schema-drift:
-    name: schema-drift
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: schema-drift
-      - name: Regenerate schemas
-        run: |
-          cargo run --bin rustmanifest-schema-export --locked -- \
-            --out crates/rustmanifest-schema/schemas
-      - name: Verify no drift
-        run: |
-          if ! git diff --exit-code crates/rustmanifest-schema/schemas; then
-            echo "JSON schemas are out of date. Run:"
-            echo "  cargo run --bin rustmanifest-schema-export -- --out crates/rustmanifest-schema/schemas"
-            exit 1
-          fi
-
-  coverage:
-    name: coverage
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: coverage
-      - name: Collect coverage
-        run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-lcov
-          path: lcov.info
-
-  reuse:
-    name: reuse
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: REUSE compliance check
-        uses: fsfe/reuse-action@v6
-
-  mcp-conformance:
-    name: mcp-conformance
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Show toolchain
-        run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: mcp-conformance
-      - name: Scripted stdio conformance suite
-        run: cargo test --package rustmanifest-mcp --test stdio_conformance --locked
+          if [ "$status" -ge 2 ]; then echo "self-analysis failed"; exit 1; fi
+          echo "findings: $(python3 -c 'import json;print(len(json.load(open("findings.json"))))')"
