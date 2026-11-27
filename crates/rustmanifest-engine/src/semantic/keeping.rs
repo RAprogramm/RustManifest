@@ -404,8 +404,11 @@ pub fn run(store: &mut Store, asked: &str) {
         );
         let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
-        assert!(tables(&workspace).is_empty());
-        assert!(purpose(&workspace).is_empty());
+        assert_eq!(
+            tables(&workspace),
+            [] as [crate::semantic::keeping::table::TableStore; 0]
+        );
+        assert_eq!(purpose(&workspace), [] as [std::string::String; 0]);
     }
 
     #[test]

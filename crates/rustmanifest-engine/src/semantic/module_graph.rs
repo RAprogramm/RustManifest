@@ -443,6 +443,6 @@ mod tests {
     #[test]
     fn no_settled_tree_answers_nothing() {
         let sources = [source("src/lib.rs", "mod util;")];
-        assert!(ModuleGraph::of(&sources, None).modules().is_empty());
+        assert_eq!(ModuleGraph::of(&sources, None).modules(), []);
     }
 }

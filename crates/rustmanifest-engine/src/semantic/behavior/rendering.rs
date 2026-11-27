@@ -173,13 +173,13 @@ mod tests {
     /// read as the value rendering nothing.
     #[test]
     fn an_unresolved_position_is_left_unanswered() {
-        assert!(
+        assert_eq!(
             alternatives(
                 "fn main() {\n    let value = compute();\n    println!(\"{value}\");\n}",
                 "main",
                 "value"
-            )
-            .is_empty()
+            ),
+            [] as [crate::semantic::behavior::output::Payload; 0]
         );
     }
 

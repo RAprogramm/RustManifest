@@ -182,7 +182,10 @@ mod tests {
             "pub struct Tag { pub name: String }\nimpl Default for Tag { fn default() -> Self { \
              loop {} } }"
         );
-        assert!(default_precedents(&Workspace::new(&sources)).is_empty());
+        assert_eq!(
+            default_precedents(&Workspace::new(&sources)),
+            [] as [crate::FormPrecedent; 0]
+        );
     }
 
     /// A form no family claims gets no pool: nobody has standing.

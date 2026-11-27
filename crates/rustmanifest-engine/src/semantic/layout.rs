@@ -205,7 +205,7 @@ mod tests {
         let point = named(&all, "Point");
         assert_eq!(point.payload, Some(17));
         assert_eq!(point.indirections, 0);
-        assert!(point.unresolved.is_empty());
+        assert_eq!(point.unresolved, [] as [std::string::String; 0]);
     }
 
     #[test]

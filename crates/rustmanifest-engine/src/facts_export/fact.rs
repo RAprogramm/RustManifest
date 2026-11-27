@@ -245,7 +245,7 @@ mod tests {
         );
         let object = fact_json(&facts[0], &sources, true);
         let features = object["features"].as_array().unwrap();
-        assert!(!features.is_empty());
+        assert_ne!(features.len(), 0);
         let returns_result = features
             .iter()
             .find(|entry| entry["name"] == "returns-result")

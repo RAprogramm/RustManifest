@@ -113,21 +113,30 @@ mod tests {
     fn public_functions_get_no_fix() {
         let text = "struct Report { total: u64 }\npub fn summarize(report: Report) -> u64 { \
                     report.total }";
-        assert!(borrow_fixes(&sources(text), "summarize", "report", true).is_empty());
+        assert_eq!(
+            borrow_fixes(&sources(text), "summarize", "report", true),
+            [] as [rustmanifest_schema::Fix; 0]
+        );
     }
 
     #[test]
     fn function_pointer_use_aborts_the_fix() {
         let text = "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { \
                     report.total }\nfn pick() -> fn(Report) -> u64 { summarize }";
-        assert!(borrow_fixes(&sources(text), "summarize", "report", false).is_empty());
+        assert_eq!(
+            borrow_fixes(&sources(text), "summarize", "report", false),
+            [] as [rustmanifest_schema::Fix; 0]
+        );
     }
 
     #[test]
     fn duplicate_bare_names_abort_the_fix() {
         let text = "struct Report { total: u64 }\nfn summarize(report: Report) -> u64 { \
                     report.total }\nmod other { pub fn summarize(x: u64) -> u64 { x } }";
-        assert!(borrow_fixes(&sources(text), "summarize", "report", false).is_empty());
+        assert_eq!(
+            borrow_fixes(&sources(text), "summarize", "report", false),
+            [] as [rustmanifest_schema::Fix; 0]
+        );
     }
 
     #[test]

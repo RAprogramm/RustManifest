@@ -218,6 +218,6 @@ mod tests {
     fn a_type_the_index_does_not_know_is_told_apart_from_one_with_no_impls() {
         let oracle = TraitOracle::from_rustdoc_json(EMITTED).unwrap();
         assert!(!oracle.knows("Absent"));
-        assert!(oracle.traits_of("Absent").is_empty());
+        assert_eq!(oracle.traits_of("Absent"), []);
     }
 }

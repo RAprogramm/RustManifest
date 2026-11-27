@@ -1,13 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-#![allow(
-    clippy::assert_is_empty,
-    clippy::redundant_locals,
-    clippy::map_unwrap_or,
-    clippy::items_after_test_module
-)]
-
 //! Tiered analysis engine for `rustmanifest`.
 //!
 //! Rules are checked at one of three tiers, chosen per rule: a

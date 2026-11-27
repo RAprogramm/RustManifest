@@ -212,6 +212,9 @@ mod tests {
 
     #[test]
     fn an_unresolved_callee_marks_nothing() {
-        assert!(marked("fn main() { let s = String::from(\"x\"); s.len(); }").is_empty());
+        assert_eq!(
+            marked("fn main() { let s = String::from(\"x\"); s.len(); }"),
+            [] as [(std::string::String, &str); 0]
+        );
     }
 }

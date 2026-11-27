@@ -1,12 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-#![allow(
-    clippy::assert_is_empty,
-    clippy::redundant_locals,
-    clippy::map_unwrap_or
-)]
-
 //! Interpretable learning layer over the engine's fact base.
 //!
 //! Trains one binary Tsetlin machine per behavioral role on the engine's
@@ -365,9 +359,9 @@ mod tests {
             &["labeled-list", "bare-values"],
             LearnOptions::default()
         );
-        assert!(!ranked.is_empty());
+        assert_ne!(ranked, [] as [super::RankedForm; 0]);
         assert_eq!(ranked[0].name, "labeled-list", "{ranked:?}");
-        assert!(!ranked[0].grounds.is_empty());
+        assert_ne!(ranked[0].grounds, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -386,7 +380,7 @@ mod tests {
             &["labeled-list"],
             LearnOptions::default()
         );
-        assert!(ranked.is_empty());
+        assert_eq!(ranked, [] as [super::RankedForm; 0]);
     }
 
     fn corpus() -> [Source; 1] {
@@ -414,7 +408,7 @@ mod tests {
             .iter()
             .filter(|clause| clause.role == "io")
             .collect();
-        assert!(!io_clauses.is_empty());
+        assert_ne!(io_clauses, [] as [&super::LearnedClause; 0]);
         assert!(io_clauses.iter().any(|clause| {
             clause.includes.iter().any(|name| name == "effect-console")
                 || clause.excludes.iter().any(|name| name == "params>=2")
@@ -430,7 +424,10 @@ mod tests {
 
     #[test]
     fn empty_sources_learn_nothing() {
-        assert!(learn_roles(&Workspace::new(&[]), LearnOptions::default()).is_empty());
+        assert_eq!(
+            learn_roles(&Workspace::new(&[]), LearnOptions::default()),
+            [] as [super::LearnedClause; 0]
+        );
     }
 
     #[test]
@@ -441,7 +438,10 @@ mod tests {
              2 }"
             .to_owned()
         )];
-        assert!(learn_roles(&Workspace::new(&source), LearnOptions::default()).is_empty());
+        assert_eq!(
+            learn_roles(&Workspace::new(&source), LearnOptions::default()),
+            [] as [super::LearnedClause; 0]
+        );
     }
 
     #[test]

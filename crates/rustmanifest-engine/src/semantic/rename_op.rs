@@ -178,7 +178,10 @@ mod tests {
             source("src/ledger.rs", "pub fn post() {}"),
             source("src/extra.rs", "mod ledger { pub fn other() {} }")
         ];
-        assert!(rename_module_fixes(&sources, "ledger", "accounting").is_empty());
+        assert_eq!(
+            rename_module_fixes(&sources, "ledger", "accounting"),
+            [] as [rustmanifest_schema::Fix; 0]
+        );
     }
 
     #[test]
@@ -187,8 +190,14 @@ mod tests {
             source("src/lib.rs", "mod ledger;"),
             source("src/ledger.rs", "pub fn post() {}")
         ];
-        assert!(rename_module_fixes(&sources, "ledger", "bad-name").is_empty());
-        assert!(rename_module_fixes(&sources, "ledger", "ledger").is_empty());
+        assert_eq!(
+            rename_module_fixes(&sources, "ledger", "bad-name"),
+            [] as [rustmanifest_schema::Fix; 0]
+        );
+        assert_eq!(
+            rename_module_fixes(&sources, "ledger", "ledger"),
+            [] as [rustmanifest_schema::Fix; 0]
+        );
     }
 
     #[test]
@@ -198,7 +207,7 @@ mod tests {
             "mod ledger { pub fn post() {} }\npub fn run() { ledger::post(); }"
         )];
         let fixes = rename_module_fixes(&sources, "ledger", "accounting");
-        assert!(!fixes.is_empty());
+        assert_ne!(fixes, [] as [rustmanifest_schema::Fix; 0]);
         assert!(fixes.iter().all(|fix| fix.rename_to.is_none()));
     }
 }

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-#![allow(clippy::unused_async)]
-
 //! Tools that report what the engine knows about a workspace path.
 //!
 //! Each tool resolves the requested path inside the workspace root and

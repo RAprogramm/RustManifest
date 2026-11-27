@@ -254,8 +254,7 @@ mod tests {
         )
         .into_iter()
         .find(|fact| fact.function == function)
-        .map(|fact| fact.output_writes)
-        .unwrap_or_default()
+        .map_or_default(|fact| fact.output_writes)
     }
 
     fn writes_of(body: &str) -> Vec<super::OutputWrite> {
@@ -269,7 +268,10 @@ mod tests {
         assert_eq!(branch[0].guard.local_grade(), Grade::Possible);
 
         let straight = writes_of("    println!(\"hi\");");
-        assert!(straight[0].guard.guards.is_empty());
+        assert_eq!(
+            straight[0].guard.guards,
+            [] as [crate::semantic::behavior::output::guard::Guard; 0]
+        );
         assert_eq!(straight[0].guard.local_grade(), Grade::Certain);
     }
 
@@ -281,7 +283,10 @@ mod tests {
         assert_eq!(counted[0].guard.local_grade(), Grade::Possible);
 
         let forever = writes_of("    loop { println!(\"hi\"); }");
-        assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(
+            forever[0].guard.guards,
+            [] as [crate::semantic::behavior::output::guard::Guard; 0]
+        );
         assert_eq!(forever[0].multiplicity, super::Multiplicity::Unbounded);
         assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
     }
@@ -310,7 +315,10 @@ mod tests {
         );
         assert_eq!(writes.len(), 2);
         assert_eq!(writes[0].guard.guards.len(), 2);
-        assert!(writes[1].guard.guards.is_empty());
+        assert_eq!(
+            writes[1].guard.guards,
+            [] as [crate::semantic::behavior::output::guard::Guard; 0]
+        );
     }
 
     #[test]
@@ -341,7 +349,10 @@ mod tests {
     #[test]
     fn a_bare_loop_repeats_without_weakening_the_write_inside_it() {
         let forever = writes_of("    loop { println!(\"hi\"); }");
-        assert!(forever[0].guard.guards.is_empty());
+        assert_eq!(
+            forever[0].guard.guards,
+            [] as [crate::semantic::behavior::output::guard::Guard; 0]
+        );
         assert_eq!(forever[0].guard.local_grade(), Grade::Certain);
         assert_eq!(forever[0].multiplicity, super::Multiplicity::Unbounded);
     }
@@ -386,7 +397,10 @@ mod tests {
         );
 
         let binding = writes_of("    match v { y => println!(\"a\") }");
-        assert!(binding[0].guard.guards.is_empty());
+        assert_eq!(
+            binding[0].guard.guards,
+            [] as [crate::semantic::behavior::output::guard::Guard; 0]
+        );
         assert_eq!(binding[0].guard.local_grade(), Grade::Certain);
     }
 
@@ -473,7 +487,10 @@ mod tests {
     fn a_while_condition_repeats_with_the_loop_it_governs() {
         let writes = writes_of("    while ready(println!(\"tick\")) { println!(\"body\"); }");
         assert_eq!(writes[0].payload.fully_known(), Some("tick"));
-        assert!(writes[0].guard.guards.is_empty());
+        assert_eq!(
+            writes[0].guard.guards,
+            [] as [crate::semantic::behavior::output::guard::Guard; 0]
+        );
         assert_eq!(writes[0].multiplicity, super::Multiplicity::Unbounded);
         assert_eq!(writes[1].guard.guards, [Guard::While]);
         assert_eq!(writes[1].multiplicity, super::Multiplicity::Unbounded);
@@ -512,7 +529,6 @@ mod tests {
             .after("fn main")
             .typed("dies()", "!")
             .done();
-        let leaving = leaving;
         let facts = behavior_with(&sources, Some(&leaving));
         let main = facts
             .iter()
@@ -531,7 +547,6 @@ mod tests {
             .after("fn main")
             .typed("helper()", "u8")
             .done();
-        let settled = settled;
         let plain = behavior_with(&returning, Some(&settled));
         let entry = plain
             .iter()

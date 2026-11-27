@@ -165,7 +165,7 @@ let password = "hunter2";
     #[test]
     fn ignores_pragma_without_reason() {
         let text = "// rustmanifest: allow(RM-SEC-001)\nlet password = \"x\";\n";
-        assert!(collect(text).is_empty());
+        assert_eq!(collect(text), [] as [crate::pragma::Pragma; 0]);
     }
 
     #[test]

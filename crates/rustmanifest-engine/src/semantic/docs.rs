@@ -191,7 +191,7 @@ mod tests {
         let fact = first("fn bare() {}");
         assert!(!fact.has_docs);
         assert!(fact.summary_verb.is_none());
-        assert!(fact.sections.is_empty());
+        assert_eq!(fact.sections, [] as [std::string::String; 0]);
     }
 
     #[test]

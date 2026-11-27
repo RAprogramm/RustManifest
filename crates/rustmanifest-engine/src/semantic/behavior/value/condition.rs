@@ -134,7 +134,13 @@ mod tests {
              return 1; } } }\n    2\n}",
             "pick"
         );
-        assert!(!recorded.is_empty());
+        assert_ne!(
+            recorded,
+            [] as [(
+                std::vec::Vec<crate::semantic::behavior::value::condition::Condition>,
+                usize
+            ); 0]
+        );
         for (conditions, guards) in recorded {
             assert_eq!(conditions.len(), guards, "{conditions:?}");
         }

@@ -365,13 +365,19 @@ pub fn suppressions(target: &Path) -> Result<Vec<SuppressionRecord>, EngineError
         match rule.definition {
             rustmanifest_schema::RuleDefinition::Pattern {
                 ..
-            } => tiered.push(Box::new(PatternAnalyzer::new(rule.clone())?)),
+            } => {
+                tiered.push(Box::new(PatternAnalyzer::new(rule.clone())?));
+            }
             rustmanifest_schema::RuleDefinition::Ast {
                 ..
-            } => tiered.push(Box::new(AstAnalyzer::new(rule.clone())?)),
+            } => {
+                tiered.push(Box::new(AstAnalyzer::new(rule.clone())?));
+            }
             rustmanifest_schema::RuleDefinition::Semantic {
                 ..
-            } => semantic.push(SemanticAnalyzer::new(rule.clone())?)
+            } => {
+                semantic.push(SemanticAnalyzer::new(rule.clone())?);
+            }
         }
     }
     for source in &sources {
@@ -531,7 +537,7 @@ mod tests {
         let all = facts(tree().path(), None).unwrap();
         let narrowed = facts(tree().path(), Some("log_1")).unwrap();
         assert!(all.as_array().unwrap().len() > narrowed.as_array().unwrap().len());
-        assert!(!narrowed.as_array().unwrap().is_empty());
+        assert_ne!(narrowed.as_array().unwrap().len(), 0);
     }
 
     #[test]

@@ -184,7 +184,10 @@ mod tests {
             PathBuf::from("src/main.rs"),
             "fn validate_password(input: &str) -> bool { !input.is_empty() }".to_owned()
         );
-        assert!(analyzer.analyze(&source).is_empty());
+        assert_eq!(
+            analyzer.analyze(&source),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     #[test]
@@ -193,7 +196,10 @@ mod tests {
         let text = "// rustmanifest: allow(RM-SEC-001) reason=\"intentional fixture\"\nlet password = \
              \"hunter2\";\n";
         let source = Source::new(PathBuf::from("src/main.rs"), text.to_owned());
-        assert!(analyzer.analyze(&source).is_empty());
+        assert_eq!(
+            analyzer.analyze(&source),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     #[test]

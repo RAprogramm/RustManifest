@@ -289,7 +289,7 @@ mod tests {
             Some(&crate::semantic::settling::settled_over(&sources))
         );
         let graph = call_graph(&all, &super::resolution_context(&sources));
-        assert!(graph.callees(index_of(&all, "drive")).is_empty());
+        assert_eq!(graph.callees(index_of(&all, "drive")), [] as [usize; 0]);
     }
 
     #[test]
@@ -389,7 +389,7 @@ mod tests {
             "struct A;\nimpl A { fn go(&self) {} }\nstruct B;\nimpl B { fn go(&self) {} }\nfn \
              run(x: u32) { x.go(); }"
         );
-        assert!(graph.callees(index_of(&all, "run")).is_empty());
+        assert_eq!(graph.callees(index_of(&all, "run")), [] as [usize; 0]);
         assert_eq!(graph.unresolved(), 1);
     }
 
@@ -420,7 +420,7 @@ mod tests {
             context_graph("fn read() -> String { std::fs::read_to_string(\"x\").unwrap() }");
         assert_eq!(graph.resolved(), 0);
         assert!(graph.unresolved() > 0);
-        assert!(graph.callees(index_of(&all, "read")).is_empty());
+        assert_eq!(graph.callees(index_of(&all, "read")), [] as [usize; 0]);
     }
 
     #[test]

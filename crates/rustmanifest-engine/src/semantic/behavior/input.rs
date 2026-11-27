@@ -174,6 +174,9 @@ mod tests {
             .iter()
             .find(|fact| fact.function == "main")
             .expect("the entry function is a fact");
-        assert!(entry.input_reads.is_empty());
+        assert_eq!(
+            entry.input_reads,
+            [] as [crate::semantic::behavior::input::read::InputRead; 0]
+        );
     }
 }

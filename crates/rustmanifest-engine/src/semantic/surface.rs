@@ -289,7 +289,10 @@ mod tests {
         let recovered = surface(&source(
             "fn routes(prefix: &str) -> Router { Router::new().route(prefix, get(handler)) }"
         ));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.dynamic, 1);
     }
 
@@ -298,7 +301,10 @@ mod tests {
         let recovered = surface(&source(
             "fn app(other: Router) -> Router { Router::new().merge(other) }"
         ));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.unresolved, ["merge"]);
     }
 
@@ -321,7 +327,10 @@ mod tests {
             "fn left() -> Router { Router::new().route(\"/l\", get(l)).merge(right()) }\nfn \
              right() -> Router { Router::new().route(\"/r\", get(r)).merge(left()) }"
         ));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.entangled, ["left", "right"]);
     }
 
@@ -331,7 +340,10 @@ mod tests {
             "fn left() -> Router { Router::new().route(\"/l\", get(l)).merge(right()) }\nfn \
              right() -> Router { Router::new().route(\"/r\", get(r)).merge(left()) }"
         ));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.discarded, 2);
     }
 
@@ -344,7 +356,7 @@ mod tests {
         ));
         assert_eq!(recovered.providers, 3);
         assert_eq!(paths(&recovered), ["/x/a", "/y/b"]);
-        assert!(recovered.ambiguous.is_empty());
+        assert_eq!(recovered.ambiguous, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -384,7 +396,10 @@ mod tests {
             "fn inner() -> Router { Router::new().route(\"/list\", get(list)) }\nfn app(prefix: \
              &str) -> Router { Router::new().nest(prefix, inner()) }"
         ));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.providers, 2);
         assert_eq!(recovered.composed, 1);
         assert_eq!(recovered.unplaced, 1);
@@ -395,7 +410,10 @@ mod tests {
         let recovered = surface(&source(
             "fn routes() -> Router { Router::new().route(\"/x\", handler_service) }"
         ));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.dynamic, 0);
         assert_eq!(recovered.opaque_handler, 1);
     }
@@ -422,8 +440,8 @@ mod tests {
         ));
         assert_eq!(paths(&recovered), ["/ok", "/x"]);
         assert_eq!(recovered.foreign_receiver, 1);
-        assert!(recovered.unresolved.is_empty());
-        assert!(recovered.entangled.is_empty());
+        assert_eq!(recovered.unresolved, [] as [std::string::String; 0]);
+        assert_eq!(recovered.entangled, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -462,7 +480,10 @@ mod tests {
     #[test]
     fn a_source_that_does_not_parse_is_counted_not_silently_skipped() {
         let recovered = surface(&source("fn broken( { "));
-        assert!(recovered.routes.is_empty());
+        assert_eq!(
+            recovered.routes,
+            [] as [crate::semantic::surface::table::Route; 0]
+        );
         assert_eq!(recovered.unparsed, 1);
     }
 
@@ -492,6 +513,6 @@ mod tests {
         let recovered = surface(&source(
             "fn routes() -> Router { Router::new().route(\"/x\", get(show).post(create)) }"
         ));
-        assert!(recovered.conflicts.is_empty());
+        assert_eq!(recovered.conflicts, [] as [std::string::String; 0]);
     }
 }

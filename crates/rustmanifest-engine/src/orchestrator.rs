@@ -181,7 +181,7 @@ mod tests {
         );
 
         let findings = cred_orchestrator().run(&[file]).unwrap();
-        assert!(findings.is_empty());
+        assert_eq!(findings, [] as [rustmanifest_schema::Finding; 0]);
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod tests {
 
         write_file(dir.path(), "dirty.rs", "fn main() {}\n");
         let after = orchestrator.run(std::slice::from_ref(&file)).unwrap();
-        assert!(after.is_empty());
+        assert_eq!(after, [] as [rustmanifest_schema::Finding; 0]);
         assert_eq!(cache_entries(cache_dir.path()).len(), 2);
     }
 
@@ -463,7 +463,10 @@ mod tests {
         fs::set_permissions(cache_dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].rule_id, "RM-SEC-001");
-        assert!(cache_entries(cache_dir.path()).is_empty());
+        assert_eq!(
+            cache_entries(cache_dir.path()),
+            [] as [std::path::PathBuf; 0]
+        );
     }
 
     #[test]
@@ -482,6 +485,6 @@ mod tests {
             .build();
 
         let findings = orchestrator.run(&[huge]).unwrap();
-        assert!(findings.is_empty());
+        assert_eq!(findings, [] as [rustmanifest_schema::Finding; 0]);
     }
 }

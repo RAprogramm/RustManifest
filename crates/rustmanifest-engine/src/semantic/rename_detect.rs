@@ -95,19 +95,28 @@ mod tests {
             "struct W { b: i64 }\nfn deposit(w: &mut W, a: i64) { w.b += a; \
              println!(\"{a}\"); }"
         );
-        assert!(detect_renames(&before, &after).is_empty());
+        assert_eq!(
+            detect_renames(&before, &after),
+            [] as [crate::semantic::rename_detect::Rename; 0]
+        );
     }
 
     #[test]
     fn ambiguous_twins_produce_no_pair() {
         let before = facts("fn one(v: u64) -> u64 { v }\nfn two(v: u64) -> u64 { v }");
         let after = facts("fn other(v: u64) -> u64 { v }\nfn another(v: u64) -> u64 { v }");
-        assert!(detect_renames(&before, &after).is_empty());
+        assert_eq!(
+            detect_renames(&before, &after),
+            [] as [crate::semantic::rename_detect::Rename; 0]
+        );
     }
 
     #[test]
     fn unchanged_snapshots_report_nothing() {
         let text = "fn keep(v: u64) -> u64 { v }";
-        assert!(detect_renames(&facts(text), &facts(text)).is_empty());
+        assert_eq!(
+            detect_renames(&facts(text), &facts(text)),
+            [] as [crate::semantic::rename_detect::Rename; 0]
+        );
     }
 }

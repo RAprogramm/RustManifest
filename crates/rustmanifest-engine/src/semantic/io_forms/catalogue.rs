@@ -156,7 +156,7 @@ mod tests {
             for stream in STANDARD_STREAMS {
                 let derived = support(form, stream, library)
                     .expect("every form must be licensed for both standard streams");
-                assert!(!derived.snippet.is_empty());
+                assert_ne!(derived.snippet, "");
                 assert!(derived.line > 0);
             }
         }

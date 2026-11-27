@@ -104,10 +104,7 @@ fn tool_available(binary: &str, args: &[&str]) -> bool {
         command.arg(arg);
     }
     command.arg("--version");
-    command
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    command.output().is_ok_and(|o| o.status.success())
 }
 
 /// Runs the `audit` subcommand.

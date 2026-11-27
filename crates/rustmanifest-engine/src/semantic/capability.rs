@@ -149,24 +149,24 @@ mod tests {
     #[test]
     fn a_module_touching_nothing_outside_gets_no_row() {
         let sources = sources("pub fn add(left: u8, right: u8) -> u8 { left + right }");
-        assert!(
+        assert_eq!(
             capabilities(&Workspace::resolved(
                 &sources,
                 &crate::semantic::settling::settled_over(&sources)
-            ))
-            .is_empty()
+            )),
+            [] as [crate::semantic::capability::ModuleCapability; 0]
         );
     }
 
     #[test]
     fn unsafe_alone_proves_no_capability() {
         let sources = sources("pub fn poke() { unsafe { } }");
-        assert!(
+        assert_eq!(
             capabilities(&Workspace::resolved(
                 &sources,
                 &crate::semantic::settling::settled_over(&sources)
-            ))
-            .is_empty()
+            )),
+            [] as [crate::semantic::capability::ModuleCapability; 0]
         );
     }
 }

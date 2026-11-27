@@ -162,6 +162,12 @@ mod tests {
     /// invented at the closing brace.
     #[test]
     fn a_body_with_no_tail_expression_records_no_tail_position() {
-        assert!(positions("fn shout() { println!(\"hi\"); }", "shout").is_empty());
+        assert_eq!(
+            positions("fn shout() { println!(\"hi\"); }", "shout"),
+            [] as [(
+                crate::semantic::behavior::handback::Outcome,
+                crate::semantic::behavior::value::Provenance
+            ); 0]
+        );
     }
 }

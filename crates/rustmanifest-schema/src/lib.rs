@@ -1,12 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-#![allow(
-    clippy::assert_is_empty,
-    clippy::redundant_locals,
-    clippy::map_unwrap_or
-)]
-
 //! Canonical types and JSON Schemas for the `rustmanifest` ecosystem.
 //!
 //! This crate is the single source of truth for the on-the-wire shapes shared

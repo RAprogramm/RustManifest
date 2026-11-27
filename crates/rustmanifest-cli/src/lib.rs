@@ -1,12 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-#![allow(
-    clippy::assert_is_empty,
-    clippy::redundant_locals,
-    clippy::map_unwrap_or
-)]
-
 //! Library half of the `rustmanifest` CLI binary.
 //!
 //! The binary in `src/main.rs` is a thin shim that delegates to [`run`],

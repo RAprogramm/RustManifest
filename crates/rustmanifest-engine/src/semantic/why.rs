@@ -257,7 +257,7 @@ mod tests {
         let settled = crate::semantic::settling::settled_over(&sources);
         let workspace = Workspace::resolved(&sources, &settled);
         let answer = why_effect(&workspace, "run", "net");
-        assert!(answer.steps.is_empty());
+        assert_eq!(answer.steps, [] as [rustmanifest_schema::TraceStep; 0]);
         assert!(
             answer.conclusion.contains("prove no `net` for `run`"),
             "{answer:?}"

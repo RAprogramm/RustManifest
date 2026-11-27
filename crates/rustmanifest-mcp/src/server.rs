@@ -79,7 +79,11 @@ impl ReviewServer {
 }
 
 #[tool_handler]
-#[allow(clippy::unused_async)]
+#[allow(
+    clippy::unused_async,
+    clippy::unused_async_trait_impl,
+    reason = "ServerHandler trait requires async signatures"
+)]
 impl ServerHandler for ReviewServer {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(
@@ -100,7 +104,6 @@ impl ServerHandler for ReviewServer {
         )
     }
 
-    #[allow(clippy::unused_async)]
     async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParams>,
@@ -111,7 +114,6 @@ impl ServerHandler for ReviewServer {
         Ok(listed)
     }
 
-    #[allow(clippy::unused_async)]
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,

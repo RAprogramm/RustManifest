@@ -136,6 +136,6 @@ mod tests {
         let file = dir.path().join("clean.rs");
         fs::write(&file, "fn main() {}\n").unwrap();
         let findings = run_rules(RULES.iter(), &file).unwrap();
-        assert!(findings.is_empty());
+        assert_eq!(findings, [] as [rustmanifest_schema::Finding; 0]);
     }
 }

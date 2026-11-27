@@ -186,13 +186,12 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        assert!(
-            analyzer
-                .analyze(&Workspace::resolved(
-                    &sources,
-                    &crate::semantic::settling::settled_over(&sources)
-                ))
-                .is_empty()
+        assert_eq!(
+            analyzer.analyze(&Workspace::resolved(
+                &sources,
+                &crate::semantic::settling::settled_over(&sources)
+            )),
+            [] as [rustmanifest_schema::Finding; 0]
         );
     }
 }

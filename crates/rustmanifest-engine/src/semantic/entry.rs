@@ -231,7 +231,10 @@ mod tests {
                 .map(|(kind, _)| *kind),
             Some(EntryKind::Plain)
         );
-        assert!(entries("src/lib.rs", "fn main() {}").is_empty());
+        assert_eq!(
+            entries("src/lib.rs", "fn main() {}"),
+            [] as [(crate::semantic::entry::EntryKind, std::string::String); 0]
+        );
         assert_eq!(
             entries("src/bin/worker.rs", "fn main() {}").len(),
             1,
@@ -241,7 +244,10 @@ mod tests {
 
     #[test]
     fn a_main_inside_a_module_is_not_the_process_entry() {
-        assert!(entries("src/main.rs", "mod inner { pub fn main() {} }").is_empty());
+        assert_eq!(
+            entries("src/main.rs", "mod inner { pub fn main() {} }"),
+            [] as [(crate::semantic::entry::EntryKind, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -252,7 +258,10 @@ mod tests {
                 .map(|(kind, _)| *kind),
             Some(EntryKind::Runtime)
         );
-        assert!(entries("src/main.rs", "async fn main() {}").is_empty());
+        assert_eq!(
+            entries("src/main.rs", "async fn main() {}"),
+            [] as [(crate::semantic::entry::EntryKind, std::string::String); 0]
+        );
     }
 
     #[test]

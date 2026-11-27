@@ -216,8 +216,7 @@ mod tests {
             .collect();
         program_meaning(&Workspace::resolved(&sources, &settled(&sources)))
             .first()
-            .map(super::EntryMeaning::sentences)
-            .unwrap_or_default()
+            .map_or_default(super::EntryMeaning::sentences)
     }
 
     #[test]

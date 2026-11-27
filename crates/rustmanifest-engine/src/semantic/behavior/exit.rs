@@ -142,7 +142,19 @@ mod tests {
     /// the library's, and produces no status.
     #[test]
     fn a_namesake_constant_of_another_type_produces_no_status() {
-        assert!(statuses("fn main() {\n    let _ = Signal::SUCCESS;\n}").is_empty());
-        assert!(statuses("fn main() {\n    other::exit(1);\n}").is_empty());
+        assert_eq!(
+            statuses("fn main() {\n    let _ = Signal::SUCCESS;\n}"),
+            [] as [(
+                crate::semantic::behavior::exit::ExitStatus,
+                crate::semantic::behavior::exit::ExitRoute
+            ); 0]
+        );
+        assert_eq!(
+            statuses("fn main() {\n    other::exit(1);\n}"),
+            [] as [(
+                crate::semantic::behavior::exit::ExitStatus,
+                crate::semantic::behavior::exit::ExitRoute
+            ); 0]
+        );
     }
 }

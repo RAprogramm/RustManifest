@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn records_pragma_use_sorted_and_deduplicated() {
         let source = Source::new(PathBuf::from("src/lib.rs"), "fn main() {}".to_owned());
-        assert!(source.used_pragma_lines().is_empty());
+        assert_eq!(source.used_pragma_lines(), [] as [usize; 0]);
         source.record_pragma_use(3);
         source.record_pragma_use(1);
         source.record_pragma_use(3);

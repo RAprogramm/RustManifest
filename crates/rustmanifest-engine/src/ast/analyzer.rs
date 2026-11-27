@@ -151,7 +151,10 @@ mod tests {
     fn unparsable_source_yields_no_findings() {
         let analyzer = AstAnalyzer::new(ast_rule("entity-naming")).unwrap();
         let source = Source::new(PathBuf::from("src/lib.rs"), "fn broken(".to_owned());
-        assert!(analyzer.analyze(&source).is_empty());
+        assert_eq!(
+            analyzer.analyze(&source),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     #[test]
@@ -191,6 +194,9 @@ mod tests {
         let text = "// rustmanifest: allow(RM-STRUCT-001) reason=\"fixture\"\npub struct \
                     ConfigLoader;\n";
         let source = Source::new(PathBuf::from("src/lib.rs"), text.to_owned());
-        assert!(analyzer.analyze(&source).is_empty());
+        assert_eq!(
+            analyzer.analyze(&source),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 }

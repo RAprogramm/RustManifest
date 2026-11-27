@@ -258,8 +258,8 @@ mod tests {
             .map(|callee| callee.short.as_str())
             .collect();
         assert_eq!(shorts, ["Wallet::credit", "remove_dir_all"]);
-        assert!(edges.callees("./src/lib.rs", "unknown").is_empty());
-        assert!(edges.callees("./other.rs", "caller").is_empty());
+        assert_eq!(edges.callees("./src/lib.rs", "unknown"), []);
+        assert_eq!(edges.callees("./other.rs", "caller"), []);
     }
 
     #[test]

@@ -325,7 +325,10 @@ mod tests {
                 "use crate::Wallet;\npub fn post(wallet: &mut Wallet) { wallet.balance += 1; }"
             ),
         ];
-        assert!(checked(&sources, &[balance_invariant()]).is_empty());
+        assert_eq!(
+            checked(&sources, &[balance_invariant()]),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     /// The unproven-kind database grade is bannable by its recorded
@@ -502,12 +505,18 @@ mod tests {
                  reason=\"migration\"\npub fn hack(wallet: &mut Wallet) { wallet.balance = 0; }"
             ),
         ];
-        assert!(checked(&sources, &[balance_invariant()]).is_empty());
+        assert_eq!(
+            checked(&sources, &[balance_invariant()]),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     #[test]
     fn no_invariants_means_no_work() {
-        assert!(checked(&wallet_sources(), &[]).is_empty());
+        assert_eq!(
+            checked(&wallet_sources(), &[]),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     #[test]
@@ -579,7 +588,10 @@ mod tests {
             call_deny_to:    None,
             severity:        None
         };
-        assert!(checked(&sources, &[invariant]).is_empty());
+        assert_eq!(
+            checked(&sources, &[invariant]),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 
     #[test]
@@ -631,6 +643,9 @@ mod tests {
             call_deny_to:    Some("crate::storage".to_owned()),
             severity:        None
         };
-        assert!(checked(&sources, &[invariant]).is_empty());
+        assert_eq!(
+            checked(&sources, &[invariant]),
+            [] as [rustmanifest_schema::Finding; 0]
+        );
     }
 }

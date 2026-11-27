@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(credit.reads, vec!["Wallet.balance"]);
         let getter = named(&all, "Wallet::balance");
         assert_eq!(getter.reads, vec!["Wallet.balance"]);
-        assert!(getter.writes.is_empty());
+        assert_eq!(getter.writes, [] as [std::string::String; 0]);
     }
 
     /// A field the resolver settled an owner for is named by that owner;
@@ -317,7 +317,10 @@ mod tests {
              Ok(input.len() as u32) }\nfn plain() -> u32 { 0 }"
         );
         assert_eq!(named(&all, "parse").error_types, vec!["ParseError"]);
-        assert!(named(&all, "plain").error_types.is_empty());
+        assert_eq!(
+            named(&all, "plain").error_types,
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -437,13 +440,16 @@ mod tests {
             |settling| settling.typed("self.0", "TcpStream")
         );
         assert_eq!(named(&all, "Wire::pump").effects, vec![Effect::Network]);
-        assert!(named(&all, "Layer::go").effects.is_empty());
+        assert_eq!(
+            named(&all, "Layer::go").effects,
+            [] as [crate::semantic::behavior::types::Effect; 0]
+        );
     }
 
     #[test]
     fn tuple_field_reads_stay_out_of_the_fact_channel() {
         let all = facts("fn poke(pair: (u8, u8)) -> u8 { pair.0 }");
-        assert!(named(&all, "poke").reads.is_empty());
+        assert_eq!(named(&all, "poke").reads, [] as [std::string::String; 0]);
     }
 
     /// An effect category on its own is an assertion; the site says what
@@ -478,7 +484,10 @@ mod tests {
     #[test]
     fn a_function_touching_nothing_cites_nothing() {
         let all = facts("fn add(left: u8, right: u8) -> u8 { left + right }");
-        assert!(named(&all, "add").effect_sites.is_empty());
+        assert_eq!(
+            named(&all, "add").effect_sites,
+            [] as [crate::semantic::behavior::types::EffectSite; 0]
+        );
     }
 
     /// A resolution names two files' same-named types apart, and the
@@ -504,7 +513,6 @@ mod tests {
             Source::new(PathBuf::from("app/src/net.rs"), net_text.to_owned()),
             Source::new(PathBuf::from("app/src/disk.rs"), disk_text.to_owned()),
         ];
-        let resolution = resolution;
         let all = super::behavior_with(&sources, Some(&resolution));
         let net = all
             .iter()
@@ -544,7 +552,10 @@ mod tests {
         );
         assert_eq!(named(&all, "Log::flush").effects, vec![Effect::FileSystem]);
         assert_eq!(named(&all, "pump").effects, vec![Effect::Network]);
-        assert!(named(&all, "untyped").effects.is_empty());
+        assert_eq!(
+            named(&all, "untyped").effects,
+            [] as [crate::semantic::behavior::types::Effect; 0]
+        );
     }
 
     #[test]
@@ -553,7 +564,10 @@ mod tests {
             "mod a { use std::fs::remove_dir_all; }\nmod b { use crate::cleanup::remove_dir_all; \
              }\nfn wipe() { remove_dir_all(\"x\").ok(); }"
         );
-        assert!(named(&all, "wipe").effects.is_empty());
+        assert_eq!(
+            named(&all, "wipe").effects,
+            [] as [crate::semantic::behavior::types::Effect; 0]
+        );
     }
 
     #[test]
@@ -561,7 +575,10 @@ mod tests {
         let all = facts(
             "use crate::storage::remove_dir_all;\nfn wipe() { remove_dir_all(\"x\").ok(); }"
         );
-        assert!(named(&all, "wipe").effects.is_empty());
+        assert_eq!(
+            named(&all, "wipe").effects,
+            [] as [crate::semantic::behavior::types::Effect; 0]
+        );
     }
 
     #[test]
@@ -637,7 +654,7 @@ mod tests {
             }
         );
         let getter = named(&all, "Repo::get_order");
-        assert!(getter.writes.is_empty());
+        assert_eq!(getter.writes, [] as [std::string::String; 0]);
         assert_eq!(getter.builds, vec!["Order.items"]);
     }
 
@@ -650,7 +667,7 @@ mod tests {
             |settling| settling.field("wallet.balance", "Wallet", "i64")
         );
         let facts = named(&all, "rebind");
-        assert!(facts.builds.is_empty());
+        assert_eq!(facts.builds, [] as [std::string::String; 0]);
         assert_eq!(facts.writes, vec!["Wallet.balance"]);
     }
 
@@ -692,7 +709,10 @@ mod tests {
         );
         assert_eq!(named(&all, "load").effects, vec![Effect::DatabaseRead]);
         assert_eq!(named(&all, "save").effects, vec![Effect::DatabaseWrite]);
-        assert!(named(&all, "opaque").effects.is_empty());
+        assert_eq!(
+            named(&all, "opaque").effects,
+            [] as [crate::semantic::behavior::types::Effect; 0]
+        );
     }
 
     #[test]

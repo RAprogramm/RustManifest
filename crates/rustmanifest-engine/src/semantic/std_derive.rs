@@ -169,7 +169,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("`{property}` must be derived from the library source"));
             assert!(fact.range.end > fact.range.start);
             assert!(fact.file.ends_with("std/src/io/stdio.rs"));
-            assert!(!fact.observed.is_empty());
+            assert_ne!(fact.observed, "");
         }
     }
 
@@ -204,12 +204,15 @@ mod tests {
             return;
         };
         let knowledge = output_knowledge(&root);
-        assert!(!knowledge.facts.is_empty());
+        assert_ne!(
+            knowledge.facts,
+            [] as [crate::semantic::std_derive::fact::StdFact; 0]
+        );
         for fact in &knowledge.facts {
             let text = std::fs::read_to_string(&fact.file).unwrap();
             let quoted = quoted(&text, fact.range);
             assert_eq!(fact.snippet, quoted);
-            assert!(!fact.snippet.is_empty());
+            assert_ne!(fact.snippet, "");
             assert!(!fact.snippet.contains('\n'));
             let line = text
                 .lines()

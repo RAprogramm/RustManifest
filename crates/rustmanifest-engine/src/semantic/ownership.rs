@@ -305,7 +305,6 @@ mod tests {
         let settled = Settling::over("src/lib.rs", text)
             .field("user.name", "User", "String")
             .done();
-        let settled = settled;
         assert_eq!(insights(&Workspace::resolved(&sources, &settled)).len(), 0);
     }
 }

@@ -270,6 +270,69 @@ impl TypeGraph {
     }
 }
 
+/// The single type argument of a rendered type, where it has exactly one.
+fn single_argument(rendered: &str) -> Option<String> {
+    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
+    let mut written = arguments(inside);
+    (written.len() == 1).then(|| written.pop()).flatten()
+}
+
+/// The top-level arguments of a rendered argument list.
+fn arguments(inside: &str) -> Vec<String> {
+    let mut written = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (at, letter) in inside.char_indices() {
+        match letter {
+            '<' | '(' | '[' => depth += 1,
+            '>' | ')' | ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                written.push(inside[start..at].trim().to_owned());
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    written.push(inside[start..].trim().to_owned());
+    written
+}
+
+/// What a rendered map is looked into with: its first type argument,
+/// where it carries two.
+fn looked_up_by(rendered: &str) -> Option<String> {
+    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
+    let written = arguments(inside);
+    let [key, _] = written.as_slice() else {
+        return None;
+    };
+    crate::semantic::behavior::outermost_name(key)
+}
+
+/// The type standing under every single-argument wrapper of a rendered
+/// type.
+///
+/// A value behind a lock, a box or a reference-counted handle is that
+/// value: the wrapper says how it is held, not what it is. Peeling by
+/// shape rather than by a list of wrapper names answers for a wrapper
+/// this workspace wrote itself.
+fn opened(rendered: &str) -> String {
+    let mut standing = rendered.trim().trim_start_matches('&').trim().to_owned();
+    loop {
+        let Some(inside) = single_argument(&standing) else {
+            return standing;
+        };
+        standing = inside;
+    }
+}
+
+/// What a rendered collection holds: its last type argument, so a map
+/// answers with its values and a sequence with its elements.
+fn held(rendered: &str) -> Option<String> {
+    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
+    let last = arguments(inside).pop()?;
+    crate::semantic::behavior::outermost_name(&last)
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -373,7 +436,14 @@ mod tests {
     #[test]
     fn aggregation_edges_are_empty_without_workspace_targets() {
         let graph = graph(&["struct User { id: u64, name: String }"]);
-        assert!(graph.aggregation_edges().is_empty());
+        assert_eq!(
+            graph.aggregation_edges(),
+            [] as [(
+                &crate::semantic::graph::nodes::TypeNode,
+                &crate::semantic::graph::nodes::FieldNode,
+                &crate::semantic::graph::nodes::TypeNode
+            ); 0]
+        );
     }
 
     #[test]
@@ -432,69 +502,12 @@ mod tests {
             "struct Game;\nimpl Game { fn tick(&self) { Game::helper(); String::new(); } fn \
              helper() {} }"
         ]);
-        assert!(graph.interaction_edges().is_empty());
+        assert_eq!(
+            graph.interaction_edges(),
+            [] as [(
+                &crate::semantic::graph::nodes::ImplNode,
+                &crate::semantic::graph::nodes::TypeNode
+            ); 0]
+        );
     }
-}
-
-/// The type standing under every single-argument wrapper of a rendered
-/// type.
-///
-/// A value behind a lock, a box or a reference-counted handle is that
-/// value: the wrapper says how it is held, not what it is. Peeling by
-/// shape rather than by a list of wrapper names answers for a wrapper
-/// this workspace wrote itself.
-fn opened(rendered: &str) -> String {
-    let mut standing = rendered.trim().trim_start_matches('&').trim().to_owned();
-    loop {
-        let Some(inside) = single_argument(&standing) else {
-            return standing;
-        };
-        standing = inside;
-    }
-}
-
-/// What a rendered collection holds: its last type argument, so a map
-/// answers with its values and a sequence with its elements.
-fn held(rendered: &str) -> Option<String> {
-    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let last = arguments(inside).pop()?;
-    crate::semantic::behavior::outermost_name(&last)
-}
-
-/// The single type argument of a rendered type, where it has exactly one.
-fn single_argument(rendered: &str) -> Option<String> {
-    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let mut written = arguments(inside);
-    (written.len() == 1).then(|| written.pop()).flatten()
-}
-
-/// The top-level arguments of a rendered argument list.
-fn arguments(inside: &str) -> Vec<String> {
-    let mut written = Vec::new();
-    let mut depth = 0usize;
-    let mut start = 0usize;
-    for (at, letter) in inside.char_indices() {
-        match letter {
-            '<' | '(' | '[' => depth += 1,
-            '>' | ')' | ']' => depth = depth.saturating_sub(1),
-            ',' if depth == 0 => {
-                written.push(inside[start..at].trim().to_owned());
-                start = at + 1;
-            }
-            _ => {}
-        }
-    }
-    written.push(inside[start..].trim().to_owned());
-    written
-}
-
-/// What a rendered map is looked into with: its first type argument,
-/// where it carries two.
-fn looked_up_by(rendered: &str) -> Option<String> {
-    let inside = rendered.split_once('<')?.1.strip_suffix('>')?;
-    let written = arguments(inside);
-    let [key, _] = written.as_slice() else {
-        return None;
-    };
-    crate::semantic::behavior::outermost_name(key)
 }

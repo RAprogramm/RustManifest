@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
-#![allow(clippy::unused_async)]
-
 //! Tools that run bundled rules over a workspace path.
 //!
 //! Each tool resolves the requested path inside the workspace root, runs
@@ -229,7 +227,7 @@ mod tests {
             .await
             .unwrap();
         let findings = answered.findings;
-        assert!(!findings.is_empty());
+        assert_ne!(findings, [] as [rustmanifest_schema::Finding; 0]);
         assert!(
             findings
                 .iter()
@@ -259,7 +257,7 @@ mod tests {
             .await
             .unwrap();
         let findings = answered.findings;
-        assert!(!findings.is_empty());
+        assert_ne!(findings, [] as [rustmanifest_schema::Finding; 0]);
         assert!(
             findings
                 .iter()

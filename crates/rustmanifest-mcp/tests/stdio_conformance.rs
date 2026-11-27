@@ -14,7 +14,6 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::panic,
-    clippy::assert_is_empty,
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 
@@ -350,7 +349,7 @@ fn review_file_reports_findings_with_traces() {
     let findings = responses[&5]["result"]["structuredContent"]["findings"]
         .as_array()
         .expect("findings array");
-    assert!(!findings.is_empty());
+    assert_ne!(findings.len(), 0);
     let entity = findings
         .iter()
         .find(|finding| finding["rule-id"] == "RM-STRUCT-001")
@@ -361,7 +360,7 @@ fn review_file_reports_findings_with_traces() {
             .expect("rationale uri")
             .starts_with("rustmanifest://methodology/")
     );
-    assert!(!entity["trace"].as_array().expect("trace array").is_empty());
+    assert_ne!(entity["trace"].as_array().expect("trace array").len(), 0);
 }
 
 #[test]

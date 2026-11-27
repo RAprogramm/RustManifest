@@ -190,7 +190,10 @@ mod tests {
     #[test]
     fn a_name_written_once_is_sole_and_a_shadowed_one_is_not() {
         assert_eq!(sole("{ let value = 1; }"), vec!["value".to_owned()]);
-        assert!(sole("{ let value = 1; let value = 2; }").is_empty());
+        assert_eq!(
+            sole("{ let value = 1; let value = 2; }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// An accumulator is written by its assignment as much as by its
@@ -198,8 +201,14 @@ mod tests {
     /// the value every later reading sees.
     #[test]
     fn an_assigned_name_is_written_by_the_assignment_too() {
-        assert!(sole("{ let mut total = 0; total = 1; }").is_empty());
-        assert!(sole("{ let mut total = 0; total += 1; }").is_empty());
+        assert_eq!(
+            sole("{ let mut total = 0; total = 1; }"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            sole("{ let mut total = 0; total += 1; }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// A comparison is not an assignment, and its operands are read

@@ -229,7 +229,6 @@ mod tests {
             .after("String {")
             .typed("tag", "&Tag")
             .done();
-        let settled = settled;
         let intents = derived_intents_with(
             &behavior_with(&sources, Some(&settled)),
             &TypeGraph::from_sources(&sources)
@@ -247,6 +246,9 @@ mod tests {
             "#[derive(Error)]\n#[error(\"broken\")]\npub struct Broken {\n    pub name: \
              String,\n}\n\npub fn label(held: &Broken) -> String {\n    held.to_string()\n}\n"
         );
-        assert!(derived_intents(&sources).is_empty());
+        assert_eq!(
+            derived_intents(&sources),
+            [] as [crate::semantic::intents::DerivedIntent; 0]
+        );
     }
 }
