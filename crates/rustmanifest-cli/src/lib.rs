@@ -30,6 +30,7 @@ pub mod overview;
 pub mod prescribe;
 pub mod report;
 pub mod resolve;
+pub mod versions;
 
 use std::{path::PathBuf, process::ExitCode};
 
@@ -40,7 +41,8 @@ pub use crate::{
     check::{CheckArgs, OutputFormat, SeverityFilter},
     coverage::CoverageArgs,
     explain::ExplainArgs,
-    graph::{DiagramFormat, GraphArgs, GraphKind}
+    graph::{DiagramFormat, GraphArgs, GraphKind},
+    versions::VersionsArgs,
 };
 
 /// Default exit code: no findings at or above the requested severity.
@@ -68,7 +70,7 @@ pub struct Cli {
 
     /// Selected subcommand.
     #[command(subcommand)]
-    pub command: Command
+    pub command: Command,
 }
 
 /// Available subcommands for the `rustmanifest` binary.
@@ -81,6 +83,8 @@ pub enum Command {
     Check(CheckArgs),
     /// Report how much of the analyzed sources the engine understands.
     Coverage(CoverageArgs),
+    /// Check version synchronisation across the workspace.
+    Versions(VersionsArgs),
     /// Print the rationale and methodology excerpt for a rule.
     Explain(ExplainArgs),
     /// Ask the compiler for its documentation index of this workspace.
@@ -101,7 +105,7 @@ pub enum Command {
     /// Print everything the engine knows about the program in one pass.
     Report(report::ReportArgs),
     /// Ask the resolver what it settles about this workspace.
-    Resolve(resolve::ResolveArgs)
+    Resolve(resolve::ResolveArgs),
 }
 
 /// Entry point used by both the binary and integration tests.
@@ -115,6 +119,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Ask(args) => ask::run_ask(&args),
         Command::Check(args) => run_check(&args),
         Command::Coverage(args) => coverage::run_coverage(&args),
+        Command::Versions(args) => versions::run_versions(&args),
         Command::Explain(args) => run_explain(&args),
         Command::Document(args) => document::run_document(&args),
         Command::Facts(args) => facts::run_facts(&args),
@@ -124,7 +129,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         Command::Overview(args) => overview::run_overview(&args),
         Command::Prescribe(args) => prescribe::run_prescribe(&args),
         Command::Report(args) => report::run_report(&args),
-        Command::Resolve(args) => resolve::run_resolve(&args)
+        Command::Resolve(args) => resolve::run_resolve(&args),
     }
 }
 
@@ -133,7 +138,7 @@ fn init_tracing(verbose: u8) {
         0 => tracing::Level::WARN,
         1 => tracing::Level::INFO,
         2 => tracing::Level::DEBUG,
-        _ => tracing::Level::TRACE
+        _ => tracing::Level::TRACE,
     };
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(level)
@@ -152,7 +157,7 @@ fn init_tracing(verbose: u8) {
 /// answers must not be handed unresolved ones without being told.
 fn resolution(
     path: Option<&std::path::Path>,
-    analyzed: &std::path::Path
+    analyzed: &std::path::Path,
 ) -> anyhow::Result<Option<rustmanifest_schema::Resolution>> {
     use anyhow::Context as _;
 
