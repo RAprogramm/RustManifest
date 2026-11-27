@@ -11,9 +11,8 @@
 use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
+use masterror::AppError;
 use tracing::trace;
-
-use crate::error::EngineError;
 
 /// Discovers Rust source files reachable from the given root paths.
 ///
@@ -23,10 +22,10 @@ use crate::error::EngineError;
 ///
 /// # Errors
 ///
-/// Returns [`EngineError::Walker`] if the walker reports a hard error
-/// (e.g. permission denied on a top-level root). Soft errors visiting
+/// Returns an [`AppError`] if the walker reports a hard error (e.g.
+/// permission denied on a top-level root). Soft errors visiting
 /// individual entries are logged at `trace` level and the entry is skipped.
-pub fn discover<P: AsRef<Path>>(roots: &[P]) -> Result<Vec<PathBuf>, EngineError> {
+pub fn discover<P: AsRef<Path>>(roots: &[P]) -> Result<Vec<PathBuf>, AppError> {
     let mut iter = roots.iter().map(AsRef::as_ref);
     let Some(first) = iter.next() else {
         return Ok(Vec::new());

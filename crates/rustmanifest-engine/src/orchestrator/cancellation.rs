@@ -22,7 +22,7 @@ impl Cancellation {
     }
 
     /// Signals cancellation. Subsequent orchestrator iterations will return
-    /// [`EngineError::Cancelled`].
+    /// a cancellation error.
     pub fn cancel(&self) {
         self.flag.store(true, Ordering::Release);
     }

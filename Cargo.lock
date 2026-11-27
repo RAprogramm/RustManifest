@@ -2474,6 +2474,7 @@ dependencies = [
  "globset",
  "ignore",
  "insta",
+ "masterror",
  "petgraph",
  "proc-macro2",
  "protobuf",
@@ -2489,7 +2490,6 @@ dependencies = [
  "serde_json",
  "syn 3.0.10",
  "tempfile",
- "thiserror 2.0.21",
  "tracing",
 ]
 

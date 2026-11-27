@@ -25,10 +25,9 @@ impl PatternAnalyzer {
     ///
     /// # Errors
     ///
-    /// Returns [`EngineError::InvalidRegex`] if the rule's regex does not
-    /// compile, or [`EngineError::InvalidGlob`] if any of the rule's
-    /// `exclude_globs` is not a valid glob.
-    pub fn new(rule: Rule) -> Result<Self, EngineError> {
+    /// Returns an [`AppError`] if the rule's regex does not compile or any
+    /// of the rule's `exclude_globs` is not a valid glob.
+    pub fn new(rule: Rule) -> Result<Self, masterror::AppError> {
         let RuleDefinition::Pattern {
             regex: ref regex_src,
             ref exclude_globs
@@ -38,7 +37,8 @@ impl PatternAnalyzer {
                 rule_id: rule.id,
                 regex:   String::new(),
                 source:  regex::Error::Syntax("rule is not a pattern-tier rule".to_owned())
-            });
+            }
+            .into());
         };
 
         let regex = Regex::new(regex_src).map_err(|source| EngineError::InvalidRegex {

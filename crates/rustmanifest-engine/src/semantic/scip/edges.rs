@@ -20,14 +20,48 @@ use super::{
 use crate::{semantic::behavior::FunctionFacts, source::Source};
 
 /// Failure to load a SCIP index.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum ScipError {
     /// The index file could not be read.
-    #[error("cannot read SCIP index: {0}")]
-    Read(#[from] std::io::Error),
+    Read(std::io::Error),
     /// The file's bytes are not a SCIP protobuf index.
-    #[error("cannot decode SCIP index: truncated or malformed protobuf")]
     Decode
+}
+
+impl std::fmt::Display for ScipError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Read(error) => write!(f, "cannot read SCIP index: {error}"),
+            Self::Decode => {
+                f.write_str("cannot decode SCIP index: truncated or malformed protobuf")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ScipError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Read(error) => Some(error),
+            Self::Decode => None
+        }
+    }
+}
+
+impl From<std::io::Error> for ScipError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Read(error)
+    }
+}
+
+impl From<ScipError> for masterror::AppError {
+    fn from(error: ScipError) -> Self {
+        let message = error.to_string();
+        match error {
+            ScipError::Read(source) => Self::internal(message).with_context(source),
+            ScipError::Decode => Self::bad_request(message)
+        }
+    }
 }
 
 /// Name-resolved call edges of one SCIP index, keyed by caller.
@@ -42,10 +76,9 @@ impl ScipEdges {
     ///
     /// # Errors
     ///
-    /// Returns [`ScipError::Read`] when the file cannot be read and
-    /// [`ScipError::Decode`] when its bytes are not a SCIP index.
-    pub fn from_file(path: &Path) -> Result<Self, ScipError> {
-        let bytes = std::fs::read(path)?;
+    /// Returns an [`AppError`] when the file cannot be read or decoded.
+    pub fn from_file(path: &Path) -> Result<Self, masterror::AppError> {
+        let bytes = std::fs::read(path).map_err(ScipError::Read)?;
         let documents = wire::documents(&bytes).ok_or(ScipError::Decode)?;
         Ok(Self::from_documents(&documents))
     }

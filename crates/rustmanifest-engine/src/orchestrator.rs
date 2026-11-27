@@ -86,7 +86,7 @@ impl Orchestrator {
     #[instrument(skip(self, files), fields(file_count = files.len(), analyzer_count = self.analyzers.len()))]
     pub fn run(&self, files: &[PathBuf]) -> EngineResult<Vec<Finding>> {
         if self.cancellation.is_cancelled() {
-            return Err(EngineError::Cancelled);
+            return Err(EngineError::Cancelled.into());
         }
 
         let mut findings: Vec<Finding> = files
@@ -95,7 +95,7 @@ impl Orchestrator {
             .collect();
 
         if self.cancellation.is_cancelled() {
-            return Err(EngineError::Cancelled);
+            return Err(EngineError::Cancelled.into());
         }
 
         findings.sort_by(|left, right| {
@@ -282,7 +282,7 @@ mod tests {
         let err = orchestrator
             .run(&[PathBuf::from("does/not/matter.rs")])
             .unwrap_err();
-        assert!(matches!(err, EngineError::Cancelled));
+        assert!(err.to_string().contains("analysis cancelled"));
     }
 
     fn cached_orchestrator(dir: &Path) -> Orchestrator {

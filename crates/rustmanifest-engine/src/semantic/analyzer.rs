@@ -27,10 +27,9 @@ impl SemanticAnalyzer {
     ///
     /// # Errors
     ///
-    /// Returns [`EngineError::UnknownAstCheck`] if the rule is not a
-    /// `semantic`-tier rule or names a check this engine build does not
-    /// provide.
-    pub fn new(rule: Rule) -> Result<Self, EngineError> {
+    /// Returns an [`AppError`] if the rule is not a `semantic`-tier rule or
+    /// names a check this engine build does not provide.
+    pub fn new(rule: Rule) -> Result<Self, masterror::AppError> {
         let RuleDefinition::Semantic {
             ref check
         } = rule.definition
@@ -38,13 +37,15 @@ impl SemanticAnalyzer {
             return Err(EngineError::UnknownAstCheck {
                 rule_id: rule.id,
                 check:   "<not a semantic-tier rule>".to_owned()
-            });
+            }
+            .into());
         };
         let Some(check) = Check::resolved(check) else {
             return Err(EngineError::UnknownAstCheck {
                 rule_id: rule.id,
                 check:   check.clone()
-            });
+            }
+            .into());
         };
         Ok(Self {
             rule,
@@ -142,7 +143,7 @@ mod tests {
     #[test]
     fn unknown_check_is_rejected() {
         let error = SemanticAnalyzer::new(semantic_rule("no-such-check")).unwrap_err();
-        assert!(matches!(error, EngineError::UnknownAstCheck { .. }));
+        assert!(error.to_string().contains("unknown ast check"));
     }
 
     #[test]

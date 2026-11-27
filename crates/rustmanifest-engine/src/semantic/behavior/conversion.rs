@@ -45,7 +45,7 @@ pub(super) fn error_conversions(item: &syn::Item, index: usize) -> Vec<FunctionF
 }
 
 /// Returns whether a `#[derive(...)]` list names the `Error` derive —
-/// the thiserror pattern whose `#[from]` fields generate `From` impls.
+/// the derive pattern whose `#[from]` fields generate `From` impls.
 fn derives_error(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if !attr.path().is_ident("derive") {
