@@ -25,6 +25,24 @@ A maintainer will acknowledge the report within **72 hours**. We aim to ship a f
 - Wishlist items for additional rules (open a rule proposal).
 - Findings in third-party crates we depend on without a clear path to exploit through `rustmanifest` (report upstream; we will coordinate).
 
+## MCP server security
+
+The stdio MCP server follows the OWASP MCP Security guidance (2026-07-28):
+
+- **Least privilege** — the server reads credentials from the environment only;
+  no secrets in source or config.
+- **No stdout logging** — all diagnostics go to stderr; stdout carries only
+  JSON-RPC frames.
+- **Path sandboxing** — every tool argument is resolved inside the workspace
+  root; paths outside are rejected.
+- **Schema-driven validation** — every tool input is validated against its
+  declared schema before execution.
+- **No token passthrough** — the server never forwards a client token to a
+  downstream service.
+
+For HTTP/OAuth (Phase 3) the server will implement OAuth 2.1 with PKCE,
+audience-bound tokens, and issuer validation per the MCP authorization spec.
+
 ## Supported versions
 
 Only the latest minor of the engine and the latest minor of the rules pack receive security fixes. Older versions are out of support upon a new minor release.
