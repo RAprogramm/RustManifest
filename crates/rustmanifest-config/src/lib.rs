@@ -21,27 +21,24 @@ use std::{
     str::FromStr
 };
 
+pub use masterror::AppError;
 pub use rustmanifest_schema::{Config, RuleOverride};
 use rustmanifest_schema::{Rule, Severity};
-use thiserror::Error;
 
 /// File name probed in the current directory when no explicit path is given.
 pub const DEFAULT_FILE_NAME: &str = "rustmanifest.toml";
 
 /// Failures produced while loading or resolving configuration.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum ConfigError {
     /// The configuration file exists but could not be read from disk.
-    #[error("cannot read config file {path}: {source}")]
     Read {
         /// Path of the file that failed to read.
         path:   PathBuf,
         /// Underlying IO error.
-        #[source]
         source: io::Error
     },
     /// The configuration file was read but is not valid `rustmanifest.toml`.
-    #[error("cannot parse config file {path}: {message}")]
     Parse {
         /// Path of the file that failed to parse.
         path:    PathBuf,
@@ -49,10 +46,76 @@ pub enum ConfigError {
         message: String
     },
     /// The `profile` key names a profile that does not exist.
-    #[error("unknown profile {name:?}; valid profiles: strict, default, minimal, ci")]
     UnknownProfile {
         /// The unrecognized profile name.
         name: String
+    }
+}
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Read {
+                path,
+                source
+            } => {
+                write!(f, "cannot read config file {}: {source}", path.display())
+            }
+            Self::Parse {
+                path,
+                message
+            } => {
+                write!(f, "cannot parse config file {}: {message}", path.display())
+            }
+            Self::UnknownProfile {
+                name
+            } => {
+                write!(
+                    f,
+                    "unknown profile {name:?}; valid profiles: strict, default, minimal, ci"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Read {
+                source, ..
+            } => Some(source),
+            Self::Parse {
+                ..
+            }
+            | Self::UnknownProfile {
+                ..
+            } => None
+        }
+    }
+}
+
+impl From<ConfigError> for AppError {
+    fn from(error: ConfigError) -> Self {
+        match error {
+            ConfigError::Read {
+                path,
+                source
+            } => Self::internal(format!("cannot read config file {}", path.display()))
+                .with_context(source),
+            ConfigError::Parse {
+                path,
+                message
+            } => Self::bad_request(format!(
+                "cannot parse config file {}: {message}",
+                path.display()
+            )),
+            ConfigError::UnknownProfile {
+                name
+            } => Self::bad_request(format!(
+                "unknown profile {name:?}; valid profiles: strict, default, minimal, ci"
+            ))
+        }
     }
 }
 
@@ -64,9 +127,8 @@ pub enum ConfigError {
 ///
 /// # Errors
 ///
-/// Returns [`ConfigError::Read`] when the file cannot be read and
-/// [`ConfigError::Parse`] when its contents are not valid configuration.
-pub fn load(path: Option<&Path>) -> Result<Config, ConfigError> {
+/// Returns an [`AppError`] when the file cannot be read or parsed.
+pub fn load(path: Option<&Path>) -> Result<Config, AppError> {
     path.map_or_else(
         || {
             let default_path = Path::new(DEFAULT_FILE_NAME);
@@ -80,15 +142,17 @@ pub fn load(path: Option<&Path>) -> Result<Config, ConfigError> {
     )
 }
 
-fn parse_file(path: &Path) -> Result<Config, ConfigError> {
+fn parse_file(path: &Path) -> Result<Config, AppError> {
     let text = std::fs::read_to_string(path).map_err(|source| ConfigError::Read {
         path: path.to_path_buf(),
         source
     })?;
-    toml::from_str(&text).map_err(|error| ConfigError::Parse {
-        path:    path.to_path_buf(),
-        message: error.to_string()
-    })
+    toml::from_str(&text)
+        .map_err(|error| ConfigError::Parse {
+            path:    path.to_path_buf(),
+            message: error.to_string()
+        })
+        .map_err(AppError::from)
 }
 
 /// Built-in analysis profile selecting which rules run and which severities
@@ -162,9 +226,9 @@ impl Effective {
     ///
     /// # Errors
     ///
-    /// Returns [`ConfigError::UnknownProfile`] when `config.profile` names
-    /// no built-in profile.
-    pub fn from_config(config: Config) -> Result<Self, ConfigError> {
+    /// Returns an [`AppError`] when `config.profile` names no built-in
+    /// profile.
+    pub fn from_config(config: Config) -> Result<Self, AppError> {
         let profile = config
             .profile
             .as_deref()
@@ -264,7 +328,7 @@ mod tests {
     #[test]
     fn load_missing_explicit_path_reports_read_error_with_path() {
         let error = load(Some(Path::new("/nonexistent/rustmanifest.toml"))).unwrap_err();
-        assert!(matches!(error, ConfigError::Read { .. }));
+        assert!(error.to_string().contains("cannot read config file"));
         assert!(error.to_string().contains("/nonexistent/rustmanifest.toml"));
     }
 
@@ -299,7 +363,7 @@ mod tests {
         let path = dir.path().join("rustmanifest.toml");
         std::fs::write(&path, "profile = [broken").unwrap();
         let error = load(Some(&path)).unwrap_err();
-        assert!(matches!(error, ConfigError::Parse { .. }));
+        assert!(error.to_string().contains("cannot parse config file"));
         assert!(error.to_string().contains("rustmanifest.toml"));
     }
 
@@ -328,10 +392,9 @@ mod tests {
             profile: Some("paranoid".to_owned()),
             ..Config::default()
         };
-        assert!(matches!(
-            Effective::from_config(config),
-            Err(ConfigError::UnknownProfile { .. })
-        ));
+        let error = Effective::from_config(config).unwrap_err();
+        assert!(error.to_string().contains("unknown profile"));
+        assert!(error.to_string().contains("paranoid"));
     }
 
     #[test]

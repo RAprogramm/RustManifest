@@ -1127,6 +1127,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "masterror"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c84f6c983b337a166b1b8d9028fef5efbfa07c2305ba2b0a8c1e7e07a6cd14b3"
+dependencies = [
+ "itoa",
+ "masterror-derive",
+ "masterror-template",
+ "ryu",
+ "serde",
+ "sha2",
+ "toml",
+ "uuid",
+]
+
+[[package]]
+name = "masterror-derive"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0cf256bb91d6b80df4256f0be16ab02831ef6027bbdd00cf45776902fb8ccb"
+dependencies = [
+ "masterror-template",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
+
+[[package]]
+name = "masterror-template"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32029235c1d9cb2220065380208dee3bd31452e26d67b71a32e4f0306c0c9e23"
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2426,9 +2460,9 @@ dependencies = [
 name = "rustmanifest-config"
 version = "0.0.0"
 dependencies = [
+ "masterror",
  "rustmanifest-schema",
  "tempfile",
- "thiserror 2.0.21",
  "toml",
 ]
 
@@ -2592,6 +2626,12 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "salsa"
