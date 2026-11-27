@@ -5,33 +5,36 @@
 
 Observed during RustManifest P1 migration to `masterror 0.32.0`.
 
-## Gaps / friction
+## Upstream issues
 
-- **Foreign error conversions in downstream crates.** A downstream crate cannot
-  implement `From<foreign::Error> for masterror::AppError` (orphan rule).
-  `masterror` already provides `From<std::io::Error> for AppError`, but not
-  `From<serde_json::Error> for AppError`; `serde_json::Error` converts to
-  `masterror::Error`, not `AppError`. RustManifest maps foreign errors through
-  domain errors (`ReportError::from(e)`, `ResolveError::from(e)`),
-  `masterror::ResultExt::context`, or `AppError::with_context`. A
-  `ResultExt::context_with_source` style helper, or documented
-  `From<serde_json::Error> for AppError`, would reduce boilerplate.
-- **Domain error boilerplate.** Manual `Display`/`Error`/`From<domain> for
-  AppError` implementations are repetitive for small enums. `#[derive(Error)]`
-  / `#[derive(Masterror)]` reduce this, but RustManifest keeps manual impls
+- `RAprogramm/masterror#491`: `From<io::Error> for AppError` loses
+  `io::ErrorKind` and source chain. With `std`, conversion maps `io::Error` to
+  `AppErrorKind::Internal` with `err.to_string()` as public message; original
+  `io::ErrorKind` is not preserved and original `io::Error` is not attached as
+  `source`.
+- `RAprogramm/masterror#492`: `ResultExt` has no anyhow-style lazy
+  `with_context` message. `ResultExt::context(msg)` takes
+  `impl Into<Cow<'static, str>>` eagerly; `ResultExt::ctx` builds
+  `masterror::Context`, not a lazy message, and `Context::into_error` leaves
+  message unset.
+
+## RustManifest notes
+
+- `masterror::ResultExt::context` wraps source and preserves kind / code /
+  metadata for existing `AppError`; source-attaching context and `anyhow`
+  `with_context(|| ...)` migration still require explicit mapping.
+- `From<serde_json::Error> for AppError` exists in `masterror` with the
+  `serde_json` feature; RustManifest uses `masterror` with
+  `default-features = false`, so JSON errors use `ResultExt::context` or domain
+  errors.
+- Orphan rules prevent downstream crates from implementing
+  `From<foreign::Error> for masterror::AppError`; `masterror` can only provide
+  common conversions in the crate defining `AppError`.
+- `#[derive(Error)]` / `#[derive(Masterror)]` reduce manual `Display` / `Error`
+  / `From<domain> for AppError` boilerplate; RustManifest keeps manual impls
   where explicit control is needed.
-- **`ResultExt::context` vs source attachment.** `ResultExt::context(msg)`
-  converts to `AppError`, preserving kind / code / metadata for existing
-  `AppError`; attaching the original error as a source uses
-  `AppError::with_context` / `map_err`. `ResultExt` has no
-  `with_context`-closure form like `anyhow::Context::with_context`. An
-  ergonomic "context + keep source" result-extension would reduce mapping code.
-- **`anyhow::Context` migration.** `masterror::ResultExt` must be imported;
-  `context` takes `impl Into<Cow<'static, str>>`, not `FnOnce() -> ...`.
-  Call sites on foreign errors still need explicit mapping when no
-  `From<E> for AppError` conversion exists.
 
 ## Action
 
-Track upstream in masterror as separate PRs/issues when the API shape is
-agreed. Do not block RustManifest P1 on these gaps.
+Upstream problems are tracked in `RAprogramm/masterror` separate issues.
+RustManifest P1 is not blocked on them.
