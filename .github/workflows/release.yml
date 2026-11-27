@@ -80,7 +80,7 @@ jobs:
             echo "asset=dist/${name}.tar.zst" >> "$GITHUB_OUTPUT"
           fi
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ matrix.target }}
           path: ${{ steps.stage.outputs.asset }}
@@ -100,7 +100,7 @@ jobs:
         run: |
           mkdir -p sbom-out
           find . -name "*.cdx.json" -not -path "./target/*" -exec cp {} sbom-out/ \;
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: sbom-out/
