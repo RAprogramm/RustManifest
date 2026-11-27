@@ -39,15 +39,15 @@ rustmanifest-fixture = { path = "crates/rustmanifest-fixture", version = "0.0.0"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rmcp = { version = "3.11", features = ["server", "transport-io", "macros"] }
-tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "io-std"] }
+rmcp = { version = "3", features = ["server", "transport-io", "macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
 schemars = "1"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
 rustdoc-types = "0.61"
 serde-sarif = "0.8"
-scip = "0.9"
-protobuf = "3.7"
+scip = "0.10"
+protobuf = "3"
 toml = "1"
 rayon = "1"
 ignore = "0.4"
