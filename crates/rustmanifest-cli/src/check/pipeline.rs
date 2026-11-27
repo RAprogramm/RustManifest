@@ -16,7 +16,7 @@ use rustmanifest_engine::{
     AstAnalyzer, FindingsCache, OrchestratorBuilder, PatternAnalyzer, SemanticAnalyzer, walker
 };
 use rustmanifest_rules_core::RULES;
-use rustmanifest_schema::{Finding, Rule, RuleDefinition};
+use rustmanifest_schema::{Finding, Location, Range, Rule, RuleDefinition, Severity};
 use tracing::info;
 
 use super::{
@@ -129,7 +129,36 @@ pub(super) fn collect_findings(args: &CheckArgs) -> anyhow::Result<(Vec<Finding>
     if args.delegate_clippy {
         findings.extend(delegated_clippy_findings(&args.paths));
     }
+    push_version_sync_finding(&mut findings, args)?;
     apply_severity_overrides(&mut findings, &effective);
     findings.retain(|finding| args.severity_filter.admits(finding.severity));
     Ok((findings, effective))
+}
+
+fn push_version_sync_finding(findings: &mut Vec<Finding>, args: &CheckArgs) -> anyhow::Result<()> {
+    let Some(root) = args.paths.first() else {
+        return Ok(());
+    };
+    let root = if root.is_file() {
+        root.parent().unwrap_or(root)
+    } else {
+        root.as_path()
+    };
+    if let Some(versions) = crate::versions::ra_ap_misaligned(root)? {
+        findings.push(Finding {
+            rule_id:       "RM-VERSIONS-001".to_owned(),
+            severity:      Severity::Warning,
+            location:      Location {
+                file:  root.join("Cargo.toml"),
+                range: Range {
+                    start: 0, end: 0
+                }
+            },
+            message:       format!("ra_ap dependencies are misaligned: {}", versions.join(", ")),
+            rationale_uri: "rustmanifest://versions/ra-ap-alignment".to_owned(),
+            trace:         Vec::new(),
+            fixes:         Vec::new()
+        });
+    }
+    Ok(())
 }
