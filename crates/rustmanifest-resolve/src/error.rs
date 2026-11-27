@@ -10,13 +10,12 @@
 
 use std::path::PathBuf;
 
-use thiserror::Error;
+use masterror::AppError;
 
 /// Why a workspace could not be resolved.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum ResolveError {
     /// The cargo workspace at this path could not be loaded.
-    #[error("loading the workspace at {path} failed: {reason}")]
     Load {
         /// Path the load was attempted at.
         path:   PathBuf,
@@ -24,16 +23,71 @@ pub enum ResolveError {
         reason: String
     },
     /// The overlay could not be written or read as JSON.
-    #[error("the resolution overlay could not be carried as JSON")]
-    Overlay(#[from] serde_json::Error),
+    Overlay(serde_json::Error),
     /// An overlay file could not be read or written.
-    #[error("reading or writing {path} failed")]
     File {
         /// Path the operation was attempted on.
         path:   PathBuf,
         /// The underlying failure.
-        #[source]
         source: std::io::Error
+    }
+}
+
+impl std::fmt::Display for ResolveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Load {
+                path,
+                reason
+            } => {
+                write!(
+                    f,
+                    "loading the workspace at {} failed: {reason}",
+                    path.display()
+                )
+            }
+            Self::Overlay(_) => f.write_str("the resolution overlay could not be carried as JSON"),
+            Self::File {
+                path, ..
+            } => {
+                write!(f, "reading or writing {} failed", path.display())
+            }
+        }
+    }
+}
+
+impl std::error::Error for ResolveError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Overlay(error) => Some(error),
+            Self::File {
+                source, ..
+            } => Some(source),
+            Self::Load {
+                ..
+            } => None
+        }
+    }
+}
+
+impl From<serde_json::Error> for ResolveError {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Overlay(error)
+    }
+}
+
+impl From<ResolveError> for AppError {
+    fn from(error: ResolveError) -> Self {
+        let message = error.to_string();
+        match error {
+            ResolveError::Load {
+                ..
+            } => Self::internal(message),
+            ResolveError::Overlay(source) => Self::internal(message).with_context(source),
+            ResolveError::File {
+                source, ..
+            } => Self::internal(message).with_context(source)
+        }
     }
 }
 

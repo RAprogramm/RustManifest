@@ -56,11 +56,11 @@ impl<W: Write> TtyRenderer<W> {
 }
 
 impl<W: Write> Renderer for TtyRenderer<W> {
-    fn render(&mut self, findings: &[Finding]) -> Result<(), ReportError> {
+    fn render(&mut self, findings: &[Finding]) -> Result<(), masterror::AppError> {
         if findings.is_empty() {
             let dim = Style::new().dimmed();
             let line = self.paint(dim, "no findings");
-            writeln!(self.writer, "{line}")?;
+            writeln!(self.writer, "{line}").map_err(ReportError::from)?;
             return Ok(());
         }
 
@@ -71,7 +71,8 @@ impl<W: Write> Renderer for TtyRenderer<W> {
             let rule = self.paint(rule_style, &finding.rule_id);
             let dim = Style::new().dimmed();
 
-            writeln!(self.writer, "{badge} {rule}  {}", finding.message)?;
+            writeln!(self.writer, "{badge} {rule}  {}", finding.message)
+                .map_err(ReportError::from)?;
             let location_line = format!(
                 "  {} {}:{}..{}",
                 self.paint(dim, "→"),
@@ -79,17 +80,18 @@ impl<W: Write> Renderer for TtyRenderer<W> {
                 finding.location.range.start,
                 finding.location.range.end
             );
-            writeln!(self.writer, "{location_line}")?;
+            writeln!(self.writer, "{location_line}").map_err(ReportError::from)?;
             for step in &finding.trace {
                 let step_line =
                     format!("  {} {}: {}", self.paint(dim, "="), step.reason, step.fact);
-                writeln!(self.writer, "{step_line}")?;
+                writeln!(self.writer, "{step_line}").map_err(ReportError::from)?;
             }
             let rationale_line = format!("  {} {}", self.paint(dim, "↳"), finding.rationale_uri);
-            writeln!(self.writer, "{rationale_line}")?;
+            writeln!(self.writer, "{rationale_line}").map_err(ReportError::from)?;
         }
         let summary = format!("{} finding(s) reported", findings.len());
-        writeln!(self.writer, "{}", self.paint(Style::new().bold(), &summary))?;
+        writeln!(self.writer, "{}", self.paint(Style::new().bold(), &summary))
+            .map_err(ReportError::from)?;
         Ok(())
     }
 }

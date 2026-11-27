@@ -21,6 +21,7 @@ use std::{
     process::ExitCode
 };
 
+use masterror::AppError;
 use rustmanifest_resolve::{ResolveError, resolve};
 
 /// Exit status when the resolution was written.
@@ -48,9 +49,9 @@ fn main() -> ExitCode {
 
 /// Resolves `root` and writes the overlay to `out`, answering with how many
 /// calls it settled.
-fn write(root: &Path, out: &Path) -> Result<usize, ResolveError> {
+fn write(root: &Path, out: &Path) -> Result<usize, AppError> {
     let resolution = resolve(root)?;
-    let mut text = serde_json::to_string_pretty(&resolution)?;
+    let mut text = serde_json::to_string_pretty(&resolution).map_err(ResolveError::from)?;
     text.push('\n');
     std::fs::write(out, text).map_err(|source| ResolveError::File {
         path: out.to_path_buf(),

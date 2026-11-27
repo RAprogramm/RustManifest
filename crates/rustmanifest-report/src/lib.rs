@@ -31,7 +31,7 @@ pub trait Renderer {
     ///
     /// # Errors
     ///
-    /// Returns a [`ReportError`] if rendering or writing to the destination
+    /// Returns an [`AppError`] if rendering or writing to the destination
     /// fails.
-    fn render(&mut self, findings: &[Finding]) -> Result<(), ReportError>;
+    fn render(&mut self, findings: &[Finding]) -> Result<(), masterror::AppError>;
 }

@@ -16,6 +16,7 @@
 
 use std::path::Path;
 
+use masterror::AppError;
 use ra_ap_cfg::{CfgAtom, CfgDiff};
 use ra_ap_hir::Symbol;
 use ra_ap_ide_db::RootDatabase;
@@ -28,8 +29,8 @@ use crate::error::ResolveError;
 ///
 /// # Errors
 ///
-/// Returns [`ResolveError::Load`] when the workspace cannot be loaded.
-pub(super) fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), ResolveError> {
+/// Returns an [`AppError`] when the workspace cannot be loaded.
+pub(super) fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), AppError> {
     let cargo = CargoConfig {
         sysroot: Some(RustLibSource::Discover),
         cfg_overrides: CfgOverrides {
@@ -50,6 +51,7 @@ pub(super) fn load(root: &Path) -> Result<(RootDatabase, ra_ap_vfs::Vfs), Resolv
         Err(source) => Err(ResolveError::Load {
             path:   root.to_path_buf(),
             reason: source.to_string()
-        })
+        }
+        .into())
     }
 }

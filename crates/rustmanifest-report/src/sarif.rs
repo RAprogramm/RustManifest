@@ -39,10 +39,10 @@ impl<W: Write> SarifRenderer<W> {
 }
 
 impl<W: Write> Renderer for SarifRenderer<W> {
-    fn render(&mut self, findings: &[Finding]) -> Result<(), ReportError> {
+    fn render(&mut self, findings: &[Finding]) -> Result<(), masterror::AppError> {
         let log = build_log(findings, &self.tool_version);
-        serde_json::to_writer_pretty(&mut self.writer, &log)?;
-        self.writer.write_all(b"\n")?;
+        serde_json::to_writer_pretty(&mut self.writer, &log).map_err(ReportError::from)?;
+        self.writer.write_all(b"\n").map_err(ReportError::from)?;
         Ok(())
     }
 }

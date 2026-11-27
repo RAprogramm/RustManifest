@@ -2577,16 +2577,17 @@ version = "0.0.0"
 dependencies = [
  "anstyle",
  "insta",
+ "masterror",
  "rustmanifest-schema",
  "serde-sarif",
  "serde_json",
- "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "rustmanifest-resolve"
 version = "0.0.0"
 dependencies = [
+ "masterror",
  "ra_ap_cfg",
  "ra_ap_hir",
  "ra_ap_ide_db",
@@ -2597,7 +2598,6 @@ dependencies = [
  "rustmanifest-schema",
  "serde_json",
  "tempfile",
- "thiserror 2.0.21",
  "tracing",
 ]
 

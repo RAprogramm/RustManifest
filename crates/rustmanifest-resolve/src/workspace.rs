@@ -35,7 +35,6 @@ use rustmanifest_schema::Resolution;
 use tracing::debug;
 
 use self::reading::Reading;
-use crate::error::ResolveError;
 
 /// Resolves every workspace file rooted at `root`.
 ///
@@ -44,9 +43,9 @@ use crate::error::ResolveError;
 ///
 /// # Errors
 ///
-/// Returns [`ResolveError::Load`] when the cargo workspace at `root` cannot
-/// be loaded.
-pub fn resolve(root: &Path) -> Result<Resolution, ResolveError> {
+/// Returns an [`AppError`] when the cargo workspace at `root` cannot be
+/// loaded.
+pub fn resolve(root: &Path) -> Result<Resolution, masterror::AppError> {
     let (database, files) = load::load(root)?;
     let inside = std::fs::canonicalize(root).map_or_else(
         |_| root.display().to_string(),
