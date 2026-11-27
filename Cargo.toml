@@ -24,7 +24,6 @@ edition = "2024"
 rust-version = "1.100"
 license = "MIT"
 repository = "https://github.com/RAprogramm/RustManifest"
-homepage = "https://github.com/RAprogramm/RustManifest"
 authors = ["RAprogramm <andrey.rozanov.vl@gmail.com>"]
 readme = "README.md"
 
