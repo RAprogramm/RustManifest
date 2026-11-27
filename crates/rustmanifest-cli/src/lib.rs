@@ -16,6 +16,7 @@
 
 pub mod analyzed;
 pub mod ask;
+pub mod audit;
 pub mod check;
 pub mod coverage;
 pub mod document;
@@ -38,6 +39,7 @@ use clap::{Parser, Subcommand};
 
 use self::{check::run_check, explain::run_explain};
 pub use crate::{
+    audit::AuditArgs,
     check::{CheckArgs, OutputFormat, SeverityFilter},
     coverage::CoverageArgs,
     explain::ExplainArgs,
@@ -81,6 +83,8 @@ pub enum Command {
     Ask(ask::AskArgs),
     /// Run the analysis engine across one or more paths.
     Check(CheckArgs),
+    /// Run tier-3 audit: orchestrate external verification tools.
+    Audit(AuditArgs),
     /// Report how much of the analyzed sources the engine understands.
     Coverage(CoverageArgs),
     /// Check version synchronisation across the workspace.
@@ -118,6 +122,7 @@ pub fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     match cli.command {
         Command::Ask(args) => ask::run_ask(&args),
         Command::Check(args) => run_check(&args),
+        Command::Audit(args) => audit::run_audit(&args),
         Command::Coverage(args) => coverage::run_coverage(&args),
         Command::Versions(args) => versions::run_versions(&args),
         Command::Explain(args) => run_explain(&args),
