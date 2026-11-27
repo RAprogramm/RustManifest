@@ -34,13 +34,13 @@ pub(crate) fn run_report(args: &ReportArgs) -> anyhow::Result<ExitCode> {
         .context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
     );
     let root = args.analyzed.paths.first().cloned().unwrap_or_default();
     let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled),
     );
     let mut out = String::new();
     out.push_str(&behaviour(&workspace, &root));

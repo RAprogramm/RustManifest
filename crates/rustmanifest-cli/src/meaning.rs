@@ -32,19 +32,19 @@ pub(crate) fn run_meaning(args: &MeaningArgs) -> anyhow::Result<ExitCode> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
     );
     let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled),
     );
     let entries = rustmanifest_engine::program_meaning(&workspace);
     let root = args.analyzed.paths.first().cloned().unwrap_or_default();
     let rendered = match args.format {
         MeaningFormat::Text => text_report(&entries, &root),
         MeaningFormat::Json => serde_json::to_string_pretty(&json_report(&entries, &root))
-            .context("serializing meaning report")?
+            .context("serializing meaning report")?,
     };
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();

@@ -23,7 +23,7 @@ pub struct Analyzed {
     /// Resolution overlay written by `rustmanifest-resolve`, so a call into
     /// a library states the type it hands back instead of a refusal.
     #[arg(long)]
-    pub resolution: Option<PathBuf>
+    pub resolution: Option<PathBuf>,
 }
 
 impl Analyzed {
@@ -41,7 +41,7 @@ impl Analyzed {
             self.resolution.as_deref(),
             self.paths
                 .first()
-                .map_or_else(|| std::path::Path::new("."), PathBuf::as_path)
+                .map_or_else(|| std::path::Path::new("."), PathBuf::as_path),
         )
     }
 }
@@ -59,8 +59,8 @@ mod tests {
     #[test]
     fn naming_no_overlay_reads_none() {
         let analyzed = Analyzed {
-            paths:      vec![PathBuf::from(".")],
-            resolution: None
+            paths: vec![PathBuf::from(".")],
+            resolution: None,
         };
         assert!(analyzed.resolution().unwrap().is_none());
     }
@@ -68,8 +68,8 @@ mod tests {
     #[test]
     fn naming_an_overlay_that_is_not_there_is_an_error() {
         let analyzed = Analyzed {
-            paths:      vec![PathBuf::from(".")],
-            resolution: Some(PathBuf::from("no/such/overlay.json"))
+            paths: vec![PathBuf::from(".")],
+            resolution: Some(PathBuf::from("no/such/overlay.json")),
         };
         assert!(analyzed.resolution().is_err());
     }

@@ -19,12 +19,12 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedModule {
     /// Module path from the crate root, crate name first.
-    pub names:      String,
+    pub names: String,
     /// File the module's body is written in.
-    pub file:       PathBuf,
+    pub file: PathBuf,
     /// Whether this module is a crate root.
     pub crate_root: bool,
     /// Module path of the parent, absent for a crate root.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent:     Option<String>
+    pub parent: Option<String>,
 }

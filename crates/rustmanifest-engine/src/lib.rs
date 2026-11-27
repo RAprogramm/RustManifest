@@ -74,6 +74,13 @@ pub use semantic::{
 };
 pub use source::Source;
 
+#![allow(
+    clippy::assert_is_empty,
+    clippy::redundant_locals,
+    clippy::map_unwrap_or,
+    clippy::items_after_test_module
+)]
+
 /// Everything the engine derived about the print path of the active
 /// toolchain, each fact carrying the library location that proves it.
 ///

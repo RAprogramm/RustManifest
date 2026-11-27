@@ -19,9 +19,9 @@ use crate::Location;
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedFunction {
     /// File and byte range of the whole declaration.
-    pub at:    Location,
+    pub at: Location,
     /// Full path that reaches the function, crate name first.
-    pub names: String
+    pub names: String,
 }
 
 impl Positioned for ResolvedFunction {

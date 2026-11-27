@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 
 use anyhow::Context;
-use rustmanifest_engine::{Coverage, Source, coverage_with, walker};
+use rustmanifest_engine::{coverage_with, walker, Coverage, Source};
 
 use super::{dependencies::declared_dependencies, options::CoverageArgs};
 
@@ -14,13 +14,13 @@ use super::{dependencies::declared_dependencies, options::CoverageArgs};
 /// crate names declared around them, and the engine's counters.
 pub(super) struct Measurement {
     /// Sources read within the default per-file memory budget.
-    pub(super) sources:  Vec<Source>,
+    pub(super) sources: Vec<Source>,
     /// Crate names declared by the manifests around the analyzed paths.
     pub(super) declared: BTreeSet<String>,
     /// Counters the engine produced over those sources.
-    pub(super) report:   Coverage,
+    pub(super) report: Coverage,
     /// What a resolver settled about the sources, where one ran.
-    pub(super) settled:  Option<rustmanifest_schema::Resolution>
+    pub(super) settled: Option<rustmanifest_schema::Resolution>,
 }
 
 /// Discovers files under the requested paths, reads their sources within
@@ -31,13 +31,13 @@ pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
     );
     let declared = declared_dependencies(&args.analyzed.paths);
     let settled = args.analyzed.resolution()?;
     let workspace = settled.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution)
+        |resolution| rustmanifest_engine::Workspace::resolved(&sources, resolution),
     );
     let report = match args.overlays.scip.as_deref() {
         Some(index) => {
@@ -45,12 +45,12 @@ pub(super) fn measure(args: &CoverageArgs) -> anyhow::Result<Measurement> {
                 rustmanifest_engine::ScipEdges::from_file(index).context("loading SCIP index")?;
             rustmanifest_engine::coverage_indexed(&workspace, &declared, &edges)
         }
-        None => coverage_with(&workspace, &declared)
+        None => coverage_with(&workspace, &declared),
     };
     Ok(Measurement {
         sources,
         declared,
         report,
-        settled
+        settled,
     })
 }

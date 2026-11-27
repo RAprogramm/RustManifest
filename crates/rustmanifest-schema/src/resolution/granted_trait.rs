@@ -21,9 +21,9 @@ pub struct ResolvedGrant {
     /// File and byte range of the `impl` header that carries it, so a
     /// reader holding an impl block can name what it implements without
     /// re-reading the header.
-    pub at:         Location,
+    pub at: Location,
     /// Type the row speaks about, as the resolver renders it.
-    pub named:      String,
+    pub named: String,
     /// Trait that type carries, by the name it is declared under.
-    pub trait_name: String
+    pub trait_name: String,
 }

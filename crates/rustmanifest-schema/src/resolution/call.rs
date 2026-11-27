@@ -14,14 +14,14 @@ use crate::Location;
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedCall {
     /// File and byte range of the call expression.
-    pub at:             Location,
+    pub at: Location,
     /// Name of the function the call reaches.
-    pub callee:         String,
+    pub callee: String,
     /// Type the call hands back, as the resolver renders it.
-    pub returns:        String,
+    pub returns: String,
     /// Type of the receiver, where the call has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub receiver:       Option<String>,
+    pub receiver: Option<String>,
     /// Full path of the receiver's own type, spelled from the crate that
     /// declares it.
     ///
@@ -29,7 +29,7 @@ pub struct ResolvedCall {
     /// lives, which is what tells a file handle from a socket without a
     /// list of type names to look either up in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub receiver_path:  Option<String>,
+    pub receiver_path: Option<String>,
     /// Full path of the function the call reaches, where the resolver
     /// settled one.
     ///
@@ -37,7 +37,7 @@ pub struct ResolvedCall {
     /// which function it is, is not. Two types with a `new` share a name
     /// and never a path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reaches:        Option<String>,
+    pub reaches: Option<String>,
     /// Whether the type the call hands back is decided by the caller
     /// rather than by the body it reaches.
     ///
@@ -56,7 +56,7 @@ pub struct ResolvedCall {
     /// place and hands a `String` back untouched, and `take` moves out of
     /// an `Option` while leaving a `Vec` where it stood.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub takes:          Option<ResolvedMode>
+    pub takes: Option<ResolvedMode>,
 }
 
 impl Positioned for ResolvedCall {
@@ -79,11 +79,11 @@ impl Positioned for ResolvedCall {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedField {
     /// File and byte range of the field expression.
-    pub at:       Location,
+    pub at: Location,
     /// Type of the value the field is read out of.
-    pub owner:    String,
+    pub owner: String,
     /// Type the field itself has, as the resolver renders it.
-    pub produced: String
+    pub produced: String,
 }
 
 impl Positioned for ResolvedField {

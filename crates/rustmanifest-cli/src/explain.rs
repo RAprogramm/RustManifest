@@ -8,7 +8,7 @@ use std::{io::Write, process::ExitCode};
 
 use anyhow::Context;
 use clap::Parser;
-use rustmanifest_rules_core::{RULES, methodology};
+use rustmanifest_rules_core::{methodology, RULES};
 use rustmanifest_schema::{RuleDefinition, Severity};
 
 use crate::EXIT_CLEAN;
@@ -17,7 +17,7 @@ use crate::EXIT_CLEAN;
 #[derive(Debug, Parser)]
 pub struct ExplainArgs {
     /// Rule identifier to explain, e.g. `RM-SEC-001`.
-    pub rule_id: String
+    pub rule_id: String,
 }
 
 /// Lowercase wire name of a severity, matching the serialized form.
@@ -26,22 +26,16 @@ const fn severity_name(severity: Severity) -> &'static str {
         Severity::Error => "error",
         Severity::Warning => "warning",
         Severity::Info => "info",
-        Severity::Hint => "hint"
+        Severity::Hint => "hint",
     }
 }
 
 /// Human-readable name of the analysis tier a rule definition belongs to.
 const fn tier_name(definition: &RuleDefinition) -> &'static str {
     match definition {
-        RuleDefinition::Pattern {
-            ..
-        } => "pattern",
-        RuleDefinition::Ast {
-            ..
-        } => "ast",
-        RuleDefinition::Semantic {
-            ..
-        } => "semantic"
+        RuleDefinition::Pattern { .. } => "pattern",
+        RuleDefinition::Ast { .. } => "ast",
+        RuleDefinition::Semantic { .. } => "semantic",
     }
 }
 

@@ -17,11 +17,11 @@ pub(super) fn direct_write(claim: &OutputClaim) -> Option<String> {
     let handle = match claim.write.stream {
         Stream::Stdout => "stdout",
         Stream::Stderr => "stderr",
-        Stream::CallerSupplied | Stream::Unknown => return None
+        Stream::CallerSupplied | Stream::Unknown => return None,
     };
     let terminator = match claim.write.newline {
         Newline::Appended => "\\n",
-        Newline::None => ""
+        Newline::None => "",
     };
     let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
     Some(format!(

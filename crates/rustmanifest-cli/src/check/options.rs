@@ -80,5 +80,5 @@ pub struct CheckArgs {
     /// Resolution overlay to read from. Module-scoped invariants need one:
     /// which module a file belongs to is the compiler's answer.
     #[arg(long)]
-    pub resolution: Option<PathBuf>
+    pub resolution: Option<PathBuf>,
 }

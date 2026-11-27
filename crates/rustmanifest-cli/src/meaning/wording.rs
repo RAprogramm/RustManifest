@@ -12,7 +12,7 @@ pub(super) const fn certainty(grade: Grade) -> &'static str {
         Grade::Certain => "always",
         Grade::Possible => "maybe",
         Grade::Dead => "never",
-        Grade::Unreached => "unreached"
+        Grade::Unreached => "unreached",
     }
 }
 
@@ -21,6 +21,6 @@ pub(super) const fn entry_kind(kind: EntryKind) -> &'static str {
     match kind {
         EntryKind::Plain => "entry point",
         EntryKind::Runtime => "entry point behind a runtime attribute",
-        EntryKind::Conditional => "entry point behind a configuration gate"
+        EntryKind::Conditional => "entry point behind a configuration gate",
     }
 }

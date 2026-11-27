@@ -15,7 +15,7 @@
 
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
 };
 
 use cargo_metadata::MetadataCommand;
@@ -83,7 +83,7 @@ pub fn known_crate_names(manifest: &Path) -> BTreeSet<String> {
         }
         for dependency in &package.dependencies {
             names.insert(normalized(
-                dependency.rename.as_ref().unwrap_or(&dependency.name)
+                dependency.rename.as_ref().unwrap_or(&dependency.name),
             ));
         }
     }
@@ -135,13 +135,13 @@ mod tests {
     use super::*;
 
     struct TestWorkspace {
-        root: TempDir
+        root: TempDir,
     }
 
     impl TestWorkspace {
         fn new() -> Self {
             Self {
-                root: TempDir::new().unwrap()
+                root: TempDir::new().unwrap(),
             }
         }
 
@@ -176,15 +176,15 @@ mod tests {
         let ws = TestWorkspace::new();
         ws.write_manifest(
             "Cargo.toml",
-            "[workspace]\nresolver = \"2\"\nmembers = [\"a\", \"b\"]\n"
+            "[workspace]\nresolver = \"2\"\nmembers = [\"a\", \"b\"]\n",
         );
         ws.write_manifest(
             "a/Cargo.toml",
-            "[package]\nname = \"a\"\nversion = \"0.1\"\nedition = \"2024\"\n"
+            "[package]\nname = \"a\"\nversion = \"0.1\"\nedition = \"2024\"\n",
         );
         ws.write_manifest(
             "b/Cargo.toml",
-            "[package]\nname = \"b\"\nversion = \"0.1\"\nedition = \"2024\"\n"
+            "[package]\nname = \"b\"\nversion = \"0.1\"\nedition = \"2024\"\n",
         );
         let files = manifest_files(&[ws.root_path()]);
         assert_eq!(files.len(), 3);
@@ -199,7 +199,7 @@ mod tests {
         ws.write_manifest("Cargo.toml", "[workspace]\nresolver = \"2\"\n");
         ws.write_manifest(
             "target/debug/build/gen/Cargo.toml",
-            "[package]\nname = \"gen\"\nversion = \"0.1\"\nedition = \"2024\"\n"
+            "[package]\nname = \"gen\"\nversion = \"0.1\"\nedition = \"2024\"\n",
         );
         let files = manifest_files(&[ws.root_path()]);
         assert_eq!(files.len(), 1);
@@ -212,7 +212,7 @@ mod tests {
         ws.write_manifest("Cargo.toml", "[workspace]\nresolver = \"2\"\n");
         ws.write_manifest(
             ".cargo/Cargo.toml",
-            "[package]\nname = \"hidden\"\nversion = \"0.1\"\nedition = \"2024\"\n"
+            "[package]\nname = \"hidden\"\nversion = \"0.1\"\nedition = \"2024\"\n",
         );
         let files = manifest_files(&[ws.root_path()]);
         assert_eq!(files.len(), 1);
@@ -231,7 +231,7 @@ mod tests {
         let ws = TestWorkspace::new();
         ws.write_manifest(
             "Cargo.toml",
-            "[workspace]\nresolver = \"2\"\nmembers = []\n"
+            "[workspace]\nresolver = \"2\"\nmembers = []\n",
         );
         assert!(package_name(&ws.manifest_path("Cargo.toml")).is_none());
     }

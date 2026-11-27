@@ -17,7 +17,7 @@ use crate::EXIT_CLEAN;
 pub struct VersionsArgs {
     /// Path to the workspace root (defaults to the current directory).
     #[arg(default_value = ".")]
-    pub path: std::path::PathBuf
+    pub path: std::path::PathBuf,
 }
 
 /// Runs the `versions` subcommand: prints a version-synchronisation report.

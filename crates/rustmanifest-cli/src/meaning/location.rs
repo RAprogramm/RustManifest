@@ -13,7 +13,7 @@ pub(super) fn relative(path: &str, root: &std::path::Path) -> String {
     }
     path.strip_prefix(root).map_or_else(
         || path.to_owned(),
-        |rest| rest.trim_start_matches('/').to_owned()
+        |rest| rest.trim_start_matches('/').to_owned(),
     )
 }
 

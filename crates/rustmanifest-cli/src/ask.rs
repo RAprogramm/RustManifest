@@ -30,7 +30,7 @@ pub struct AskArgs {
 
     /// The program under analysis.
     #[command(flatten)]
-    pub analyzed: crate::analyzed::Analyzed
+    pub analyzed: crate::analyzed::Analyzed,
 }
 
 /// Runs the `ask` subcommand.
@@ -38,12 +38,12 @@ pub(crate) fn run_ask(args: &AskArgs) -> anyhow::Result<ExitCode> {
     let files = walker::discover(&args.analyzed.paths).context("file discovery failed")?;
     let sources = crate::read_sources(
         &files,
-        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES
+        rustmanifest_engine::orchestrator::DEFAULT_MAX_FILE_BYTES,
     );
     let resolution = args.analyzed.resolution()?;
     let workspace = resolution.as_ref().map_or_else(
         || rustmanifest_engine::Workspace::new(&sources),
-        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
+        |settled| rustmanifest_engine::Workspace::resolved(&sources, settled),
     );
     let answer =
         rustmanifest_engine::semantic::why_effect(&workspace, &args.function, &args.effect);

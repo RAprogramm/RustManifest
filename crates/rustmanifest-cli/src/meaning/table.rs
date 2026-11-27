@@ -12,7 +12,7 @@ use rustmanifest_engine::{EntryMeaning, Multiplicity, Narrative, OutputClaim};
 use super::{
     completion::status_block,
     location::relative,
-    wording::{certainty, entry_kind}
+    wording::{certainty, entry_kind},
 };
 
 /// Renders the report as an aligned table with a single footnote.
@@ -88,7 +88,7 @@ pub(super) fn text_report(entries: &[EntryMeaning], root: &std::path::Path) -> S
     if standard_stream_seen {
         out.push_str(
             "Writes to a standard stream are attempts: the library can divert them through its \
-             capture hook, and a failed write panics instead of writing.\n"
+             capture hook, and a failed write panics instead of writing.\n",
         );
     }
     out.trim_end().to_owned()
@@ -104,7 +104,7 @@ fn statement(entry: &EntryMeaning) -> String {
         Narrative::Whole(said) => format!("\n  {said}.\n"),
         Narrative::Parts {
             refused: (clause, gap),
-            licensed
+            licensed,
         } => {
             let mut out = format!(
                 "\n  the {clause} clause is not licensed: {gap}. What stands on its own:\n"
@@ -128,7 +128,7 @@ fn row(claim: &OutputClaim) -> [String; 4] {
         certainty(claim.execution).to_owned(),
         claim.write.stream.to_string(),
         format!("{}{repetition}", claim.payload_text()),
-        claim.function.clone()
+        claim.function.clone(),
     ]
 }
 
@@ -159,16 +159,16 @@ mod tests {
 
     fn silent_entry() -> EntryMeaning {
         EntryMeaning {
-            file:         "src/main.rs".to_owned(),
-            kind:         EntryKind::Plain,
-            claims:       Vec::new(),
-            intake:       Vec::new(),
+            file: "src/main.rs".to_owned(),
+            kind: EntryKind::Plain,
+            claims: Vec::new(),
+            intake: Vec::new(),
             computations: Vec::new(),
-            choices:      Vec::new(),
-            handbacks:    Vec::new(),
-            narrative:    rustmanifest_engine::Narrative::Whole(String::new()),
-            completion:   Completion::Nothing,
-            exits:        Vec::new()
+            choices: Vec::new(),
+            handbacks: Vec::new(),
+            narrative: rustmanifest_engine::Narrative::Whole(String::new()),
+            completion: Completion::Nothing,
+            exits: Vec::new(),
         }
     }
 

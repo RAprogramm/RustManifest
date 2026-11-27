@@ -23,7 +23,7 @@ use tracing::info;
 
 use self::{
     fixes::apply_machine_fixes, output::render, pipeline::collect_findings,
-    severity::severity_rank
+    severity::severity_rank,
 };
 pub use self::{options::CheckArgs, output::OutputFormat, severity::SeverityFilter};
 use crate::{EXIT_CLEAN, EXIT_FINDINGS};

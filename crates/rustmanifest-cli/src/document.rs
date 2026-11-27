@@ -37,7 +37,7 @@ pub struct DocumentArgs {
     /// Toolchain to ask for the index. The emitter is unstable, so this
     /// must be a nightly one.
     #[arg(long, default_value = "nightly")]
-    pub toolchain: String
+    pub toolchain: String,
 }
 
 /// Emits the documentation index of the workspace and reports what landed.
@@ -91,7 +91,7 @@ fn emit(args: &DocumentArgs) -> Result<(), String> {
         .env("CARGO_TERM_COLOR", "never")
         .env(
             "RUSTDOCFLAGS",
-            "-Zunstable-options --output-format json --document-private-items"
+            "-Zunstable-options --output-format json --document-private-items",
         )
         .output()
         .map_err(|error| format!("the emitter could not be invoked: {error}"))?;

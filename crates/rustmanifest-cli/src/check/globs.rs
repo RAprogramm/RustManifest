@@ -14,7 +14,7 @@ use rustmanifest_config::Effective;
 /// every file.
 pub(super) fn apply_globs(
     files: Vec<PathBuf>,
-    effective: &Effective
+    effective: &Effective,
 ) -> anyhow::Result<Vec<PathBuf>> {
     let include = build_globset(effective.include()).context("compiling include globs")?;
     let exclude = build_globset(effective.exclude()).context("compiling exclude globs")?;

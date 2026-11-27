@@ -21,7 +21,7 @@ pub struct ResolvedLayout {
     /// Type the row speaks about, as the resolver renders it.
     pub named: String,
     /// Bytes a value of the type occupies.
-    pub size:  u64,
+    pub size: u64,
     /// Byte alignment the type requires.
-    pub align: u64
+    pub align: u64,
 }
