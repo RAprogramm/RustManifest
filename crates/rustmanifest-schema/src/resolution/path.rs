@@ -21,16 +21,16 @@ use crate::Location;
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct ResolvedPath {
     /// File and byte range of the written path.
-    pub at:        Location,
+    pub at: Location,
     /// Full path of the item the written one reaches, crate root first.
-    pub names:     String,
+    pub names: String,
     /// What kind of item that is: `function`, `struct`, `enum`, `trait`,
     /// `module`, `const`, `static`, `type-alias`, `variant`, `field`,
     /// `macro`, `local`, or `self-type`.
-    pub kind:      String,
+    pub kind: String,
     /// Crate the item is declared in, so a namesake from another crate is
     /// distinguishable without parsing the path.
-    pub declaring: String
+    pub declaring: String,
 }
 
 impl Positioned for ResolvedPath {

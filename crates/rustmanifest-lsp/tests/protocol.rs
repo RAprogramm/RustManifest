@@ -234,30 +234,32 @@ impl Settled {
             .find(&format!("fn {named}"))
             .map(|held| held + "fn ".len())
             .expect("the fixture declares the function");
-        self.held.signatures.push(rustmanifest_schema::ResolvedSignature {
-            at:      rustmanifest_schema::Location {
-                file:  std::path::PathBuf::from("src/lib.rs"),
-                range: rustmanifest_schema::Range {
-                    start: u32::try_from(at).unwrap(),
-                    end:   u32::try_from(at + named.len()).unwrap()
-                }
-            },
-            params:  params
-                .iter()
-                .map(|(name, held)| rustmanifest_schema::ResolvedParam {
-                    name:  (*name).to_owned(),
-                    named: (*held).to_owned(),
-                    mode:  if held.starts_with("&mut") {
-                        rustmanifest_schema::ResolvedMode::BorrowedMut
-                    } else if held.starts_with('&') {
-                        rustmanifest_schema::ResolvedMode::Borrowed
-                    } else {
-                        rustmanifest_schema::ResolvedMode::Owned
+        self.held
+            .signatures
+            .push(rustmanifest_schema::ResolvedSignature {
+                at:      rustmanifest_schema::Location {
+                    file:  std::path::PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start: u32::try_from(at).unwrap(),
+                        end:   u32::try_from(at + named.len()).unwrap()
                     }
-                })
-                .collect(),
-            returns: returns.to_owned()
-        });
+                },
+                params:  params
+                    .iter()
+                    .map(|(name, held)| rustmanifest_schema::ResolvedParam {
+                        name:  (*name).to_owned(),
+                        named: (*held).to_owned(),
+                        mode:  if held.starts_with("&mut") {
+                            rustmanifest_schema::ResolvedMode::BorrowedMut
+                        } else if held.starts_with('&') {
+                            rustmanifest_schema::ResolvedMode::Borrowed
+                        } else {
+                            rustmanifest_schema::ResolvedMode::Owned
+                        }
+                    })
+                    .collect(),
+                returns: returns.to_owned()
+            });
         self
     }
 
@@ -282,22 +284,24 @@ impl Settled {
     /// What a field holds is the compiler's answer and nothing else, so
     /// a session asking about a type's shape states it here.
     fn shaping(mut self, named: &str, fields: &[(&str, &str)]) -> Self {
-        self.held.declared.push(rustmanifest_schema::ResolvedTypeDecl {
-            at:     rustmanifest_schema::Location {
-                file:  std::path::PathBuf::from("src/lib.rs"),
-                range: rustmanifest_schema::Range {
-                    start: 0, end: 0
-                }
-            },
-            named:  named.to_owned(),
-            fields: fields
-                .iter()
-                .map(|(name, held)| rustmanifest_schema::ResolvedFieldDecl {
-                    name:  (*name).to_owned(),
-                    named: (*held).to_owned()
-                })
-                .collect()
-        });
+        self.held
+            .declared
+            .push(rustmanifest_schema::ResolvedTypeDecl {
+                at:     rustmanifest_schema::Location {
+                    file:  std::path::PathBuf::from("src/lib.rs"),
+                    range: rustmanifest_schema::Range {
+                        start: 0, end: 0
+                    }
+                },
+                named:  named.to_owned(),
+                fields: fields
+                    .iter()
+                    .map(|(name, held)| rustmanifest_schema::ResolvedFieldDecl {
+                        name:  (*name).to_owned(),
+                        named: (*held).to_owned()
+                    })
+                    .collect()
+            });
         self
     }
 
@@ -389,7 +393,6 @@ fn opened_in(
 
 /// A source the bundled rules flag: a hardcoded credential.
 const FLAGGED: &str = "fn main() {\n    let password = \"hunter2\";\n}\n";
-
 
 /// What a compiler settles about `sources`, asked of the compiler.
 fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
@@ -616,7 +619,10 @@ fn a_chain_crossing_two_open_documents_answers_whole() {
         .unwrap();
     let store_uri = format!("file://{}", bed.path().join("src/store.rs").display());
     let lib_uri = format!("file://{}", bed.path().join("src/lib.rs").display());
-    for (uri, text) in [(store_uri.as_str(), CHAINED_STORE), (lib_uri.as_str(), CHAINED_LIB)] {
+    for (uri, text) in [
+        (store_uri.as_str(), CHAINED_STORE),
+        (lib_uri.as_str(), CHAINED_LIB)
+    ] {
         client
             .sender
             .send(Message::Notification(Notification::new(
@@ -666,11 +672,13 @@ fn chained_bed() -> tempfile::TempDir {
         .declares("persist", "demo::store::persist")
         .and_over("src/lib.rs", CHAINED_LIB)
         .declares("keep", "demo::keep")
-        .call("crate::store::persist(entry)", "demo::store::persist", "()", None)
-        .beside(&[
-            ("src/store.rs", CHAINED_STORE),
-            ("src/lib.rs", CHAINED_LIB)
-        ])
+        .call(
+            "crate::store::persist(entry)",
+            "demo::store::persist",
+            "()",
+            None
+        )
+        .beside(&[("src/store.rs", CHAINED_STORE), ("src/lib.rs", CHAINED_LIB)])
 }
 
 /// The file the chain ends in: the write itself.
@@ -1571,4 +1579,3 @@ fn a_stopped_deduction_reaches_the_client_with_its_refusal() {
     assert_eq!(held["panics"], serde_json::Value::Null, "{held}");
     closed(client, handle);
 }
-

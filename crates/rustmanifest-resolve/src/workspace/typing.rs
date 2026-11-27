@@ -57,7 +57,11 @@ pub(super) fn settled(
             weighs
         );
     }
-    for bound in parsed.syntax().descendants().filter_map(ast::IdentPat::cast) {
+    for bound in parsed
+        .syntax()
+        .descendants()
+        .filter_map(ast::IdentPat::cast)
+    {
         let Some(typed) = reading.semantics.type_of_binding_in_pat(&bound) else {
             continue;
         };

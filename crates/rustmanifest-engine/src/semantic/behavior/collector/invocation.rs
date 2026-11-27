@@ -90,7 +90,12 @@ impl FactCollector {
                 .and_then(crate::semantic::std_knowledge::carried_by),
             Some(crate::semantic::std_knowledge::Carried::ClosureOver(_))
         );
-        if !carried && call.args.iter().any(|argument| matches!(argument, syn::Expr::Closure(_))) {
+        if !carried
+            && call
+                .args
+                .iter()
+                .any(|argument| matches!(argument, syn::Expr::Closure(_)))
+        {
             self.scoped(|collector| {
                 collector.walk_adapter_call(call, &span);
             });

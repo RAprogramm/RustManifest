@@ -309,7 +309,10 @@ mod tests {
     #[test]
     fn a_written_value_answers_as_itself() {
         let sources = one("pub fn make() -> u32 {\n    7\n}\n");
-        let held = whence_value(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)), "make");
+        let held = whence_value(
+            &Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)),
+            "make"
+        );
         assert!(held.conclusion.contains("the written value"), "{held:?}");
         assert!(
             held.steps.iter().any(|step| step.fact.contains("bytes")),
@@ -323,7 +326,10 @@ mod tests {
     fn a_called_value_is_restated_across_the_call() {
         let sources =
             one("fn seed() -> u32 {\n    7\n}\n\npub fn make() -> u32 {\n    seed()\n}\n");
-        let held = whence_value(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)), "make");
+        let held = whence_value(
+            &Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)),
+            "make"
+        );
         assert!(held.conclusion.contains("the written value"), "{held:?}");
         assert!(
             held.steps
@@ -344,7 +350,10 @@ mod tests {
     #[test]
     fn an_input_stays_the_free_variable() {
         let sources = one("pub fn keep(count: u32) -> u32 {\n    count\n}\n");
-        let held = whence_value(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)), "keep");
+        let held = whence_value(
+            &Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)),
+            "keep"
+        );
         assert!(held.conclusion.contains("`count`"), "{held:?}");
     }
 
@@ -356,7 +365,10 @@ mod tests {
             "pub struct A;\nimpl A {\n    pub fn make() -> u32 { 1 }\n}\npub struct B;\nimpl B \
              {\n    pub fn make() -> u32 { 2 }\n}\n"
         );
-        let held = whence_value(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)), "make");
+        let held = whence_value(
+            &Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)),
+            "make"
+        );
         assert!(held.conclusion.contains("ambiguous"), "{held:?}");
         assert!(held.conclusion.contains("src/lib.rs"), "{held:?}");
         assert!(held.conclusion.contains("`A::make`"), "{held:?}");
@@ -408,7 +420,10 @@ mod tests {
     #[test]
     fn a_function_handing_nothing_back_says_so() {
         let sources = one("pub fn run() {\n    let _held = 7;\n}\n");
-        let held = whence_value(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)), "run");
+        let held = whence_value(
+            &Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)),
+            "run"
+        );
         assert!(
             held.conclusion.contains("no position handing a value back"),
             "{held:?}"

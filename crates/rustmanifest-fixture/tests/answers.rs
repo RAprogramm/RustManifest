@@ -37,7 +37,7 @@ fn the_compiler_answers_about_a_written_snippet() {
     assert!(
         held.calls
             .iter()
-            .all(|row| row.at.file == std::path::PathBuf::from("src/lib.rs")),
+            .all(|row| row.at.file == *"src/lib.rs"),
         "{:?}",
         held.calls
     );

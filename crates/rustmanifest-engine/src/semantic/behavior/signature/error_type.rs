@@ -22,7 +22,10 @@ pub(in crate::semantic::behavior) fn error_types(rendered: Option<&str>) -> Vec<
     if crate::semantic::behavior::outermost_name(trimmed).as_deref() != Some("Result") {
         return Vec::new();
     }
-    let Some(inside) = trimmed.split_once('<').and_then(|(_, rest)| rest.strip_suffix('>')) else {
+    let Some(inside) = trimmed
+        .split_once('<')
+        .and_then(|(_, rest)| rest.strip_suffix('>'))
+    else {
         return Vec::new();
     };
     arguments(inside)

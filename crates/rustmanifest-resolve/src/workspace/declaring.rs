@@ -12,11 +12,10 @@
 
 mod shapes;
 
-pub(super) use self::shapes::{settled as shapes_settled, settled_enums};
-
 use ra_ap_syntax::{AstNode, ast, ast::HasName as _};
 use rustmanifest_schema::{ResolvedFunction, ResolvedMode, ResolvedParam, ResolvedSignature};
 
+pub(super) use self::shapes::{settled as shapes_settled, settled_enums};
 use super::reading::Reading;
 
 /// What one function takes and hands back, as the compiler reads it.
@@ -43,8 +42,7 @@ fn signature_of(
         params.push(ResolvedParam {
             name: held
                 .name(database)
-                .map(|written| written.as_str().to_owned())
-                .unwrap_or_default(),
+                .map_or_default(|written| written.as_str().to_owned()),
             mode: mode_of(&named),
             named
         });

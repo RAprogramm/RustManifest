@@ -45,11 +45,14 @@ mod tests {
     fn chosen(body: &str) -> Vec<Choice> {
         let text = format!("fn decide(value: Kind) -> u32 {{\n{body}\n}}");
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text)];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .find(|fact| fact.function == "decide")
-            .map(|fact| fact.choices.clone())
-            .expect("the function is a fact")
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .find(|fact| fact.function == "decide")
+        .map(|fact| fact.choices.clone())
+        .expect("the function is a fact")
     }
 
     /// One record per choosing construct, with one alternative per arm

@@ -41,7 +41,8 @@ impl FactCollector {
                 self.origins.insert(bound, produced);
             }
         }
-    }}
+    }
+}
 
 impl FactCollector {
     /// Records what a `let` written in a condition binds, on the same
@@ -81,7 +82,8 @@ impl FactCollector {
             let produced = self.origin_of(&written.expr);
             self.origins.insert(bound, produced);
         }
-    }}
+    }
+}
 
 /// The variant an arm matches and the single plain name it binds.
 fn variant_binding(pattern: &syn::Pat) -> Option<(String, String)> {

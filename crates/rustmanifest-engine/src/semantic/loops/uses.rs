@@ -9,7 +9,7 @@
 //! and macro mentions are counted, never guessed at — the conservative
 //! buckets are what keeps the loop rules free of false positives.
 
-use rustmanifest_schema::{ResolvedMode, Resolution};
+use rustmanifest_schema::{Resolution, ResolvedMode};
 use syn::{spanned::Spanned, visit::Visit};
 
 use crate::semantic::expr::{compound_assignment, place_root, settled_call, token_words};

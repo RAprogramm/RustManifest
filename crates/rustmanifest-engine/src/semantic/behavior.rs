@@ -375,9 +375,12 @@ mod tests {
              Done { fn write_all(&self) -> WriteAll<Done> { WriteAll { writer: Done } } }\nasync \
              fn drive(done: Done) { done.write_all().await; }",
             |settling| {
-                settling
-                    .typed("self.writer", "AsyncWrite")
-                    .call("done.write_all()", "write_all", "WriteAll<Done>", Some("Done"))
+                settling.typed("self.writer", "AsyncWrite").call(
+                    "done.write_all()",
+                    "write_all",
+                    "WriteAll<Done>",
+                    Some("Done")
+                )
             }
         );
         let poll = named(&all, "WriteAll::poll");
@@ -491,7 +494,11 @@ mod tests {
             .typed("self.inner", "TcpStream")
             .and_over("app/src/disk.rs", disk_text)
             .typed("self.inner", "File")
-            .calling("self.inner.read(&mut [])", "std::io::Read::read", "std::fs::File")
+            .calling(
+                "self.inner.read(&mut [])",
+                "std::io::Read::read",
+                "std::fs::File"
+            )
             .done();
         let sources = vec![
             Source::new(PathBuf::from("app/src/net.rs"), net_text.to_owned()),
@@ -521,7 +528,11 @@ mod tests {
             |settling| {
                 settling
                     .typed("self.sink", "File")
-                    .calling("self.sink.sync_all()", "std::fs::File::sync_all", "std::fs::File")
+                    .calling(
+                        "self.sink.sync_all()",
+                        "std::fs::File::sync_all",
+                        "std::fs::File"
+                    )
                     .after("fn pump(stream: &mut TcpStream) { ")
                     .typed("stream", "&mut TcpStream")
                     .calling(
@@ -596,9 +607,12 @@ mod tests {
             "struct Wallet { balance: i64 }\nimpl Wallet { fn open() -> Self { Self { balance: 0 \
              } } }\nfn opened() { let wallet = Wallet::open(); wallet.balance = 1; }",
             |settling| {
-                settling
-                    .field("wallet.balance", "Wallet", "i64")
-                    .call("Wallet::open()", "open", "Wallet", None)
+                settling.field("wallet.balance", "Wallet", "i64").call(
+                    "Wallet::open()",
+                    "open",
+                    "Wallet",
+                    None
+                )
             }
         );
         assert_eq!(named(&all, "opened").builds, vec!["Wallet.balance"]);
@@ -614,9 +628,12 @@ mod tests {
              }\nstruct Repo;\nimpl Repo { fn get_order(&self) -> Order { let mut order = \
              Order::load(); order.items = 3; order } }",
             |settling| {
-                settling
-                    .field("order.items", "Order", "u32")
-                    .call("Order::load()", "load", "Order", None)
+                settling.field("order.items", "Order", "u32").call(
+                    "Order::load()",
+                    "load",
+                    "Order",
+                    None
+                )
             }
         );
         let getter = named(&all, "Repo::get_order");

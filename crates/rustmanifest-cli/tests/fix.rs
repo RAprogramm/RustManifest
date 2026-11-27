@@ -31,7 +31,6 @@ fn tree_with_unused_pragma() -> TempDir {
     dir
 }
 
-
 /// Writes beside `tree` what a compiler settles about its sources, and
 /// answers with the path the check reads it from.
 ///
@@ -52,11 +51,13 @@ fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
         .collect();
     let settled = settled_over(&sources);
     let at = tree.path().join("resolution.json");
-    fs::write(&at, serde_json::to_string(&settled).expect("the overlay serializes"))
-        .expect("the overlay is written");
+    fs::write(
+        &at,
+        serde_json::to_string(&settled).expect("the overlay serializes")
+    )
+    .expect("the overlay is written");
     at
 }
-
 
 /// What a compiler settles about `sources`, asked of the compiler.
 fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {

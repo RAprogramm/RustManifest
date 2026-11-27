@@ -74,8 +74,7 @@ fn crate_of_path(path: &str) -> String {
                 .checked_sub(2)
                 .and_then(|i| components.get(i))
         })
-        .map(|name| (*name).to_owned())
-        .unwrap_or_default()
+        .map_or_default(|name| (*name).to_owned())
 }
 
 /// Returns whether a crate directory name names the symbol's crate,

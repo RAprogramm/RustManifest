@@ -88,11 +88,14 @@ mod tests {
 
     fn statuses(text: &str) -> Vec<(ExitStatus, ExitRoute)> {
         let sources = [Source::new(PathBuf::from("src/main.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .flat_map(|fact| fact.exits.clone())
-            .map(|exit| (exit.status, exit.route))
-            .collect()
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .flat_map(|fact| fact.exits.clone())
+        .map(|exit| (exit.status, exit.route))
+        .collect()
     }
 
     /// Both statuses the library names are read where they are written,

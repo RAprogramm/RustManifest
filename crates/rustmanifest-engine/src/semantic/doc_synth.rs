@@ -176,14 +176,14 @@ mod tests {
     use std::path::PathBuf;
 
     use super::doc_draft;
-    use crate::{
-        semantic::settling::Settling,
-        source::Source
-    };
+    use crate::{semantic::settling::Settling, source::Source};
 
     fn draft(text: &str, name: &str) -> String {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let graph = crate::semantic::TypeGraph::from_sources(&sources);
         doc_draft(
             facts.iter().find(|fact| fact.function == name).unwrap(),
@@ -244,9 +244,12 @@ mod tests {
                     = Order::empty(); order.items = 3; order } }";
         assert_eq!(
             draft_settled(text, "Repo::fetch", |settling| {
-                settling
-                    .field("order.items", "Order", "u32")
-                    .call("Order::empty()", "empty", "Order", None)
+                settling.field("order.items", "Order", "u32").call(
+                    "Order::empty()",
+                    "empty",
+                    "Order",
+                    None
+                )
             }),
             "/// Creates a new [`Order`]."
         );
@@ -261,5 +264,4 @@ mod tests {
         assert!(rendered.contains("[`ConfigError`]"));
         assert!(rendered.contains("/// # Panics"));
     }
-
 }

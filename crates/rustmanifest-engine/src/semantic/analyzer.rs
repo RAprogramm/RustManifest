@@ -158,7 +158,10 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        let findings = analyzer.analyze(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
+        let findings = analyzer.analyze(&Workspace::resolved(
+            &sources,
+            &crate::semantic::settling::settled_over(&sources)
+        ));
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("created_at"));
         assert!(findings[0].message.contains("User"));
@@ -183,6 +186,13 @@ mod tests {
                 "struct Post { text: String, created_at: u64, updated_at: u64 }"
             )
         ];
-        assert!(analyzer.analyze(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))).is_empty());
+        assert!(
+            analyzer
+                .analyze(&Workspace::resolved(
+                    &sources,
+                    &crate::semantic::settling::settled_over(&sources)
+                ))
+                .is_empty()
+        );
     }
 }

@@ -22,10 +22,7 @@
 //! sequence and not of the channel, so the part drawn stays unproven
 //! while the channel stays proven.
 
-use super::{
-    FactCollector,
-    catalog::intake::BOUNDARY_ADAPTERS
-};
+use super::{FactCollector, catalog::intake::BOUNDARY_ADAPTERS};
 use crate::semantic::behavior::{
     input::{ReadShape, Selector, SelectorGap},
     value::Provenance

@@ -106,7 +106,10 @@ mod tests {
         settle_identity(
             &mut settled,
             &sources,
-            &crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
+            &crate::semantic::behavior_with(
+                &sources,
+                Some(&crate::semantic::settling::settled_over(&sources))
+            )
         );
         let mut out = String::new();
         capability_section(&mut out, &Workspace::resolved(&sources, &settled), 10);

@@ -97,16 +97,10 @@ impl LoopFinder<'_> {
             };
             let initialized = settled_call(self.settled, self.file, init.expr.span());
             let reached_macro = macro_path(self.settled, self.file, &init.expr);
-            let origin = clone_origin(&init.expr, initialized, &bound, &mutated.roots).or_else(
-                || {
-                    allocation_origin(
-                        &init.expr,
-                        initialized,
-                        reached_macro.as_deref(),
-                        &bound
-                    )
-                }
-            );
+            let origin =
+                clone_origin(&init.expr, initialized, &bound, &mutated.roots).or_else(|| {
+                    allocation_origin(&init.expr, initialized, reached_macro.as_deref(), &bound)
+                });
             let Some(origin) = origin else {
                 continue;
             };

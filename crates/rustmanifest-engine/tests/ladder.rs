@@ -126,7 +126,13 @@ impl Settled {
 
     /// States what every call written as `fragment` hands back and the
     /// type of the receiver it stands on.
-    fn call(mut self, fragment: &str, callee: &str, returns: &str, receiver: Option<&str>) -> Self {
+    fn call(
+        mut self,
+        fragment: &str,
+        callee: &str,
+        returns: &str,
+        receiver: Option<&str>
+    ) -> Self {
         for at in self.places(fragment) {
             self.held.calls.push(rustmanifest_schema::ResolvedCall {
                 at,
@@ -144,7 +150,13 @@ impl Settled {
 
     /// States that every call written as `fragment` hands back a type
     /// the caller decides, which is what makes it a conversion.
-    fn converting(mut self, fragment: &str, callee: &str, returns: &str, receiver: Option<&str>) -> Self {
+    fn converting(
+        mut self,
+        fragment: &str,
+        callee: &str,
+        returns: &str,
+        receiver: Option<&str>
+    ) -> Self {
         for at in self.places(fragment) {
             self.held.calls.push(rustmanifest_schema::ResolvedCall {
                 at,
@@ -209,14 +221,13 @@ fn stated_with(sources: &[(&str, &str)], settled: &rustmanifest_schema::Resoluti
     let settled = settled.clone();
     program_meaning(&Workspace::resolved(&owned, &settled))
         .first()
-        .map(|entry| match &entry.narrative {
+        .map_or_default(|entry| match &entry.narrative {
             Narrative::Whole(said) => said.clone(),
             Narrative::Parts {
                 refused: (clause, gap),
                 licensed
             } => format!("[{clause} refused: {gap}] {}", licensed.join(" "))
         })
-        .unwrap_or_default()
 }
 
 /// An ordinary three-argument calculator: two operands read off the
@@ -943,7 +954,12 @@ fn todo_settled() -> rustmanifest_schema::Resolution {
         )
         .call("store.add(title)", "add", "u64", Some("&mut Store"))
         .call("store.complete(id)", "complete", "bool", Some("&mut Store"))
-        .call("store.save()", "save", "Result<(), io::Error>", Some("&Store"))
+        .call(
+            "store.save()",
+            "save",
+            "Result<(), io::Error>",
+            Some("&Store")
+        )
         .done()
 }
 
@@ -1041,8 +1057,18 @@ fn calculator_settled() -> rustmanifest_schema::Resolution {
             Some("String")
         )
         .call("args[2].as_str()", "as_str", "&str", Some("String"))
-        .call("operand(&args, 1)", "operand", "Result<i64, ParseIntError>", None)
-        .call("operand(&args, 3)", "operand", "Result<i64, ParseIntError>", None)
+        .call(
+            "operand(&args, 1)",
+            "operand",
+            "Result<i64, ParseIntError>",
+            None
+        )
+        .call(
+            "operand(&args, 3)",
+            "operand",
+            "Result<i64, ParseIntError>",
+            None
+        )
         .done()
 }
 
@@ -1115,8 +1141,18 @@ fn store_settled() -> rustmanifest_schema::Resolution {
         .typed("store", "Store")
         .typed("listed", "bool")
         .call("store.read(1)", "read", "Option<&Task>", Some("&Store"))
-        .call("store.read(1).is_some()", "is_some", "bool", Some("Option<&Task>"))
-        .call("self.tasks.get(&id)", "get", "Option<&Task>", Some("BTreeMap<u64, Task>"))
+        .call(
+            "store.read(1).is_some()",
+            "is_some",
+            "bool",
+            Some("Option<&Task>")
+        )
+        .call(
+            "self.tasks.get(&id)",
+            "get",
+            "Option<&Task>",
+            Some("BTreeMap<u64, Task>")
+        )
         .done()
 }
 
@@ -1217,4 +1253,3 @@ fn the_tutorial_reads_through_the_closure_written_beside_a_combinator() {
         "the chain through the closure is broken: {said}"
     );
 }
-

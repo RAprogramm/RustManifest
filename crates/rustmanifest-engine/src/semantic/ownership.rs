@@ -299,7 +299,8 @@ mod tests {
 
     #[test]
     fn reading_a_non_copy_field_may_be_a_move_and_is_not_flagged() {
-        let text = "struct User { name: String }\nfn take_name(user: User) -> String { user.name }";
+        let text =
+            "struct User { name: String }\nfn take_name(user: User) -> String { user.name }";
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
         let settled = Settling::over("src/lib.rs", text)
             .field("user.name", "User", "String")
@@ -307,5 +308,4 @@ mod tests {
         let settled = settled;
         assert_eq!(insights(&Workspace::resolved(&sources, &settled)).len(), 0);
     }
-
 }

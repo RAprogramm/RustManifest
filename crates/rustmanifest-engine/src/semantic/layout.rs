@@ -231,5 +231,4 @@ mod tests {
         assert_eq!(holder.payload, None);
         assert_eq!(holder.unresolved, vec!["ExternalThing"]);
     }
-
 }

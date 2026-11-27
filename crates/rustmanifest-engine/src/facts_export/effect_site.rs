@@ -39,7 +39,10 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             "pub fn serve() { std::net::TcpListener::bind(\"0\").ok(); }".to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let site = facts
             .iter()
             .find(|fact| fact.function == "serve")

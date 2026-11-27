@@ -2,5 +2,3 @@
 // SPDX-License-Identifier: MIT
 
 //! The inner type a single-generic wrapper declares around one value.
-
-

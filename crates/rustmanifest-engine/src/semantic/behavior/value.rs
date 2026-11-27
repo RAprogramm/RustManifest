@@ -55,11 +55,14 @@ mod tests {
     /// order.
     fn handed_over(text: &str, function: &str) -> Arguments {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .find(|fact| fact.function == function)
-            .and_then(|fact| fact.call_sites.last().map(|site| site.arguments.clone()))
-            .expect("the function records a call site")
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .find(|fact| fact.function == function)
+        .and_then(|fact| fact.call_sites.last().map(|site| site.arguments.clone()))
+        .expect("the function records a call site")
     }
 
     /// A written literal and one of the function's own inputs are the two

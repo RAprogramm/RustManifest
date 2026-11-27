@@ -26,4 +26,3 @@ pub(super) fn strip_ref_deref(expression: &syn::Expr) -> &syn::Expr {
         _ => expression
     }
 }
-

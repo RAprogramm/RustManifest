@@ -71,7 +71,7 @@ pub(super) fn function_definitions(document: &wire::Document) -> Vec<Definition>
 
 /// Start position of a SCIP range, which holds three elements for a
 /// single-line range and four for a multi-line one.
-pub(super) fn range_start(range: &[i32]) -> Option<(i32, i32)> {
+pub(super) const fn range_start(range: &[i32]) -> Option<(i32, i32)> {
     match range.len() {
         3 | 4 => Some((range[0], range[1])),
         _ => None
@@ -79,7 +79,7 @@ pub(super) fn range_start(range: &[i32]) -> Option<(i32, i32)> {
 }
 
 /// Start and end positions of a SCIP range.
-fn range_bounds(range: &[i32]) -> Option<((i32, i32), (i32, i32))> {
+const fn range_bounds(range: &[i32]) -> Option<((i32, i32), (i32, i32))> {
     match range.len() {
         3 => Some(((range[0], range[1]), (range[0], range[2]))),
         4 => Some(((range[0], range[1]), (range[2], range[3]))),

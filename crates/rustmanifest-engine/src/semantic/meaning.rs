@@ -187,9 +187,7 @@ mod tests {
 
     use super::program_meaning;
     use crate::{
-        semantic::{
-            module_graph::declared_tree, settling::settle_identity, workspace::Workspace
-        },
+        semantic::{module_graph::declared_tree, settling::settle_identity, workspace::Workspace},
         source::Source
     };
 

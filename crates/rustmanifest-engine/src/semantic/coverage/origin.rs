@@ -137,18 +137,33 @@ mod tests {
     #[test]
     fn a_settled_position_is_counted_as_derived() {
         let sources = source("fn main() { let one = 1; let two = one + 1; }");
-        let report = coverage(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
+        let report = coverage(&Workspace::resolved(
+            &sources,
+            &crate::semantic::settling::settled_over(&sources)
+        ));
         assert!(report.origins_total > 0);
         assert_eq!(report.origins_derived, report.origins_total);
-        assert!(origin_gaps(Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)).facts()).is_empty());
+        assert!(
+            origin_gaps(
+                Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))
+                    .facts()
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn a_rebound_name_is_counted_as_refused_and_named() {
         let sources = source("fn main() { let mut sum = 0; sum += 1; let total = sum + 1; }");
-        let report = coverage(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
+        let report = coverage(&Workspace::resolved(
+            &sources,
+            &crate::semantic::settling::settled_over(&sources)
+        ));
         assert!(report.origins_derived < report.origins_total);
-        let gaps = origin_gaps(Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)).facts());
+        let gaps = origin_gaps(
+            Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))
+                .facts()
+        );
         assert!(gaps.values().sum::<u64>() > 0);
         assert_eq!(
             gaps.values().sum::<u64>(),
@@ -159,8 +174,17 @@ mod tests {
     #[test]
     fn a_program_recording_no_value_position_reports_none() {
         let sources = source("pub struct Empty;");
-        let report = coverage(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
+        let report = coverage(&Workspace::resolved(
+            &sources,
+            &crate::semantic::settling::settled_over(&sources)
+        ));
         assert_eq!(report.origins_total, 0);
-        assert!(origin_gaps(Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)).facts()).is_empty());
+        assert!(
+            origin_gaps(
+                Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))
+                    .facts()
+            )
+            .is_empty()
+        );
     }
 }

@@ -107,8 +107,7 @@ impl FactCollector {
             .path
             .segments
             .last()
-            .map(|segment| segment.ident.to_string())
-            .unwrap_or_default();
+            .map_or_default(|segment| segment.ident.to_string());
         if let Some(effect) = knowledge::sql_macro_effect(&spelled, &tokens) {
             self.facts.effects.push(effect);
             self.record_macro_effect_site(invocation, effect);
@@ -168,7 +167,7 @@ impl FactCollector {
                 statement,
                 table: knowledge::table_of(sql),
                 record,
-                binds: tail.map(plain_written_names).unwrap_or_default(),
+                binds: tail.map_or_default(plain_written_names),
                 range: rustmanifest_schema::Range {
                     start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
                     end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)

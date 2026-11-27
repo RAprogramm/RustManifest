@@ -12,7 +12,6 @@
 
 use std::fmt;
 
-
 /// The named row one refused candidate lands in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RefusalRow {
@@ -60,4 +59,3 @@ impl fmt::Display for RefusalRow {
         })
     }
 }
-

@@ -80,13 +80,13 @@ pub fn conventions(target: &Path) -> Result<Vec<ConventionClause>, EngineError> 
         |settled| rustmanifest_engine::Workspace::resolved(&sources, settled)
     );
     Ok(learn_roles(&workspace, LearnOptions::default())
-    .into_iter()
-    .map(|clause| ConventionClause {
-        role:   clause.role,
-        when:   clause.includes.join(" AND "),
-        unless: clause.excludes.join(" AND ")
-    })
-    .collect())
+        .into_iter()
+        .map(|clause| ConventionClause {
+            role:   clause.role,
+            when:   clause.includes.join(" AND "),
+            unless: clause.excludes.join(" AND ")
+        })
+        .collect())
 }
 
 /// One step of a deduction chain on the wire.
@@ -266,8 +266,7 @@ pub fn intents(target: &Path) -> Result<Vec<IntentRecord>, EngineError> {
             call:       intent.call,
             path:       sources
                 .get(intent.source)
-                .map(|source| source.path().display().to_string())
-                .unwrap_or_default(),
+                .map_or_default(|source| source.path().display().to_string()),
             site:       intent.site,
             evidence:   ChainStep {
                 fact:   intent.evidence.fact,
@@ -412,9 +411,7 @@ pub fn suppressions(target: &Path) -> Result<Vec<SuppressionRecord>, EngineError
 mod tests {
 
     /// What a compiler settles about `sources`, asked of the compiler.
-    fn settled_over(
-        sources: &[rustmanifest_engine::Source]
-    ) -> rustmanifest_schema::Resolution {
+    fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
         let written: Vec<(String, String)> = sources
             .iter()
             .map(|held| (held.path().display().to_string(), held.text().to_owned()))

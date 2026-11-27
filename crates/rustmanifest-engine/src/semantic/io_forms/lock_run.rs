@@ -173,7 +173,9 @@ mod tests {
     /// declares, without which the readings above answer nothing.
     fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
         let settled = crate::semantic::settling::settled_over(sources);
-        lock_run_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+        lock_run_insights(&crate::semantic::workspace::Workspace::resolved(
+            sources, &settled
+        ))
     }
 
     #[test]
@@ -184,9 +186,7 @@ mod tests {
         assert_eq!(run.len(), 1);
         assert!(run[0].detail.contains("2 writes to stdout"));
 
-        let single = insights_over(&sources(
-            "fn main() {\n    println!(\"one\");\n}"
-        ));
+        let single = insights_over(&sources("fn main() {\n    println!(\"one\");\n}"));
         assert!(single.is_empty());
     }
 

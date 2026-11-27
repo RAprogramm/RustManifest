@@ -92,16 +92,19 @@ mod tests {
 
     fn positions(text: &str, function: &str) -> Vec<(Outcome, Provenance)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .find(|fact| fact.function == function)
-            .map(|fact| {
-                fact.handbacks
-                    .iter()
-                    .map(|handback| (handback.outcome, handback.value.clone()))
-                    .collect()
-            })
-            .expect("the function is a fact")
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .find(|fact| fact.function == function)
+        .map(|fact| {
+            fact.handbacks
+                .iter()
+                .map(|handback| (handback.outcome, handback.value.clone()))
+                .collect()
+        })
+        .expect("the function is a fact")
     }
 
     /// A written return and the tail expression are both positions, in

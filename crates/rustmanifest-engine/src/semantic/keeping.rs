@@ -62,7 +62,6 @@ mod tests {
         source::Source
     };
 
-
     const TASK_STORE: &str = r"use std::collections::BTreeMap;
 
 pub struct Task {

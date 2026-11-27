@@ -26,14 +26,13 @@ use rustmanifest_schema::{Location, Resolution, ResolvedCall, ResolvedFunction};
 use crate::{semantic::behavior::FunctionFacts, source::Source};
 
 /// Adds to `resolution` the identity a compiler settles for `facts`.
-pub fn settle_identity(
-    resolution: &mut Resolution,
-    sources: &[Source],
-    facts: &[FunctionFacts]
-) {
+pub fn settle_identity(resolution: &mut Resolution, sources: &[Source], facts: &[FunctionFacts]) {
     let declared = declaration_counts(facts);
     for fact in facts {
-        let Some(file) = sources.get(fact.source).map(|source| source.path().to_path_buf()) else {
+        let Some(file) = sources
+            .get(fact.source)
+            .map(|source| source.path().to_path_buf())
+        else {
             continue;
         };
         resolution.functions.push(ResolvedFunction {
@@ -51,17 +50,17 @@ pub fn settle_identity(
                 continue;
             }
             resolution.calls.push(ResolvedCall {
-                at:       Location {
+                at:             Location {
                     file:  file.clone(),
                     range: site.site
                 },
-                callee:   reached.rsplit("::").next().unwrap_or(reached).to_owned(),
-                returns:  String::new(),
-                receiver: None,
-                receiver_path: None,
+                callee:         reached.rsplit("::").next().unwrap_or(reached).to_owned(),
+                returns:        String::new(),
+                receiver:       None,
+                receiver_path:  None,
                 caller_decides: false,
-                reaches:  Some(reached.to_owned()),
-                takes:    None
+                reaches:        Some(reached.to_owned()),
+                takes:          None
             });
         }
     }
@@ -106,7 +105,11 @@ fn reached_body<'name>(
         return Some(candidate);
     }
     let (owner, member) = candidate.rsplit_once("::")?;
-    if owner == "?" || declared.keys().any(|named| named.starts_with(&format!("{owner}::"))) {
+    if owner == "?"
+        || declared
+            .keys()
+            .any(|named| named.starts_with(&format!("{owner}::")))
+    {
         return None;
     }
     declared

@@ -117,7 +117,7 @@ mod tests {
     fn unchanged_reports_produce_no_diff() {
         let left = comparable(vec![repo("alpha", &[("RM-SEC-001", 3)])]);
         let right = left.clone();
-        assert!(diff(&left, &right).is_empty());
+        assert_eq!(diff(&left, &right), [] as [std::string::String; 0]);
     }
 
     #[test]

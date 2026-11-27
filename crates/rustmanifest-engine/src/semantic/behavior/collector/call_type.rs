@@ -58,4 +58,5 @@ impl FactCollector {
     /// happened to declare.
     pub(super) fn called_return(&self, expression: &syn::Expr) -> Option<String> {
         self.settled_type(expression)
-    }}
+    }
+}

@@ -67,23 +67,58 @@ mod tests {
             PathBuf::from("crates/thing/tests/cases/pass/commands.rs"),
             body.to_owned()
         )];
-        assert!(lock_run_insights(&Workspace::resolved(&fixture, &crate::semantic::settling::settled_over(&fixture))).is_empty());
-        assert!(literal_format_insights(&Workspace::resolved(&fixture, &crate::semantic::settling::settled_over(&fixture))).is_empty());
-        assert!(lost_write_error_insights(&Workspace::resolved(&fixture, &crate::semantic::settling::settled_over(&fixture))).is_empty());
+        assert!(
+            lock_run_insights(&Workspace::resolved(
+                &fixture,
+                &crate::semantic::settling::settled_over(&fixture)
+            ))
+            .is_empty()
+        );
+        assert!(
+            literal_format_insights(&Workspace::resolved(
+                &fixture,
+                &crate::semantic::settling::settled_over(&fixture)
+            ))
+            .is_empty()
+        );
+        assert!(
+            lost_write_error_insights(&Workspace::resolved(
+                &fixture,
+                &crate::semantic::settling::settled_over(&fixture)
+            ))
+            .is_empty()
+        );
 
         let looped = vec![Source::new(
             PathBuf::from("crates/thing/tests/cases/pass/loop.rs"),
             "pub fn go(v: &[u8]) {\n    for b in v { println!(\"{b}\"); }\n}".to_owned()
         )];
-        assert!(loop_write_insights(&Workspace::resolved(&looped, &crate::semantic::settling::settled_over(&looped))).is_empty());
+        assert!(
+            loop_write_insights(&Workspace::resolved(
+                &looped,
+                &crate::semantic::settling::settled_over(&looped)
+            ))
+            .is_empty()
+        );
 
         let shipped = vec![Source::new(
             PathBuf::from("crates/thing/src/main.rs"),
             body.to_owned()
         )];
-        assert_eq!(lock_run_insights(&Workspace::resolved(&shipped, &crate::semantic::settling::settled_over(&shipped))).len(), 1);
         assert_eq!(
-            lost_write_error_insights(&Workspace::resolved(&shipped, &crate::semantic::settling::settled_over(&shipped))).len(),
+            lock_run_insights(&Workspace::resolved(
+                &shipped,
+                &crate::semantic::settling::settled_over(&shipped)
+            ))
+            .len(),
+            1
+        );
+        assert_eq!(
+            lost_write_error_insights(&Workspace::resolved(
+                &shipped,
+                &crate::semantic::settling::settled_over(&shipped)
+            ))
+            .len(),
             1
         );
     }

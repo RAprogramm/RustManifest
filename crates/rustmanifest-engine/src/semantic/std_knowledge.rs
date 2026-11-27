@@ -40,7 +40,6 @@ pub(super) fn is_primitive_copy(name: &str) -> bool {
     PRIMITIVE_COPY_TYPES.contains(&name)
 }
 
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -60,5 +59,4 @@ mod tests {
         assert!(!is_primitive_copy("Duration"));
         assert!(!is_primitive_copy("String"));
     }
-
 }

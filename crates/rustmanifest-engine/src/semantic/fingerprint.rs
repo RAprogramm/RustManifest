@@ -73,9 +73,9 @@ mod tests {
             let settled = crate::semantic::settling::settled_over(&sources);
             crate::semantic::behavior_with(&sources, Some(&settled))
         }
-            .iter()
-            .map(behavior_fingerprint)
-            .collect()
+        .iter()
+        .map(behavior_fingerprint)
+        .collect()
     }
 
     #[test]

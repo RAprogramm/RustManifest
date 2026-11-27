@@ -5,7 +5,6 @@
 
 use std::collections::BTreeMap;
 
-
 /// The context the reachability fold reads beyond the syntax it walks.
 ///
 /// It carries the enclosing file's `use` table, and that is the reason

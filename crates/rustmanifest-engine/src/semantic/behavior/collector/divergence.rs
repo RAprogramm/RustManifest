@@ -28,7 +28,10 @@ impl FlowScope<'_> {
     /// Looking the callee up by written name answered only for the
     /// functions this workspace declares, and for those only when the
     /// name was unique.
-    pub(in crate::semantic::behavior::collector) fn never_returns(&self, call: &syn::Expr) -> bool {
+    pub(in crate::semantic::behavior::collector) fn never_returns(
+        &self,
+        call: &syn::Expr
+    ) -> bool {
         use syn::spanned::Spanned;
 
         let span = call.span().byte_range();

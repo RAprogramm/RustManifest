@@ -143,5 +143,4 @@ mod tests {
         let gain = install_impl(&sources, None, 0, "Batch", "Display").unwrap();
         assert!(gain.panics, "{:?}", gain.installed);
     }
-
 }

@@ -83,15 +83,18 @@ mod tests {
         let file = fixture(rule, side);
         let text = std::fs::read_to_string(&file).expect("the fixture is readable");
         let sources = vec![Source::new(file, text)];
-        let recorded = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .map(|fact| {
-                fact.output_writes
-                    .iter()
-                    .filter(|write| matches!(write.stream, Stream::Stdout | Stream::Stderr))
-                    .count()
-            })
-            .sum();
+        let recorded = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .map(|fact| {
+            fact.output_writes
+                .iter()
+                .filter(|write| matches!(write.stream, Stream::Stdout | Stream::Stderr))
+                .count()
+        })
+        .sum();
         (sources, recorded)
     }
 
@@ -104,7 +107,10 @@ mod tests {
         for side in ["pass", "fail"] {
             let (sources, recorded) = fixture_sources("RM-IO-003", side);
             assert!(recorded > 0, "RM-IO-003/{side}.rs records no write at all");
-            let found = loop_write_insights(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
+            let found = loop_write_insights(&Workspace::resolved(
+                &sources,
+                &crate::semantic::settling::settled_over(&sources)
+            ));
             if side == "pass" {
                 assert!(found.is_empty(), "RM-IO-003/pass.rs must stay silent");
             } else {
@@ -117,7 +123,10 @@ mod tests {
 
             let (sources, recorded) = fixture_sources("RM-IO-002", side);
             assert!(recorded > 0, "RM-IO-002/{side}.rs records no write at all");
-            let found = lock_run_insights(&Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)));
+            let found = lock_run_insights(&Workspace::resolved(
+                &sources,
+                &crate::semantic::settling::settled_over(&sources)
+            ));
             if side == "pass" {
                 assert!(
                     found.is_empty(),

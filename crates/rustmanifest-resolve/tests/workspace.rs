@@ -123,7 +123,7 @@ fn a_settled_position_names_its_file_the_way_the_workspace_does() {
         .chain(resolution.types.iter().map(|typed| typed.at.file.as_path()))
         .chain(resolution.paths.iter().map(|path| path.at.file.as_path()))
         .collect();
-    assert!(!named.is_empty());
+    assert_ne!(named, [] as [&std::path::Path; 0]);
     assert!(
         named.iter().all(|path| path.is_relative()),
         "a settled position states an absolute path: {named:?}"

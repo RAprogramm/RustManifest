@@ -25,10 +25,8 @@ use serde::{Deserialize, Serialize};
 
 pub use self::resolution::{
     Resolution, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedFunction, ResolvedGrant,
-    ResolvedLayout, ResolvedTypeDecl,
-    ResolvedMode,
-    ResolvedModule, ResolvedParam, ResolvedPath, ResolvedProperty, ResolvedSignature,
-    ResolvedType
+    ResolvedLayout, ResolvedMode, ResolvedModule, ResolvedParam, ResolvedPath, ResolvedProperty,
+    ResolvedSignature, ResolvedType, ResolvedTypeDecl,
 };
 
 /// A single review rule definition produced by the rules pack.
@@ -39,15 +37,15 @@ pub use self::resolution::{
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Rule {
     /// Stable rule identifier, e.g. `RM-SEC-001`.
-    pub id:            String,
+    pub id: String,
     /// Default severity declared by the rules pack.
-    pub severity:      Severity,
+    pub severity: Severity,
     /// Short human-readable title.
-    pub title:         String,
+    pub title: String,
     /// `rustmanifest://` URI pointing to the rationale section.
     pub rationale_uri: String,
     /// Tier-specific definition (pattern, AST, or semantic).
-    pub definition:    RuleDefinition
+    pub definition: RuleDefinition,
 }
 
 /// Tier-specific configuration carried inside a [`Rule`].
@@ -62,21 +60,21 @@ pub enum RuleDefinition {
     /// Tier 1 — text-level pattern scan via regular expression.
     Pattern {
         /// Regular expression matched against file contents.
-        regex:         String,
+        regex: String,
         /// Glob patterns of files the rule MUST NOT inspect.
         #[serde(default)]
-        exclude_globs: Vec<String>
+        exclude_globs: Vec<String>,
     },
     /// Tier 2 — `syn` AST traversal identified by a built-in check name.
     Ast {
         /// Identifier of the built-in AST check implementation.
-        check: String
+        check: String,
     },
     /// Tier 3 — semantic analysis identified by a built-in check name.
     Semantic {
         /// Identifier of the built-in semantic check implementation.
-        check: String
-    }
+        check: String,
+    },
 }
 
 /// Severity of a rule or a finding.
@@ -90,7 +88,7 @@ pub enum Severity {
     /// Informational.
     Info,
     /// Style hint.
-    Hint
+    Hint,
 }
 
 /// One step of the machine-readable derivation trace of a [`Finding`].
@@ -103,9 +101,9 @@ pub enum Severity {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct TraceStep {
     /// Observed evidence, e.g. an offending item with its file.
-    pub fact:   String,
+    pub fact: String,
     /// Why the fact contributes to the finding.
-    pub reason: String
+    pub reason: String,
 }
 
 /// How safely a [`Fix`] can be applied without human review.
@@ -115,7 +113,7 @@ pub enum Applicability {
     /// The fix is proven correct; an automated applier may apply it.
     MachineApplicable,
     /// The fix expresses intent but needs human review before applying.
-    MaybeIncorrect
+    MaybeIncorrect,
 }
 
 /// One byte-precise replacement that resolves (part of) a [`Finding`].
@@ -128,18 +126,18 @@ pub enum Applicability {
 pub struct Fix {
     /// File the fix applies to; `None` means the finding's own file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub file:          Option<PathBuf>,
+    pub file: Option<PathBuf>,
     /// When set, the fix is a file operation: rename the target file to
     /// this path. `range` must be empty and `replacement` unused. Byte
     /// edits of one applier run happen before renames, on the old paths.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rename_to:     Option<PathBuf>,
+    pub rename_to: Option<PathBuf>,
     /// Byte range in the target file that the replacement covers.
-    pub range:         Range,
+    pub range: Range,
     /// Replacement text for the range.
-    pub replacement:   String,
+    pub replacement: String,
     /// How safely the fix can be applied automatically.
-    pub applicability: Applicability
+    pub applicability: Applicability,
 }
 
 /// A finding emitted by the engine for one rule against one source location.
@@ -147,23 +145,23 @@ pub struct Fix {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Finding {
     /// Identifier of the rule that produced this finding.
-    pub rule_id:       String,
+    pub rule_id: String,
     /// Effective severity for this finding (may be overridden by user config).
-    pub severity:      Severity,
+    pub severity: Severity,
     /// Source location where the rule fired.
-    pub location:      Location,
+    pub location: Location,
     /// Human-readable message about this occurrence.
-    pub message:       String,
+    pub message: String,
     /// `rustmanifest://` URI of the rationale section.
     pub rationale_uri: String,
     /// Machine-readable derivation trace; absent on the wire when empty, so
     /// payloads produced before this field existed remain valid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub trace:         Vec<TraceStep>,
+    pub trace: Vec<TraceStep>,
     /// Byte-precise fixes resolving the finding; absent on the wire when
     /// empty, so payloads produced before this field existed remain valid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub fixes:         Vec<Fix>
+    pub fixes: Vec<Fix>,
 }
 
 /// Source location of a finding.
@@ -171,9 +169,9 @@ pub struct Finding {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Location {
     /// Workspace-relative file path.
-    pub file:  PathBuf,
+    pub file: PathBuf,
     /// Byte range within the file.
-    pub range: Range
+    pub range: Range,
 }
 
 /// Half-open byte range within a file.
@@ -185,7 +183,7 @@ pub struct Range {
     pub start: u32,
     /// Exclusive end byte offset.
     #[schemars(schema_with = "byte_offset_schema")]
-    pub end:   u32
+    pub end: u32,
 }
 
 /// The schema of a byte offset: a non-negative integer, stated without
@@ -201,16 +199,16 @@ fn byte_offset_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
 #[serde(rename_all = "kebab-case", default, deny_unknown_fields)]
 pub struct Config {
     /// Profile to apply (`strict`, `default`, `minimal`, `ci`).
-    pub profile:    Option<String>,
+    pub profile: Option<String>,
     /// Glob patterns of files to analyze.
-    pub include:    Vec<String>,
+    pub include: Vec<String>,
     /// Glob patterns of files to exclude.
-    pub exclude:    Vec<String>,
+    pub exclude: Vec<String>,
     /// Per-rule severity overrides.
-    pub overrides:  Vec<RuleOverride>,
+    pub overrides: Vec<RuleOverride>,
     /// User-declared behavioral invariants enforced over extracted facts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub invariants: Vec<Invariant>
+    pub invariants: Vec<Invariant>,
 }
 
 /// One user-declared behavioral invariant.
@@ -226,10 +224,10 @@ pub struct Invariant {
     /// Identifier used as the finding's rule id; positional `RM-INV-NNN`
     /// when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id:              Option<String>,
+    pub id: Option<String>,
     /// Field whose writers are constrained, as `Owner.field`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub field:           Option<String>,
+    pub field: Option<String>,
     /// Module-path prefixes allowed to write `field`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub write_only_from: Vec<String>,
@@ -240,20 +238,20 @@ pub struct Invariant {
     /// denies the database; `db-read` and `db-write` stay one grade
     /// each.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub effect:          Option<String>,
+    pub effect: Option<String>,
     /// Module-path prefixes where `effect` is denied.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub deny_in:         Vec<String>,
+    pub deny_in: Vec<String>,
     /// Module-path prefix whose functions must not call into
     /// `call_deny_to`, directly or through callees.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub call_deny_from:  Option<String>,
+    pub call_deny_from: Option<String>,
     /// Module-path prefix that `call_deny_from` must not reach.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub call_deny_to:    Option<String>,
+    pub call_deny_to: Option<String>,
     /// Severity of violations; `error` when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub severity:        Option<Severity>
+    pub severity: Option<Severity>,
 }
 
 /// Per-rule severity override entry.
@@ -261,9 +259,9 @@ pub struct Invariant {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RuleOverride {
     /// Rule identifier to override.
-    pub rule_id:  String,
+    pub rule_id: String,
     /// New severity for the rule.
-    pub severity: Severity
+    pub severity: Severity,
 }
 
 /// Reference to a methodology document or section embedded in the rules pack.
@@ -271,13 +269,13 @@ pub struct RuleOverride {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct MethodologyResource {
     /// Canonical `rustmanifest://` URI.
-    pub uri:         String,
+    pub uri: String,
     /// Resource title.
-    pub title:       String,
+    pub title: String,
     /// Original source path inside the repository.
     pub source_path: String,
     /// Document content in Markdown (English).
-    pub content:     String
+    pub content: String,
 }
 
 #[cfg(test)]
@@ -295,16 +293,13 @@ mod tests {
             rule_id: "RM-SEC-001".to_owned(),
             severity: Severity::Error,
             location: Location {
-                file:  PathBuf::from("src/lib.rs"),
-                range: Range {
-                    start: 10,
-                    end:   25
-                }
+                file: PathBuf::from("src/lib.rs"),
+                range: Range { start: 10, end: 25 },
             },
             message: "sample".to_owned(),
             rationale_uri: "rustmanifest://methodology/security#creds".to_owned(),
             trace,
-            fixes: Vec::new()
+            fixes: Vec::new(),
         }
     }
 
@@ -320,8 +315,8 @@ mod tests {
     #[test]
     fn finding_with_trace_round_trips() {
         let finding = sample_finding(vec![TraceStep {
-            fact:   "bytes 10..25 in src/lib.rs".to_owned(),
-            reason: "regex of RM-SEC-001 matched".to_owned()
+            fact: "bytes 10..25 in src/lib.rs".to_owned(),
+            reason: "regex of RM-SEC-001 matched".to_owned(),
         }]);
         let json = serde_json::to_string(&finding).unwrap();
         assert!(json.contains("\"trace\""));
@@ -339,6 +334,6 @@ mod tests {
             "rationale-uri": "rustmanifest://methodology/security#creds"
         }"#;
         let finding: Finding = serde_json::from_str(json).unwrap();
-        assert!(finding.trace.is_empty());
+        assert_eq!(finding.trace.len(), 0);
     }
 }

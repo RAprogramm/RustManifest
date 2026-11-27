@@ -69,8 +69,7 @@ pub(super) fn doc_quote(
                 declared
                     .ident
                     .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_default()
+                    .map_or_default(ToString::to_string)
             ),
             syn::Item::Struct(declared) => (&declared.attrs, declared.ident.to_string()),
             syn::Item::Fn(declared) => (&declared.attrs, declared.sig.ident.to_string()),

@@ -18,17 +18,17 @@ use crate::source::Source;
 /// Workspace typing tables shared by every function's fact extraction.
 pub(super) struct TypeTables {
     /// Names of string constants to the literal each is written as.
-    pub(super) constants:   Scoped<String>,
+    pub(super) constants: Scoped<String>,
     /// Crate identity of every source, for crate-proximity resolution.
-    pub(super) crates:      Vec<String>
+    pub(super) crates:    Vec<String>
 }
 
 impl TypeTables {
     /// Reads every typing table off `sources` in one pass each.
     pub(super) fn of(sources: &[Source]) -> Self {
         Self {
-            constants:   constant::constant_texts(sources),
-            crates:      crate_ids(sources)
+            constants: constant::constant_texts(sources),
+            crates:    crate_ids(sources)
         }
     }
 }
@@ -46,8 +46,7 @@ fn crate_ids(sources: &[Source]) -> Vec<String> {
                 .position(|component| *component == "src")
                 .and_then(|position| position.checked_sub(1))
                 .and_then(|index| components.get(index))
-                .map(|name| (*name).to_owned())
-                .unwrap_or_default()
+                .map_or_default(|name| (*name).to_owned())
         })
         .collect()
 }

@@ -25,7 +25,11 @@ pub(super) fn settled_field_types(
     parsed: &ast::SourceFile,
     into: &mut Vec<ResolvedGrant>
 ) {
-    for written in parsed.syntax().descendants().filter_map(ast::RecordField::cast) {
+    for written in parsed
+        .syntax()
+        .descendants()
+        .filter_map(ast::RecordField::cast)
+    {
         let Some(field) = reading.semantics.to_def(&written) else {
             continue;
         };
@@ -39,8 +43,8 @@ pub(super) fn settled_field_types(
                 continue;
             };
             into.push(ResolvedGrant {
-                at: at.clone(),
-                named: named.clone(),
+                at:         at.clone(),
+                named:      named.clone(),
                 trait_name: carried.name(reading.database).as_str().to_owned()
             });
         }

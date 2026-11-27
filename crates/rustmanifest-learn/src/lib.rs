@@ -170,9 +170,7 @@ fn feature_names(names: &[&'static str], indices: &[usize]) -> Vec<String> {
 mod tests {
 
     /// What a compiler settles about `sources`, asked of the compiler.
-    fn settled_over(
-        sources: &[rustmanifest_engine::Source]
-    ) -> rustmanifest_schema::Resolution {
+    fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
         let written: Vec<(String, String)> = sources
             .iter()
             .map(|held| (held.path().display().to_string(), held.text().to_owned()))
@@ -219,7 +217,8 @@ mod tests {
             Some(&settled_over(&sources)),
             "User",
             "Display"
-        ).unwrap();
+        )
+        .unwrap();
         let step = held
             .chain
             .steps
@@ -256,7 +255,8 @@ mod tests {
             Some(&settled_over(&sources)),
             "User",
             "Default"
-        ).unwrap();
+        )
+        .unwrap();
         assert!(held.gain.is_some());
         assert!(
             held.chain
@@ -298,7 +298,8 @@ mod tests {
             Some(&settled_over(&sources)),
             "User",
             "Default"
-        ).unwrap();
+        )
+        .unwrap();
         assert!(held.gain.is_some());
         let step = held
             .chain

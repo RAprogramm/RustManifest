@@ -86,14 +86,14 @@ mod tests {
     /// declares, without which the readings above answer nothing.
     fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
         let settled = crate::semantic::settling::settled_over(sources);
-        lost_write_error_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+        lost_write_error_insights(&crate::semantic::workspace::Workspace::resolved(
+            sources, &settled
+        ))
     }
 
     #[test]
     fn an_entry_point_losing_the_write_error_is_reported() {
-        let lost = insights_over(&sources(
-            "fn main() {\n    println!(\"hi\");\n}"
-        ));
+        let lost = insights_over(&sources("fn main() {\n    println!(\"hi\");\n}"));
         assert_eq!(lost.len(), 1);
         assert!(lost[0].detail.contains("declares no return type"));
 

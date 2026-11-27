@@ -132,10 +132,7 @@ impl FactCollector {
 /// the second half, and taking it out of that rendering is reading the
 /// compiler's own spelling rather than the source's.
 fn failure_half(rendered: &str) -> Option<String> {
-    let inside = rendered
-        .trim()
-        .strip_prefix("Result<")?
-        .strip_suffix('>')?;
+    let inside = rendered.trim().strip_prefix("Result<")?.strip_suffix('>')?;
     let mut depth = 0usize;
     for (at, letter) in inside.char_indices() {
         match letter {

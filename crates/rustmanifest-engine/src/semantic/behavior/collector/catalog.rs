@@ -113,8 +113,6 @@ pub(super) const STREAM_TYPES: [(&str, Stream, bool); 4] = [
     ("std::io::stdio::StdoutLock", Stream::Stdout, true)
 ];
 
-
-
 /// Macros whose every argument is an expression, so the fact channel can
 /// read the same tokens the reachability fold reads — each named by the
 /// item the invocation reaches.
@@ -140,4 +138,3 @@ pub(super) const EXPRESSION_MACROS: [&str; 20] = [
     "std::macros::print",
     "std::macros::println"
 ];
-

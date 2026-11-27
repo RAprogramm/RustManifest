@@ -4,11 +4,7 @@
 //! Wrapper typing: the inner type a single-generic wrapper carries, and
 //! the closure parameter a combinator hands that inner value to.
 
-use super::{
-    FactCollector,
-    naming::binding_name,
-    unwrapping::strip_ref_deref
-};
+use super::{FactCollector, naming::binding_name, unwrapping::strip_ref_deref};
 
 impl FactCollector {
     /// Wrapped inner type of a wrapper expression: a field with a
@@ -21,9 +17,7 @@ impl FactCollector {
                 .get_ident()
                 .and_then(|ident| self.local_wraps.get(&ident.to_string()))
                 .cloned(),
-            syn::Expr::Field(field) => {
-                self.settled_expr_type(&syn::Expr::Field(field.clone()))
-            }
+            syn::Expr::Field(field) => self.settled_expr_type(&syn::Expr::Field(field.clone())),
             syn::Expr::MethodCall(call) if call.method == "clone" => {
                 self.wrapped_of(&call.receiver)
             }

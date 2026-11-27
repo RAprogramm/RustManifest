@@ -109,16 +109,19 @@ mod tests {
     /// paired with the length of the guard stack beside it.
     fn stacks(text: &str, function: &str) -> Vec<(Vec<Condition>, usize)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .find(|fact| fact.function == function)
-            .map(|fact| {
-                fact.handbacks
-                    .iter()
-                    .map(|position| (position.conditions.clone(), position.guard.guards.len()))
-                    .collect()
-            })
-            .expect("the function is a fact")
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .find(|fact| fact.function == function)
+        .map(|fact| {
+            fact.handbacks
+                .iter()
+                .map(|position| (position.conditions.clone(), position.guard.guards.len()))
+                .collect()
+        })
+        .expect("the function is a fact")
     }
 
     /// The two stacks are the same length, entry for entry: a frame whose

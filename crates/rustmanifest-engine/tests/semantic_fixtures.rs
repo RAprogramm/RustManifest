@@ -70,8 +70,7 @@ fn settle_fields(rule: &str, sources: &[Source], into: &mut rustmanifest_schema:
                         file:  source.path().to_path_buf(),
                         range: rustmanifest_schema::Range {
                             start,
-                            end: start
-                                + u32::try_from(written.len()).expect("a fixture is small")
+                            end: start + u32::try_from(written.len()).expect("a fixture is small")
                         }
                     },
                     owner:    (*owner).to_owned(),
@@ -95,20 +94,20 @@ fn settle_receivers(rule: &str, sources: &[Source], into: &mut rustmanifest_sche
             };
             let start = u32::try_from(found).expect("a fixture is small");
             into.calls.push(rustmanifest_schema::ResolvedCall {
-                at:       rustmanifest_schema::Location {
+                at:             rustmanifest_schema::Location {
                     file:  source.path().to_path_buf(),
                     range: rustmanifest_schema::Range {
                         start,
                         end: start + u32::try_from(written.len()).expect("a fixture is small")
                     }
                 },
-                callee:   (*written).to_owned(),
-                returns:  "()".to_owned(),
-                receiver: None,
-                receiver_path: None,
+                callee:         (*written).to_owned(),
+                returns:        "()".to_owned(),
+                receiver:       None,
+                receiver_path:  None,
                 caller_decides: false,
-                reaches:  None,
-                takes:    Some(*mode)
+                reaches:        None,
+                takes:          Some(*mode)
             });
         }
     }

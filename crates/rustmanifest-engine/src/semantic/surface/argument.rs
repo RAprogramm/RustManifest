@@ -39,8 +39,7 @@ pub(super) fn method_router(model: &FrameworkModel, expression: &Expr) -> Vec<(S
             call.args
                 .first()
                 .and_then(handler_name)
-                .map(|handler| vec![(verb.to_uppercase(), handler)])
-                .unwrap_or_default()
+                .map_or_default(|handler| vec![(verb.to_uppercase(), handler)])
         }
         Expr::MethodCall(call) => {
             let verb = call.method.to_string();

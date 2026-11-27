@@ -85,4 +85,3 @@ pub(in crate::semantic::graph) fn enum_node(
         fields
     }
 }
-

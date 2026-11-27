@@ -143,7 +143,11 @@ mod tests {
                 .filter(|(_, row)| *row == wanted)
                 .count() as u64
         };
-        assert_eq!(count(super::RefusalRow::Foreign), graph.external(), "{rows:?}");
+        assert_eq!(
+            count(super::RefusalRow::Foreign),
+            graph.external(),
+            "{rows:?}"
+        );
         let total: usize = rows.iter().map(Vec::len).sum();
         assert_eq!(total as u64, graph.unresolved(), "{rows:?}");
         assert_eq!(graph.resolved(), 1, "{rows:?}");
@@ -230,7 +234,10 @@ mod tests {
     #[test]
     fn a_library_call_never_binds_to_a_test_target_definition() {
         let sources = library_and_test_target();
-        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let all = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let graph = call_graph(&all, &super::resolution_context(&sources));
         let caller = index_of(&all, "Conn::read_head");
         assert!(
@@ -277,7 +284,10 @@ mod tests {
                 "fn drive(client: Other) { client.get(); }".to_owned()
             )
         ];
-        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let all = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let graph = call_graph(&all, &super::resolution_context(&sources));
         assert!(graph.callees(index_of(&all, "drive")).is_empty());
     }
@@ -290,7 +300,10 @@ mod tests {
              helper(); }"
                 .to_owned()
         )];
-        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let all = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let settled = identity_of(&sources, &all);
         let context = super::resolution_context_with(&sources, Some(&settled));
         let caller = index_of(&all, "caller");
@@ -426,7 +439,10 @@ mod tests {
             ("rusty_core", "crates/rusty-core/src/lib.rs"),
             ("rusty_app", "crates/rusty-app/src/lib.rs")
         ]);
-        let all = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let all = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         settle_identity(&mut settled, &sources, &all);
         let graph = call_graph(
             &all,

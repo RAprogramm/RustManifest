@@ -18,9 +18,4 @@ mod slot;
 mod type_name;
 mod wrapper;
 
-pub(super) use self::{
-    error_type::error_types,
-
-    slot::param_slots,
-    type_name::type_last_segment,
-};
+pub(super) use self::{error_type::error_types, slot::param_slots, type_name::type_last_segment};

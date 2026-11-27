@@ -21,7 +21,7 @@ members = [
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.100"
 license = "MIT"
 repository = "https://github.com/RAprogramm/RustManifest"
 homepage = "https://github.com/RAprogramm/RustManifest"
@@ -40,8 +40,8 @@ rustmanifest-fixture = { path = "crates/rustmanifest-fixture", version = "0.0.0"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rmcp = { version = "3", features = ["server", "transport-io", "macros"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
+rmcp = { version = "3.11", features = ["server", "transport-io", "macros"] }
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "io-std"] }
 schemars = "1"
 clap = { version = "4", features = ["derive"] }
 regex = "1"
@@ -69,7 +69,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 anyhow = "1"
 anstyle = "1"
-petgraph = "0.6"
+petgraph = "0.8"
 insta = "1"
 assert_cmd = "2"
 predicates = "3"
@@ -90,6 +90,7 @@ all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 cargo = { level = "deny", priority = -1 }
+multiple_crate_versions = "allow"
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"

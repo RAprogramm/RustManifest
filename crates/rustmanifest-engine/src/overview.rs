@@ -132,11 +132,7 @@ mod tests {
         }];
         let held = sources();
         let resolution = settled();
-        let report = overview_markdown(
-            &Workspace::resolved(&held, &resolution),
-            10,
-            &conventions
-        );
+        let report = overview_markdown(&Workspace::resolved(&held, &resolution), 10, &conventions);
         for heading in [
             "## Size and understanding",
             "## Modules",
@@ -156,8 +152,22 @@ mod tests {
     #[test]
     fn report_is_deterministic() {
         assert_eq!(
-            overview_markdown(&Workspace::resolved(&sources(), &crate::semantic::settling::settled_over(&sources())), 10, &[]),
-            overview_markdown(&Workspace::resolved(&sources(), &crate::semantic::settling::settled_over(&sources())), 10, &[])
+            overview_markdown(
+                &Workspace::resolved(
+                    &sources(),
+                    &crate::semantic::settling::settled_over(&sources())
+                ),
+                10,
+                &[]
+            ),
+            overview_markdown(
+                &Workspace::resolved(
+                    &sources(),
+                    &crate::semantic::settling::settled_over(&sources())
+                ),
+                10,
+                &[]
+            )
         );
     }
 }

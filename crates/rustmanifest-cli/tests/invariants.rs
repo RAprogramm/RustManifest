@@ -116,7 +116,7 @@ fn tree_with_invariant() -> TempDir {
         ],
         &[
             ("src/ledger.rs", 67, 81, "&mut Wallet", "i64"),
-            ("src/api.rs", 54, 68, "&mut Wallet", "i64"),
+            ("src/api.rs", 54, 68, "&mut Wallet", "i64")
         ]
     );
     dir

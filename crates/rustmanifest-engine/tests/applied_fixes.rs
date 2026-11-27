@@ -158,8 +158,7 @@ fn every_applied_fix_survives_the_compiler() {
         }
     }
     assert_eq!(
-        unresolved,
-        RESOLVER_BOUND,
+        unresolved, RESOLVER_BOUND,
         "the rules this harness cannot judge are named in one place, so a rule joining them \
          is a change to this list and not a quiet loss of coverage"
     );
@@ -177,8 +176,9 @@ fn an_installed_canon_impl_survives_the_compiler() {
     let text = "pub struct User {\n    pub name: String,\n    pub age: u8,\n}\n";
     let sources = vec![Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
     for trait_name in ["Default", "Display"] {
-        let gain = rustmanifest_engine::semantic::install_impl(&sources, None, 0, "User", trait_name)
-            .expect("a canon install over proven fields");
+        let gain =
+            rustmanifest_engine::semantic::install_impl(&sources, None, 0, "User", trait_name)
+                .expect("a canon install over proven fields");
         if let Some(complaint) = rejected(
             "src/lib.rs",
             &[(PathBuf::from("src/lib.rs"), gain.installed.clone())]
@@ -238,4 +238,3 @@ fn every_fulfilled_intent_survives_the_compiler() {
         }
     }
 }
-

@@ -81,7 +81,7 @@ const WRITING_BODIES: [&str; 4] = [
 /// Whether the body a site proves the effect with puts bytes out.
 fn writes_out(proof: &str) -> bool {
     proof.starts_with(&format!("{WRITING_TRAIT}::"))
-        || WRITING_BODIES.iter().any(|named| proof == *named)
+        || WRITING_BODIES.contains(&proof)
 }
 
 /// Every method that carries a store across the end of the run.

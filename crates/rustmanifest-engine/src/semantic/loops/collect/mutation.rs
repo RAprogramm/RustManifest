@@ -13,7 +13,7 @@
 //! is missing the receiver is treated as changed rather than guessed from
 //! the method's spelling.
 
-use rustmanifest_schema::{ResolvedMode, Resolution};
+use rustmanifest_schema::{Resolution, ResolvedMode};
 use syn::{spanned::Spanned, visit::Visit};
 
 use crate::semantic::expr::{compound_assignment, place_root, settled_call, token_words};

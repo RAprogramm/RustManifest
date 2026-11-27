@@ -148,12 +148,18 @@ mod tests {
         let workspace = Workspace::resolved(&sources, &settled);
         assert_eq!(
             format!("{workspace:?}"),
-            format!("{:?}", Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)))
+            format!(
+                "{:?}",
+                Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))
+            )
         );
         assert_eq!(workspace.types().types().len(), 1);
         assert_ne!(
             format!("{workspace:?}"),
-            format!("{:?}", Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)))
+            format!(
+                "{:?}",
+                Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))
+            )
         );
     }
 
@@ -180,7 +186,12 @@ mod tests {
     #[test]
     fn the_analyzed_sources_are_handed_back() {
         let sources = sources();
-        assert_eq!(Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources)).sources().len(), 1);
+        assert_eq!(
+            Workspace::resolved(&sources, &crate::semantic::settling::settled_over(&sources))
+                .sources()
+                .len(),
+            1
+        );
     }
 
     #[test]

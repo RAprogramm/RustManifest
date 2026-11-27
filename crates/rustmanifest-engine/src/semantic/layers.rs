@@ -106,8 +106,7 @@ fn entangled_modules<'graph>(
     for &start in edges.keys() {
         let mut stack: Vec<&str> = edges
             .get(start)
-            .map(|targets| targets.iter().copied().collect())
-            .unwrap_or_default();
+            .map_or_default(|targets| targets.iter().copied().collect());
         let mut seen = BTreeSet::new();
         while let Some(current) = stack.pop() {
             if current == start {
@@ -136,9 +135,7 @@ mod tests {
 
     use super::layers;
     use crate::{
-        semantic::{
-            module_graph::declared_tree, settling::settle_identity, workspace::Workspace
-        },
+        semantic::{module_graph::declared_tree, settling::settle_identity, workspace::Workspace},
         source::Source
     };
 

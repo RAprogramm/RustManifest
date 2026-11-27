@@ -127,18 +127,18 @@ mod tests {
     use std::path::PathBuf;
 
     use super::Provenance;
-    use crate::{
-        semantic::behavior::OriginGap,
-        source::Source
-    };
+    use crate::{semantic::behavior::OriginGap, source::Source};
 
     fn operands(text: &str, function: &str) -> Vec<Provenance> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .find(|fact| fact.function == function)
-            .and_then(|fact| fact.operations.first().map(|site| site.operands.clone()))
-            .expect("the function records an operation")
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .find(|fact| fact.function == function)
+        .and_then(|fact| fact.operations.first().map(|site| site.operands.clone()))
+        .expect("the function records an operation")
     }
 
     /// A written type does not change which value a name stands for.
@@ -152,7 +152,10 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let built = Provenance::Constructed("Pair".to_owned());
         assert!(
             facts
@@ -170,7 +173,10 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let alternatives: Vec<Provenance> = facts
             .iter()
             .flat_map(|fact| fact.choices.iter())
@@ -192,7 +198,10 @@ mod tests {
             PathBuf::from("src/lib.rs"),
             text.to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let selections = facts
             .iter()
             .flat_map(|fact| fact.operations.iter())
@@ -269,10 +278,13 @@ mod tests {
         )];
         let written = "OUTSIDE_LIMIT";
         let start = u32::try_from(text.find(written).unwrap()).unwrap();
-        let read: Vec<Provenance> = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
-            .collect();
+        let read: Vec<Provenance> = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
+        .collect();
         assert!(read.iter().all(|origin| !origin.derived()), "{read:?}");
 
         let mut resolution = rustmanifest_schema::Resolution {
@@ -292,11 +304,10 @@ mod tests {
             ..rustmanifest_schema::Resolution::default()
         };
         resolution.settle();
-        let settled: Vec<Provenance> =
-            crate::semantic::behavior_with(&sources, Some(&resolution))
-                .iter()
-                .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
-                .collect();
+        let settled: Vec<Provenance> = crate::semantic::behavior_with(&sources, Some(&resolution))
+            .iter()
+            .flat_map(|fact| fact.handbacks.iter().map(|handback| handback.value.clone()))
+            .collect();
         assert!(
             settled.contains(&Provenance::Constant(written.to_owned())),
             "{settled:?}"

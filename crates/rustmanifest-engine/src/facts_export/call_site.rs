@@ -63,10 +63,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::{
-        semantic::FunctionFacts,
-        source::Source
-    };
+    use crate::{semantic::FunctionFacts, source::Source};
 
     fn facts(text: &str) -> Vec<FunctionFacts> {
         {

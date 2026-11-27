@@ -155,13 +155,12 @@ impl TypeGraph {
                     .find(|held| held.name == settled.name)
                 {
                     let opened = opened(&settled.named);
-                    if let Some(named) = crate::semantic::behavior::outermost_name(&settled.named) {
+                    if let Some(named) = crate::semantic::behavior::outermost_name(&settled.named)
+                    {
                         field.type_name = named;
                     }
-                    field.holds =
-                        crate::semantic::behavior::outermost_name(&opened).filter(|named| {
-                            *named != field.type_name
-                        });
+                    field.holds = crate::semantic::behavior::outermost_name(&opened)
+                        .filter(|named| *named != field.type_name);
                     field.element = held(&opened);
                     field.key = looked_up_by(&opened);
                 }

@@ -4,13 +4,7 @@
 //! What a statement proves about the statement after it, and the left
 //! fold that carries those answers through a block.
 
-use super::{
-
-    completion::Completion,
-    flow::Flow,
-    gate::gated,
-    scope::FlowScope
-};
+use super::{completion::Completion, flow::Flow, gate::gated, scope::FlowScope};
 
 impl FlowScope<'_> {
     /// What a statement proves about the statement after it. A

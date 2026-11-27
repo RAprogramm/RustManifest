@@ -96,8 +96,7 @@ pub(in crate::semantic) fn of(
             path:       module.path.clone(),
             file:       sources
                 .get(module.source)
-                .map(|source| source.path().to_path_buf())
-                .unwrap_or_default(),
+                .map_or_default(|source| source.path().to_path_buf()),
             crate_root: module.path == "crate",
             in_cycle:   cyclic.contains(&index)
         })

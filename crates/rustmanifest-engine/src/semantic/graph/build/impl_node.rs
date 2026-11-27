@@ -4,8 +4,6 @@
 //! Construction of [`ImplNode`]s from impl blocks, including the type
 //! references each method body mentions.
 
-
-
 use crate::semantic::graph::nodes::{ImplNode, MethodNode};
 
 /// Builds an [`ImplNode`] from a parsed impl block, or [`None`] when the

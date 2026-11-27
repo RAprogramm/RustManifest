@@ -38,9 +38,15 @@ pub fn manifest_files(paths: &[PathBuf]) -> Vec<PathBuf> {
     for root in roots {
         builder.add(root);
     }
-    builder.standard_filters(true).hidden(true).filter_entry(|entry| {
-        entry.file_name().to_str().is_none_or(|name| name != "target")
-    });
+    builder
+        .standard_filters(true)
+        .hidden(true)
+        .filter_entry(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_none_or(|name| name != "target")
+        });
     let mut files: Vec<PathBuf> = builder
         .build()
         .filter_map(Result::ok)
@@ -122,18 +128,20 @@ fn normalized(name: &str) -> String {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::TempDir;
 
+    use super::*;
+
     struct TestWorkspace {
-        root: TempDir,
+        root: TempDir
     }
 
     impl TestWorkspace {
         fn new() -> Self {
             Self {
-                root: TempDir::new().unwrap(),
+                root: TempDir::new().unwrap()
             }
         }
 
@@ -168,15 +176,15 @@ mod tests {
         let ws = TestWorkspace::new();
         ws.write_manifest(
             "Cargo.toml",
-            "[workspace]\nresolver = \"2\"\nmembers = [\"a\", \"b\"]\n",
+            "[workspace]\nresolver = \"2\"\nmembers = [\"a\", \"b\"]\n"
         );
         ws.write_manifest(
             "a/Cargo.toml",
-            "[package]\nname = \"a\"\nversion = \"0.1\"\nedition = \"2024\"\n",
+            "[package]\nname = \"a\"\nversion = \"0.1\"\nedition = \"2024\"\n"
         );
         ws.write_manifest(
             "b/Cargo.toml",
-            "[package]\nname = \"b\"\nversion = \"0.1\"\nedition = \"2024\"\n",
+            "[package]\nname = \"b\"\nversion = \"0.1\"\nedition = \"2024\"\n"
         );
         let files = manifest_files(&[ws.root_path()]);
         assert_eq!(files.len(), 3);
@@ -191,7 +199,7 @@ mod tests {
         ws.write_manifest("Cargo.toml", "[workspace]\nresolver = \"2\"\n");
         ws.write_manifest(
             "target/debug/build/gen/Cargo.toml",
-            "[package]\nname = \"gen\"\nversion = \"0.1\"\nedition = \"2024\"\n",
+            "[package]\nname = \"gen\"\nversion = \"0.1\"\nedition = \"2024\"\n"
         );
         let files = manifest_files(&[ws.root_path()]);
         assert_eq!(files.len(), 1);
@@ -204,7 +212,7 @@ mod tests {
         ws.write_manifest("Cargo.toml", "[workspace]\nresolver = \"2\"\n");
         ws.write_manifest(
             ".cargo/Cargo.toml",
-            "[package]\nname = \"hidden\"\nversion = \"0.1\"\nedition = \"2024\"\n",
+            "[package]\nname = \"hidden\"\nversion = \"0.1\"\nedition = \"2024\"\n"
         );
         let files = manifest_files(&[ws.root_path()]);
         assert_eq!(files.len(), 1);
@@ -221,7 +229,10 @@ mod tests {
     #[test]
     fn package_name_returns_none_for_workspace_root() {
         let ws = TestWorkspace::new();
-        ws.write_manifest("Cargo.toml", "[workspace]\nresolver = \"2\"\nmembers = []\n");
+        ws.write_manifest(
+            "Cargo.toml",
+            "[workspace]\nresolver = \"2\"\nmembers = []\n"
+        );
         assert!(package_name(&ws.manifest_path("Cargo.toml")).is_none());
     }
 

@@ -25,24 +25,96 @@ use crate::semantic::behavior::{Arithmetic, Guarding, Operation};
 /// guarantee stated here.
 const OPERATION_METHODS: [(&str, Arithmetic, Guarding); 20] = [
     ("core::num::checked_add", Arithmetic::Add, Guarding::Checked),
-    ("core::num::checked_div", Arithmetic::Divide, Guarding::Checked),
-    ("core::num::checked_mul", Arithmetic::Multiply, Guarding::Checked),
-    ("core::num::checked_neg", Arithmetic::Negate, Guarding::Checked),
-    ("core::num::checked_rem", Arithmetic::Remainder, Guarding::Checked),
-    ("core::num::checked_sub", Arithmetic::Subtract, Guarding::Checked),
-    ("core::num::overflowing_add", Arithmetic::Add, Guarding::Reported),
-    ("core::num::overflowing_mul", Arithmetic::Multiply, Guarding::Reported),
-    ("core::num::overflowing_sub", Arithmetic::Subtract, Guarding::Reported),
-    ("core::num::saturating_add", Arithmetic::Add, Guarding::Saturating),
-    ("core::num::saturating_mul", Arithmetic::Multiply, Guarding::Saturating),
-    ("core::num::saturating_sub", Arithmetic::Subtract, Guarding::Saturating),
-    ("core::num::wrapping_add", Arithmetic::Add, Guarding::Wrapping),
-    ("core::num::wrapping_div", Arithmetic::Divide, Guarding::Wrapping),
-    ("core::num::wrapping_mul", Arithmetic::Multiply, Guarding::Wrapping),
-    ("core::num::wrapping_neg", Arithmetic::Negate, Guarding::Wrapping),
-    ("core::num::wrapping_rem", Arithmetic::Remainder, Guarding::Wrapping),
-    ("core::num::wrapping_sub", Arithmetic::Subtract, Guarding::Wrapping),
-    ("core::num::abs_diff", Arithmetic::Subtract, Guarding::Saturating),
+    (
+        "core::num::checked_div",
+        Arithmetic::Divide,
+        Guarding::Checked
+    ),
+    (
+        "core::num::checked_mul",
+        Arithmetic::Multiply,
+        Guarding::Checked
+    ),
+    (
+        "core::num::checked_neg",
+        Arithmetic::Negate,
+        Guarding::Checked
+    ),
+    (
+        "core::num::checked_rem",
+        Arithmetic::Remainder,
+        Guarding::Checked
+    ),
+    (
+        "core::num::checked_sub",
+        Arithmetic::Subtract,
+        Guarding::Checked
+    ),
+    (
+        "core::num::overflowing_add",
+        Arithmetic::Add,
+        Guarding::Reported
+    ),
+    (
+        "core::num::overflowing_mul",
+        Arithmetic::Multiply,
+        Guarding::Reported
+    ),
+    (
+        "core::num::overflowing_sub",
+        Arithmetic::Subtract,
+        Guarding::Reported
+    ),
+    (
+        "core::num::saturating_add",
+        Arithmetic::Add,
+        Guarding::Saturating
+    ),
+    (
+        "core::num::saturating_mul",
+        Arithmetic::Multiply,
+        Guarding::Saturating
+    ),
+    (
+        "core::num::saturating_sub",
+        Arithmetic::Subtract,
+        Guarding::Saturating
+    ),
+    (
+        "core::num::wrapping_add",
+        Arithmetic::Add,
+        Guarding::Wrapping
+    ),
+    (
+        "core::num::wrapping_div",
+        Arithmetic::Divide,
+        Guarding::Wrapping
+    ),
+    (
+        "core::num::wrapping_mul",
+        Arithmetic::Multiply,
+        Guarding::Wrapping
+    ),
+    (
+        "core::num::wrapping_neg",
+        Arithmetic::Negate,
+        Guarding::Wrapping
+    ),
+    (
+        "core::num::wrapping_rem",
+        Arithmetic::Remainder,
+        Guarding::Wrapping
+    ),
+    (
+        "core::num::wrapping_sub",
+        Arithmetic::Subtract,
+        Guarding::Wrapping
+    ),
+    (
+        "core::num::abs_diff",
+        Arithmetic::Subtract,
+        Guarding::Saturating
+    ),
     ("core::num::pow", Arithmetic::Multiply, Guarding::Unchecked)
 ];
 

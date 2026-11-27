@@ -126,7 +126,10 @@ mod tests {
             PathBuf::from("src/main.rs"),
             "fn main() {\n    println!(\"Hello, world!\");\n}".to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -162,7 +165,10 @@ mod tests {
                 PathBuf::from("src/main.rs"),
                 format!("fn main() -> std::io::Result<()> {{\n{body}\n}}")
             )];
-            let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+            let facts = crate::semantic::behavior_with(
+                &sources,
+                Some(&crate::semantic::settling::settled_over(&sources))
+            );
             let main = facts
                 .iter()
                 .find(|fact| fact.function == "main")
@@ -188,7 +194,10 @@ mod tests {
              out.write_all(b\"hi\")\n}"
                 .to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -211,7 +220,10 @@ mod tests {
             "fn main() {\n    println!(\"one\");\n    eprintln!(\"two\");\n    println!(\"one\");\n}"
                 .to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let main = facts
             .iter()
             .find(|fact| fact.function == "main")
@@ -236,11 +248,14 @@ mod tests {
 
         use crate::source::Source;
         let sources = [Source::new(PathBuf::from("src/main.rs"), source.to_owned())];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .into_iter()
-            .find(|fact| fact.function == function)
-            .map(|fact| fact.output_writes)
-            .unwrap_or_default()
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .into_iter()
+        .find(|fact| fact.function == function)
+        .map(|fact| fact.output_writes)
+        .unwrap_or_default()
     }
 
     fn writes_of(body: &str) -> Vec<super::OutputWrite> {
@@ -506,7 +521,8 @@ mod tests {
         assert_eq!(main.output_writes.len(), 1);
         assert_eq!(main.output_writes[0].guard.local_grade(), Grade::Dead);
 
-        let coming_back = "fn helper() -> u8 { 1 }\nfn main() {\n    helper();\n    println!(\"hi\");\n}";
+        let coming_back =
+            "fn helper() -> u8 { 1 }\nfn main() {\n    helper();\n    println!(\"hi\");\n}";
         let returning = [Source::new(
             PathBuf::from("src/main.rs"),
             coming_back.to_owned()

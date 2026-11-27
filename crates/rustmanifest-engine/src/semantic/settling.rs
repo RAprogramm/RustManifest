@@ -16,11 +16,12 @@ mod identity;
 
 use std::path::PathBuf;
 
-pub use self::identity::{identity_of, identity_over, settle_identity};
 use rustmanifest_schema::{
-    Location, Range, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedGrant, ResolvedType,
-    ResolvedTypeDecl, Resolution
+    Location, Range, Resolution, ResolvedCall, ResolvedField, ResolvedFieldDecl, ResolvedGrant,
+    ResolvedType, ResolvedTypeDecl
 };
+
+pub use self::identity::{identity_of, identity_over, settle_identity};
 
 /// Everything a compiler settles about a fixture, asked of the compiler
 /// itself.
@@ -36,12 +37,7 @@ use rustmanifest_schema::{
 pub fn settled_over(sources: &[crate::source::Source]) -> Resolution {
     let written: Vec<(String, String)> = sources
         .iter()
-        .map(|held| {
-            (
-                held.path().display().to_string(),
-                held.text().to_owned()
-            )
-        })
+        .map(|held| (held.path().display().to_string(), held.text().to_owned()))
         .collect();
     let asked: Vec<(&str, &str)> = written
         .iter()
@@ -53,11 +49,11 @@ pub fn settled_over(sources: &[crate::source::Source]) -> Resolution {
 /// A resolution being written down over one or more fixture files.
 pub struct Settling<'text> {
     /// File the fragments named next are written in.
-    file:   PathBuf,
+    file:    PathBuf,
     /// Text of that file.
-    text:   &'text str,
+    text:    &'text str,
     /// Offset the next fragment is searched from.
-    from:   usize,
+    from:    usize,
     /// What has been settled so far.
     settled: Resolution
 }
@@ -67,9 +63,9 @@ impl<'text> Settling<'text> {
     #[must_use]
     pub fn over(file: &str, text: &'text str) -> Self {
         Self {
-            file:    PathBuf::from(file),
+            file: PathBuf::from(file),
             text,
-            from:    0,
+            from: 0,
             settled: Resolution {
                 resolver: "test".to_owned(),
                 ..Resolution::default()
@@ -116,12 +112,7 @@ impl<'text> Settling<'text> {
     /// States the type holding the field written at `fragment` and the
     /// type that field itself has.
     #[must_use]
-    pub fn field(
-        mut self,
-        fragment: &str,
-        owner: &str,
-        produced: &str
-    ) -> Self {
+    pub fn field(mut self, fragment: &str, owner: &str, produced: &str) -> Self {
         let at = self.located(fragment);
         self.settled.fields.push(ResolvedField {
             at,
@@ -137,12 +128,7 @@ impl<'text> Settling<'text> {
     /// A field of one name is read in as many bodies as a fixture has;
     /// naming each occurrence apart would say the same thing four times.
     #[must_use]
-    pub fn fields(
-        mut self,
-        fragment: &str,
-        owner: &str,
-        produced: &str
-    ) -> Self {
+    pub fn fields(mut self, fragment: &str, owner: &str, produced: &str) -> Self {
         while let Some(at) = self.next_at(fragment) {
             self.from = at.range.end as usize;
             self.settled.fields.push(ResolvedField {

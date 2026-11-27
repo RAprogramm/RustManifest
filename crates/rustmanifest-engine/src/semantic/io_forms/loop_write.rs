@@ -102,7 +102,9 @@ mod tests {
     /// declares, without which the readings above answer nothing.
     fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
         let settled = crate::semantic::settling::settled_over(sources);
-        loop_write_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+        loop_write_insights(&crate::semantic::workspace::Workspace::resolved(
+            sources, &settled
+        ))
     }
 
     /// The locked-handle shape with a written flush carries the
@@ -190,9 +192,7 @@ mod tests {
         assert_eq!(looped.len(), 1);
         assert!(looped[0].detail.contains("buffered writer"));
 
-        let straight = insights_over(&sources(
-            "fn main() {\n    println!(\"once\");\n}"
-        ));
+        let straight = insights_over(&sources("fn main() {\n    println!(\"once\");\n}"));
         assert!(straight.is_empty());
     }
 

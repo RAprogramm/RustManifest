@@ -126,8 +126,13 @@ pub fn fulfill_intents(
         .into_iter()
         .filter_map(|intent| {
             let node = types.type_named(&intent.type_name)?;
-            let mut held =
-                deduce_impl(sources, settled, node.source, &intent.type_name, &intent.trait_name);
+            let mut held = deduce_impl(
+                sources,
+                settled,
+                node.source,
+                &intent.type_name,
+                &intent.trait_name
+            );
             held.chain.steps.insert(0, intent.evidence);
             if let Some(choice) = held.catalog.as_mut() {
                 choice.step += 1;
@@ -244,5 +249,4 @@ mod tests {
         );
         assert!(derived_intents(&sources).is_empty());
     }
-
 }

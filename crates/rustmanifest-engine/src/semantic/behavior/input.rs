@@ -45,19 +45,19 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Channel, InputRead, Intake, ReadShape, Selector, SelectorGap, Terminator};
-    use crate::{
-        semantic::behavior::Acquisition,
-        source::Source
-    };
+    use crate::{semantic::behavior::Acquisition, source::Source};
 
     fn reads(body: &str) -> Vec<InputRead> {
         let text = format!("use std::env;\nuse std::io::BufRead;\nfn main() {{\n{body}\n}}");
         let sources = [Source::new(PathBuf::from("src/main.rs"), text)];
-        crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))
-            .iter()
-            .find(|fact| fact.function == "main")
-            .map(|fact| fact.input_reads.clone())
-            .expect("the entry function is a fact")
+        crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        )
+        .iter()
+        .find(|fact| fact.function == "main")
+        .map(|fact| fact.input_reads.clone())
+        .expect("the entry function is a fact")
     }
 
     /// The words a process was started with are a read of the command
@@ -166,7 +166,10 @@ mod tests {
              own::args(); }"
                 .to_owned()
         )];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let entry = facts
             .iter()
             .find(|fact| fact.function == "main")

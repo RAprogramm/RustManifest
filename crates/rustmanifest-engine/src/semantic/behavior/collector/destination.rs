@@ -12,10 +12,7 @@
 mod handle;
 
 use self::handle::{destination_root, guard_of, named_stream, standard_handle, stream_type};
-use super::{
-    FactCollector,
-    catalog::STREAM_LOCK_METHOD
-};
+use super::{FactCollector, catalog::STREAM_LOCK_METHOD};
 use crate::semantic::behavior::output::{Acquisition, Buffering, Stream};
 
 /// What a write site's destination expression resolves to: the stream the

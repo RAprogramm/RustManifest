@@ -181,7 +181,10 @@ mod tests {
 
     fn marked(text: &str) -> Vec<(String, &'static str)> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let types = TypeGraph::from_sources(&sources);
         let mut resolution = rustmanifest_schema::Resolution {
             resolver: "test".to_owned(),
@@ -192,7 +195,10 @@ mod tests {
             ..rustmanifest_schema::Resolution::default()
         };
         settle_identity(&mut resolution, &sources, &facts);
-        let graph = call_graph(&facts, &resolution_context_with(&sources, Some(&resolution)));
+        let graph = call_graph(
+            &facts,
+            &resolution_context_with(&sources, Some(&resolution))
+        );
         handover_marks(&sources, &facts, &graph, &types, Some(&resolution), 0)
             .into_iter()
             .map(|mark| {
@@ -208,5 +214,4 @@ mod tests {
     fn an_unresolved_callee_marks_nothing() {
         assert!(marked("fn main() { let s = String::from(\"x\"); s.len(); }").is_empty());
     }
-
 }

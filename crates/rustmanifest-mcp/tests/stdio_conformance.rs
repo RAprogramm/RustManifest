@@ -158,7 +158,6 @@ fn scripted() -> BTreeMap<i64, Value> {
     ])
 }
 
-
 /// What a compiler settles about `sources`, asked of the compiler.
 fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
     let written: Vec<(String, String)> = sources

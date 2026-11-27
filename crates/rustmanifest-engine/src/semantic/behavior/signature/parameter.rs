@@ -4,8 +4,6 @@
 //! The declared parameter list: ownership profiles, types, and
 //! collection element types, keyed by parameter name.
 
-
-
 /// The one name a single-field tuple-struct pattern binds, where it
 /// binds exactly one.
 ///
@@ -23,4 +21,3 @@ pub(super) fn single_binding(pattern: &syn::PatTupleStruct) -> Option<String> {
     };
     Some(ident.ident.to_string())
 }
-

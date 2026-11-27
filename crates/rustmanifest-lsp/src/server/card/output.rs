@@ -82,9 +82,7 @@ const fn named(stream: Stream) -> &'static str {
 mod tests {
 
     /// What a compiler settles about `sources`, asked of the compiler.
-    fn settled_over(
-        sources: &[rustmanifest_engine::Source]
-    ) -> rustmanifest_schema::Resolution {
+    fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {
         let written: Vec<(String, String)> = sources
             .iter()
             .map(|held| (held.path().display().to_string(), held.text().to_owned()))

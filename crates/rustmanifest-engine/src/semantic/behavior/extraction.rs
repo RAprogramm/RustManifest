@@ -10,15 +10,13 @@ use rustmanifest_schema::Range;
 use syn::visit::Visit;
 
 use super::{
-    collector::{FactCollector, name_census},
+    collector::{name_census, FactCollector},
     declaration::ItemContext,
     folding::fold_constants,
-    signature::{
-        error_types, param_slots
-    },
+    signature::{error_types, param_slots},
     tables::TypeTables,
     targeting::name_targets,
-    types::{Effect, EffectSite, FunctionFacts}
+    types::{Effect, EffectSite, FunctionFacts},
 };
 
 /// Everything the reading of one body is handed besides the body itself:
@@ -29,11 +27,11 @@ use super::{
 /// travel together and are never chosen apart.
 pub(super) struct Known<'a> {
     /// Workspace typing tables.
-    pub(super) tables:  &'a TypeTables,
+    pub(super) tables: &'a TypeTables,
     /// Imports of the file the body lives in.
     pub(super) imports: &'a std::collections::BTreeMap<String, String>,
     /// What a resolver settled about that file, by byte range.
-    pub(super) settled: &'a super::assembly::Settled
+    pub(super) settled: &'a super::assembly::Settled,
 }
 
 /// Extracts the facts of one function body against its signature.
@@ -50,13 +48,10 @@ fn mark_unsafe(collector: &mut FactCollector, signature: &syn::Signature) {
 }
 
 /// What the function takes, as the compiler read its signature.
-fn taken(
-    known: &Known<'_>,
-    bytes: &std::ops::Range<usize>
-) -> Vec<super::types::ParamFacts> {
+fn taken(known: &Known<'_>, bytes: &std::ops::Range<usize>) -> Vec<super::types::ParamFacts> {
     let at = (
         u32::try_from(bytes.start).unwrap_or(u32::MAX),
-        u32::try_from(bytes.end).unwrap_or(u32::MAX)
+        u32::try_from(bytes.end).unwrap_or(u32::MAX),
     );
     known.settled.params.get(&at).cloned().unwrap_or_default()
 }
@@ -66,30 +61,31 @@ fn taken(
 fn handed_back(known: &Known<'_>, bytes: &std::ops::Range<usize>) -> Option<String> {
     let at = (
         u32::try_from(bytes.start).unwrap_or(u32::MAX),
-        u32::try_from(bytes.end).unwrap_or(u32::MAX)
+        u32::try_from(bytes.end).unwrap_or(u32::MAX),
     );
     known.settled.returns.get(&at).cloned()
 }
 
+#[allow(clippy::too_many_lines)]
 pub(super) fn function_facts(
     source: usize,
     function: String,
     context: &ItemContext,
     signature: &syn::Signature,
     block: &syn::Block,
-    known: &Known<'_>
+    known: &Known<'_>,
 ) -> FunctionFacts {
     let bytes = signature.ident.span().byte_range();
     let census = name_census(block);
     let params = taken(known, &bytes);
     let collected = params.clone();
     let mut collector = FactCollector {
-        facts:            FunctionFacts {
+        facts: FunctionFacts {
             function,
             source,
             range: Range {
                 start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-                end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
+                end: u32::try_from(bytes.end).unwrap_or(u32::MAX),
             },
             reads: Vec::new(),
             writes: Vec::new(),
@@ -112,45 +108,45 @@ pub(super) fn function_facts(
             handbacks: Vec::new(),
             output_writes: Vec::new(),
             exits: Vec::new(),
-            queries: Vec::new()
+            queries: Vec::new(),
         },
-        param_types:      collected
+        param_types: collected
             .iter()
             .map(|param| (param.name.clone(), param.type_name.clone()))
             .collect(),
-        settled:          known.settled.produced.clone(),
-        reached:          known.settled.reached.clone(),
-        receiver_paths:   known.settled.receiver_paths.clone(),
-        caller_decided:   known.settled.caller_decided.clone(),
-        type_paths:       known.settled.type_paths.clone(),
-        param_paths:      std::collections::BTreeMap::new(),
-        receivers:        known.settled.receivers.clone(),
-        takes:            known.settled.takes.clone(),
-        held:             known.settled.fields.clone(),
-        typed:            known.settled.types.clone(),
-        rendered:         known.settled.rendered.clone(),
-        leaving:          known
+        settled: known.settled.produced.clone(),
+        reached: known.settled.reached.clone(),
+        receiver_paths: known.settled.receiver_paths.clone(),
+        caller_decided: known.settled.caller_decided.clone(),
+        type_paths: known.settled.type_paths.clone(),
+        param_paths: std::collections::BTreeMap::new(),
+        receivers: known.settled.receivers.clone(),
+        takes: known.settled.takes.clone(),
+        held: known.settled.fields.clone(),
+        typed: known.settled.types.clone(),
+        rendered: known.settled.rendered.clone(),
+        leaving: known
             .settled
             .rendered
             .iter()
             .filter(|(_, rendered)| rendered.trim() == "!")
             .map(|(at, _)| *at)
             .collect(),
-        items:            known.settled.items.clone(),
-        named:            known.settled.named.clone(),
-        local_wraps:      std::collections::BTreeMap::new(),
-        imports:          known.imports.clone(),
-        fresh:            std::collections::BTreeSet::new(),
+        items: known.settled.items.clone(),
+        named: known.settled.named.clone(),
+        local_wraps: std::collections::BTreeMap::new(),
+        imports: known.imports.clone(),
+        fresh: std::collections::BTreeSet::new(),
         buffered_streams: std::collections::BTreeMap::new(),
-        guards:           Vec::new(),
-        prior_exits:      0,
-        dead:             false,
-        slots:            param_slots(signature),
-        origins:          std::collections::BTreeMap::new(),
-        written:          census.written,
-        sole:             census.sole,
-        produced:         std::collections::BTreeMap::new(),
-        conditions:       Vec::new()
+        guards: Vec::new(),
+        prior_exits: 0,
+        dead: false,
+        slots: param_slots(signature),
+        origins: std::collections::BTreeMap::new(),
+        written: census.written,
+        sole: census.sole,
+        produced: std::collections::BTreeMap::new(),
+        conditions: Vec::new(),
     };
     mark_unsafe(&mut collector, signature);
     collector.facts.error_types = error_types(handed_back(known, &bytes).as_deref());
@@ -179,7 +175,7 @@ pub(super) fn function_facts(
         block,
         &known.tables.constants,
         source,
-        &known.tables.crates
+        &known.tables.crates,
     );
     collector.facts
 }
@@ -190,10 +186,10 @@ fn unsafe_signature_site(signature: &syn::Signature) -> EffectSite {
     let bytes = signature.ident.span().byte_range();
     EffectSite {
         effect: Effect::Unsafe,
-        proof:  "unsafe fn".to_owned(),
-        range:  Range {
+        proof: "unsafe fn".to_owned(),
+        range: Range {
             start: u32::try_from(bytes.start).unwrap_or(u32::MAX),
-            end:   u32::try_from(bytes.end).unwrap_or(u32::MAX)
-        }
+            end: u32::try_from(bytes.end).unwrap_or(u32::MAX),
+        },
     }
 }

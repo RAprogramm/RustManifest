@@ -57,7 +57,11 @@ pub(in crate::semantic::behavior::collector) fn reached_effect(
         return Some(*effect);
     }
     (segments.len() == 2)
-        .then(|| segments.first().and_then(|first| knowledge::crate_effect(first)))
+        .then(|| {
+            segments
+                .first()
+                .and_then(|first| knowledge::crate_effect(first))
+        })
         .flatten()
 }
 

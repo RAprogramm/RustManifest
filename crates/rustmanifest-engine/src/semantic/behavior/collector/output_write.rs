@@ -62,8 +62,7 @@ impl FactCollector {
             .ok();
         let arguments: Vec<&syn::Expr> = parsed
             .as_ref()
-            .map(|written| written.iter().skip(1).collect())
-            .unwrap_or_default();
+            .map_or_default(|written| written.iter().skip(1).collect());
         let payload = self.typed_holes(output::macro_payload(invocation, debug_macro), &arguments);
         self.push_output(
             invocation.span().byte_range(),

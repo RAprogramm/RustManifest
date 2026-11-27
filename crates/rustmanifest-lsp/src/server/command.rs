@@ -293,16 +293,21 @@ fn deduced(request: &Request, held: &Derived<'_>) -> Response {
             format!("`{DEDUCE}` takes [type, trait]")
         );
     };
-    let chained = rustmanifest_learn::deduce_with_precedent(held.sources, held.settled, type_name, trait_name)
-        .unwrap_or_else(|| {
-            rustmanifest_engine::semantic::deduce_impl(
-                held.sources,
-                held.settled,
-                0,
-                type_name,
-                trait_name
-            )
-        });
+    let chained = rustmanifest_learn::deduce_with_precedent(
+        held.sources,
+        held.settled,
+        type_name,
+        trait_name
+    )
+    .unwrap_or_else(|| {
+        rustmanifest_engine::semantic::deduce_impl(
+            held.sources,
+            held.settled,
+            0,
+            type_name,
+            trait_name
+        )
+    });
     let steps: Vec<serde_json::Value> = chained
         .chain
         .steps

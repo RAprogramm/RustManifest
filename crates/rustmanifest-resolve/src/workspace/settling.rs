@@ -22,7 +22,10 @@ fn receiver_path(reading: Reading<'_, '_>, typed: &ra_ap_hir::Type<'_>) -> Optio
 
 /// Whether the declared return of `function` is spelled out of its own
 /// type parameters, which makes the type the caller's to decide.
-fn caller_decides(database: &dyn ra_ap_hir::db::HirDatabase, function: ra_ap_hir::Function) -> bool {
+fn caller_decides(
+    database: &dyn ra_ap_hir::db::HirDatabase,
+    function: ra_ap_hir::Function
+) -> bool {
     let declared = function.ret_type(database);
     let mut generic = declared.as_type_param(database).is_some();
     declared.walk(database, |held| {
@@ -95,14 +98,14 @@ pub(super) fn settled_free_call(
     };
     let returns = function.ret_type(reading.database);
     Some(ResolvedCall {
-        at:       reading.located(call.syntax().text_range()),
-        callee:   function.name(reading.database).as_str().to_owned(),
-        returns:  reading.render(&returns)?,
-        receiver: None,
-        receiver_path: None,
+        at:             reading.located(call.syntax().text_range()),
+        callee:         function.name(reading.database).as_str().to_owned(),
+        returns:        reading.render(&returns)?,
+        receiver:       None,
+        receiver_path:  None,
         caller_decides: caller_decides(reading.database, function),
-        reaches:  super::naming::canonical_function(reading.database, function),
-        takes:    receiver_mode(reading.database, function)
+        reaches:        super::naming::canonical_function(reading.database, function),
+        takes:          receiver_mode(reading.database, function)
     })
 }
 
@@ -122,13 +125,13 @@ pub(super) fn settled_call(
     let returns = reading
         .semantics
         .type_of_expr(&ast::Expr::MethodCallExpr(call.clone()))
-        .map(|typed| typed.original())
+        .map(ra_ap_hir::TypeInfo::original)
         .and_then(|typed| reading.render(&typed))
         .or_else(|| reading.render(&function.ret_type(reading.database)))?;
     let received = call
         .receiver()
         .and_then(|expression| reading.semantics.type_of_expr(&expression))
-        .map(|typed| typed.original());
+        .map(ra_ap_hir::TypeInfo::original);
     Some(ResolvedCall {
         at: reading.located(call.syntax().text_range()),
         callee: function.name(reading.database).as_str().to_owned(),

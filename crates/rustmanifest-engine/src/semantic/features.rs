@@ -169,14 +169,16 @@ mod tests {
     use std::path::PathBuf;
 
     use super::features;
-    use crate::{
-        semantic::settling::Settling,
-        source::Source
-    };
+    use crate::{semantic::settling::Settling, source::Source};
 
     fn first_features(text: &str) -> Vec<super::Feature> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        features(&crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))[0])
+        features(
+            &crate::semantic::behavior_with(
+                &sources,
+                Some(&crate::semantic::settling::settled_over(&sources))
+            )[0]
+        )
     }
 
     /// The features of the first function of `text`, read with what
@@ -247,5 +249,4 @@ mod tests {
         assert!(active(&all, "allocations>=1"));
         assert!(!active(&all, "allocations>=2"));
     }
-
 }

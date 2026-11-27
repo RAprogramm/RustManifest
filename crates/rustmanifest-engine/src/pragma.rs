@@ -62,12 +62,10 @@ pub fn collect(text: &str) -> Vec<Pragma> {
         if let Some(captures) = PRAGMA_RE.captures(line) {
             let rule_id = captures
                 .name("rule")
-                .map(|m| m.as_str().to_owned())
-                .unwrap_or_default();
+                .map_or_default(|m| m.as_str().to_owned());
             let reason = captures
                 .name("reason")
-                .map(|m| m.as_str().to_owned())
-                .unwrap_or_default();
+                .map_or_default(|m| m.as_str().to_owned());
             if !rule_id.is_empty() && !reason.is_empty() {
                 pragmas.push(Pragma {
                     rule_id,

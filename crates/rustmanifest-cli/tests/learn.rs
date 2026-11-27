@@ -40,7 +40,6 @@ fn mixed_tree() -> TempDir {
     dir
 }
 
-
 /// Writes beside `tree` what a compiler settles about its sources, and
 /// answers with the path the run reads it from.
 fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
@@ -63,7 +62,6 @@ fn settled_overlay(tree: &TempDir) -> std::path::PathBuf {
     .expect("the overlay is written");
     at
 }
-
 
 /// What a compiler settles about `sources`, asked of the compiler.
 fn settled_over(sources: &[rustmanifest_engine::Source]) -> rustmanifest_schema::Resolution {

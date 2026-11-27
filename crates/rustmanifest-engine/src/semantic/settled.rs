@@ -97,24 +97,27 @@ mod tests {
         let resolution = Resolution {
             resolver: "test".to_owned(),
             calls: vec![ResolvedCall {
-                at:       Location {
+                at:             Location {
                     file:  PathBuf::from("src/lib.rs"),
                     range: Range {
                         start: 3, end: 5
                     }
                 },
-                callee:   "is_some".to_owned(),
-                returns:  "bool".to_owned(),
-                receiver: None,
-                receiver_path: None,
+                callee:         "is_some".to_owned(),
+                returns:        "bool".to_owned(),
+                receiver:       None,
+                receiver_path:  None,
                 caller_decides: false,
-                reaches:  None,
-                takes:    None
+                reaches:        None,
+                takes:          None
             }],
             ..Resolution::default()
         };
         let settled = Settled::new(Some(&resolution), &sources);
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let fact = facts.first().expect("the source records one function");
         assert_eq!(
             settled.returns(

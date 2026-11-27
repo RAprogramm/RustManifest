@@ -8,13 +8,8 @@
 use std::collections::BTreeSet;
 
 use super::{
-    context::ResolutionContext,
-    dispatch::dispatch_targets,
-    graph::CallGraph,
-    overlay::apply_overlay,
-    reach::linkable,
-    rows::RefusalRow,
-    tables::name_tables
+    context::ResolutionContext, dispatch::dispatch_targets, graph::CallGraph,
+    overlay::apply_overlay, reach::linkable, rows::RefusalRow, tables::name_tables
 };
 use crate::semantic::behavior::FunctionFacts;
 
@@ -206,14 +201,16 @@ fn built(
             ) {
                 continue;
             }
-            let targets = candidate.rsplit_once("::").map_or_else(Vec::new, |(owner, method)| {
-                linkable(
-                    context,
-                    facts,
-                    index,
-                    &dispatch_targets(owner, method, context, &tables.0)
-                )
-            });
+            let targets = candidate
+                .rsplit_once("::")
+                .map_or_else(Vec::new, |(owner, method)| {
+                    linkable(
+                        context,
+                        facts,
+                        index,
+                        &dispatch_targets(owner, method, context, &tables.0)
+                    )
+                });
             if !targets.is_empty() {
                 let ambiguous = targets.len() > 1;
                 for target in targets {

@@ -404,10 +404,11 @@ mod tests {
                  self.inner.do_io(|stream| { stream.read(&mut []).ok(); }); } }"
             ),
         ];
-        let findings = checked_typed(&sources, &[net_ban("crate::domain")], &[(
-            "stream",
-            "TcpStream"
-        )]);
+        let findings = checked_typed(
+            &sources,
+            &[net_ban("crate::domain")],
+            &[("stream", "TcpStream")]
+        );
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("pump"));
     }
@@ -427,10 +428,11 @@ mod tests {
                 "use crate::io::Conn;\npub fn go(conn: Conn) { conn.send_all(); }"
             ),
         ];
-        let findings = checked_typed(&sources, &[net_ban("crate::domain")], &[
-            ("conn", "Conn"),
-            ("self", "Ext")
-        ]);
+        let findings = checked_typed(
+            &sources,
+            &[net_ban("crate::domain")],
+            &[("conn", "Conn"), ("self", "Ext")]
+        );
         assert_eq!(findings.len(), 1);
         assert!(findings[0].message.contains("go"));
     }

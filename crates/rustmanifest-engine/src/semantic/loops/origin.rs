@@ -106,8 +106,7 @@ pub(super) fn allocation_origin(
         }
         syn::Expr::Macro(invocation)
             if invocation.mac.tokens.is_empty()
-                && reached_macro
-                    .and_then(|named| named.split("::").next())
+                && reached_macro.and_then(|named| named.split("::").next())
                     == Some(ALLOCATING_CRATE) =>
         {
             Some(Origin::Allocation {

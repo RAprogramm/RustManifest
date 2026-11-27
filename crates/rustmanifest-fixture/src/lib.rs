@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 RAprogramm <andrey.rozanov.vl@gmail.com>
 // SPDX-License-Identifier: MIT
 
+#![allow(clippy::expect_used, clippy::format_push_string)]
+
 //! What a compiler settles about a test fixture, asked of the compiler.
 //!
 //! Every reading of the engine answers from a resolution and from
@@ -108,7 +110,6 @@ fn asked(files: &[(&str, &str)]) -> Resolution {
     held
 }
 
-
 /// Puts every row on the path its snippet was written under, and drops
 /// the rows of the crate root the package needed.
 fn rename(held: &mut Resolution, written: &[(PathBuf, PathBuf)]) {
@@ -118,30 +119,33 @@ fn rename(held: &mut Resolution, written: &[(PathBuf, PathBuf)]) {
             .find(|(laid, _)| laid == file)
             .map(|(_, path)| path.clone())
     };
-    held.calls.retain_mut(|row| rename_at(&mut row.at.file, &named));
-    held.fields.retain_mut(|row| rename_at(&mut row.at.file, &named));
-    held.types.retain_mut(|row| rename_at(&mut row.at.file, &named));
-    held.paths.retain_mut(|row| rename_at(&mut row.at.file, &named));
+    held.calls
+        .retain_mut(|row| rename_at(&mut row.at.file, &named));
+    held.fields
+        .retain_mut(|row| rename_at(&mut row.at.file, &named));
+    held.types
+        .retain_mut(|row| rename_at(&mut row.at.file, &named));
+    held.paths
+        .retain_mut(|row| rename_at(&mut row.at.file, &named));
     held.functions
         .retain_mut(|row| rename_at(&mut row.at.file, &named));
     held.signatures
         .retain_mut(|row| rename_at(&mut row.at.file, &named));
     held.declared
         .retain_mut(|row| rename_at(&mut row.at.file, &named));
-    held.grants.retain_mut(|row| rename_at(&mut row.at.file, &named));
-    held.modules.retain_mut(|row| rename_at(&mut row.file, &named));
+    held.grants
+        .retain_mut(|row| rename_at(&mut row.at.file, &named));
+    held.modules
+        .retain_mut(|row| rename_at(&mut row.file, &named));
 }
 
 /// Renames one row's file, answering whether the row belongs to a
 /// snippet at all.
 fn rename_at(file: &mut PathBuf, named: &impl Fn(&PathBuf) -> Option<PathBuf>) -> bool {
-    match named(file) {
-        Some(path) => {
-            *file = path;
-            true
-        }
-        None => false
-    }
+    named(file).is_some_and(|path| {
+        *file = path;
+        true
+    })
 }
 
 /// Writes `files` as one package the resolver can read.
@@ -153,7 +157,7 @@ fn write_package(root: &Path, files: &[(&str, &str)]) {
     std::fs::write(
         root.join("Cargo.toml"),
         "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2021\"\n\n[lib]\npath \
-         = \"src/lib.rs\"\n"
+         = \"src/lib.rs\"\n",
     )
     .expect("the manifest is written");
     std::fs::create_dir_all(root.join("src")).expect("the source directory");
@@ -203,5 +207,3 @@ fn is_root(path: &str) -> bool {
         "lib.rs" | "main.rs"
     )
 }
-
-

@@ -94,14 +94,16 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{Role, role};
-    use crate::{
-        semantic::settling::Settling,
-        source::Source
-    };
+    use crate::{semantic::settling::Settling, source::Source};
 
     fn first_role(text: &str) -> Role {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        role(&crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)))[0])
+        role(
+            &crate::semantic::behavior_with(
+                &sources,
+                Some(&crate::semantic::settling::settled_over(&sources))
+            )[0]
+        )
     }
 
     /// The role of the first function of `text`, read with what `settle`
@@ -156,9 +158,12 @@ mod tests {
                  Order::empty(); order.items = 3; order }\nimpl Order { fn empty() -> Self { \
                  Self { items: 0 } } }",
                 |settling| {
-                    settling
-                        .field("order.items", "Order", "u32")
-                        .call("Order::empty()", "empty", "Order", None)
+                    settling.field("order.items", "Order", "u32").call(
+                        "Order::empty()",
+                        "empty",
+                        "Order",
+                        None
+                    )
                 }
             ),
             Role::Constructor

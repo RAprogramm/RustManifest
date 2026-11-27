@@ -8,13 +8,13 @@
 
 use super::{
     conversion::error_conversions,
-    declaration::{ItemContext, is_attributed, item_flags},
-    extraction::{Known, function_facts},
+    declaration::{is_attributed, item_flags, ItemContext},
+    extraction::{function_facts, Known},
     imports::use_imports,
     rendering::name_rendered_texts,
     tables::TypeTables,
     trait_default::trait_default_facts,
-    types::FunctionFacts
+    types::FunctionFacts,
 };
 use crate::{semantic::expr::impl_type_name, source::Source};
 
@@ -35,7 +35,7 @@ pub fn behavior(sources: &[Source]) -> Vec<FunctionFacts> {
 #[must_use]
 pub fn behavior_with(
     sources: &[Source],
-    resolution: Option<&rustmanifest_schema::Resolution>
+    resolution: Option<&rustmanifest_schema::Resolution>,
 ) -> Vec<FunctionFacts> {
     let tables = TypeTables::of(sources);
     let mut facts = Vec::new();
@@ -48,9 +48,9 @@ pub fn behavior_with(
         let imports = use_imports(&items);
         let settled = settled_types(resolution, source);
         let known = Known {
-            tables:  &tables,
+            tables: &tables,
             imports: &imports,
-            settled: &settled
+            settled: &settled,
         };
         for item in &items {
             match item {
@@ -63,12 +63,12 @@ pub fn behavior_with(
                                 false,
                                 &function.attrs,
                                 matches!(function.vis, syn::Visibility::Public(_)),
-                                false
+                                false,
                             ),
                         },
                         &function.sig,
                         &function.block,
-                        &known
+                        &known,
                     ));
                 }
                 syn::Item::Impl(block) => {
@@ -89,12 +89,12 @@ pub fn behavior_with(
                                     trait_impl,
                                     &method.attrs,
                                     matches!(method.vis, syn::Visibility::Public(_)),
-                                    impl_attributed
-                                )
+                                    impl_attributed,
+                                ),
                             },
                             &method.sig,
                             &method.block,
-                            &known
+                            &known,
                         ));
                     }
                 }
@@ -118,24 +118,24 @@ pub fn behavior_with(
 #[derive(Debug, Default)]
 pub(super) struct Settled {
     /// Type each call at a position hands back.
-    pub(super) produced:  std::collections::BTreeMap<(u32, u32), String>,
+    pub(super) produced: std::collections::BTreeMap<(u32, u32), String>,
     /// Type of the receiver each call at a position was called on.
     pub(super) receivers: std::collections::BTreeMap<(u32, u32), String>,
     /// Type holding the field read at a position, and the type that
     /// field itself has.
-    pub(super) fields:    std::collections::BTreeMap<(u32, u32), (String, String)>,
+    pub(super) fields: std::collections::BTreeMap<(u32, u32), (String, String)>,
     /// Type of the expression written at a position, whatever its shape.
     ///
     /// This one is not about calls or fields: it answers for every
     /// expression the resolver settled, which is what lets a reading stop
     /// deciding a type from how the expression was spelled.
-    pub(super) types:     std::collections::BTreeMap<(u32, u32), String>,
+    pub(super) types: std::collections::BTreeMap<(u32, u32), String>,
     /// Parameters of the function whose name is written at a position, as
     /// the compiler read its signature.
-    pub(super) params:    std::collections::BTreeMap<(u32, u32), Vec<super::types::ParamFacts>>,
+    pub(super) params: std::collections::BTreeMap<(u32, u32), Vec<super::types::ParamFacts>>,
     /// Type the function whose name is written at a position hands back,
     /// as the compiler renders it in full.
-    pub(super) returns:   std::collections::BTreeMap<(u32, u32), String>,
+    pub(super) returns: std::collections::BTreeMap<(u32, u32), String>,
     /// Full path of the type the expression at a position has, where an
     /// item declares that type.
     pub(super) type_paths: std::collections::BTreeMap<(u32, u32), String>,
@@ -150,17 +150,17 @@ pub(super) struct Settled {
     /// The written name says which method was spelled; this says which
     /// one it is. Two types with a `default` share the spelling and
     /// never the path.
-    pub(super) reached:   std::collections::BTreeMap<(u32, u32), String>,
+    pub(super) reached: std::collections::BTreeMap<(u32, u32), String>,
     /// Type of the expression at a position, as the compiler renders it
     /// in full.
     ///
     /// The outermost name answers most questions; the halves of a
     /// fallible answer are written inside the rendering and nowhere else.
-    pub(super) rendered:  std::collections::BTreeMap<(u32, u32), String>,
+    pub(super) rendered: std::collections::BTreeMap<(u32, u32), String>,
     /// How the call at a position takes the value it is written on.
-    pub(super) takes:     std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
+    pub(super) takes: std::collections::BTreeMap<(u32, u32), super::types::ParamMode>,
     /// Full path the written path at a position reaches.
-    pub(super) named:     std::collections::BTreeMap<(u32, u32), String>,
+    pub(super) named: std::collections::BTreeMap<(u32, u32), String>,
     /// Kind of item the path written at a position reaches.
     ///
     /// A path is either a name this body bound or an item declared
@@ -168,7 +168,7 @@ pub(super) struct Settled {
     /// last segment up in what the workspace happens to declare. The
     /// resolver knows, and a path it settles to no item is a local — which
     /// is why absence here is an answer and not a gap.
-    pub(super) items:     std::collections::BTreeMap<(u32, u32), String>
+    pub(super) items: std::collections::BTreeMap<(u32, u32), String>,
 }
 
 /// How a declared position is taken, in this tier's own vocabulary.
@@ -176,7 +176,7 @@ const fn declared_mode(mode: rustmanifest_schema::ResolvedMode) -> super::types:
     match mode {
         rustmanifest_schema::ResolvedMode::Owned => super::types::ParamMode::Owned,
         rustmanifest_schema::ResolvedMode::Borrowed => super::types::ParamMode::Borrowed,
-        rustmanifest_schema::ResolvedMode::BorrowedMut => super::types::ParamMode::BorrowedMut
+        rustmanifest_schema::ResolvedMode::BorrowedMut => super::types::ParamMode::BorrowedMut,
     }
 }
 
@@ -242,9 +242,10 @@ fn unnamed_shape(borrowless: &str) -> Option<&'static str> {
 /// Keyed by position because that is the only thing the overlay and the
 /// written text certainly share: the overlay names files by path, and a
 /// record naming another file is not about this one.
+#[allow(clippy::too_many_lines)]
 fn settled_types(
     resolution: Option<&rustmanifest_schema::Resolution>,
-    source: &Source
+    source: &Source,
 ) -> Settled {
     let mut settled = Settled::default();
     let Some(resolution) = resolution else {
@@ -290,7 +291,7 @@ fn settled_types(
         };
         settled.fields.insert(
             (field.at.range.start, field.at.range.end),
-            (owner, produced)
+            (owner, produced),
         );
     }
     for typed in &resolution.types {
@@ -304,7 +305,7 @@ fn settled_types(
         }
         settled.rendered.insert(
             (typed.at.range.start, typed.at.range.end),
-            typed.rendered.clone()
+            typed.rendered.clone(),
         );
         if let Some(declared) = typed.declared.clone() {
             settled
@@ -318,7 +319,7 @@ fn settled_types(
         }
         settled.returns.insert(
             (held.at.range.start, held.at.range.end),
-            held.returns.clone()
+            held.returns.clone(),
         );
         settled.params.insert(
             (held.at.range.start, held.at.range.end),
@@ -326,9 +327,9 @@ fn settled_types(
                 .iter()
                 .filter_map(|param| {
                     Some(super::types::ParamFacts {
-                        name:        param.name.clone(),
-                        type_name:   outermost(&param.named)?,
-                        mode:        match param.mode {
+                        name: param.name.clone(),
+                        type_name: outermost(&param.named)?,
+                        mode: match param.mode {
                             rustmanifest_schema::ResolvedMode::Owned => {
                                 super::types::ParamMode::Owned
                             }
@@ -339,11 +340,11 @@ fn settled_types(
                                 super::types::ParamMode::BorrowedMut
                             }
                         },
-                        uses:        0,
-                        field_reads: 0
+                        uses: 0,
+                        field_reads: 0,
                     })
                 })
-                .collect()
+                .collect(),
         );
     }
     for path in &resolution.paths {

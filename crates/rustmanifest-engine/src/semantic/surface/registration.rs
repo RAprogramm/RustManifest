@@ -39,8 +39,7 @@ fn record_registration(model: &FrameworkModel, call: &syn::ExprMethodCall, walk:
     };
     let handlers = arguments
         .get(1)
-        .map(|argument| method_router(model, argument))
-        .unwrap_or_default();
+        .map_or_default(|argument| method_router(model, argument));
     if handlers.is_empty() {
         walk.recovered.opaque_handler += 1;
         return;

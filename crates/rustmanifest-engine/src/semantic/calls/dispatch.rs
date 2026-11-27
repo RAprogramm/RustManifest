@@ -34,8 +34,7 @@ pub(super) fn dispatch_targets(
         }
     }
     ext_target(owner, method, context, by_qualified)
-        .map(|target| vec![target])
-        .unwrap_or_default()
+        .map_or_default(|target| vec![target])
 }
 
 /// Implementors of a trait, seen through the extension-trait pattern:

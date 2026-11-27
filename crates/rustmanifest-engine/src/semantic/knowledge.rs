@@ -19,9 +19,7 @@ mod syn;
 mod tempfile;
 mod tokio;
 
-pub(super) use self::{
-    statement::{statement_of, table_of}
-};
+pub(super) use self::statement::{statement_of, table_of};
 use super::behavior::Effect;
 
 /// Everything one pack knows about one crate.
@@ -44,8 +42,6 @@ const PACKS: [&CrateKnowledge; 5] = [
     &tempfile::PACK,
     &tokio::PACK
 ];
-
-
 
 /// Looks up the effect performed by a pack-known method call.
 pub(super) fn method_effect(owner: &str, method: &str) -> Option<Effect> {
@@ -140,9 +136,7 @@ pub(super) fn crate_effect(first_segment: &str) -> Option<Effect> {
     reason = "test code is allowed to fail loudly on broken invariants"
 )]
 mod tests {
-    use super::{
-        super::behavior::Effect, crate_effect, method_effect
-    };
+    use super::{super::behavior::Effect, crate_effect, method_effect};
 
     #[test]
     fn only_performing_methods_carry_effects() {

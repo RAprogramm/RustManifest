@@ -122,8 +122,7 @@ pub(super) fn library_knowledge() -> &'static StdOutputKnowledge {
     static DERIVED: std::sync::OnceLock<StdOutputKnowledge> = std::sync::OnceLock::new();
     DERIVED.get_or_init(|| {
         crate::semantic::std_derive::std_source_root()
-            .map(|root| crate::semantic::std_derive::output_knowledge(&root))
-            .unwrap_or_default()
+            .map_or_default(|root| crate::semantic::std_derive::output_knowledge(&root))
     })
 }
 

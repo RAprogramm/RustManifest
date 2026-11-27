@@ -2,6 +2,5 @@
 # SPDX-License-Identifier: MIT
 
 [toolchain]
-channel = "1.97.1"
-components = ["rustfmt", "clippy", "rust-src", "rust-analyzer", "llvm-tools-preview"]
-profile = "minimal"
+channel = "stable"
+components = ["clippy"]

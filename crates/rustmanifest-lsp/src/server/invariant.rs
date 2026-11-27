@@ -75,8 +75,7 @@ fn declared_invariants(root: Option<&Path>) -> Vec<rustmanifest_schema::Invarian
     rustmanifest_config::load(Some(&file))
         .ok()
         .and_then(|config| rustmanifest_config::Effective::from_config(config).ok())
-        .map(|effective| effective.invariants().to_vec())
-        .unwrap_or_default()
+        .map_or_default(|effective| effective.invariants().to_vec())
 }
 
 /// The finding's message with its derivation appended, one trace step

@@ -220,9 +220,7 @@ pub fn copyness(
     if types.ability_given(type_name, "Copy") {
         return Some(true);
     }
-    types
-        .type_named(type_name)
-        .map(|_| false)
+    types.type_named(type_name).map(|_| false)
 }
 
 /// What a resolver settled about values of the type named `named`, where
@@ -268,7 +266,10 @@ mod tests {
     /// call reaches.
     fn asked_settled(text: &str, at: &str, granted: &[(&str, bool)]) -> Option<Answer> {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let types = TypeGraph::from_sources(&sources);
         let offset = u32::try_from(text.find(at).unwrap()).unwrap() + 1;
         let mut resolution = rustmanifest_schema::Resolution {
@@ -283,7 +284,10 @@ mod tests {
             ..rustmanifest_schema::Resolution::default()
         };
         settle_identity(&mut resolution, &sources, &facts);
-        let graph = call_graph(&facts, &resolution_context_with(&sources, Some(&resolution)));
+        let graph = call_graph(
+            &facts,
+            &resolution_context_with(&sources, Some(&resolution))
+        );
         handover_at(&facts, &graph, &types, Some(&resolution), 0, offset)
     }
 
@@ -302,5 +306,4 @@ mod tests {
     fn a_callee_declaring_no_parameters_has_no_story() {
         assert!(asked("fn ping() {}\nfn main() { ping(); }", "ping()").is_none());
     }
-
 }

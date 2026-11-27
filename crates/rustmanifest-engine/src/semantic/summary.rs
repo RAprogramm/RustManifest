@@ -192,8 +192,7 @@ pub fn summaries_with(
             settled.remove(&fact).unwrap_or_else(|| FunctionSummary {
                 function: facts
                     .get(fact)
-                    .map(|own| own.function.clone())
-                    .unwrap_or_default(),
+                    .map_or_default(|own| own.function.clone()),
                 fact,
                 slots: Vec::new(),
                 result: ComposedOrigin::NotDerived(
@@ -230,7 +229,10 @@ mod tests {
     /// What a call to `function` hands back, in the caller's own terms.
     fn result(text: &str, function: &str) -> ComposedOrigin {
         let sources = [Source::new(PathBuf::from("src/lib.rs"), text.to_owned())];
-        let facts = crate::semantic::behavior_with(&sources, Some(&crate::semantic::settling::settled_over(&sources)));
+        let facts = crate::semantic::behavior_with(
+            &sources,
+            Some(&crate::semantic::settling::settled_over(&sources))
+        );
         let context = resolution_context(&sources);
         let graph = call_graph(&facts, &context);
         summaries(&sources, &facts, &graph)

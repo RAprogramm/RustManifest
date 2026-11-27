@@ -43,7 +43,7 @@ pub use self::{
     path::ResolvedPath,
     property::ResolvedProperty,
     signature::{ResolvedMode, ResolvedParam, ResolvedSignature},
-    typed::ResolvedType
+    typed::ResolvedType,
 };
 use crate::Location;
 
@@ -53,20 +53,20 @@ use crate::Location;
 pub struct Resolution {
     /// Version of the resolver that produced it, so a stale overlay is
     /// recognisable rather than silently trusted.
-    pub resolver:      String,
+    pub resolver: String,
     /// Calls the resolver settled, in file then position order.
-    pub calls:         Vec<ResolvedCall>,
+    pub calls: Vec<ResolvedCall>,
     /// Field accesses the resolver settled, in file then position order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub fields:        Vec<ResolvedField>,
+    pub fields: Vec<ResolvedField>,
     /// Types of expressions the resolver settled, in file then position
     /// order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub types:         Vec<ResolvedType>,
+    pub types: Vec<ResolvedType>,
     /// Written paths the resolver settled to an item, in file then position
     /// order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub paths:         Vec<ResolvedPath>,
+    pub paths: Vec<ResolvedPath>,
     /// What the compiler grants each type the workspace mentions, in name
     /// order. Keyed by type rather than by position: the property belongs
     /// to the type, not to the place it was written at.
@@ -76,26 +76,26 @@ pub struct Resolution {
     /// order. Which file holds which module is the compiler's answer, not
     /// something a file-name reading reconstructs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub modules:       Vec<ResolvedModule>,
+    pub modules: Vec<ResolvedModule>,
     /// Every function the workspace declares, in file then position order,
     /// named by the full path that reaches it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub functions:     Vec<ResolvedFunction>,
+    pub functions: Vec<ResolvedFunction>,
     /// What the compiler says each type the workspace mentions weighs, in
     /// name order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub layouts:       Vec<ResolvedLayout>,
+    pub layouts: Vec<ResolvedLayout>,
     /// Every type the workspace declares, with its fields, in file then
     /// position order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub declared:      Vec<ResolvedTypeDecl>,
+    pub declared: Vec<ResolvedTypeDecl>,
     /// Every trait every type carries, in type then trait order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub grants:        Vec<ResolvedGrant>,
+    pub grants: Vec<ResolvedGrant>,
     /// The signature of every declared function, in file then position
     /// order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub signatures:    Vec<ResolvedSignature>
+    pub signatures: Vec<ResolvedSignature>,
 }
 
 impl Resolution {
@@ -214,11 +214,18 @@ impl Resolution {
         positioned::settle(&mut self.paths);
         positioned::settle(&mut self.functions);
         positioned::settle(&mut self.signatures);
-        self.declared
-            .sort_by(|left, right| left.at.file.cmp(&right.at.file).then(left.at.range.start.cmp(&right.at.range.start)));
+        self.declared.sort_by(|left, right| {
+            left.at
+                .file
+                .cmp(&right.at.file)
+                .then(left.at.range.start.cmp(&right.at.range.start))
+        });
         self.declared.dedup();
-        self.grants
-            .sort_by(|left, right| left.named.cmp(&right.named).then(left.trait_name.cmp(&right.trait_name)));
+        self.grants.sort_by(|left, right| {
+            left.named
+                .cmp(&right.named)
+                .then(left.trait_name.cmp(&right.trait_name))
+        });
         self.grants.dedup();
         self.types_granted
             .sort_by(|left, right| left.named.cmp(&right.named));
@@ -247,24 +254,24 @@ mod tests {
 
     fn located(file: &str, start: u32) -> Location {
         Location {
-            file:  PathBuf::from(file),
+            file: PathBuf::from(file),
             range: Range {
                 start,
-                end: start + 4
-            }
+                end: start + 4,
+            },
         }
     }
 
     fn call(file: &str, start: u32, callee: &str) -> ResolvedCall {
         ResolvedCall {
-            at:       located(file, start),
-            callee:   callee.to_owned(),
-            returns:  "bool".to_owned(),
+            at: located(file, start),
+            callee: callee.to_owned(),
+            returns: "bool".to_owned(),
             receiver: None,
             receiver_path: None,
             caller_decides: false,
-            reaches:  None,
-            takes:    None
+            reaches: None,
+            takes: None,
         }
     }
 
@@ -322,14 +329,14 @@ mod tests {
             resolver: "test".to_owned(),
             types: vec![
                 ResolvedType {
-                    at:       located("src/lib.rs", 40),
+                    at: located("src/lib.rs", 40),
                     rendered: "u32".to_owned(),
-                    declared: None
+                    declared: None,
                 },
                 ResolvedType {
-                    at:       located("src/lib.rs", 10),
+                    at: located("src/lib.rs", 10),
                     rendered: "String".to_owned(),
-                    declared: None
+                    declared: None,
                 },
             ],
             ..Resolution::default()
@@ -351,16 +358,16 @@ mod tests {
             resolver: "test".to_owned(),
             paths: vec![
                 ResolvedPath {
-                    at:        located("src/lib.rs", 10),
-                    names:     "std::io::Error".to_owned(),
-                    kind:      "struct".to_owned(),
-                    declaring: "std".to_owned()
+                    at: located("src/lib.rs", 10),
+                    names: "std::io::Error".to_owned(),
+                    kind: "struct".to_owned(),
+                    declaring: "std".to_owned(),
                 },
                 ResolvedPath {
-                    at:        located("src/lib.rs", 30),
-                    names:     "mycrate::Error".to_owned(),
-                    kind:      "enum".to_owned(),
-                    declaring: "mycrate".to_owned()
+                    at: located("src/lib.rs", 30),
+                    names: "mycrate::Error".to_owned(),
+                    kind: "enum".to_owned(),
+                    declaring: "mycrate".to_owned(),
                 },
             ],
             ..Resolution::default()

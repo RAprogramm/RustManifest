@@ -129,19 +129,17 @@ mod tests {
     /// declares, without which the readings above answer nothing.
     fn insights_over(sources: &[Source]) -> Vec<crate::semantic::insight::Insight> {
         let settled = crate::semantic::settling::settled_over(sources);
-        literal_format_insights(&crate::semantic::workspace::Workspace::resolved(sources, &settled))
+        literal_format_insights(&crate::semantic::workspace::Workspace::resolved(
+            sources, &settled
+        ))
     }
 
     #[test]
     fn a_constant_through_the_format_machinery_is_reported() {
-        let constant = insights_over(&sources(
-            "fn main() {\n    println!(\"hi\");\n}"
-        ));
+        let constant = insights_over(&sources("fn main() {\n    println!(\"hi\");\n}"));
         assert_eq!(constant.len(), 1);
 
-        let computed = insights_over(&sources(
-            "fn main() {\n    println!(\"{name}\");\n}"
-        ));
+        let computed = insights_over(&sources("fn main() {\n    println!(\"{name}\");\n}"));
         assert!(computed.is_empty());
     }
 
